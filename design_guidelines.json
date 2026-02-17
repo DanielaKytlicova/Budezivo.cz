@@ -1,0 +1,198 @@
+{
+  "brand_identity": {
+    "name": "KulturaBooking",
+    "voice": "Professional, Calm, Institutional, Trustworthy",
+    "tone": "Stable, not startup-like. Speaks to directors of museums and schools.",
+    "language_defaults": {
+      "default_locale": "cs",
+      "supported_locales": ["cs", "en"],
+      "translations_path": "/app/frontend/src/i18n/"
+    }
+  },
+  "typography": {
+    "font_family": {
+      "headings": "Playfair Display, serif",
+      "body": "Manrope, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "scale": {
+      "h1": "text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight",
+      "h2": "text-3xl md:text-4xl font-semibold tracking-tight",
+      "h3": "text-2xl md:text-3xl font-medium",
+      "body_lg": "text-lg leading-relaxed",
+      "body_base": "text-base leading-relaxed",
+      "caption": "text-sm text-muted-foreground",
+      "label": "text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+    },
+    "weights": {
+      "regular": 400,
+      "medium": 500,
+      "semibold": 600,
+      "bold": 700
+    },
+    "imports": [
+      "@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');"
+    ]
+  },
+  "colors": {
+    "semantic": {
+      "primary": {
+        "name": "Institutional Slate",
+        "token": "bg-slate-800",
+        "hex": "#1E293B",
+        "usage": "Main actions, headers, strong text"
+      },
+      "secondary": {
+        "name": "Education Sage",
+        "token": "bg-[#84A98C]",
+        "hex": "#84A98C",
+        "usage": "Success states, educational accents, secondary buttons"
+      },
+      "accent": {
+        "name": "Heritage Gold",
+        "token": "bg-[#E9C46A]",
+        "hex": "#E9C46A",
+        "usage": "CTAs, highlights, premium tiers"
+      },
+      "background": {
+        "name": "Gallery White",
+        "token": "bg-[#FDFCF8]",
+        "hex": "#FDFCF8",
+        "usage": "Page background (warm white, not clinical)"
+      },
+      "surface": {
+        "name": "Pure White",
+        "token": "bg-white",
+        "hex": "#FFFFFF",
+        "usage": "Cards, Modals, Dropdowns"
+      },
+      "muted": {
+        "name": "Stone Grey",
+        "token": "bg-stone-100",
+        "hex": "#F5F5F4",
+        "usage": "Secondary backgrounds, borders"
+      },
+      "text": {
+        "primary": "text-slate-900",
+        "secondary": "text-slate-500",
+        "inverted": "text-white"
+      }
+    },
+    "chart_palette": [
+      "#1E293B",
+      "#84A98C",
+      "#E9C46A",
+      "#F4A261",
+      "#2A9D8F"
+    ]
+  },
+  "theme_customization": {
+    "description": "Multi-tenant theming system instructions",
+    "mechanism": "CSS Variables",
+    "overrides": [
+      "--primary",
+      "--primary-foreground",
+      "--secondary",
+      "--secondary-foreground",
+      "--radius",
+      "--font-heading"
+    ],
+    "implementation_notes": "Admin panel must generate a <style> block or update CSS variables on the root of the public booking page wrapper. Default to 'Global Theme' if no custom theme is set."
+  },
+  "layout": {
+    "grid_system": {
+      "marketing": "grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-12",
+      "dashboard": "grid grid-cols-1 md:grid-cols-4 gap-4",
+      "booking_flow": "max-w-xl mx-auto flex flex-col gap-6"
+    },
+    "spacing": {
+      "section_padding": "py-16 md:py-24",
+      "container_padding": "px-4 md:px-8",
+      "card_padding": "p-6 md:p-8"
+    },
+    "containers": {
+      "max_width": "max-w-7xl mx-auto",
+      "narrow": "max-w-3xl mx-auto"
+    }
+  },
+  "components": {
+    "buttons": {
+      "base": "inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 h-11 px-8 shadow-sm",
+      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80 h-11 px-8",
+      "outline": "border border-input bg-background hover:bg-accent hover:text-accent-foreground h-11 px-8",
+      "ghost": "hover:bg-accent hover:text-accent-foreground h-10 px-4",
+      "link": "text-primary underline-offset-4 hover:underline h-10 px-0"
+    },
+    "cards": {
+      "style": "bg-white rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow duration-200",
+      "header": "p-6 pb-0 space-y-1.5",
+      "content": "p-6 pt-4",
+      "footer": "p-6 pt-0 flex items-center"
+    },
+    "inputs": {
+      "style": "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    }
+  },
+  "visual_enhancers": {
+    "shadows": {
+      "soft": "shadow-[0_2px_15px_-3px_rgba(0,0,0,0.07),0_10px_20px_-2px_rgba(0,0,0,0.04)]",
+      "hover": "shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+    },
+    "borders": {
+      "subtle": "border-slate-200",
+      "active": "border-slate-800"
+    },
+    "textures": {
+      "noise": "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E\")"
+    }
+  },
+  "assets": {
+    "hero_image": {
+      "url": "https://images.unsplash.com/photo-1625358775317-a4f33370c520",
+      "alt": "Modern bright museum gallery with visitors",
+      "usage": "Homepage Hero Background or Side Image"
+    },
+    "students_image": {
+      "url": "https://images.unsplash.com/photo-1645735172210-7002a463516a",
+      "alt": "Students looking at art",
+      "usage": "Problem/Solution section context"
+    },
+    "testimonial_avatar": {
+      "url": "https://images.unsplash.com/photo-1758518729459-235dcaadc611",
+      "alt": "Museum Director Portrait",
+      "usage": "Testimonial Card"
+    },
+    "icons": "Lucide React (default)"
+  },
+  "motion": {
+    "duration": {
+      "fast": "150ms",
+      "normal": "300ms",
+      "slow": "500ms"
+    },
+    "easing": "ease-out",
+    "rules": [
+      "No bouncing or elastic effects.",
+      "Fade-in + slight slide-up (10px) for page loads.",
+      "Scale up (1.02) on card hover."
+    ]
+  },
+  "accessibility": {
+    "rules": [
+      "Ensure 4.5:1 contrast ratio for all text.",
+      "Use semantic HTML (main, section, nav).",
+      "Focus states must be clearly visible (ring-2).",
+      "All images must have descriptive alt text."
+    ]
+  },
+  "universal_guidelines": [
+    "Do not use gradients for backgrounds. Use solid colors or subtle noise textures.",
+    "Avoid 'Startu-y' illustrations. Use photography or clean iconography.",
+    "Forms in the booking flow must be single-column on mobile.",
+    "Admin dashboard must prioritize data density without clutter.",
+    "Use Czech language for all hardcoded text in the codebase, but wrap in i18n keys.",
+    "Data-testids are mandatory for all interactive elements."
+  ],
+  "instructions_to_main_agent": "You are building a cultural booking system. Respect the 'Institutional Zen' vibe. The frontend is the face of public institutions - it must be perfect, accessible, and stable. Prioritize the Mobile Booking Flow - this is where the money is made. Ensure the Admin Dashboard handles complex schedules easily. Use the provided image URLs for the marketing site."
+}

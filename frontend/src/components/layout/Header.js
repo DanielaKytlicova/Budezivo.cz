@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { Button } from '../ui/button';
 import { LogOut } from 'lucide-react';
@@ -33,9 +33,11 @@ const BudezivoLogo = ({ showText = true, className = "" }) => (
 
 export const Header = ({ minimal = false }) => {
   const { user, logout } = useContext(AuthContext);
+  const location = useLocation();
 
-  // Detekce mobilní verze
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  // Stránky kde se zobrazí tlačítko "Vyzkoušet zdarma" a "Přihlášení"
+  const publicPages = ['/', '/funkce', '/tarify', '/gdpr', '/kontakt'];
+  const isPublicPage = publicPages.includes(location.pathname);
 
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -43,31 +45,29 @@ export const Header = ({ minimal = false }) => {
         <Link to="/" className="flex items-center" data-testid="logo-link">
           {/* Na mobilu při přihlášení/správě zobrazit pouze ikonu */}
           <div className="md:hidden">
-            <BubezivoLogo showText={!minimal} />
+            <BudezivoLogo showText={!minimal} />
           </div>
           {/* Na desktopu vždy plné logo */}
           <div className="hidden md:block">
-            <BubezivoLogo showText={true} />
+            <BudezivoLogo showText={true} />
           </div>
         </Link>
 
-        {/* Navigace - pouze na desktopu a na homepage */}
-        {!minimal && (
+        {/* Navigace - pouze na veřejných stránkách */}
+        {isPublicPage && !user && (
           <nav className="hidden md:flex items-center space-x-8">
-            <a href="#funkce" className="text-[#4A6FA5] text-sm font-medium hover:text-[#3d5c89] transition-colors">
+            <a href="/#funkce" className="text-[#4A6FA5] text-sm font-medium hover:text-[#3d5c89] transition-colors">
               Funkce
             </a>
-            <a href="#pricing" className="text-[#4A6FA5] text-sm font-medium hover:text-[#3d5c89] transition-colors">
+            <a href="/#pricing" className="text-[#4A6FA5] text-sm font-medium hover:text-[#3d5c89] transition-colors">
               Tarify
             </a>
-            <a href="#faq" className="text-[#4A6FA5] text-sm font-medium hover:text-[#3d5c89] transition-colors">
+            <a href="/#faq" className="text-[#4A6FA5] text-sm font-medium hover:text-[#3d5c89] transition-colors">
               FAQ
             </a>
-            {!user && (
-              <Link to="/login" className="text-[#4A6FA5] text-sm font-medium hover:text-[#3d5c89] transition-colors">
-                Přihlášení
-              </Link>
-            )}
+            <Link to="/kontakt" className="text-[#4A6FA5] text-sm font-medium hover:text-[#3d5c89] transition-colors">
+              Kontakt
+            </Link>
           </nav>
         )}
 
@@ -91,15 +91,30 @@ export const Header = ({ minimal = false }) => {
               </Button>
             </>
           ) : (
-            /* Tlačítko "Vyzkoušet zdarma" - pouze na desktopu */
-            <Link to="/register" data-testid="register-link" className="hidden md:block">
-              <Button 
-                size="sm" 
-                className="bg-[#C4AB86] text-white hover:bg-[#b39975] rounded-lg px-6 h-10"
-              >
-                Vyzkoušet zdarma
-              </Button>
-            </Link>
+            /* Tlačítka pouze na veřejných stránkách */
+            isPublicPage && (
+              <>
+                {/* Přihlášení - vždy viditelné */}
+                <Link to="/login" data-testid="login-link" className="hidden md:block">
+                  <Button 
+                    variant="ghost"
+                    size="sm" 
+                    className="text-[#4A6FA5] hover:text-[#3d5c89]"
+                  >
+                    Přihlášení
+                  </Button>
+                </Link>
+                {/* Vyzkoušet zdarma */}
+                <Link to="/register" data-testid="register-link" className="hidden md:block">
+                  <Button 
+                    size="sm" 
+                    className="bg-[#C4AB86] text-white hover:bg-[#b39975] rounded-lg px-6 h-10"
+                  >
+                    Vyzkoušet zdarma
+                  </Button>
+                </Link>
+              </>
+            )
           )}
         </div>
       </div>
@@ -108,4 +123,4 @@ export const Header = ({ minimal = false }) => {
 };
 
 // Export loga pro použití jinde
-export { BubezivoLogo };
+export { BudezivoLogo };

@@ -22,6 +22,7 @@ import { SchoolsPage } from './pages/admin/SchoolsPage';
 import { StatisticsPage } from './pages/admin/StatisticsPage';
 import { SettingsPage } from './pages/admin/SettingsPage';
 import { PlanPage } from './pages/admin/PlanPage';
+import { TeamPage } from './pages/admin/TeamPage';
 
 import './App.css';
 
@@ -94,6 +95,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <PlanPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/team"
+                element={
+                  <ProtectedRoute>
+                    <TeamPage />
                   </ProtectedRoute>
                 }
               />

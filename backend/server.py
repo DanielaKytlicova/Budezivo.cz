@@ -546,7 +546,7 @@ async def get_public_theme_settings(institution_id: str):
     return theme
 
 @api_router.put("/settings/theme", response_model=ThemeSettings)
-async def update_theme_settings(theme_data: ThemeSettings, current_user: dict = Depends(get_current_user)):
+async def update_theme_settings(theme_data: ThemeUpdate, current_user: dict = Depends(get_current_user)):
     theme_dict = theme_data.model_dump()
     theme_dict["institution_id"] = current_user["institution_id"]
     
@@ -555,7 +555,13 @@ async def update_theme_settings(theme_data: ThemeSettings, current_user: dict = 
         {"$set": theme_dict},
         upsert=True
     )
-    return theme_data
+    
+    # Return the complete theme settings
+    updated_theme = await db.theme_settings.find_one(
+        {"institution_id": current_user["institution_id"]},
+        {"_id": 0}
+    )
+    return updated_theme
 
 # ============ Payment Routes ============
 

@@ -1,11 +1,14 @@
-# KulturaBooking - Product Requirements Document
+# Bubeživo.cz - Product Requirements Document
 
 ## Přehled projektu
 Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, galerie, knihovny).
 
+**Brand:** Bubeživo.cz  
+**Logo:** Minimalistické logo - check mark ikona + název
+
 ## Základní požadavky
 - **Cílová skupina:** České veřejné kulturní instituce
-- **Jazyk:** Čeština (default) + Angličtina
+- **Jazyk:** Čeština (default)
 - **Design:** Mobile-first, responsivní
 
 ## Architektura
@@ -18,127 +21,95 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 
 ## ✅ IMPLEMENTOVANÉ FUNKCE
 
-### 1. Veřejná marketingová stránka (HomePage)
+### 1. Branding - Bubeživo.cz (NOVÉ - 17.2.2026)
+- Minimalistické logo: check mark ikona + název "Bubeživo.cz"
+- Barvy: #4A6FA5 (hlavní), #C4AB86 (akcent)
+- Na mobilu při přihlášení/správě: pouze ikona loga
+- Skryté tlačítko "Vyzkoušet zdarma" na mobilu v headeru
+
+### 2. Role systém (NOVÉ - 17.2.2026)
+**3 role s různými oprávněními:**
+
+| Role | Oprávnění |
+|------|-----------|
+| **Administrátor** | Plný přístup - správa týmu, nastavení, všechny funkce |
+| **Zaměstnanec** | Správa programů, rezervací, škol |
+| **Návštěvník** | Pouze prohlížení dat |
+
+**API Endpointy:**
+- `GET /api/team` - seznam členů týmu
+- `POST /api/team/invite` - pozvání nového člena
+- `PATCH /api/team/{id}/role` - změna role
+- `DELETE /api/team/{id}` - odebrání člena
+
+**UI stránka:** `/admin/team` - Správa týmu
+
+### 3. Veřejná marketingová stránka (HomePage)
 - Hero sekce s CTA
 - Problem/Solution sekce
 - Cenový přehled (Free, Basic, Standard, Premium)
 - FAQ sekce
 - "Domluvit online ukázku" dialog
 
-### 2. Registrace instituce - 4-krokový wizard (NOVÉ - 17.2.2026)
+### 4. Registrace instituce - 4-krokový wizard
 **Krok 1 - Základní údaje:**
 - Název instituce
 - Typ instituce (Muzeum, Galerie, Knihovna, Botanická zahrada, Divadlo, Jiné)
 - Země (ČR, SK)
-- Admin email
-- Heslo
-- GDPR souhlas (povinný)
+- Admin email, Heslo
+- GDPR souhlas
 
 **Krok 2 - Informace o instituci:**
-- Adresa instituce
-- Město (výběr z českých měst)
-- IČ/DIČ
+- Adresa, Město, IČ/DIČ
 - Logo instituce (URL)
-- Hlavní barevnost (color picker)
-- Sekundární barevnost (color picker)
+- Hlavní/sekundární barevnost
 
 **Krok 3 - Nabídka návštěvní doby:**
-- Dny v týdnu (Po-Ne toggle buttons)
-- Časové bloky (s možností přidat/odebrat)
-- Termín (od-do datum)
+- Dny v týdnu (Po-Ne toggle)
+- Časové bloky
+- Termín (od-do)
 
 **Krok 4 - Hlavní nastavení programů:**
-- Výchozí popis pro pedagogy
-- Výchozí délka (min)
-- Výchozí kapacita
-- Výchozí cílová skupina
+- Výchozí popis, délka, kapacita, cílová skupina
 
-### 3. Správa programů - 2 záložky (NOVÉ - 17.2.2026)
+### 5. Správa programů - 2 záložky
 **Tab Detail:**
 - Základní informace: Název, Popis, Cílová skupina
-- Kapacita a trvání: Doba trvání, Max kapacita, Min účastníků
+- Kapacita a trvání: Doba trvání, Max/Min kapacita
 - Ceník: Tarif (Zdarma/Placený), Cena
-- Další nastavení:
-  - Vyžaduje schválení (switch)
-  - Zveřejnit program (switch)
-  - Odeslat upozornění mailem (switch)
-- Status: Aktivní / Koncept / Archivovat (radio)
+- Další nastavení: Vyžaduje schválení, Zveřejnit, Email notifikace
+- Status: Aktivní / Koncept / Archivovat
 
 **Tab Nastavení:**
-- Nabízené dny (Po-Ne buttons)
-- Časové bloky (seznam s přepínači)
-- Termín (Začátek/Konec programu)
-- Parametry rezervace:
-  - Min počet dnů před rezervací
-  - Max počet dnů před rezervací
-  - Potřebná doba na přípravu (min)
-  - Potřebný čas na úklid (min)
+- Nabízené dny, Časové bloky
+- Termín programu
+- Parametry rezervace (min/max dní, příprava, úklid)
 
-**Seznam programů:**
-- Karty s názvem, popisem, štítky (cílová skupina, status)
-- Ikony: doba trvání, kapacita
-- Akce: Duplikovat, Archivovat
-- Plovoucí FAB tlačítko pro vytvoření nového
+### 6. GDPR stránka pro ČR
+9 sekcí podle českých právních požadavků
 
-### 4. GDPR stránka pro ČR (NOVÉ - 17.2.2026)
-9 sekcí podle českých právních požadavků:
-1. Správce osobních údajů
-2. Účely zpracování
-3. Právní základ zpracování
-4. Rozsah zpracovávaných údajů
-5. Doba uchování údajů
-6. Vaše práva
-7. Kontakt a podání stížnosti (ÚOOÚ)
-8. Zabezpečení údajů
-9. Používání cookies
-
-### 5. Admin Dashboard
-- Dnešní rezervace
-- Nadcházející skupiny
-- Vytížení kapacity
-- Limit rezervací
+### 7. Admin Dashboard
+- Přehled rezervací
 - Rychlé akce
-
-### 6. Další admin stránky
-- Rezervace (seznam, filtry, akce)
-- Školy/Skupiny
-- Statistiky (placeholder)
-- Nastavení (téma, barvy, logo)
-- Tarif (upgrade plány)
-
-### 7. Veřejná rezervační stránka
-- 4-krokový booking flow
-- Výběr programu
-- Výběr termínu (kalendář)
-- Kontaktní údaje
-- Potvrzení
+- Statistiky
 
 ---
 
-## 🔜 NADCHÁZEJÍCÍ ÚKOLY (P1)
+## 🔜 NADCHÁZEJÍCÍ ÚKOLY (P1-P2)
 
-### Stripe integrace
-- Test klíče dostupné
-- Implementovat platební flow pro upgrade tarifu
+### P1 - Statistiky a reporty
+- Grafy návštěvnosti
+- Export do CSV
 
-### Role systém
-- Admin, Staff, Viewer role
-- Oprávnění v admin panelu
-
-### Přepínač jazyků
-- Funkční toggle CZ/EN v headeru
-- i18n soubory připraveny (cs.json, en.json)
+### P2 - Email notifikace
+- Integrace Resend/SendGrid
+- Automatické připomínky
 
 ---
 
-## 📋 BUDOUCÍ ÚKOLY (P2-P3)
+## 📋 BUDOUCÍ ÚKOLY (P3)
 
-### P2
-- Statistiky a reporty (grafy)
 - Hromadné akce pro rezervace
-
-### P3
-- Email notifikace (Resend/SendGrid integrace)
 - GDPR export/smazání dat
 - API přístup pro Premium
 
@@ -146,47 +117,57 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 
 ## Technické poznámky
 
-### Backend modely (server.py)
-- `UserCreate` - rozšířen o step 2-4 pole
-- `ProgramBase` - rozšířen o nové atributy (requires_approval, time_blocks, booking params)
-- `Institution` - rozšířen o default settings
-
 ### Frontend struktura
 ```
 /app/frontend/src/
+├── components/layout/
+│   ├── Header.js (s BubezivoLogo komponentou)
+│   ├── Footer.js
+│   └── AdminLayout.js (role-based navigace)
 ├── pages/
 │   ├── public/
 │   │   ├── HomePage.js
-│   │   ├── LoginPage.js
-│   │   ├── RegisterPage.js (4-krokový wizard)
+│   │   ├── LoginPage.js (minimal header)
+│   │   ├── RegisterPage.js
 │   │   ├── BookingPage.js
-│   │   ├── GDPRPage.js (NOVÉ)
-│   │   └── ForgotPasswordPage.js
+│   │   └── GDPRPage.js
 │   └── admin/
 │       ├── DashboardPage.js
-│       ├── ProgramsPage.js (2 záložky)
+│       ├── ProgramsPage.js
 │       ├── BookingsPage.js
 │       ├── SchoolsPage.js
 │       ├── StatisticsPage.js
 │       ├── SettingsPage.js
-│       └── PlanPage.js
+│       ├── PlanPage.js
+│       └── TeamPage.js (NOVÉ)
 ```
 
-### API Endpoints
-- `POST /api/auth/register` - rozšířen o nová pole
-- `POST /api/programs` - rozšířen o nové atributy
-- `PUT /api/programs/{id}` - aktualizace s novými poli
+### Backend API - Team Management
+- `GET /api/team` - TeamMember model
+- `POST /api/team/invite` - TeamInvite model
+- `PATCH /api/team/{id}/role` - RoleUpdate model
+- `DELETE /api/team/{id}`
 
-### Testování
-- Backend: 100% (21/21 testů)
-- Frontend: 95% (drobné accessibility opravy provedeny)
-- Test report: `/app/test_reports/iteration_2.json`
+### Role-based Access Control
+Navigace v AdminLayout filtrována podle role uživatele:
+- Admin: všechny položky včetně Tým a Nastavení
+- Staff: Přehled, Programy, Rezervace, Školy, Statistiky
+- Viewer: Přehled, Programy, Rezervace
 
 ---
 
 ## Přihlašovací údaje pro testování
-- Email: test@muzeum.cz
-- Heslo: password123
+- Admin: test@muzeum.cz / password123
+- Staff: kolega@muzeum.cz / f7471883
+
+---
+
+## Změny od minulé verze
+- ~~KulturaBooking~~ → **Bubeživo.cz**
+- Přidán role systém (Admin, Staff, Viewer)
+- Skrytý přepínač jazyků
+- Přeskočena Stripe integrace
+- Mobile UI optimalizace (pouze ikona loga při přihlášení)
 
 ---
 

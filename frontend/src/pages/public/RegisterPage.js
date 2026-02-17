@@ -66,11 +66,12 @@ export const RegisterPage = () => {
               <Select
                 value={formData.institution_type}
                 onValueChange={(value) => setFormData({ ...formData, institution_type: value })}
+                required
               >
                 <SelectTrigger className="mt-2" data-testid="register-institution-type-select">
                   <SelectValue placeholder={t('auth.register.institutionType')} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-50">
                   <SelectItem value="museum">{t('auth.register.types.museum')}</SelectItem>
                   <SelectItem value="gallery">{t('auth.register.types.gallery')}</SelectItem>
                   <SelectItem value="library">{t('auth.register.types.library')}</SelectItem>

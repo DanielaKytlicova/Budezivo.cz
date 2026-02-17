@@ -4,8 +4,8 @@ import { AuthContext } from '../../context/AuthContext';
 import { Button } from '../ui/button';
 import { LogOut } from 'lucide-react';
 
-// Minimalistické logo Bubeživo.cz - název + check-in ikona
-const BubezivoLogo = ({ showText = true, className = "" }) => (
+// Minimalistické logo Budeživo.cz - název + check-in ikona
+const BudezivoLogo = ({ showText = true, className = "" }) => (
   <div className={`flex items-center gap-2 ${className}`}>
     {/* Check-in ikona */}
     <div className="w-8 h-8 rounded-lg bg-[#4A6FA5] flex items-center justify-center">
@@ -25,7 +25,7 @@ const BubezivoLogo = ({ showText = true, className = "" }) => (
     {/* Název */}
     {showText && (
       <span className="font-bold text-[#4A6FA5] text-xl tracking-tight">
-        Bubeživo<span className="text-[#C4AB86]">.cz</span>
+        Budeživo<span className="text-[#C4AB86]">.cz</span>
       </span>
     )}
   </div>

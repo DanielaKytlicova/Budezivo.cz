@@ -181,6 +181,27 @@ export const HomePage = () => {
         </div>
       </section>
 
+      {/* Demo Booking Section */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 md:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900 mb-4">
+              Vyzkoušejte si rezervační systém
+            </h2>
+            <p className="text-lg text-slate-600">
+              Projděte si ukázkový proces rezervace jako učitel nebo vedoucí skupiny
+            </p>
+          </div>
+          <div className="flex justify-center">
+            <Link to="/booking/demo" data-testid="try-booking-demo">
+              <Button size="lg" className="bg-[#84A98C] text-white hover:bg-[#84A98C]/90 h-12 px-8 shadow-sm">
+                Vyzkoušet rezervační formulář
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Pricing Section */}
       <section id="pricing" className="py-16 md:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 md:px-8">

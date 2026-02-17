@@ -274,7 +274,7 @@ export const RegisterPage = () => {
         className="w-full bg-slate-800 text-white hover:bg-slate-700"
         onClick={nextStep}
       >
-        Vytvořit účet instituce
+        Vytvořit účet
       </Button>
 
       <div className="text-center text-sm">

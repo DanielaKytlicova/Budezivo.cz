@@ -239,13 +239,30 @@ async def register(user_data: UserCreate):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Create institution
+    # Create institution with extended data
     institution_id = str(uuid.uuid4())
     institution = {
         "id": institution_id,
         "name": user_data.institution_name,
         "type": user_data.institution_type,
         "country": user_data.country,
+        "address": user_data.address,
+        "city": user_data.city,
+        "ico_dic": user_data.ico_dic,
+        "logo_url": user_data.logo_url,
+        # Default operating settings
+        "default_available_days": user_data.default_available_days or ["monday", "tuesday", "wednesday", "thursday", "friday"],
+        "default_time_blocks": user_data.default_time_blocks or [{"start": "09:00", "end": "10:00"}],
+        "operating_start_date": user_data.operating_start_date,
+        "operating_end_date": user_data.operating_end_date,
+        # Default program settings
+        "default_program_description": user_data.default_program_description,
+        "default_program_duration": user_data.default_program_duration or 60,
+        "default_program_capacity": user_data.default_program_capacity or 30,
+        "default_target_group": user_data.default_target_group or "schools",
+        # Plan info
+        "plan": "free",
+        "programs_limit": 3,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.institutions.insert_one(institution)
@@ -258,17 +275,19 @@ async def register(user_data: UserCreate):
         "password_hash": hash_password(user_data.password),
         "institution_id": institution_id,
         "role": "admin",
+        "gdpr_consent": user_data.gdpr_consent,
+        "gdpr_consent_date": datetime.now(timezone.utc).isoformat(),
         "created_at": datetime.now(timezone.utc).isoformat()
     }
     await db.users.insert_one(user)
 
-    # Create default theme settings
+    # Create default theme settings with custom colors
     theme = {
         "institution_id": institution_id,
-        "primary_color": "#1E293B",
-        "secondary_color": "#84A98C",
+        "primary_color": user_data.primary_color or "#1E293B",
+        "secondary_color": user_data.secondary_color or "#84A98C",
         "accent_color": "#E9C46A",
-        "logo_url": None,
+        "logo_url": user_data.logo_url,
         "header_style": "light",
         "footer_text": None
     }

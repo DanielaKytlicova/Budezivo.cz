@@ -271,8 +271,8 @@ export const GDPRPage = () => {
                 
                 <div className="bg-slate-50 rounded-lg p-4 mb-4">
                   <p className="text-sm text-gray-600">
-                    <strong>E-mail:</strong> gdpr@kulturabooking.cz<br />
-                    <strong>Písemně:</strong> KulturaBooking, [Adresa], [PSČ] [Město]
+                    <strong>E-mail:</strong> gdpr@bubezivo.cz<br />
+                    <strong>Písemně:</strong> Bubeživo.cz, [Adresa], [PSČ] [Město]
                   </p>
                 </div>
 

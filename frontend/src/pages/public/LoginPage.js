@@ -1,8 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useTranslation } from '../../i18n/useTranslation';
 import { AuthContext } from '../../context/AuthContext';
-import { Header } from '../../components/layout/Header';
+import { Header, BubezivoLogo } from '../../components/layout/Header';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -11,7 +10,6 @@ import { toast } from 'sonner';
 import { Mail, Lock } from 'lucide-react';
 
 export const LoginPage = () => {
-  const { t } = useTranslation();
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -38,13 +36,17 @@ export const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
-      <Header />
+      {/* Minimal header - na mobilu pouze ikona loga */}
+      <Header minimal={true} />
+      
       <div className="flex min-h-[calc(100vh-4rem)]">
         {/* Left Column - Form */}
         <div className="flex-1 flex items-center justify-center px-6 py-12">
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
-              <h1 className="text-2xl font-bold text-[#4A6FA5] mb-2">RezervačníSystém</h1>
+              <div className="hidden md:block">
+                <BubezivoLogo className="justify-center" />
+              </div>
             </div>
 
             <div className="mb-8">
@@ -121,13 +123,13 @@ export const LoginPage = () => {
               <p className="text-sm text-gray-600 mb-4">Ještě nemáte účet?</p>
               <Link to="/register" data-testid="register-link-from-login">
                 <Button variant="outline" className="w-full border-2 border-[#4A6FA5] text-[#4A6FA5] hover:bg-[#4A6FA5]/5 h-12 rounded-lg">
-                  Vyzkoušet zdarma
+                  Registrovat instituci
                 </Button>
               </Link>
             </div>
 
             <p className="mt-6 text-xs text-center text-gray-500">
-              Přihlášením souhlasíte s našimi podmínkami použití a zásadami ochrany soukromí
+              Přihlášením souhlasíte s našimi <Link to="/gdpr" className="underline">zásadami ochrany soukromí</Link>
             </p>
           </div>
         </div>

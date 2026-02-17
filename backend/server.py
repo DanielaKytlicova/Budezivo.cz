@@ -74,7 +74,24 @@ class ProgramBase(BaseModel):
     max_capacity: int = 30
     target_group: str  # "schools" or "public"
     price: Optional[float] = 0.0
-    status: str = "active"
+    status: str = "active"  # "active", "concept", "archived"
+    
+    # New attributes from Figma
+    requires_approval: bool = False
+    is_published: bool = True
+    send_email_notification: bool = False
+    
+    # Schedule settings
+    available_days: List[str] = ["monday", "tuesday", "wednesday", "thursday", "friday"]  # Days of week
+    time_blocks: List[str] = ["09:00-10:30"]  # Available time blocks
+    start_date: Optional[str] = None  # Program start date
+    end_date: Optional[str] = None  # Program end date
+    
+    # Booking parameters
+    min_days_before_booking: int = 14
+    max_days_before_booking: int = 90
+    preparation_time: int = 10  # minutes
+    cleanup_time: int = 30  # minutes
 
 class ProgramCreate(ProgramBase):
     pass

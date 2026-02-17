@@ -20,6 +20,7 @@ export const SettingsPage = () => {
     accent_color: '#E9C46A',
     header_style: 'light',
     footer_text: '',
+    logo_url: '',
   });
 
   useEffect(() => {
@@ -58,6 +59,38 @@ export const SettingsPage = () => {
           <h2 className="text-xl font-semibold text-slate-900 mb-6">{t('settings.theme')}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-6" data-testid="settings-form">
+            <div>
+              <Label htmlFor="logo_url">{t('settings.logo')}</Label>
+              <div className="mt-2 space-y-2">
+                <Input
+                  id="logo_url"
+                  type="url"
+                  data-testid="logo-url-input"
+                  value={formData.logo_url}
+                  onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
+                  placeholder="https://example.com/logo.png"
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Zadejte URL adresu vašeho loga (doporučená velikost: 200x60px)
+                </p>
+                {formData.logo_url && (
+                  <div className="mt-4 p-4 border border-border rounded-md bg-muted">
+                    <p className="text-sm font-medium mb-2">Náhled:</p>
+                    <img
+                      src={formData.logo_url}
+                      alt="Logo preview"
+                      className="max-h-16 object-contain"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.parentElement.innerHTML += '<p class="text-sm text-red-600">Nepodařilo se načíst obrázek</p>';
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <Label htmlFor="primary_color">{t('settings.primaryColor')}</Label>

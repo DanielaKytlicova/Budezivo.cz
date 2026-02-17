@@ -170,11 +170,9 @@ export const RegisterPage = () => {
 
   const renderStep1 = () => (
     <div className="space-y-6" data-testid="register-step-1">
-      {/* Logo placeholder */}
+      {/* Bubeživo logo */}
       <div className="flex justify-center mb-6">
-        <div className="w-32 h-16 bg-gray-100 rounded flex items-center justify-center text-gray-400 text-sm">
-          Logo
-        </div>
+        <BubezivoLogo />
       </div>
 
       <div>

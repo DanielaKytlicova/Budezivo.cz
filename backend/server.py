@@ -69,7 +69,9 @@ class ProgramBase(BaseModel):
     description_cs: str
     description_en: str
     duration: int  # minutes
-    capacity: int
+    age_group: str  # "ms_3_6", "zs1_7_12", "zs2_12_15", "ss_14_18", "gym_14_18", "adults"
+    min_capacity: int = 5
+    max_capacity: int = 30
     target_group: str  # "schools" or "public"
     price: Optional[float] = 0.0
     status: str = "active"
@@ -86,13 +88,15 @@ class Program(ProgramBase):
 class BookingBase(BaseModel):
     program_id: str
     date: str
-    time_slot: str
+    time_block: str  # "08:00-09:00", "09:00-10:30", etc.
     school_name: str
+    group_type: str  # "ms_3_6", "zs1_7_12", etc.
+    age_or_class: str  # "3-4 roky" or "4.A"
+    num_students: int
+    special_requirements: Optional[str] = ""
     contact_name: str
     contact_email: EmailStr
     contact_phone: str
-    num_students: int
-    notes: Optional[str] = ""
     gdpr_consent: bool = True
 
 class BookingCreate(BookingBase):

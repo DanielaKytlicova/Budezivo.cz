@@ -5,8 +5,8 @@ import { Footer } from '../../components/layout/Footer';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
-import { Check, Mail, Calendar, Users, BarChart, CheckCircle } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Check } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -24,177 +24,121 @@ export const HomePage = () => {
     availability: '',
   });
 
-  const pricingTiers = ['free', 'basic', 'standard', 'premium'];
-
   const handleDemoSubmit = async (e) => {
     e.preventDefault();
-    // Mock submission - in production, send to backend
     toast.success('Děkujeme! Brzy vás budeme kontaktovat.');
     setShowDemoDialog(false);
     setDemoFormData({ name: '', institution: '', email: '', availability: '' });
   };
 
+  const pricingTiers = ['free', 'basic', 'standard', 'premium'];
+
   return (
-    <div className="min-h-screen bg-[#FDFCF8]">
+    <div className="min-h-screen bg-[#F8F9FA]">
       <Header />
 
       {/* Hero Section */}
-      <section className="py-16 md:py-24">
-        <div className="max-w-7xl mx-auto px-4 md:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-12 items-center">
-            <div className="md:col-span-7">
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-slate-900 leading-tight mb-6">
-                {t('hero.title')}
-              </h1>
-              <p className="text-lg leading-relaxed text-slate-600 mb-8">
-                {t('hero.subtitle')}
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Link to="/register" data-testid="hero-cta-trial">
-                  <Button size="lg" className="bg-[#E9C46A] text-slate-900 hover:bg-[#E9C46A]/90 h-12 px-8 shadow-sm">
-                    {t('hero.cta_trial')}
+      <section className="bg-gradient-to-br from-[#4A6FA5] via-[#5979ad] to-[#6889bb] text-white py-20 md:py-28">
+        <div className="max-w-7xl mx-auto px-6 md:px-8">
+          <div className="max-w-3xl">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
+              Méně administrativy. Více prostoru pro kreativitu.
+            </h1>
+            <p className="text-lg md:text-xl text-white/90 leading-relaxed mb-8">
+              Spravujte rezervace školních a skupinových programů přehledně, bez e-mailového chaosu a tabulek.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Link to="/register" data-testid="hero-cta-trial">
+                <Button size="lg" className="bg-[#C4AB86] text-white hover:bg-[#b39975] h-12 px-8 rounded-lg shadow-none">
+                  Vyzkoušet zdarma
+                </Button>
+              </Link>
+              <Dialog open={showDemoDialog} onOpenChange={setShowDemoDialog}>
+                <DialogTrigger asChild>
+                  <Button size="lg" variant="outline" className="h-12 px-8 rounded-lg border-2 border-white text-white hover:bg-white/10" data-testid="hero-cta-demo">
+                    Domluvit online ukázku
                   </Button>
-                </Link>
-                <Dialog open={showDemoDialog} onOpenChange={setShowDemoDialog}>
-                  <DialogTrigger asChild>
-                    <Button size="lg" variant="outline" className="h-12 px-8" data-testid="hero-cta-demo">
-                      {t('hero.cta_demo')}
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Domluvit online ukázku</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleDemoSubmit} className="space-y-4" data-testid="demo-request-form">
+                    <div>
+                      <Label htmlFor="demo_name">Jméno</Label>
+                      <Input
+                        id="demo_name"
+                        data-testid="demo-name-input"
+                        value={demoFormData.name}
+                        onChange={(e) => setDemoFormData({ ...demoFormData, name: e.target.value })}
+                        required
+                        className="mt-2"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="demo_institution">Název instituce</Label>
+                      <Input
+                        id="demo_institution"
+                        data-testid="demo-institution-input"
+                        value={demoFormData.institution}
+                        onChange={(e) => setDemoFormData({ ...demoFormData, institution: e.target.value })}
+                        required
+                        className="mt-2"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="demo_email">E-mail</Label>
+                      <Input
+                        id="demo_email"
+                        type="email"
+                        data-testid="demo-email-input"
+                        value={demoFormData.email}
+                        onChange={(e) => setDemoFormData({ ...demoFormData, email: e.target.value })}
+                        required
+                        className="mt-2"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="demo_availability">Kdy máte obecně čas? (např. středy dopoledne, pátky dopoledne)</Label>
+                      <Textarea
+                        id="demo_availability"
+                        data-testid="demo-availability-input"
+                        value={demoFormData.availability}
+                        onChange={(e) => setDemoFormData({ ...demoFormData, availability: e.target.value })}
+                        required
+                        className="mt-2"
+                        placeholder="Např: Středy 9:00-12:00, Pátky 10:00-14:00"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      data-testid="demo-submit-button"
+                      className="w-full bg-[#C4AB86] text-white hover:bg-[#b39975]"
+                    >
+                      Odeslat žádost
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader>
-                      <DialogTitle>{t('hero.cta_demo')}</DialogTitle>
-                    </DialogHeader>
-                    <form onSubmit={handleDemoSubmit} className="space-y-4" data-testid="demo-request-form">
-                      <div>
-                        <Label htmlFor="demo_name">Jméno</Label>
-                        <Input
-                          id="demo_name"
-                          data-testid="demo-name-input"
-                          value={demoFormData.name}
-                          onChange={(e) => setDemoFormData({ ...demoFormData, name: e.target.value })}
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="demo_institution">Název instituce</Label>
-                        <Input
-                          id="demo_institution"
-                          data-testid="demo-institution-input"
-                          value={demoFormData.institution}
-                          onChange={(e) => setDemoFormData({ ...demoFormData, institution: e.target.value })}
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="demo_email">E-mail</Label>
-                        <Input
-                          id="demo_email"
-                          type="email"
-                          data-testid="demo-email-input"
-                          value={demoFormData.email}
-                          onChange={(e) => setDemoFormData({ ...demoFormData, email: e.target.value })}
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="demo_availability">Kdy máte obecně čas? (např. středy dopoledne, pátky dopoledne)</Label>
-                        <Textarea
-                          id="demo_availability"
-                          data-testid="demo-availability-input"
-                          value={demoFormData.availability}
-                          onChange={(e) => setDemoFormData({ ...demoFormData, availability: e.target.value })}
-                          required
-                          className="mt-2"
-                          placeholder="Např: Středy 9:00-12:00, Pátky 10:00-14:00"
-                        />
-                      </div>
-                      <Button
-                        type="submit"
-                        data-testid="demo-submit-button"
-                        className="w-full bg-[#E9C46A] text-slate-900 hover:bg-[#E9C46A]/90"
-                      >
-                        Odeslat žádost
-                      </Button>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </div>
-            <div className="md:col-span-5">
-              <div className="relative">
-                <img
-                  src="https://images.unsplash.com/photo-1625358775317-a4f33370c520"
-                  alt="Museum gallery"
-                  className="rounded-lg shadow-md w-full h-auto"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Problem Section */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 md:px-8">
-          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900 text-center mb-12">
-            {t('problem.title')}
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-            {['point1', 'point2', 'point3', 'point4', 'point5'].map((point, idx) => (
-              <Card key={idx} className="p-6">
-                <p className="text-sm text-slate-700 leading-relaxed">{t(`problem.${point}`)}</p>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Solution Section */}
-      <section className="py-16">
-        <div className="max-w-7xl mx-auto px-4 md:px-8">
-          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900 text-center mb-12">
-            {t('solution.title')}
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              { icon: Mail, key: 'feature1' },
-              { icon: Calendar, key: 'feature2' },
-              { icon: CheckCircle, key: 'feature3' },
-              { icon: Users, key: 'feature4' },
-              { icon: BarChart, key: 'feature5' },
-            ].map((feature, idx) => {
-              const Icon = feature.icon;
-              return (
-                <Card key={idx} className="p-6 text-center hover:shadow-md transition-shadow duration-200">
-                  <div className="w-12 h-12 bg-[#84A98C] rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Icon className="w-6 h-6 text-white" />
-                  </div>
-                  <p className="text-base text-slate-700 leading-relaxed">{t(`solution.${feature.key}`)}</p>
-                </Card>
-              );
-            })}
           </div>
         </div>
       </section>
 
       {/* Demo Booking Section */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 md:px-8">
+      <section className="py-16 bg-white" id="funkce">
+        <div className="max-w-7xl mx-auto px-6 md:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900 mb-4">
+            <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] mb-4">
               Vyzkoušejte si rezervační systém
             </h2>
-            <p className="text-lg text-slate-600">
+            <p className="text-lg text-gray-600">
               Projděte si ukázkový proces rezervace jako učitel nebo vedoucí skupiny
             </p>
           </div>
           <div className="flex justify-center">
             <Link to="/booking/demo" data-testid="try-booking-demo">
-              <Button size="lg" className="bg-[#84A98C] text-white hover:bg-[#84A98C]/90 h-12 px-8 shadow-sm">
+              <Button size="lg" className="bg-[#C4AB86] text-white hover:bg-[#b39975] h-12 px-8 rounded-lg">
                 Vyzkoušet rezervační formulář
               </Button>
             </Link>
@@ -203,32 +147,31 @@ export const HomePage = () => {
       </section>
 
       {/* Pricing Section */}
-      <section id="pricing" className="py-16 md:py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 md:px-8">
-          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900 text-center mb-8">
-            {t('pricing.title')}
+      <section id="pricing" className="py-20 bg-[#F8F9FA]">
+        <div className="max-w-7xl mx-auto px-6 md:px-8">
+          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-4">
+            Jednoduché a transparentní tarify
           </h2>
 
           <div className="flex justify-center mb-12">
-            <div className="inline-flex rounded-md border border-border p-1 bg-muted">
+            <div className="inline-flex rounded-full bg-white border border-gray-200 p-1">
               <button
                 data-testid="billing-monthly"
-                className={`px-6 py-2 rounded text-sm font-medium transition-colors ${
-                  billingCycle === 'monthly' ? 'bg-white shadow-sm' : 'text-muted-foreground'
+                className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
+                  billingCycle === 'monthly' ? 'bg-[#4A6FA5] text-white' : 'text-gray-700'
                 }`}
                 onClick={() => setBillingCycle('monthly')}
               >
-                {t('pricing.monthly')}
+                Měsíčně
               </button>
               <button
                 data-testid="billing-yearly"
-                className={`px-6 py-2 rounded text-sm font-medium transition-colors ${
-                  billingCycle === 'yearly' ? 'bg-white shadow-sm' : 'text-muted-foreground'
+                className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
+                  billingCycle === 'yearly' ? 'bg-[#4A6FA5] text-white' : 'text-gray-700'
                 }`}
                 onClick={() => setBillingCycle('yearly')}
               >
-                {t('pricing.yearly')}
-                <span className="ml-2 text-xs text-[#84A98C]">{t('pricing.save')}</span>
+                Ročně <span className="text-xs">(ušetříte 20%)</span>
               </button>
             </div>
           </div>
@@ -243,64 +186,99 @@ export const HomePage = () => {
                 <Card
                   key={tier}
                   data-testid={`pricing-tier-${tier}`}
-                  className={`p-6 relative ${
-                    isBasic ? 'border-[#E9C46A] border-2 shadow-lg' : ''
+                  className={`p-6 bg-white rounded-2xl relative border ${
+                    isBasic ? 'border-[#C4AB86] border-2' : 'border-gray-200'
                   }`}
                 >
                   {isBasic && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-[#E9C46A] text-slate-900 text-xs font-semibold px-3 py-1 rounded-full">
-                        {t(`pricing.${tier}.description`)}
+                      <span className="bg-[#C4AB86] text-white text-xs font-semibold px-4 py-1 rounded-full">
+                        Nejčastější volba
                       </span>
                     </div>
                   )}
-                  <h3 className="text-2xl font-semibold text-slate-900 mb-2">{t(`pricing.${tier}.name`)}</h3>
-                  {tier !== 'free' && !isBasic && (
-                    <p className="text-sm text-muted-foreground mb-4">{t(`pricing.${tier}.description`)}</p>
-                  )}
+                  <h3 className="text-2xl font-bold text-[#2B3E50] mb-2">{t(`pricing.${tier}.name`)}</h3>
                   <div className="mb-6">
-                    <span className="text-4xl font-bold text-slate-900">{price}</span>
-                    <span className="text-muted-foreground ml-2">
-                      {tier === 'free' ? '' : billingCycle === 'monthly' ? t('pricing.perMonth') : t('pricing.perYear')}
-                    </span>
+                    <span className="text-4xl font-bold text-[#2B3E50]">{price} Kč</span>
+                    {tier !== 'free' && (
+                      <span className="text-gray-500 text-sm block mt-1">
+                        {billingCycle === 'monthly' ? 'měsíčně' : 'navždy'}
+                      </span>
+                    )}
                   </div>
                   <ul className="space-y-3 mb-6">
                     {Array.isArray(features) && features.map((feature, idx) => (
                       <li key={idx} className="flex items-start">
-                        <Check className="w-5 h-5 text-[#84A98C] mr-2 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm text-slate-700">{feature}</span>
+                        <Check className="w-5 h-5 text-[#4A6FA5] mr-2 flex-shrink-0 mt-0.5" />
+                        <span className="text-sm text-gray-700">{feature}</span>
                       </li>
                     ))}
                   </ul>
                   <Link to="/register" data-testid={`pricing-cta-${tier}`}>
                     <Button
-                      className={`w-full ${
+                      className={`w-full rounded-lg ${
                         isBasic
-                          ? 'bg-[#E9C46A] text-slate-900 hover:bg-[#E9C46A]/90'
-                          : 'bg-slate-800 text-white hover:bg-slate-700'
+                          ? 'bg-[#C4AB86] text-white hover:bg-[#b39975]'
+                          : 'border-2 border-[#4A6FA5] text-[#4A6FA5] bg-white hover:bg-[#4A6FA5]/5'
                       }`}
+                      variant={isBasic ? 'default' : 'outline'}
                     >
-                      {t(`pricing.${tier}.cta`)}
+                      Začít zdarma
                     </Button>
                   </Link>
                 </Card>
               );
             })}
           </div>
+
+          <div className="flex justify-center gap-4 mt-8">
+            <Link to="/register">
+              <Button className="bg-[#C4AB86] text-white hover:bg-[#b39975] rounded-lg px-8 h-12">
+                Začít zdarma
+              </Button>
+            </Link>
+            <Button variant="outline" className="border-2 border-[#4A6FA5] text-[#4A6FA5] rounded-lg px-8 h-12">
+              Nezávazná konzultace
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="bg-gradient-to-br from-[#4A6FA5] via-[#5979ad] to-[#6889bb] text-white py-20">
+        <div className="max-w-4xl mx-auto px-6 md:px-8 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Dopřejte svému týmu více času na skutečnou práci.
+          </h2>
+          <p className="text-lg text-white/90 mb-8">
+            Vyzkoušejte systém zdarma po dobu 30 dnů. Žádná platební karta není potřeba.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link to="/register">
+              <Button size="lg" className="bg-[#C4AB86] text-white hover:bg-[#b39975] h-12 px-8 rounded-lg">
+                Vyzkoušet zdarma
+              </Button>
+            </Link>
+            <Button size="lg" variant="outline" className="h-12 px-8 rounded-lg border-2 border-white text-white hover:bg-white/10">
+              Domluvit online ukázku
+            </Button>
+          </div>
         </div>
       </section>
 
       {/* FAQ Section */}
-      <section className="py-16">
-        <div className="max-w-3xl mx-auto px-4 md:px-8">
-          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-slate-900 text-center mb-12">
+      <section id="faq" className="py-20 bg-white">
+        <div className="max-w-3xl mx-auto px-6 md:px-8">
+          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-12">
             {t('faq.title')}
           </h2>
           <Accordion type="single" collapsible className="w-full">
             {['q1', 'q2', 'q3', 'q4'].map((q, idx) => (
               <AccordionItem key={idx} value={`item-${idx}`}>
-                <AccordionTrigger className="text-left font-medium">{t(`faq.${q}`)}</AccordionTrigger>
-                <AccordionContent className="text-slate-600 leading-relaxed">
+                <AccordionTrigger className="text-left font-semibold text-[#2B3E50]">
+                  {t(`faq.${q}`)}
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-600 leading-relaxed">
                   {t(`faq.a${idx + 1}`)}
                 </AccordionContent>
               </AccordionItem>

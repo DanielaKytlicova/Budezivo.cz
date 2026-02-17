@@ -1,0 +1,281 @@
+{
+  "nav": {
+    "home": "Home",
+    "login": "Login",
+    "register": "Register",
+    "dashboard": "Dashboard",
+    "programs": "Programs",
+    "bookings": "Bookings",
+    "schools": "Schools / Groups",
+    "statistics": "Statistics",
+    "settings": "Settings",
+    "plan": "Plan",
+    "logout": "Logout"
+  },
+  "hero": {
+    "title": "Less Administration. More Space for Creativity.",
+    "subtitle": "Booking system for museums, galleries and libraries that simplifies management of school and group programs.",
+    "cta_trial": "Try for Free",
+    "cta_demo": "Schedule a Demo"
+  },
+  "problem": {
+    "title": "Do You Know This Reality?",
+    "point1": "Endless emails with schools",
+    "point2": "Manual booking confirmations",
+    "point3": "Messy spreadsheets",
+    "point4": "Double bookings",
+    "point5": "Time lost to administration"
+  },
+  "solution": {
+    "title": "Everything Clearly in One Place.",
+    "feature1": "Online booking without registration",
+    "feature2": "Capacity management",
+    "feature3": "Automatic confirmations",
+    "feature4": "Clear calendar",
+    "feature5": "Statistics and reports"
+  },
+  "pricing": {
+    "title": "Choose a Plan for Your Institution",
+    "monthly": "Monthly",
+    "yearly": "Yearly",
+    "free": {
+      "name": "Free",
+      "price": "0",
+      "description": "To get started",
+      "features": [
+        "Up to 50 bookings per month",
+        "5 active programs",
+        "Basic statistics",
+        "Email support"
+      ],
+      "cta": "Start Free"
+    },
+    "basic": {
+      "name": "Basic",
+      "price": "39",
+      "priceYearly": "390",
+      "description": "Most popular",
+      "features": [
+        "Up to 200 bookings per month",
+        "Unlimited programs",
+        "Advanced statistics",
+        "Priority email support",
+        "Data export"
+      ],
+      "cta": "Choose Basic"
+    },
+    "standard": {
+      "name": "Standard",
+      "price": "79",
+      "priceYearly": "790",
+      "description": "For larger institutions",
+      "features": [
+        "Up to 500 bookings per month",
+        "Unlimited programs",
+        "Advanced statistics and reports",
+        "Bulk actions",
+        "Multi-user management",
+        "Phone support"
+      ],
+      "cta": "Choose Standard"
+    },
+    "premium": {
+      "name": "Premium",
+      "price": "159",
+      "priceYearly": "1590",
+      "description": "For maximum efficiency",
+      "features": [
+        "Unlimited bookings",
+        "Unlimited programs",
+        "Dedicated account manager",
+        "Custom branding",
+        "API access",
+        "Priority 24/7 support"
+      ],
+      "cta": "Choose Premium"
+    },
+    "perMonth": "€ / month",
+    "perYear": "€ / year",
+    "save": "Save 17%"
+  },
+  "faq": {
+    "title": "Frequently Asked Questions",
+    "q1": "Is the system GDPR compliant?",
+    "a1": "Yes, the system is fully GDPR compliant. All data is stored on EU servers and you can export or delete your institution's data at any time.",
+    "q2": "Is the system suitable for public institutions?",
+    "a2": "Yes, the system is designed specifically for museums, galleries, libraries and other public cultural institutions. It meets all requirements for transparency and accessibility.",
+    "q3": "Do schools need an account to book?",
+    "a3": "No, teachers and group leaders can book programs without creating an account. They just need to fill out a simple form.",
+    "q4": "Can I try the system for free?",
+    "a4": "Yes, the free plan is completely free and unlimited in time. You can upgrade to a paid plan at any time."
+  },
+  "footer": {
+    "about": "About",
+    "pricing": "Pricing",
+    "login": "Login",
+    "gdpr": "GDPR",
+    "contact": "Contact",
+    "copyright": "© 2026 KulturaBooking. All rights reserved."
+  },
+  "auth": {
+    "login": {
+      "title": "Login",
+      "subtitle": "Access your institution's administration",
+      "email": "Email",
+      "password": "Password",
+      "forgotPassword": "Forgot password?",
+      "submit": "Sign In",
+      "noAccount": "Don't have an account?",
+      "register": "Register"
+    },
+    "register": {
+      "title": "Institution Registration",
+      "subtitle": "Start using KulturaBooking today",
+      "institutionName": "Institution Name",
+      "institutionType": "Institution Type",
+      "types": {
+        "museum": "Museum",
+        "gallery": "Gallery",
+        "library": "Library",
+        "botanical_garden": "Botanical Garden",
+        "other": "Other"
+      },
+      "country": "Country",
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm Password",
+      "submit": "Create Account",
+      "hasAccount": "Already have an account?",
+      "login": "Sign In"
+    },
+    "forgotPassword": {
+      "title": "Forgot Password",
+      "subtitle": "Enter your email and we'll send you a password reset link",
+      "email": "Email",
+      "submit": "Send Link",
+      "backToLogin": "Back to Login"
+    }
+  },
+  "dashboard": {
+    "welcome": "Welcome back",
+    "todayBookings": "Today's Bookings",
+    "upcomingGroups": "Upcoming Groups",
+    "capacityUsage": "Capacity Usage",
+    "bookingLimit": "Booking Limit",
+    "viewAll": "View All"
+  },
+  "programs": {
+    "title": "Program Management",
+    "create": "Create Program",
+    "name": "Program Name",
+    "description": "Description",
+    "duration": "Duration (minutes)",
+    "capacity": "Capacity",
+    "targetGroup": "Target Group",
+    "targetGroups": {
+      "schools": "Schools",
+      "public": "Public"
+    },
+    "price": "Price",
+    "status": "Status",
+    "statuses": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "save": "Save Program",
+    "edit": "Edit",
+    "delete": "Delete"
+  },
+  "bookings": {
+    "title": "Booking Management",
+    "date": "Date",
+    "program": "Program",
+    "school": "School / Group",
+    "numStudents": "Number of People",
+    "status": "Status",
+    "statuses": {
+      "pending": "Pending",
+      "confirmed": "Confirmed",
+      "cancelled": "Cancelled"
+    },
+    "actions": "Actions",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "addNote": "Add Note",
+    "viewDetails": "View Details"
+  },
+  "schools": {
+    "title": "Schools and Groups",
+    "name": "Name",
+    "contactPerson": "Contact Person",
+    "email": "Email",
+    "phone": "Phone",
+    "bookingHistory": "Booking History",
+    "addSchool": "Add School"
+  },
+  "statistics": {
+    "title": "Statistics and Reports",
+    "bookingsOverTime": "Bookings Over Time",
+    "popularPrograms": "Most Popular Programs",
+    "capacityUsage": "Capacity Usage",
+    "export": "Export to CSV"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme": "Appearance and Branding",
+    "primaryColor": "Primary Color",
+    "secondaryColor": "Secondary Color",
+    "accentColor": "CTA Color",
+    "logo": "Institution Logo",
+    "headerStyle": "Header Style",
+    "headerStyles": {
+      "light": "Light",
+      "dark": "Dark"
+    },
+    "footerText": "Footer Text",
+    "save": "Save Changes"
+  },
+  "plan": {
+    "title": "Your Plan",
+    "currentPlan": "Current Plan",
+    "usage": "Usage",
+    "upgrade": "Upgrade Plan",
+    "bookingsUsed": "Bookings Used"
+  },
+  "booking": {
+    "title": "Book a Program",
+    "step1": "Select Program",
+    "step2": "Select Date",
+    "step3": "Contact Details",
+    "step4": "Confirmation",
+    "selectProgram": "Select a program",
+    "selectDate": "Select date",
+    "selectTime": "Select time",
+    "schoolName": "School Name",
+    "contactName": "Contact Person Name",
+    "contactEmail": "Email",
+    "contactPhone": "Phone",
+    "numStudents": "Number of Students",
+    "notes": "Notes (optional)",
+    "gdprConsent": "I agree to the processing of personal data in accordance with GDPR",
+    "next": "Continue",
+    "back": "Back",
+    "submit": "Submit Booking",
+    "success": "Booking has been submitted.",
+    "successMessage": "We have received your booking. We will contact you soon with confirmation."
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Success",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "filter": "Filter",
+    "noResults": "No results"
+  }
+}

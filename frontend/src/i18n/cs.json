@@ -1,0 +1,281 @@
+{
+  "nav": {
+    "home": "Domů",
+    "login": "Přihlásit se",
+    "register": "Registrace",
+    "dashboard": "Přehled",
+    "programs": "Programy",
+    "bookings": "Rezervace",
+    "schools": "Školy / Skupiny",
+    "statistics": "Statistiky",
+    "settings": "Nastavení",
+    "plan": "Tarif",
+    "logout": "Odhlásit se"
+  },
+  "hero": {
+    "title": "Méně administrativy. Více prostoru pro kreativitu.",
+    "subtitle": "Rezervační systém pro muzea, galerie a knihovny, který zjednodušuje správu školních a skupinových programů.",
+    "cta_trial": "Vyzkoušet zdarma",
+    "cta_demo": "Domluvit online ukázku"
+  },
+  "problem": {
+    "title": "Znáte tuto realitu?",
+    "point1": "Nekonečné e-maily se školami",
+    "point2": "Ruční potvrzování rezervací",
+    "point3": "Nepřehledné tabulky",
+    "point4": "Duplicitní rezervace",
+    "point5": "Ztráta času administrativou"
+  },
+  "solution": {
+    "title": "Vše přehledně na jednom místě.",
+    "feature1": "Online rezervace bez registrace",
+    "feature2": "Správa kapacit",
+    "feature3": "Automatická potvrzení",
+    "feature4": "Přehledný kalendář",
+    "feature5": "Statistiky a reporty"
+  },
+  "pricing": {
+    "title": "Vyberte si tarif pro vaši instituci",
+    "monthly": "Měsíčně",
+    "yearly": "Ročně",
+    "free": {
+      "name": "Zdarma",
+      "price": "0",
+      "description": "Pro začátek",
+      "features": [
+        "Až 50 rezervací měsíčně",
+        "5 aktivních programů",
+        "Základní statistiky",
+        "E-mailová podpora"
+      ],
+      "cta": "Začít zdarma"
+    },
+    "basic": {
+      "name": "Basic",
+      "price": "990",
+      "priceYearly": "9900",
+      "description": "Nejčastější volba",
+      "features": [
+        "Až 200 rezervací měsíčně",
+        "Neomezené programy",
+        "Pokročilé statistiky",
+        "Prioritní e-mailová podpora",
+        "Export dat"
+      ],
+      "cta": "Vybrat Basic"
+    },
+    "standard": {
+      "name": "Standard",
+      "price": "1990",
+      "priceYearly": "19900",
+      "description": "Pro větší instituce",
+      "features": [
+        "Až 500 rezervací měsíčně",
+        "Neomezené programy",
+        "Pokročilé statistiky a reporty",
+        "Hromadné akce",
+        "Správa více uživatelů",
+        "Telefonická podpora"
+      ],
+      "cta": "Vybrat Standard"
+    },
+    "premium": {
+      "name": "Premium",
+      "price": "3990",
+      "priceYearly": "39900",
+      "description": "Pro maximální efektivitu",
+      "features": [
+        "Neomezené rezervace",
+        "Neomezené programy",
+        "Dedikovaný account manager",
+        "Vlastní branding",
+        "API přístup",
+        "Prioritní podpora 24/7"
+      ],
+      "cta": "Vybrat Premium"
+    },
+    "perMonth": "Kč / měsíc",
+    "perYear": "Kč / rok",
+    "save": "Ušetřete 17%"
+  },
+  "faq": {
+    "title": "Často kladené otázky",
+    "q1": "Je systém v souladu s GDPR?",
+    "a1": "Ano, systém je plně v souladu s GDPR. Všechna data jsou uložena na serverech v EU a můžete kdykoli exportovat nebo smazat data vaší instituce.",
+    "q2": "Je systém vhodný pro veřejné instituce?",
+    "a2": "Ano, systém je navržen speciálně pro muzea, galerie, knihovny a další veřejné kulturní instituce. Splňuje všechny požadavky na transparentnost a dostupnost.",
+    "q3": "Potřebují školy účet pro rezervaci?",
+    "a3": "Ne, učitelé a vedoucí skupin mohou rezervovat programy bez vytváření účtu. Stačí vyplnit jednoduchý formulář.",
+    "q4": "Mohu systém vyzkoušet zdarma?",
+    "a4": "Ano, free plán je zcela zdarma a není omezen časově. Můžete kdykoliv upgradovat na placený tarif."
+  },
+  "footer": {
+    "about": "O systému",
+    "pricing": "Ceník",
+    "login": "Přihlášení",
+    "gdpr": "GDPR",
+    "contact": "Kontakt",
+    "copyright": "© 2026 KulturaBooking. Všechna práva vyhrazena."
+  },
+  "auth": {
+    "login": {
+      "title": "Přihlášení",
+      "subtitle": "Vstup do administrace vaší instituce",
+      "email": "E-mail",
+      "password": "Heslo",
+      "forgotPassword": "Zapomněli jste heslo?",
+      "submit": "Přihlásit se",
+      "noAccount": "Nemáte účet?",
+      "register": "Registrovat se"
+    },
+    "register": {
+      "title": "Registrace instituce",
+      "subtitle": "Začněte využívat KulturaBooking ještě dnes",
+      "institutionName": "Název instituce",
+      "institutionType": "Typ instituce",
+      "types": {
+        "museum": "Muzeum",
+        "gallery": "Galerie",
+        "library": "Knihovna",
+        "botanical_garden": "Botanická zahrada",
+        "other": "Jiné"
+      },
+      "country": "Země",
+      "email": "E-mail",
+      "password": "Heslo",
+      "confirmPassword": "Potvrďte heslo",
+      "submit": "Vytvořit účet",
+      "hasAccount": "Již máte účet?",
+      "login": "Přihlásit se"
+    },
+    "forgotPassword": {
+      "title": "Zapomenuté heslo",
+      "subtitle": "Zadejte váš e-mail a pošleme vám odkaz pro obnovení hesla",
+      "email": "E-mail",
+      "submit": "Odeslat odkaz",
+      "backToLogin": "Zpět na přihlášení"
+    }
+  },
+  "dashboard": {
+    "welcome": "Vítejte zpět",
+    "todayBookings": "Dnešní rezervace",
+    "upcomingGroups": "Nadcházející skupiny",
+    "capacityUsage": "Vytížení kapacity",
+    "bookingLimit": "Limit rezervací",
+    "viewAll": "Zobrazit vše"
+  },
+  "programs": {
+    "title": "Správa programů",
+    "create": "Vytvořit program",
+    "name": "Název programu",
+    "description": "Popis",
+    "duration": "Délka trvání (minuty)",
+    "capacity": "Kapacita",
+    "targetGroup": "Cílová skupina",
+    "targetGroups": {
+      "schools": "Školy",
+      "public": "Veřejnost"
+    },
+    "price": "Cena (Kč)",
+    "status": "Stav",
+    "statuses": {
+      "active": "Aktivní",
+      "inactive": "Neaktivní"
+    },
+    "save": "Uložit program",
+    "edit": "Upravit",
+    "delete": "Smazat"
+  },
+  "bookings": {
+    "title": "Správa rezervací",
+    "date": "Datum",
+    "program": "Program",
+    "school": "Škola / Skupina",
+    "numStudents": "Počet osob",
+    "status": "Stav",
+    "statuses": {
+      "pending": "Čeká",
+      "confirmed": "Potvrzeno",
+      "cancelled": "Zrušeno"
+    },
+    "actions": "Akce",
+    "confirm": "Potvrdit",
+    "cancel": "Zrušit",
+    "edit": "Upravit",
+    "addNote": "Přidat poznámku",
+    "viewDetails": "Zobrazit detaily"
+  },
+  "schools": {
+    "title": "Školy a skupiny",
+    "name": "Název",
+    "contactPerson": "Kontaktní osoba",
+    "email": "E-mail",
+    "phone": "Telefon",
+    "bookingHistory": "Historie rezervací",
+    "addSchool": "Přidat školu"
+  },
+  "statistics": {
+    "title": "Statistiky a reporty",
+    "bookingsOverTime": "Počet rezervací za období",
+    "popularPrograms": "Nejnavštěvovanější programy",
+    "capacityUsage": "Vytížení kapacit",
+    "export": "Export do CSV"
+  },
+  "settings": {
+    "title": "Nastavení",
+    "theme": "Vzhled a branding",
+    "primaryColor": "Primární barva",
+    "secondaryColor": "Sekundární barva",
+    "accentColor": "Barva CTA",
+    "logo": "Logo instituce",
+    "headerStyle": "Styl hlavičky",
+    "headerStyles": {
+      "light": "Světlý",
+      "dark": "Tmavý"
+    },
+    "footerText": "Text v patičce",
+    "save": "Uložit změny"
+  },
+  "plan": {
+    "title": "Váš tarif",
+    "currentPlan": "Aktuální plán",
+    "usage": "Využití",
+    "upgrade": "Upgradovat tarif",
+    "bookingsUsed": "Rezervace využito"
+  },
+  "booking": {
+    "title": "Rezervace programu",
+    "step1": "Výběr programu",
+    "step2": "Výběr termínu",
+    "step3": "Kontaktní údaje",
+    "step4": "Potvrzení",
+    "selectProgram": "Vyberte program",
+    "selectDate": "Vyberte datum",
+    "selectTime": "Vyberte čas",
+    "schoolName": "Název školy",
+    "contactName": "Jméno kontaktní osoby",
+    "contactEmail": "E-mail",
+    "contactPhone": "Telefon",
+    "numStudents": "Počet žáků",
+    "notes": "Poznámka (volitelné)",
+    "gdprConsent": "Souhlasím se zpracováním osobních údajů v souladu s GDPR",
+    "next": "Pokračovat",
+    "back": "Zpět",
+    "submit": "Odeslat rezervaci",
+    "success": "Rezervace byla odeslána.",
+    "successMessage": "Vaši rezervaci jsme přijali. Brzy vás budeme kontaktovat s potvrzením."
+  },
+  "common": {
+    "loading": "Načítání...",
+    "error": "Došlo k chybě",
+    "success": "Úspěch",
+    "cancel": "Zrušit",
+    "save": "Uložit",
+    "delete": "Smazat",
+    "edit": "Upravit",
+    "create": "Vytvořit",
+    "search": "Hledat",
+    "filter": "Filtrovat",
+    "noResults": "Žádné výsledky"
+  }
+}

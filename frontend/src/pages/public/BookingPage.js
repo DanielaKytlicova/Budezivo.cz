@@ -149,7 +149,7 @@ export const BookingPage = () => {
     const dayNames = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
 
     return (
-      <div className=\"bg-white rounded-lg p-6 shadow-sm\">
+      <div className="bg-white rounded-lg p-6 shadow-sm">
         <div className=\"flex items-center justify-between mb-6\">
           <button
             onClick={() => {

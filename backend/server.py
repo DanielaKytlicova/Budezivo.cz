@@ -128,6 +128,14 @@ class ThemeSettings(BaseModel):
     header_style: str = "light"
     footer_text: Optional[str] = None
 
+class ThemeUpdate(BaseModel):
+    primary_color: str = "#1E293B"
+    secondary_color: str = "#84A98C"
+    accent_color: str = "#E9C46A"
+    logo_url: Optional[str] = None
+    header_style: str = "light"
+    footer_text: Optional[str] = None
+
 class PaymentTransaction(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str

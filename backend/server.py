@@ -614,6 +614,118 @@ async def get_schools(current_user: dict = Depends(get_current_user)):
     ).to_list(1000)
     return schools
 
+# ============ Team Management Routes ============
+
+class TeamMember(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    email: str
+    role: str
+    institution_id: str
+    created_at: str
+
+class TeamInvite(BaseModel):
+    email: EmailStr
+    role: str = "staff"
+
+class RoleUpdate(BaseModel):
+    role: str
+
+@api_router.get("/team", response_model=List[TeamMember])
+async def get_team_members(current_user: dict = Depends(get_current_user)):
+    """Get all team members for the institution"""
+    members = await db.users.find(
+        {"institution_id": current_user["institution_id"]},
+        {"_id": 0, "password_hash": 0}
+    ).to_list(100)
+    return members
+
+@api_router.post("/team/invite")
+async def invite_team_member(invite_data: TeamInvite, current_user: dict = Depends(get_current_user)):
+    """Invite a new team member (admin only)"""
+    # Check if current user is admin
+    user = await db.users.find_one({"id": current_user["user_id"]}, {"_id": 0})
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can invite team members")
+    
+    # Check if email already exists
+    existing = await db.users.find_one({"email": invite_data.email}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="User with this email already exists")
+    
+    # Validate role
+    if invite_data.role not in ["admin", "staff", "viewer"]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    
+    # Create user with temporary password (should send invite email in production)
+    user_id = str(uuid.uuid4())
+    temp_password = str(uuid.uuid4())[:8]
+    
+    new_user = {
+        "id": user_id,
+        "email": invite_data.email,
+        "password_hash": hash_password(temp_password),
+        "institution_id": current_user["institution_id"],
+        "role": invite_data.role,
+        "invited_by": current_user["user_id"],
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.users.insert_one(new_user)
+    
+    # In production, send email with invite link
+    logging.info(f"Team member invited: {invite_data.email} with role {invite_data.role}")
+    
+    return {"message": "Invitation sent", "temp_password": temp_password}
+
+@api_router.patch("/team/{member_id}/role")
+async def update_member_role(member_id: str, role_data: RoleUpdate, current_user: dict = Depends(get_current_user)):
+    """Update a team member's role (admin only)"""
+    # Check if current user is admin
+    user = await db.users.find_one({"id": current_user["user_id"]}, {"_id": 0})
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can change roles")
+    
+    # Can't change own role
+    if member_id == current_user["user_id"]:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+    
+    # Validate role
+    if role_data.role not in ["admin", "staff", "viewer"]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    
+    result = await db.users.update_one(
+        {"id": member_id, "institution_id": current_user["institution_id"]},
+        {"$set": {"role": role_data.role}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    
+    return {"message": "Role updated"}
+
+@api_router.delete("/team/{member_id}")
+async def remove_team_member(member_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove a team member (admin only)"""
+    # Check if current user is admin
+    user = await db.users.find_one({"id": current_user["user_id"]}, {"_id": 0})
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can remove team members")
+    
+    # Can't remove self
+    if member_id == current_user["user_id"]:
+        raise HTTPException(status_code=400, detail="Cannot remove yourself")
+    
+    result = await db.users.delete_one({
+        "id": member_id,
+        "institution_id": current_user["institution_id"]
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    
+    return {"message": "Team member removed"}
+    return schools
+
 # ============ Statistics Routes ============
 
 @api_router.get("/statistics/bookings-over-time")

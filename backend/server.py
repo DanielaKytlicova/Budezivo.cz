@@ -351,6 +351,53 @@ async def get_programs(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/programs/public/{institution_id}", response_model=List[Program])
 async def get_public_programs(institution_id: str):
+    # Handle demo institution
+    if institution_id == "demo":
+        return [
+            {
+                "id": "demo-1",
+                "institution_id": "demo",
+                "name_cs": "Prohlídka stálé expozice",
+                "name_en": "Permanent Exhibition Tour",
+                "description_cs": "Komentovaná prohlídka stálé expozice muzea s odborným průvodcem",
+                "description_en": "Guided tour of the museum's permanent exhibition",
+                "duration": 90,
+                "capacity": 30,
+                "target_group": "schools",
+                "price": 50.0,
+                "status": "active",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "id": "demo-2",
+                "institution_id": "demo",
+                "name_cs": "Tvůrčí dílna pro děti",
+                "name_en": "Creative Workshop for Children",
+                "description_cs": "Interaktivní tvůrčí dílna inspirovaná sbírkami muzea",
+                "description_en": "Interactive creative workshop inspired by museum collections",
+                "duration": 120,
+                "capacity": 25,
+                "target_group": "schools",
+                "price": 80.0,
+                "status": "active",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "id": "demo-3",
+                "institution_id": "demo",
+                "name_cs": "Tematická prohlídka: Historie města",
+                "name_en": "Themed Tour: City History",
+                "description_cs": "Specializovaná prohlídka zaměřená na historii města a regionu",
+                "description_en": "Specialized tour focused on city and regional history",
+                "duration": 60,
+                "capacity": 35,
+                "target_group": "schools",
+                "price": 40.0,
+                "status": "active",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+        ]
+    
     programs = await db.programs.find(
         {"institution_id": institution_id, "status": "active"},
         {"_id": 0}
@@ -406,6 +453,19 @@ async def create_booking(booking_data: BookingCreate, current_user: dict = Depen
 
 @api_router.post("/bookings/public/{institution_id}", response_model=Booking)
 async def create_public_booking(institution_id: str, booking_data: BookingCreate):
+    # Handle demo institution - don't save to database
+    if institution_id == "demo":
+        booking_id = str(uuid.uuid4())
+        demo_booking = {
+            "id": booking_id,
+            "institution_id": "demo",
+            **booking_data.model_dump(),
+            "status": "pending",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        logging.info(f"Demo booking created: {booking_id} for {booking_data.contact_email}")
+        return demo_booking
+    
     # Public booking without authentication
     booking_id = str(uuid.uuid4())
     booking = {
@@ -529,6 +589,18 @@ async def get_theme_settings(current_user: dict = Depends(get_current_user)):
 
 @api_router.get("/settings/theme/public/{institution_id}")
 async def get_public_theme_settings(institution_id: str):
+    # Handle demo institution
+    if institution_id == "demo":
+        return {
+            "institution_id": "demo",
+            "primary_color": "#1E293B",
+            "secondary_color": "#84A98C",
+            "accent_color": "#E9C46A",
+            "logo_url": None,
+            "header_style": "light",
+            "footer_text": "Demo Muzeum - Ukázkový rezervační systém"
+        }
+    
     theme = await db.theme_settings.find_one(
         {"institution_id": institution_id},
         {"_id": 0}

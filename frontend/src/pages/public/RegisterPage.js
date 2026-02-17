@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../i18n/useTranslation';
 import { AuthContext } from '../../context/AuthContext';
-import { Header } from '../../components/layout/Header';
+import { Header, BubezivoLogo } from '../../components/layout/Header';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';

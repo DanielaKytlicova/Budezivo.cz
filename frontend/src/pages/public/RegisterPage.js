@@ -17,7 +17,7 @@ export const RegisterPage = () => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     institution_name: '',
-    institution_type: '',
+    institution_type: 'museum',
     country: 'Czech Republic',
     email: '',
     password: '',

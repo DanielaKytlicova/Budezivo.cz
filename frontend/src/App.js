@@ -12,6 +12,7 @@ import { LoginPage } from './pages/public/LoginPage';
 import { RegisterPage } from './pages/public/RegisterPage';
 import { ForgotPasswordPage } from './pages/public/ForgotPasswordPage';
 import { BookingPage } from './pages/public/BookingPage';
+import { GDPRPage } from './pages/public/GDPRPage';
 
 // Admin pages
 import { DashboardPage } from './pages/admin/DashboardPage';
@@ -37,6 +38,7 @@ function App() {
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/booking/:institutionId" element={<BookingPage />} />
+              <Route path="/gdpr" element={<GDPRPage />} />
 
               {/* Admin routes */}
               <Route

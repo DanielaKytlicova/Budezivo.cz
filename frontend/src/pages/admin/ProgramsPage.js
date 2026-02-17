@@ -824,6 +824,9 @@ export const ProgramsPage = () => {
       ) : (
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogContent className="max-w-2xl max-h-[95vh] overflow-hidden p-0">
+            <DialogHeader className="sr-only">
+              <DialogTitle>{editingProgram ? 'Upravit program' : 'Nový program'}</DialogTitle>
+            </DialogHeader>
             <div className="p-6">
               {renderProgramForm()}
             </div>

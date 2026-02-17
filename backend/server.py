@@ -46,6 +46,25 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    # Step 2 - Additional institution info
+    address: Optional[str] = None
+    city: Optional[str] = None
+    ico_dic: Optional[str] = None  # IČ/DIČ
+    logo_url: Optional[str] = None
+    primary_color: Optional[str] = "#1E293B"
+    secondary_color: Optional[str] = "#84A98C"
+    # Step 3 - Operating hours defaults
+    default_available_days: Optional[List[str]] = None
+    default_time_blocks: Optional[List[Dict[str, str]]] = None  # [{start: "09:00", end: "10:00"}]
+    operating_start_date: Optional[str] = None
+    operating_end_date: Optional[str] = None
+    # Step 4 - Default program settings
+    default_program_description: Optional[str] = None
+    default_program_duration: Optional[int] = 60
+    default_program_capacity: Optional[int] = 30
+    default_target_group: Optional[str] = "schools"
+    # GDPR
+    gdpr_consent: bool = True
 
 class UserLogin(BaseModel):
     email: EmailStr

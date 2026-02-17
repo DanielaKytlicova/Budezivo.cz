@@ -6,13 +6,33 @@ import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
 import { Check, Mail, Calendar, Users, BarChart, CheckCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Textarea } from '../../components/ui/textarea';
+import { toast } from 'sonner';
 
 export const HomePage = () => {
   const { t } = useTranslation();
   const [billingCycle, setBillingCycle] = useState('monthly');
+  const [showDemoDialog, setShowDemoDialog] = useState(false);
+  const [demoFormData, setDemoFormData] = useState({
+    name: '',
+    institution: '',
+    email: '',
+    availability: '',
+  });
 
   const pricingTiers = ['free', 'basic', 'standard', 'premium'];
+
+  const handleDemoSubmit = async (e) => {
+    e.preventDefault();
+    // Mock submission - in production, send to backend
+    toast.success('Děkujeme! Brzy vás budeme kontaktovat.');
+    setShowDemoDialog(false);
+    setDemoFormData({ name: '', institution: '', email: '', availability: '' });
+  };
 
   return (
     <div className="min-h-screen bg-[#FDFCF8]">
@@ -35,9 +55,73 @@ export const HomePage = () => {
                     {t('hero.cta_trial')}
                   </Button>
                 </Link>
-                <Button size="lg" variant="outline" className="h-12 px-8" data-testid="hero-cta-demo">
-                  {t('hero.cta_demo')}
-                </Button>
+                <Dialog open={showDemoDialog} onOpenChange={setShowDemoDialog}>
+                  <DialogTrigger asChild>
+                    <Button size="lg" variant="outline" className="h-12 px-8" data-testid="hero-cta-demo">
+                      {t('hero.cta_demo')}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>{t('hero.cta_demo')}</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleDemoSubmit} className="space-y-4" data-testid="demo-request-form">
+                      <div>
+                        <Label htmlFor="demo_name">Jméno</Label>
+                        <Input
+                          id="demo_name"
+                          data-testid="demo-name-input"
+                          value={demoFormData.name}
+                          onChange={(e) => setDemoFormData({ ...demoFormData, name: e.target.value })}
+                          required
+                          className="mt-2"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="demo_institution">Název instituce</Label>
+                        <Input
+                          id="demo_institution"
+                          data-testid="demo-institution-input"
+                          value={demoFormData.institution}
+                          onChange={(e) => setDemoFormData({ ...demoFormData, institution: e.target.value })}
+                          required
+                          className="mt-2"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="demo_email">E-mail</Label>
+                        <Input
+                          id="demo_email"
+                          type="email"
+                          data-testid="demo-email-input"
+                          value={demoFormData.email}
+                          onChange={(e) => setDemoFormData({ ...demoFormData, email: e.target.value })}
+                          required
+                          className="mt-2"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="demo_availability">Kdy máte obecně čas? (např. středy dopoledne, pátky dopoledne)</Label>
+                        <Textarea
+                          id="demo_availability"
+                          data-testid="demo-availability-input"
+                          value={demoFormData.availability}
+                          onChange={(e) => setDemoFormData({ ...demoFormData, availability: e.target.value })}
+                          required
+                          className="mt-2"
+                          placeholder="Např: Středy 9:00-12:00, Pátky 10:00-14:00"
+                        />
+                      </div>
+                      <Button
+                        type="submit"
+                        data-testid="demo-submit-button"
+                        className="w-full bg-[#E9C46A] text-slate-900 hover:bg-[#E9C46A]/90"
+                      >
+                        Odeslat žádost
+                      </Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
               </div>
             </div>
             <div className="md:col-span-5">

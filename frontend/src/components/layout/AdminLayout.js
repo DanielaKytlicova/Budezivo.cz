@@ -74,8 +74,12 @@ export const AdminLayout = ({ children }) => {
 
   const getRoleLabel = (role) => {
     switch (role) {
-      case 'admin': return 'Administrátor';
-      case 'staff': return 'Zaměstnanec';
+      case 'admin': 
+      case 'spravce': return 'Správce';
+      case 'edukator':
+      case 'staff': return 'Edukator';
+      case 'lektor': return 'Externí lektor';
+      case 'pokladni': return 'Pokladní';
       case 'viewer': return 'Návštěvník';
       default: return 'Uživatel';
     }

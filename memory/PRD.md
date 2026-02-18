@@ -6,11 +6,6 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 **Brand:** Budeživo.cz  
 **Logo:** Minimalistické logo - check mark ikona + název
 
-## Základní požadavky
-- **Cílová skupina:** České veřejné kulturní instituce
-- **Jazyk:** Čeština (default)
-- **Design:** Mobile-first, responsivní
-
 ## Architektura
 - **Frontend:** React + TailwindCSS + Shadcn/UI
 - **Backend:** FastAPI (Python)
@@ -21,48 +16,52 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 
 ## ✅ IMPLEMENTOVANÉ FUNKCE
 
-### 1. Role systém (AKTUALIZOVÁNO 18.2.2026)
+### 1. Nastavení - kompletně přepracované (AKTUALIZOVÁNO 18.2.2026)
+
+**Hlavní menu nastavení:**
+- Správa instituce
+- Uživatelé a role (odkaz na TeamPage)
+- Notifikace
+- Jazyk a místo
+- GDPR a reporting dat [PRO]
+- Odhlásit se
+
+**Správa instituce:**
+- Základní informace: Název, Typ, IČ/DIČ
+- Fakturační údaje: Adresa, Město, PSČ, Země
+- Kontaktní informace: Mobil, Email, Webovky
+- Logo a vizuál: Logo upload, Hlavní/Sekundární barevnost
+
+**Notifikace a upozornění:**
+- Mailová upozornění: Nová rezervace, Potvrzení, Zrušení
+- SMS upozornění [PRO]
+
+**Jazyk a místo:**
+- Jazykové rozhraní (CS/EN)
+- Časové pásmo
+- Datový formát (DD.MM.RRRR atd.)
+- Časový formát (24h/12h)
+
+**GDPR a export dat:**
+- Banner "Vylepši svůj plán"
+- Export dat a report
+- Ukládání dat (smaž po uplynutí)
+- Nastavení soukromí
+
+### 2. Role systém
 **4 role podle wireframu:**
+- Správce - plný přístup
+- Uživatel/Edukator - programy a rezervace
+- Uživatel/Externí lektor - zapisování k rezervacím
+- Uživatel/Pokladní - doplňování údajů
 
-| Role | Popis |
-|------|-------|
-| **Správce** | Má plný přístup k nastavení a správě dat |
-| **Uživatel/Edukator** | Může vidět a spravovat doprovodné programy a rezervace |
-| **Uživatel/Externí lektor** | Může se zapisovat k jednotlivým rezervacím |
-| **Uživatel/Pokladní** | Může ke vzniklým rezervacím doplňovat údaje |
-
-**Role-based navigace:**
-- Správce: Přehled, Programy, Rezervace, Školy, Statistiky, Tým, Nastavení
-- Edukator: Přehled, Programy, Rezervace, Školy, Statistiky
-- Lektor: Přehled, Rezervace
-- Pokladní: Přehled, Rezervace
-
-### 2. UI/UX (AKTUALIZOVÁNO 18.2.2026)
-- **Pozadí login/register:** světlé (#F8FAFC) místo béžové
-- **Header:** 
-  - Tlačítko "Přihlášení" viditelné i na mobilu
-  - Tlačítka pouze na veřejných stránkách
-
-### 3. Branding - Budeživo.cz
-- Minimalistické logo: check mark ikona + název "Budeživo.cz"
-- Barvy: #4A6FA5 (hlavní), #C4AB86 (akcent), #2B3E50 (tmavá)
+### 3. UI/UX
+- Pozadí login/register: světlé (#F8FAFC)
+- Mobilní navigace optimalizována
 
 ### 4. Stránky
-- **Homepage:** Hero, funkce, tarify, FAQ, kontakt
-- **Login/Register:** 4-krokový wizard pro registraci
-- **GDPR:** Ochrana osobních údajů pro ČR
-- **Kontakt:** Kontaktní formulář a informace
-- **Admin:** Dashboard, Programy, Rezervace, Školy, Statistiky, Tým, Nastavení
-
-### 5. Správa programů - 2 záložky
-- **Tab Detail:** základní info, kapacita/trvání, ceník, nastavení, status
-- **Tab Nastavení:** nabízené dny, časové bloky, termín, parametry rezervace
-
-### 6. Tarify (opraveno)
-- Zdarma: 0 Kč navždy
-- Basic: 990/9900 Kč měsíčně/ročně
-- Standard: 1990/19900 Kč
-- Premium: 3990/39900 Kč
+- Homepage, Login, Register, GDPR, Kontakt
+- Admin: Dashboard, Programy, Rezervace, Školy, Statistiky, Tým, Nastavení
 
 ---
 
@@ -74,31 +73,23 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 
 ### P2 - Email notifikace
 - Integrace Resend/SendGrid
-- Automatické připomínky
 
 ---
 
-## 📋 BUDOUCÍ ÚKOLY (P3)
+## Backend API - Settings
 
-- Hromadné akce pro rezervace
-- GDPR export/smazání dat
-- API přístup pro Premium
-
----
-
-## Technické poznámky
-
-### Backend API - Role
-Platné role: `spravce`, `edukator`, `lektor`, `pokladni` (+ legacy: `admin`, `staff`, `viewer`)
-
-### Frontend - AdminLayout
-Role-based navigace implementována v `/app/frontend/src/components/layout/AdminLayout.js`
+```
+GET /api/institution/settings - získání nastavení instituce
+PUT /api/institution/settings - aktualizace nastavení
+PUT /api/settings/notifications - notifikace
+PUT /api/settings/locale - jazyk a místo
+PUT /api/settings/gdpr - GDPR nastavení
+```
 
 ---
 
-## Přihlašovací údaje pro testování
+## Přihlašovací údaje
 - Správce: test@muzeum.cz / password123
-- Edukator: kolega@muzeum.cz / f7471883
 
 ---
 

@@ -655,8 +655,9 @@ class TeamMember(BaseModel):
     created_at: str
 
 class TeamInvite(BaseModel):
+    name: Optional[str] = None
     email: EmailStr
-    role: str = "staff"
+    role: str = "edukator"
 
 class RoleUpdate(BaseModel):
     role: str

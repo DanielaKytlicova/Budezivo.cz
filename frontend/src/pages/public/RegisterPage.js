@@ -170,9 +170,9 @@ export const RegisterPage = () => {
 
   const renderStep1 = () => (
     <div className="space-y-6" data-testid="register-step-1">
-      {/* Bubeživo logo */}
+      {/* Budeživo logo */}
       <div className="flex justify-center mb-6">
-        <BubezivoLogo />
+        <BudezivoLogo />
       </div>
 
       <div>

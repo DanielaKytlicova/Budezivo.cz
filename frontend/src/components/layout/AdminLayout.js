@@ -35,16 +35,16 @@ export const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const { user, logout } = React.useContext(AuthContext);
 
-  // Role-based navigation
+  // Role-based navigation - nové role podle wireframu
   const getNavItems = () => {
     const baseItems = [
-      { path: '/admin', icon: LayoutDashboard, label: 'Přehled', testId: 'nav-dashboard', roles: ['admin', 'staff', 'viewer'] },
-      { path: '/admin/programs', icon: Calendar, label: 'Programy', testId: 'nav-programs', roles: ['admin', 'staff', 'viewer'] },
-      { path: '/admin/bookings', icon: BookOpen, label: 'Rezervace', testId: 'nav-bookings', roles: ['admin', 'staff', 'viewer'] },
-      { path: '/admin/schools', icon: School, label: 'Školy', testId: 'nav-schools', roles: ['admin', 'staff'] },
-      { path: '/admin/statistics', icon: BarChart3, label: 'Statistiky', testId: 'nav-statistics', roles: ['admin', 'staff'] },
-      { path: '/admin/team', icon: Users, label: 'Tým', testId: 'nav-team', roles: ['admin'] },
-      { path: '/admin/settings', icon: Settings, label: 'Nastavení', testId: 'nav-settings', roles: ['admin'] },
+      { path: '/admin', icon: LayoutDashboard, label: 'Přehled', testId: 'nav-dashboard', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'staff', 'viewer'] },
+      { path: '/admin/programs', icon: Calendar, label: 'Programy', testId: 'nav-programs', roles: ['admin', 'spravce', 'edukator', 'staff', 'viewer'] },
+      { path: '/admin/bookings', icon: BookOpen, label: 'Rezervace', testId: 'nav-bookings', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'staff', 'viewer'] },
+      { path: '/admin/schools', icon: School, label: 'Školy', testId: 'nav-schools', roles: ['admin', 'spravce', 'edukator', 'staff'] },
+      { path: '/admin/statistics', icon: BarChart3, label: 'Statistiky', testId: 'nav-statistics', roles: ['admin', 'spravce', 'edukator', 'staff'] },
+      { path: '/admin/team', icon: Users, label: 'Tým', testId: 'nav-team', roles: ['admin', 'spravce'] },
+      { path: '/admin/settings', icon: Settings, label: 'Nastavení', testId: 'nav-settings', roles: ['admin', 'spravce'] },
     ];
 
     const userRole = user?.role || 'viewer';
@@ -58,11 +58,15 @@ export const AdminLayout = ({ children }) => {
     navigate('/login');
   };
 
-  // Role badge color
+  // Role badge color - nové role
   const getRoleBadgeColor = (role) => {
     switch (role) {
-      case 'admin': return 'bg-[#4A6FA5] text-white';
-      case 'staff': return 'bg-[#84A98C] text-white';
+      case 'admin': 
+      case 'spravce': return 'bg-[#2B3E50] text-white';
+      case 'edukator':
+      case 'staff': return 'bg-[#4A6FA5] text-white';
+      case 'lektor': return 'bg-[#84A98C] text-white';
+      case 'pokladni': return 'bg-[#C4AB86] text-white';
       case 'viewer': return 'bg-gray-200 text-gray-700';
       default: return 'bg-gray-200 text-gray-700';
     }

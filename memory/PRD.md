@@ -21,55 +21,48 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 
 ## ✅ IMPLEMENTOVANÉ FUNKCE
 
-### 1. Branding - Budeživo.cz (AKTUALIZOVÁNO 17.2.2026)
+### 1. Role systém (AKTUALIZOVÁNO 18.2.2026)
+**4 role podle wireframu:**
+
+| Role | Popis |
+|------|-------|
+| **Správce** | Má plný přístup k nastavení a správě dat |
+| **Uživatel/Edukator** | Může vidět a spravovat doprovodné programy a rezervace |
+| **Uživatel/Externí lektor** | Může se zapisovat k jednotlivým rezervacím |
+| **Uživatel/Pokladní** | Může ke vzniklým rezervacím doplňovat údaje |
+
+**Role-based navigace:**
+- Správce: Přehled, Programy, Rezervace, Školy, Statistiky, Tým, Nastavení
+- Edukator: Přehled, Programy, Rezervace, Školy, Statistiky
+- Lektor: Přehled, Rezervace
+- Pokladní: Přehled, Rezervace
+
+### 2. UI/UX (AKTUALIZOVÁNO 18.2.2026)
+- **Pozadí login/register:** světlé (#F8FAFC) místo béžové
+- **Header:** 
+  - Tlačítko "Přihlášení" viditelné i na mobilu
+  - Tlačítka pouze na veřejných stránkách
+
+### 3. Branding - Budeživo.cz
 - Minimalistické logo: check mark ikona + název "Budeživo.cz"
-- Barvy: #4A6FA5 (hlavní), #C4AB86 (akcent)
-- Na mobilu při přihlášení/správě: pouze ikona loga
-- Header logika:
-  - Veřejné stránky (/, /kontakt, /gdpr): tlačítka "Přihlášení" a "Vyzkoušet zdarma"
-  - "Přihlášení" viditelné i na mobilu
-  - Login/Register/Admin: pouze logo bez tlačítek
+- Barvy: #4A6FA5 (hlavní), #C4AB86 (akcent), #2B3E50 (tmavá)
 
-### 2. Stránka Kontakt (NOVÉ 17.2.2026)
-- Hero sekce
-- Kontaktní informace (e-mail, telefon, adresa, provozní doba)
-- Kontaktní formulář (jméno, e-mail, instituce, předmět, zpráva)
-- API endpoint `/api/contact`
+### 4. Stránky
+- **Homepage:** Hero, funkce, tarify, FAQ, kontakt
+- **Login/Register:** 4-krokový wizard pro registraci
+- **GDPR:** Ochrana osobních údajů pro ČR
+- **Kontakt:** Kontaktní formulář a informace
+- **Admin:** Dashboard, Programy, Rezervace, Školy, Statistiky, Tým, Nastavení
 
-### 3. Opravené tarify (OPRAVENO 17.2.2026)
-- Pevně definované ceny:
-  - Zdarma: 0 Kč (navždy)
-  - Basic: 990/9900 Kč (měsíčně/ročně)
-  - Standard: 1990/19900 Kč
-  - Premium: 3990/39900 Kč
-- Správné zobrazení při přepínání měsíčně/ročně
-
-### 4. Role systém
-**3 role s různými oprávněními:**
-
-| Role | Oprávnění |
-|------|-----------|
-| **Administrátor** | Plný přístup - správa týmu, nastavení, všechny funkce |
-| **Zaměstnanec** | Správa programů, rezervací, škol |
-| **Návštěvník** | Pouze prohlížení dat |
-
-### 5. Registrace instituce - 4-krokový wizard
-- Krok 1: Základní údaje (název, typ, země, email, heslo, GDPR)
-- Krok 2: Informace o instituci (adresa, město, IČ/DIČ, logo, barvy)
-- Krok 3: Nabídka návštěvní doby (dny, časové bloky, termín)
-- Krok 4: Hlavní nastavení programů
-
-### 6. Správa programů - 2 záložky
+### 5. Správa programů - 2 záložky
 - **Tab Detail:** základní info, kapacita/trvání, ceník, nastavení, status
 - **Tab Nastavení:** nabízené dny, časové bloky, termín, parametry rezervace
 
-### 7. GDPR stránka pro ČR
-- 9 sekcí podle českých právních požadavků
-- Aktualizovaný název na Budeživo.cz
-
-### 8. Admin Dashboard
-- Přehled rezervací, rychlé akce, statistiky
-- Role-based navigace
+### 6. Tarify (opraveno)
+- Zdarma: 0 Kč navždy
+- Basic: 990/9900 Kč měsíčně/ročně
+- Standard: 1990/19900 Kč
+- Premium: 3990/39900 Kč
 
 ---
 
@@ -95,38 +88,18 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 
 ## Technické poznámky
 
-### Frontend struktura
-```
-/app/frontend/src/
-├── components/layout/
-│   ├── Header.js (BudezivoLogo, isPublicPage logika)
-│   ├── Footer.js
-│   └── AdminLayout.js
-├── pages/
-│   ├── public/
-│   │   ├── HomePage.js
-│   │   ├── LoginPage.js
-│   │   ├── RegisterPage.js
-│   │   ├── BookingPage.js
-│   │   ├── GDPRPage.js
-│   │   └── ContactPage.js (NOVÉ)
-│   └── admin/
-│       └── ...
-```
+### Backend API - Role
+Platné role: `spravce`, `edukator`, `lektor`, `pokladni` (+ legacy: `admin`, `staff`, `viewer`)
 
-### Backend API
-- `POST /api/contact` - kontaktní formulář
-- `GET /api/team` - seznam členů týmu
-- `POST /api/team/invite` - pozvání člena
-- `PATCH /api/team/{id}/role` - změna role
-- `DELETE /api/team/{id}` - odebrání člena
+### Frontend - AdminLayout
+Role-based navigace implementována v `/app/frontend/src/components/layout/AdminLayout.js`
 
 ---
 
 ## Přihlašovací údaje pro testování
-- Admin: test@muzeum.cz / password123
-- Staff: kolega@muzeum.cz / f7471883
+- Správce: test@muzeum.cz / password123
+- Edukator: kolega@muzeum.cz / f7471883
 
 ---
 
-Poslední aktualizace: 17. února 2026
+Poslední aktualizace: 18. února 2026

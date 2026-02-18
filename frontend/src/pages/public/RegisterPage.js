@@ -604,10 +604,10 @@ export const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFCF8]">
-      <Header />
+    <div className="min-h-screen bg-[#F8FAFC]">
+      <Header minimal={true} />
       <div className="max-w-md mx-auto px-4 py-8 md:py-16">
-        <Card className="p-6 md:p-8">
+        <Card className="p-6 md:p-8 bg-white">
           {currentStep > 0 && renderProgressBar()}
           {renderCurrentStep()}
         </Card>

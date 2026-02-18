@@ -84,7 +84,7 @@ export const AdminLayout = ({ children }) => {
         <div className="flex flex-col flex-grow border-r border-border bg-white overflow-y-auto">
           <div className="flex items-center flex-shrink-0 px-6 py-6 border-b border-border">
             <Link to="/">
-              <BubezivoLogo />
+              <BudezivoLogo />
             </Link>
           </div>
 

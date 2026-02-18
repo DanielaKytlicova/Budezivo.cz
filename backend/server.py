@@ -672,10 +672,10 @@ async def get_team_members(current_user: dict = Depends(get_current_user)):
 
 @api_router.post("/team/invite")
 async def invite_team_member(invite_data: TeamInvite, current_user: dict = Depends(get_current_user)):
-    """Invite a new team member (admin only)"""
-    # Check if current user is admin
+    """Invite a new team member (spravce only)"""
+    # Check if current user is spravce/admin
     user = await db.users.find_one({"id": current_user["user_id"]}, {"_id": 0})
-    if user.get("role") != "admin":
+    if user.get("role") not in ["admin", "spravce"]:
         raise HTTPException(status_code=403, detail="Only admins can invite team members")
     
     # Check if email already exists
@@ -683,8 +683,9 @@ async def invite_team_member(invite_data: TeamInvite, current_user: dict = Depen
     if existing:
         raise HTTPException(status_code=400, detail="User with this email already exists")
     
-    # Validate role
-    if invite_data.role not in ["admin", "staff", "viewer"]:
+    # Validate role - nové role podle wireframu
+    valid_roles = ["spravce", "edukator", "lektor", "pokladni", "admin", "staff", "viewer"]
+    if invite_data.role not in valid_roles:
         raise HTTPException(status_code=400, detail="Invalid role")
     
     # Create user with temporary password (should send invite email in production)
@@ -693,10 +694,12 @@ async def invite_team_member(invite_data: TeamInvite, current_user: dict = Depen
     
     new_user = {
         "id": user_id,
+        "name": invite_data.name if hasattr(invite_data, 'name') else None,
         "email": invite_data.email,
         "password_hash": hash_password(temp_password),
         "institution_id": current_user["institution_id"],
         "role": invite_data.role,
+        "status": "active",
         "invited_by": current_user["user_id"],
         "created_at": datetime.now(timezone.utc).isoformat()
     }

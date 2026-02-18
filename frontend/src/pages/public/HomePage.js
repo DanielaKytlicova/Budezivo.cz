@@ -210,8 +210,11 @@ export const HomePage = () => {
                     <span className="text-4xl font-bold text-[#2B3E50]">{price} Kč</span>
                     {tier !== 'free' && (
                       <span className="text-gray-500 text-sm block mt-1">
-                        {billingCycle === 'monthly' ? 'měsíčně' : 'navždy'}
+                        {billingCycle === 'monthly' ? 'měsíčně' : 'ročně'}
                       </span>
+                    )}
+                    {tier === 'free' && (
+                      <span className="text-gray-500 text-sm block mt-1">navždy</span>
                     )}
                   </div>
                   <ul className="space-y-3 mb-6">

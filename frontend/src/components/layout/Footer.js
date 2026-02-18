@@ -86,7 +86,7 @@ export const Footer = () => {
         </div>
 
         <div className="mt-12 pt-8 border-t border-slate-600 text-center text-sm text-slate-400">
-          <p>&copy; 2026 Bubeživo.cz. Všechna práva vyhrazena.</p>
+          <p>&copy; 2026 Budeživo.cz. Všechna práva vyhrazena.</p>
         </div>
       </div>
     </footer>

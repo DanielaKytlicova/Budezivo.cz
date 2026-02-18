@@ -35,13 +35,13 @@ export const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA]">
+    <div className="min-h-screen bg-white">
       {/* Minimal header - na mobilu pouze ikona loga */}
       <Header minimal={true} />
       
       <div className="flex min-h-[calc(100vh-4rem)]">
         {/* Left Column - Form */}
-        <div className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="flex-1 flex items-center justify-center px-6 py-12 bg-[#F8FAFC]">
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
               <div className="hidden md:block">
@@ -67,7 +67,7 @@ export const LoginPage = () => {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="vas.email@muzeum.cz"
                     required
-                    className="pl-10 h-12 rounded-lg border-gray-300"
+                    className="pl-10 h-12 rounded-lg border-gray-300 bg-white"
                   />
                 </div>
               </div>
@@ -84,7 +84,7 @@ export const LoginPage = () => {
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="••••••••"
                     required
-                    className="pl-10 h-12 rounded-lg border-gray-300"
+                    className="pl-10 h-12 rounded-lg border-gray-300 bg-white"
                   />
                 </div>
               </div>
@@ -138,16 +138,16 @@ export const LoginPage = () => {
         <div className="hidden lg:flex flex-1 bg-white items-center justify-center p-12">
           <div className="max-w-md">
             <div className="mb-12">
-              <div className="bg-gray-100 rounded-2xl p-8 shadow-sm">
+              <div className="bg-[#F8FAFC] rounded-2xl p-8 shadow-sm border border-gray-100">
                 <div className="space-y-4">
                   <div className="h-4 bg-[#4A6FA5] rounded w-3/4"></div>
-                  <div className="h-4 bg-gray-300 rounded w-1/2"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
                   <div className="grid grid-cols-7 gap-2 mt-6">
                     {[...Array(35)].map((_, i) => (
                       <div
                         key={i}
                         className={`aspect-square rounded ${
-                          [10, 11, 17, 18].includes(i) ? 'bg-[#84A98C]' : 'bg-gray-200'
+                          [10, 11, 17, 18].includes(i) ? 'bg-[#84A98C]' : 'bg-gray-100'
                         }`}
                       />
                     ))}

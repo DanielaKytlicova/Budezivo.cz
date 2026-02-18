@@ -13,6 +13,7 @@ import { RegisterPage } from './pages/public/RegisterPage';
 import { ForgotPasswordPage } from './pages/public/ForgotPasswordPage';
 import { BookingPage } from './pages/public/BookingPage';
 import { GDPRPage } from './pages/public/GDPRPage';
+import { ContactPage } from './pages/public/ContactPage';
 
 // Admin pages
 import { DashboardPage } from './pages/admin/DashboardPage';

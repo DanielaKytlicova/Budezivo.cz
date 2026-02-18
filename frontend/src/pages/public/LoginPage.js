@@ -45,7 +45,7 @@ export const LoginPage = () => {
           <div className="w-full max-w-md">
             <div className="text-center mb-8">
               <div className="hidden md:block">
-                <BubezivoLogo className="justify-center" />
+                <BudezivoLogo className="justify-center" />
               </div>
             </div>
 

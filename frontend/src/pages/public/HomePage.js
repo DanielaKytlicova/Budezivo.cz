@@ -179,15 +179,16 @@ export const HomePage = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {pricingTiers.map((tier) => {
               const isBasic = tier === 'basic';
-              // Pro free tarif je cena vždy 0
-              let price;
-              if (tier === 'free') {
-                price = '0';
-              } else {
-                price = billingCycle === 'monthly' 
-                  ? t(`pricing.${tier}.price`) 
-                  : t(`pricing.${tier}.priceYearly`);
-              }
+              
+              // Pevně definované ceny
+              const prices = {
+                free: { monthly: 0, yearly: 0 },
+                basic: { monthly: 990, yearly: 9900 },
+                standard: { monthly: 1990, yearly: 19900 },
+                premium: { monthly: 3990, yearly: 39900 }
+              };
+              
+              const price = prices[tier][billingCycle];
               const features = t(`pricing.${tier}.features`);
 
               return (

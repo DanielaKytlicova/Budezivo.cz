@@ -712,18 +712,19 @@ async def invite_team_member(invite_data: TeamInvite, current_user: dict = Depen
 
 @api_router.patch("/team/{member_id}/role")
 async def update_member_role(member_id: str, role_data: RoleUpdate, current_user: dict = Depends(get_current_user)):
-    """Update a team member's role (admin only)"""
-    # Check if current user is admin
+    """Update a team member's role (spravce only)"""
+    # Check if current user is spravce/admin
     user = await db.users.find_one({"id": current_user["user_id"]}, {"_id": 0})
-    if user.get("role") != "admin":
+    if user.get("role") not in ["admin", "spravce"]:
         raise HTTPException(status_code=403, detail="Only admins can change roles")
     
     # Can't change own role
     if member_id == current_user["user_id"]:
         raise HTTPException(status_code=400, detail="Cannot change your own role")
     
-    # Validate role
-    if role_data.role not in ["admin", "staff", "viewer"]:
+    # Validate role - nové role podle wireframu
+    valid_roles = ["spravce", "edukator", "lektor", "pokladni", "admin", "staff", "viewer"]
+    if role_data.role not in valid_roles:
         raise HTTPException(status_code=400, detail="Invalid role")
     
     result = await db.users.update_one(

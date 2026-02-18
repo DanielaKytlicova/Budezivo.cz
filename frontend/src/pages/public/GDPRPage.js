@@ -31,13 +31,13 @@ export const GDPRPage = () => {
               <div>
                 <h2 className="text-xl font-semibold text-slate-900 mb-3">1. Správce osobních údajů</h2>
                 <p className="text-gray-600 mb-4">
-                  Správcem osobních údajů je provozovatel služby Bubeživo.cz. Každá kulturní instituce, 
+                  Správcem osobních údajů je provozovatel služby Budeživo.cz. Každá kulturní instituce, 
                   která službu využívá, je samostatným správcem údajů svých návštěvníků a škol.
                 </p>
                 <div className="bg-gray-50 rounded-lg p-4">
                   <p className="text-sm text-gray-600">
                     <strong>Kontakt na správce:</strong><br />
-                    E-mail: gdpr@bubezivo.cz<br />
+                    E-mail: gdpr@budezivo.cz<br />
                     Datová schránka: [ID datové schránky]
                   </p>
                 </div>

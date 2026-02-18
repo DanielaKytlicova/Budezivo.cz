@@ -644,6 +644,95 @@ async def get_schools(current_user: dict = Depends(get_current_user)):
     ).to_list(1000)
     return schools
 
+# ============ Institution Settings Routes ============
+
+class InstitutionSettings(BaseModel):
+    name: Optional[str] = None
+    type: Optional[str] = None
+    ico_dic: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    psc: Optional[str] = None
+    country: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    logo_url: Optional[str] = None
+    primary_color: Optional[str] = None
+    secondary_color: Optional[str] = None
+
+class NotificationSettings(BaseModel):
+    new_reservation: bool = False
+    confirmation: bool = False
+    cancellation: bool = True
+    sms_enabled: bool = False
+
+class LocaleSettings(BaseModel):
+    language: str = "cs"
+    timezone: str = "europe"
+    date_format: str = "dd.mm.yyyy"
+    time_format: str = "24h"
+
+class GdprSettings(BaseModel):
+    data_retention: str = "never"
+    anonymize: bool = False
+
+@api_router.get("/institution/settings")
+async def get_institution_settings(current_user: dict = Depends(get_current_user)):
+    """Get institution settings"""
+    institution = await db.institutions.find_one(
+        {"id": current_user["institution_id"]},
+        {"_id": 0}
+    )
+    if not institution:
+        raise HTTPException(status_code=404, detail="Institution not found")
+    return institution
+
+@api_router.put("/institution/settings")
+async def update_institution_settings(data: InstitutionSettings, current_user: dict = Depends(get_current_user)):
+    """Update institution settings"""
+    update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+    
+    result = await db.institutions.update_one(
+        {"id": current_user["institution_id"]},
+        {"$set": update_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Institution not found")
+    
+    return {"message": "Settings updated"}
+
+@api_router.put("/settings/notifications")
+async def update_notification_settings(data: NotificationSettings, current_user: dict = Depends(get_current_user)):
+    """Update notification settings"""
+    await db.institution_settings.update_one(
+        {"institution_id": current_user["institution_id"]},
+        {"$set": {"notifications": data.model_dump()}},
+        upsert=True
+    )
+    return {"message": "Notification settings updated"}
+
+@api_router.put("/settings/locale")
+async def update_locale_settings(data: LocaleSettings, current_user: dict = Depends(get_current_user)):
+    """Update locale settings"""
+    await db.institution_settings.update_one(
+        {"institution_id": current_user["institution_id"]},
+        {"$set": {"locale": data.model_dump()}},
+        upsert=True
+    )
+    return {"message": "Locale settings updated"}
+
+@api_router.put("/settings/gdpr")
+async def update_gdpr_settings(data: GdprSettings, current_user: dict = Depends(get_current_user)):
+    """Update GDPR settings"""
+    await db.institution_settings.update_one(
+        {"institution_id": current_user["institution_id"]},
+        {"$set": {"gdpr": data.model_dump()}},
+        upsert=True
+    )
+    return {"message": "GDPR settings updated"}
+
 # ============ Team Management Routes ============
 
 class TeamMember(BaseModel):

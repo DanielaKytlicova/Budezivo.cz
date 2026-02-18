@@ -393,6 +393,29 @@ async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
         "bookings_limit": bookings_limit
     }
 
+# ============ Contact Form Route ============
+
+@api_router.post("/contact")
+async def submit_contact_form(data: ContactFormData):
+    """Handle contact form submissions"""
+    contact_id = str(uuid.uuid4())
+    contact = {
+        "id": contact_id,
+        "name": data.name,
+        "email": data.email,
+        "institution": data.institution,
+        "subject": data.subject,
+        "message": data.message,
+        "status": "new",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.contact_messages.insert_one(contact)
+    
+    # Log the contact form submission (in production, send email notification)
+    logging.info(f"Contact form submitted: {data.email} - {data.subject}")
+    
+    return {"message": "Message sent successfully", "id": contact_id}
+
 # ============ Programs Routes ============
 
 @api_router.post("/programs", response_model=Program)

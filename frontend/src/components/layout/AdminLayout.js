@@ -133,7 +133,7 @@ export const AdminLayout = ({ children }) => {
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 bg-white border-b border-border z-50 px-4 h-14 flex items-center justify-between">
         <Link to="/">
-          <BubezivoLogo showText={false} />
+          <BudezivoLogo showText={false} />
         </Link>
         <div className="flex items-center gap-2">
           <span className={`px-2 py-0.5 text-xs rounded-full ${getRoleBadgeColor(user?.role)}`}>

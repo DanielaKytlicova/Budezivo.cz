@@ -41,6 +41,7 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/booking/:institutionId" element={<BookingPage />} />
               <Route path="/gdpr" element={<GDPRPage />} />
+              <Route path="/kontakt" element={<ContactPage />} />
 
               {/* Admin routes */}
               <Route

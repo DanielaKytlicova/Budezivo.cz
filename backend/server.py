@@ -203,6 +203,13 @@ class PaymentSessionCreate(BaseModel):
     package: str  # "basic", "standard", "premium"
     billing_cycle: str  # "monthly", "yearly"
 
+class ContactFormData(BaseModel):
+    name: str
+    email: EmailStr
+    institution: Optional[str] = None
+    subject: str = "general"
+    message: str
+
 # ============ Helpers ============
 
 def hash_password(password: str) -> str:

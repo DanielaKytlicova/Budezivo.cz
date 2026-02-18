@@ -4,8 +4,8 @@ import { useTranslation } from '../../i18n/useTranslation';
 import { AuthContext } from '../../context/AuthContext';
 import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut } from 'lucide-react';
 
-// Minimalistické logo Bubeživo.cz
-const BubezivoLogo = ({ showText = true }) => (
+// Minimalistické logo Budeživo.cz
+const BudezivoLogo = ({ showText = true }) => (
   <div className="flex items-center gap-2">
     <div className="w-8 h-8 rounded-lg bg-[#4A6FA5] flex items-center justify-center">
       <svg 
@@ -23,7 +23,7 @@ const BubezivoLogo = ({ showText = true }) => (
     </div>
     {showText && (
       <span className="font-bold text-[#4A6FA5] text-xl tracking-tight">
-        Bubeživo<span className="text-[#C4AB86]">.cz</span>
+        Budeživo<span className="text-[#C4AB86]">.cz</span>
       </span>
     )}
   </div>

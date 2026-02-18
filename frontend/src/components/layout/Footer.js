@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 // Minimalistické logo pro footer
-const BubezivoLogoFooter = () => (
+const BudezivoLogoFooter = () => (
   <div className="flex items-center gap-2">
     <div className="w-8 h-8 rounded-lg bg-[#4A6FA5] flex items-center justify-center">
       <svg 
@@ -19,7 +19,7 @@ const BubezivoLogoFooter = () => (
       </svg>
     </div>
     <span className="font-bold text-white text-xl tracking-tight">
-      Bubeživo<span className="text-[#C4AB86]">.cz</span>
+      Budeživo<span className="text-[#C4AB86]">.cz</span>
     </span>
   </div>
 );
@@ -30,7 +30,7 @@ export const Footer = () => {
       <div className="max-w-7xl mx-auto px-4 md:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <BubezivoLogoFooter />
+            <BudezivoLogoFooter />
             <p className="text-slate-300 text-sm leading-relaxed mt-4">
               Rezervační systém pro muzea, galerie a knihovny, který zjednodušuje správu školních a skupinových programů.
             </p>

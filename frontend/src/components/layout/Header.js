@@ -71,7 +71,7 @@ export const Header = ({ minimal = false }) => {
           </nav>
         )}
 
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 md:space-x-4">
           {user ? (
             <>
               <Link to="/admin" data-testid="admin-dashboard-link">
@@ -94,18 +94,18 @@ export const Header = ({ minimal = false }) => {
             /* Tlačítka pouze na veřejných stránkách */
             isPublicPage && (
               <>
-                {/* Přihlášení - vždy viditelné */}
-                <Link to="/login" data-testid="login-link" className="hidden md:block">
+                {/* Přihlášení - viditelné na mobilu i desktopu */}
+                <Link to="/login" data-testid="login-link">
                   <Button 
                     variant="ghost"
                     size="sm" 
-                    className="text-[#4A6FA5] hover:text-[#3d5c89]"
+                    className="text-[#4A6FA5] hover:text-white hover:bg-[#4A6FA5] transition-colors"
                   >
                     Přihlášení
                   </Button>
                 </Link>
-                {/* Vyzkoušet zdarma */}
-                <Link to="/register" data-testid="register-link" className="hidden md:block">
+                {/* Vyzkoušet zdarma - pouze desktop */}
+                <Link to="/register" data-testid="register-link" className="hidden md:block mr-[5px]">
                   <Button 
                     size="sm" 
                     className="bg-[#C4AB86] text-white hover:bg-[#b39975] rounded-lg px-6 h-10"

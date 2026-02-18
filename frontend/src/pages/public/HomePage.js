@@ -179,7 +179,15 @@ export const HomePage = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             {pricingTiers.map((tier) => {
               const isBasic = tier === 'basic';
-              const price = billingCycle === 'monthly' ? t(`pricing.${tier}.price`) : t(`pricing.${tier}.priceYearly`) || t(`pricing.${tier}.price`);
+              // Pro free tarif je cena vždy 0
+              let price;
+              if (tier === 'free') {
+                price = '0';
+              } else {
+                price = billingCycle === 'monthly' 
+                  ? t(`pricing.${tier}.price`) 
+                  : t(`pricing.${tier}.priceYearly`);
+              }
               const features = t(`pricing.${tier}.features`);
 
               return (

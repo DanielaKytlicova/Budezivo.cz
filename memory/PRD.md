@@ -129,4 +129,21 @@ PUT /api/settings/gdpr - GDPR nastavení
 
 ---
 
-Poslední aktualizace: 18. února 2026
+## 🔜 NADCHÁZEJÍCÍ ÚKOLY
+
+### P0 - Supabase Nasazení
+1. Vytvořit Supabase projekt (production)
+2. Spustit `FULL_MIGRATION.sql`
+3. Nastavit environment proměnné
+4. Upravit backend pro Supabase klienta
+
+### P1 - Statistiky a reporty
+- Grafy návštěvnosti
+- Export do CSV
+
+### P2 - Email notifikace
+- Integrace Resend/SendGrid
+
+---
+
+Poslední aktualizace: Prosinec 2025

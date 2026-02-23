@@ -629,6 +629,7 @@ export const ProgramsPage = () => {
       {/* Časové bloky */}
       <Card className="p-4 md:p-6 space-y-4">
         <h3 className="font-semibold text-slate-900">Časové bloky</h3>
+        <p className="text-sm text-gray-500">Zadejte čas ve formátu HH:MM (např. 09:00, 14:30)</p>
         <div className="space-y-3">
           {formData.time_blocks.map((block, index) => (
             <div key={index} className="flex items-center gap-3">
@@ -636,13 +637,45 @@ export const ProgramsPage = () => {
                 checked={true}
                 onCheckedChange={() => {}}
               />
-              <Input
-                type="time"
-                value={block}
-                onChange={(e) => updateTimeBlock(index, e.target.value)}
-                className="flex-1"
-                data-testid={`program-time-block-${index}`}
-              />
+              <div className="flex-1 relative">
+                <Input
+                  type="text"
+                  value={block}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    // Auto-format: add colon after 2 digits
+                    if (val.length === 2 && !val.includes(':') && /^\d{2}$/.test(val)) {
+                      val = val + ':';
+                    }
+                    // Validate format HH:MM
+                    if (val === '' || /^[0-2]?[0-9]?:?[0-5]?[0-9]?$/.test(val)) {
+                      updateTimeBlock(index, val);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    // Normalize on blur (e.g., "9:00" -> "09:00")
+                    let val = e.target.value;
+                    if (/^\d{1}:\d{2}$/.test(val)) {
+                      updateTimeBlock(index, '0' + val);
+                    } else if (/^\d{2}:\d{1}$/.test(val)) {
+                      updateTimeBlock(index, val + '0');
+                    }
+                  }}
+                  placeholder="09:00"
+                  maxLength={5}
+                  className="pr-10 font-mono"
+                  data-testid={`program-time-block-${index}`}
+                />
+                <input
+                  type="time"
+                  value={block}
+                  onChange={(e) => updateTimeBlock(index, e.target.value)}
+                  className="absolute right-0 top-0 h-full w-10 opacity-0 cursor-pointer"
+                  title="Vybrat z hodin"
+                  data-testid={`program-time-picker-${index}`}
+                />
+                <Clock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
               {formData.time_blocks.length > 1 && (
                 <Button
                   type="button"

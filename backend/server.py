@@ -709,7 +709,7 @@ async def update_booking(
     if not update_fields:
         return {"message": "No fields to update"}
     
-    result = await db.bookings.update_one(
+    await db.bookings.update_one(
         {"id": booking_id, "institution_id": current_user["institution_id"]},
         {"$set": update_fields}
     )

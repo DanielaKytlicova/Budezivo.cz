@@ -194,12 +194,15 @@ export const BookingsPage = () => {
 
     return (
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="booking-detail-description">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>Detail rezervace</span>
               {getStatusBadge(selectedBooking.status)}
             </DialogTitle>
+            <p id="booking-detail-description" className="sr-only">
+              Detailní informace o rezervaci včetně počtu účastníků, kontaktních údajů a přiřazeného lektora.
+            </p>
           </DialogHeader>
 
           <div className="space-y-6 py-4">

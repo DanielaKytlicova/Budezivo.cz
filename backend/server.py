@@ -656,6 +656,133 @@ async def update_booking_status(
         raise HTTPException(status_code=404, detail="Booking not found")
     return {"message": "Status updated"}
 
+@api_router.put("/bookings/{booking_id}")
+async def update_booking(
+    booking_id: str,
+    update_data: BookingUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update booking - role-based access"""
+    # Get current user's role
+    user = await db.users.find_one({"id": current_user["user_id"]}, {"_id": 0})
+    user_role = user.get("role", "viewer") if user else "viewer"
+    
+    # Check booking exists
+    booking = await db.bookings.find_one(
+        {"id": booking_id, "institution_id": current_user["institution_id"]},
+        {"_id": 0}
+    )
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Role-based field access
+    update_fields = {}
+    
+    # Admin/Správce can update everything
+    if user_role in ["admin", "spravce", "edukator"]:
+        if update_data.status is not None:
+            update_fields["status"] = update_data.status
+        if update_data.actual_students is not None:
+            update_fields["actual_students"] = update_data.actual_students
+        if update_data.actual_teachers is not None:
+            update_fields["actual_teachers"] = update_data.actual_teachers
+        if update_data.notes is not None:
+            update_fields["notes"] = update_data.notes
+    # Pokladní can only update actual attendance
+    elif user_role == "pokladni":
+        if update_data.actual_students is not None:
+            update_fields["actual_students"] = update_data.actual_students
+        if update_data.actual_teachers is not None:
+            update_fields["actual_teachers"] = update_data.actual_teachers
+        # Ignore other fields for pokladni
+    else:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    
+    if not update_fields:
+        return {"message": "No fields to update"}
+    
+    result = await db.bookings.update_one(
+        {"id": booking_id, "institution_id": current_user["institution_id"]},
+        {"$set": update_fields}
+    )
+    
+    return {"message": "Booking updated", "updated_fields": list(update_fields.keys())}
+
+@api_router.post("/bookings/{booking_id}/assign-lecturer")
+async def assign_lecturer_to_booking(
+    booking_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Self-assign as lecturer to a booking - only for lektor role"""
+    # Get current user's role and name
+    user = await db.users.find_one({"id": current_user["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_role = user.get("role", "viewer")
+    user_name = user.get("name") or user.get("email", "Unknown")
+    
+    # Only lektor can self-assign
+    if user_role not in ["lektor", "admin", "spravce", "edukator"]:
+        raise HTTPException(status_code=403, detail="Only lecturers can assign themselves to bookings")
+    
+    # Check booking exists
+    booking = await db.bookings.find_one(
+        {"id": booking_id, "institution_id": current_user["institution_id"]},
+        {"_id": 0}
+    )
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Check if already assigned
+    if booking.get("assigned_lecturer_id"):
+        raise HTTPException(status_code=400, detail="Booking already has an assigned lecturer")
+    
+    # Assign lecturer
+    result = await db.bookings.update_one(
+        {"id": booking_id, "institution_id": current_user["institution_id"]},
+        {"$set": {
+            "assigned_lecturer_id": current_user["user_id"],
+            "assigned_lecturer_name": user_name,
+            "assigned_lecturer_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    logging.info(f"Lecturer {user_name} assigned to booking {booking_id}")
+    return {"message": "Lecturer assigned", "lecturer_name": user_name}
+
+@api_router.delete("/bookings/{booking_id}/unassign-lecturer")
+async def unassign_lecturer_from_booking(
+    booking_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Unassign lecturer from booking - admin or the assigned lecturer"""
+    user = await db.users.find_one({"id": current_user["user_id"]}, {"_id": 0})
+    user_role = user.get("role", "viewer") if user else "viewer"
+    
+    booking = await db.bookings.find_one(
+        {"id": booking_id, "institution_id": current_user["institution_id"]},
+        {"_id": 0}
+    )
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Only admin or the assigned lecturer can unassign
+    if user_role not in ["admin", "spravce", "edukator"]:
+        if booking.get("assigned_lecturer_id") != current_user["user_id"]:
+            raise HTTPException(status_code=403, detail="Only admin or assigned lecturer can unassign")
+    
+    result = await db.bookings.update_one(
+        {"id": booking_id, "institution_id": current_user["institution_id"]},
+        {"$set": {
+            "assigned_lecturer_id": None,
+            "assigned_lecturer_name": None,
+            "assigned_lecturer_at": None
+        }}
+    )
+    
+    return {"message": "Lecturer unassigned"}
+
 # ============ Schools Routes ============
 
 @api_router.get("/schools", response_model=List[School])

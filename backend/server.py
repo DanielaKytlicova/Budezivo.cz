@@ -373,6 +373,14 @@ async def forgot_password(data: ForgotPasswordRequest):
 async def verify_token(current_user: dict = Depends(get_current_user)):
     return {"valid": True, "user": current_user}
 
+@api_router.get("/auth/me")
+async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """Get current user info including role"""
+    user = await db.users.find_one({"id": current_user["user_id"]}, {"_id": 0, "password_hash": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
 # ============ Dashboard Routes ============
 
 @api_router.get("/dashboard/stats", response_model=DashboardStats)

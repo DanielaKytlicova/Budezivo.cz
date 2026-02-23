@@ -1,0 +1,114 @@
+{
+  "summary": "Comprehensive testing completed for Booking Detail with RBAC permissions (Budeživo.cz). All backend APIs passed (100% - 11/11 tests). Frontend modal displays all required sections correctly. Role-based access control working - admin can edit all, attendance tracking functional, lecturer self-assignment working.",
+  
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "DialogContent accessibility",
+        "issue": "Console warning: Missing Description or aria-describedby for DialogContent",
+        "priority": "LOW",
+        "impact": "Accessibility warning only"
+      }
+    ]
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Booking Detail Modal",
+        "issues": ["Minor: DialogContent missing aria-describedby for screen readers (console warning)"]
+      }
+    ]
+  },
+
+  "passed_tests": [
+    "Backend: GET /api/auth/me returns user with role",
+    "Backend: PUT /api/bookings/{id} - update status",
+    "Backend: PUT /api/bookings/{id} - update actual attendance",
+    "Backend: PUT /api/bookings/{id} - update notes",
+    "Backend: PUT /api/bookings/{id} - 404 for non-existent booking",
+    "Backend: POST /api/bookings/{id}/assign-lecturer - self assign",
+    "Backend: POST /api/bookings/{id}/assign-lecturer - rejects double assignment",
+    "Backend: DELETE /api/bookings/{id}/unassign-lecturer",
+    "Backend: Booking creation with num_teachers field",
+    "Backend: Demo account login (demo@budezivo.cz / demo123)",
+    "Frontend: Login with demo account",
+    "Frontend: Bookings page loads with role badge (Role: admin)",
+    "Frontend: Booking detail modal opens with all sections",
+    "Frontend: Škola / Skupina section displays",
+    "Frontend: Datum a čas section displays",
+    "Frontend: Počet účastníků - shows num_students and num_teachers (Rezervováno pedagogů)",
+    "Frontend: Skutečná účast edit form (actual_students, actual_teachers inputs)",
+    "Frontend: Edit attendance button visible for admin role",
+    "Frontend: Save attendance updates booking",
+    "Frontend: Kontaktní údaje section with email and phone links",
+    "Frontend: Přiřazený lektor section",
+    "Frontend: Assign lecturer button - self assign working",
+    "Frontend: Unassign lecturer button visible for assigned lecturer",
+    "Frontend: Status badges (Potvrzeno, Čeká na potvrzení)",
+    "Frontend: Confirm/Cancel buttons on pending booking cards",
+    "Frontend: Booking card shows actual vs reserved count (20 (z 18))"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_bookings_rbac.py",
+    "/app/test_reports/pytest/pytest_bookings_rbac.xml"
+  ],
+
+  "action_items": [
+    "Consider adding aria-describedby to DialogContent for accessibility compliance"
+  ],
+
+  "critical_code_review_comments": [
+    "All RBAC permissions implemented correctly - admin/spravce/edukator can edit all, pokladni can edit attendance only, lektor can self-assign",
+    "num_teachers field properly added to BookingBase model and displayed in UI",
+    "Contact details (email, phone) displayed with clickable mailto:/tel: links",
+    "Actual attendance tracking working with edit mode toggle",
+    "Lecturer assignment with timestamp tracking implemented correctly"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_bookings_rbac.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (11/11 tests passed)",
+    "frontend": "100% (all booking detail features working)"
+  },
+
+  "seed_data_creation": "Demo account created: demo@budezivo.cz / demo123. Test bookings created for MŠ Sluníčko and ZŠ Karlova.",
+  
+  "retest_needed": false,
+  
+  "should_main_agent_self_test": true,
+  
+  "context_for_next_testing_agent": "Booking detail modal fully tested. Backend RBAC endpoints working. Demo credentials: demo@budezivo.cz / demo123 (admin role). Two test bookings exist: MŠ Sluníčko (confirmed, with actual attendance 20/2) and ZŠ Karlova (pending). Lecturer demo@budezivo.cz assigned to bookings. All data-testid attributes present for automated testing.",
+
+  "features_verified": {
+    "booking_detail_modal": {
+      "school_group_section": "PASS - Displays name, group type, class/age",
+      "datetime_section": "PASS - Shows date and time block",
+      "participants_section": "PASS - Shows reserved students/teachers, actual attendance with edit",
+      "contact_section": "PASS - Name, email (mailto link), phone (tel link)",
+      "lecturer_section": "PASS - Assign/unassign buttons, assigned lecturer name and timestamp"
+    },
+    "rbac_permissions": {
+      "admin_role": "PASS - Can edit all, change status, update attendance, assign lecturer",
+      "pokladni_role": "BACKEND TESTED - Can only update actual attendance fields",
+      "lektor_role": "BACKEND TESTED - Can only self-assign as lecturer"
+    },
+    "new_api_endpoints": {
+      "PUT /api/bookings/{id}": "PASS - Updates status, actual_students, actual_teachers, notes",
+      "POST /api/bookings/{id}/assign-lecturer": "PASS - Self-assign lecturer",
+      "DELETE /api/bookings/{id}/unassign-lecturer": "PASS - Unassign lecturer",
+      "GET /api/auth/me": "PASS - Returns user info with role"
+    },
+    "num_teachers_field": {
+      "backend": "PASS - num_teachers in BookingBase model",
+      "frontend": "PASS - Displayed as 'Rezervováno pedagogů' in detail modal"
+    }
+  }
+}

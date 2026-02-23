@@ -747,7 +747,7 @@ async def assign_lecturer_to_booking(
         raise HTTPException(status_code=400, detail="Booking already has an assigned lecturer")
     
     # Assign lecturer
-    result = await db.bookings.update_one(
+    await db.bookings.update_one(
         {"id": booking_id, "institution_id": current_user["institution_id"]},
         {"$set": {
             "assigned_lecturer_id": current_user["user_id"],

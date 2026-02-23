@@ -1005,7 +1005,6 @@ async def remove_team_member(member_id: str, current_user: dict = Depends(get_cu
         raise HTTPException(status_code=404, detail="Team member not found")
     
     return {"message": "Team member removed"}
-    return schools
 
 # ============ Statistics Routes ============
 

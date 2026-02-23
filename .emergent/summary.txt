@@ -4,80 +4,83 @@ Build a complete responsive SaaS web application (mobile-first) for a cultural b
 **PRODUCT REQUIREMENTS:**
 -   **Application Type:** Multi-tenant SaaS for cultural institutions (museums, galleries, etc.).
 -   **Core Components:**
-    1.  **Public Marketing Microsite:** Professional, institutional feel with specific Czech content for sections like Hero, Problem, Solution, Pricing, and FAQ.
+    1.  **Public Marketing Microsite:** Renamed to Budeživo.cz. Professional, institutional feel with specific Czech content.
     2.  **Institution Admin Application:** A dashboard for managing programs, bookings, schools/groups, and settings. Includes statistics and plan management.
     3.  **Public Booking Interface:** A mobile-first, multi-step booking flow for teachers/group leaders that requires no login.
-    4.  **Centralized Theme Customization:** Admins can customize their public-facing pages with a logo, primary/secondary/accent colors, and header style.
+    4.  **Centralized Theme Customization:** Admins can customize their public-facing pages.
 -   **Global Features:**
-    -   **Languages:** Full Czech (default) and English language support via a JSON-based i18n system and a language switcher in the header.
-    -   **Responsiveness:** Mobile-first design for all parts of the application.
-    -   **Authentication:** JWT-based registration and login for institution staff.
-    -   **Roles:** Admin, Staff, Viewer.
-    -   **GDPR:** Compliance with data export/deletion and consent.
+    -   **Languages:** Full Czech (default) and English support. The language switcher is currently hidden per user request.
+    -   **Responsiveness:** Mobile-first design.
+    -   **Authentication:** JWT-based registration and login.
+    -   **Roles:** Implemented a detailed role system (Správce, Edukator, Externí lektor, Pokladní).
+    -   **GDPR:** A basic GDPR page has been created; full data management features are pending.
 -   **User-provided additions:**
     -   A Domluvit online ukázku (Arrange an online demo) button that opens a contact form.
-    -   Specific UI/UX and attributes for the booking program selection and creation process, provided via Figma designs.
+    -   Specific UI/UX for program creation, a multi-step registration wizard, and a detailed multi-page settings section based on user-provided wireframes.
+    -   A dedicated Contact page.
 
-**User's preferred language**: Czech (Čeština). The user communicates in Czech and all UI text must be in Czech by default. The next agent MUST respond in Czech.
+**User's preferred language**: Czech (Čeština). The user communicates in Czech and all UI text must be in Czech. The next agent MUST respond in Czech.
 
 **what currently exists?**
-A full-stack application has been built using React, FastAPI, and MongoDB. The application includes a public marketing homepage, a multi-step public booking page, and an admin dashboard with authentication (registration/login). A theme customization panel allows institutions to change their logo URL and color scheme. The UI has been styled twice based on user-provided Figma designs. The entire UI is in Czech, with i18n JSON files created for future English translation.
+The application is a full-stack SaaS platform using React, FastAPI, and MongoDB. The initial project has been significantly expanded and rebranded to Budeživo.cz.
+
+Key implemented features include:
+-   **Frontend:** A public marketing homepage, a multi-step booking page, and a comprehensive admin dashboard.
+-   **Branding:** The application is branded as Budeživo.cz with a custom logo. The Vyzkoušet zdarma and Přihlášení buttons in the header are conditionally displayed based on the current page. Auth pages (login/register) now have a light blue/white background.
+-   **Registration:** A 4-step wizard for new institution registration has replaced the original simple form.
+-   **Admin Dashboard:**
+    -   **Program Management:** A completely redesigned page with Detail and Nastavení tabs to manage extended program attributes.
+    -   **Role Management:** A Správa týmu (Team Management) page allows inviting users and assigning roles (Správce, Uživatel/Edukator, Uživatel/Externí lektor, Uživatel/Pokladní).
+    -   **Settings:** The settings section has been overhauled into a multi-page interface with dedicated sections for Institution Management, Notifications, Language, and GDPR, as per detailed wireframes.
+-   **Backend:** The FastAPI backend has been extended with new models and API endpoints to support the new registration flow, program attributes, role management, and settings pages.
+-   **Static Pages:** A  and a basic  have been created and integrated.
 
 **Last working item**:
-*   **Last item agent was working:** The agent was in the process of adding new attributes to the program creation/management section within the admin dashboard, based on a new Figma design provided by the user. The agent started by updating the backend Pydantic models in  to include the new fields.
-*   **Status:** IN PROGRESS
-*   **Agent Testing Done:** N
-*   **Which testing method agent to use?** both
+*   **Last item agent was working:** The user requested the implementation of a complex role-based preview system (Message #311), but then immediately canceled the request (Message #314). The agent acknowledged the cancellation and is now awaiting new instructions.
+*   **Status:** NONE
+*   **Agent Testing Done:** N/A
+*   **Which testing method agent to use?** N/A
 *   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-*   **Issue 1:** The  component caused persistent syntax errors related to unescaped characters within JSX, requiring multiple rewrites. While currently fixed, this file is fragile and may need careful handling or refactoring.
-    *   **Attempted fixes:** The agent rewrote the file multiple times.
-    *   **Next debug checklist:** If errors recur, carefully inspect the file for string literals with special characters and ensure they are correctly escaped or enclosed (e.g.,  for spaces, or using template literals).
-    *   **Why fix this issue and what will be achieved with the fix?** A stable  is critical for the core functionality of the application.
+*   **Issue 1:** The  component was previously identified as fragile and prone to syntax errors. Although it hasn't caused issues in this session, it remains a candidate for refactoring to improve stability.
     *   **Status:** RESOLVED (but at risk of recurrence)
     *   **Is recurring issue?** Y
     *   **Should Test frontend/backend/both after fix?** frontend
-    *   **Blocked on other issue:** None
 
 **In progress Task List**:
-*   **Task 1:** Complete the implementation of new program attributes from Figma (P0)
-    *   **Where to resume:** The backend  model in  has been updated. The next steps are to modify the frontend admin section ( and potentially creating a new form component) to include form fields for these new attributes (e.g., Tarif, Vyžaduje schválení, Status, Nabízené dny, Časové bloky). The corresponding backend API endpoints () need to be updated to handle saving and retrieving this new data.
-    *   **What will be achieved with this?** The admin dashboard will allow users to manage programs with the detailed settings specified in the Figma design, making the system more robust and aligned with user requirements.
-    *   **Status:** IN PROGRESS
-    *   **Should Test frontend/backend/both after fix?** both
-    *   **Blocked on something:** None
+None.
 
 **Upcoming and Future Tasks**
 *   **Upcoming Tasks:**
-    *   **(P1) Implement Stripe Integration:** The user selected Stripe for payments. The infrastructure is for display only; actual payment processing for plan upgrades needs to be implemented.
-    *   **(P1) Implement Role System:** The PRD specifies Admin, Staff, and Viewer roles with permissions controlled in the admin panel. This is not yet implemented.
-    *   **(P2) Implement i18n Language Toggle:** The language files (cs.json, en.json) exist, but the language switching functionality in the header is not yet implemented.
-    *   **(P2) Implement Statistics Page:** The  is a placeholder. It needs to be implemented with charts for bookings, popular programs, and capacity utilization as per the PRD ( plans).
+    *   **(P1) Implement Statistics Page:** The  is a placeholder. It needs to be implemented with charts for bookings, popular programs, and capacity utilization.
+    *   **(P2) Implement i18n Language Toggle:** The language files (cs.json, en.json) exist, but the language switching functionality in the header was explicitly hidden by user request. Re-enabling and making it functional is a future task.
+    *   **(P2) Implement Stripe Integration:** The user asked to skip this for now, but it remains a key feature from the original PRD for handling plan payments.
 *   **Future Tasks:**
     *   **(P3) Implement Bulk Actions:** The booking management list needs bulk actions (Confirm, Cancel) for  plans.
-    *   **(P3) Implement Real Email Notifications:** Email notifications are currently mocked. Integrate with Resend or SendGrid as per the initial user choice.
-    *   **(P3) Implement GDPR Data Management:** Implement features for data export and deletion.
+    *   **(P3) Implement Real Email Notifications:** Email notifications are currently mocked. Integration with a service like Resend or SendGrid is required.
+    -   **(P3) Implement Full GDPR Data Management:** Implement features for data export and deletion beyond the current static page.
 
 **Completed work in this session**
 -   **Recently completed:**
-    -   Full-stack application skeleton created (FastAPI, React, MongoDB).
-    -   UI/UX redesign based on two separate Figma prototypes.
-    -   Multi-step public booking flow implemented and refined.
-    -   Admin dashboard with functional authentication (Login/Registration) created.
-    -   Theme customization panel (logo URL, colors, header style) implemented in admin settings.
-    -   Arrange a demo contact form dialog added to the homepage.
-    -   Demo booking page link added to the homepage for showcasing the booking flow.
-    -   Initial setup for i18n with Czech as the default language.
-    -   Fixed a critical UI overlay issue on the registration form.
+    -   **Rebranding:** Renamed the app to Budeživo.cz, created and integrated a new logo.
+    -   **Registration Overhaul:** Implemented a 4-step registration wizard based on wireframes.
+    -   **Program Management Redesign:** Rebuilt the  with a two-tab interface for detailed program configuration.
+    -   **Role System:** Implemented a backend and frontend for a 4-tier role system (Správce, Edukator, Externí lektor, Pokladní) with a Správa týmu page.
+    -   **Settings Overhaul:** Rebuilt the entire admin settings area into a multi-page section as per new wireframes (, , , ).
+    -   **UI/UX Improvements:**
+        -   Changed login/register page backgrounds to a light neutral color.
+        -   Conditionally displayed Vyzkoušet zdarma & Přihlášení buttons in the main header.
+        -   Added the Přihlášení button to the mobile header.
+    -   **New Pages:** Created and routed a  (with backend endpoint) and a .
+    -   **Bug Fix:** Resolved a pricing display issue where a translation key was shown instead of the price for the free yearly plan.
+    -   **Accessibility Fix:** Added  to the program management dialog.
 
 **Earlier issues found/mentioned but not fixed**
-None. The agent has addressed all user-raised issues so far.
+None.
 
 **Known issue recurrence from previous fork**
--   Issue recurrence in previous fork: None, this is the first summary.
--   Recurrence count: 0
--   Status: NA
+-   Issue recurrence in previous fork: None.
 
 **Code Architecture**
 
@@ -90,84 +93,71 @@ None. The agent has addressed all user-raised issues so far.
 -   **Internationalization (i18n):** JSON-based file system for Czech and English.
 
 **key DB schema**
--   **institutions:** 
--   **users:** 
--   **programs:**  (being expanded)
--   **bookings:** 
+-   **institutions:** Expanded with fields for multi-step registration  and new settings .
+-   **users:**  field updated to use new roles: , , , .
+-   **programs:** Expanded to include , , , , .
+-   **team_invites:** .
 
 **changes in tech stack**
 None.
 
 **All files of reference**
--   : Contains the entire backend logic, including all data models and API endpoints.
--   : Contains the main React router defining all application pages.
--   : The public marketing microsite.
--   : The public multi-step booking wizard for end-users.
--   : Directory containing all pages for the institution's admin dashboard.
--   : The page for theme and logo customization.
--   : The page for managing educational programs (currently being updated).
--   : Contains the application's color palette and design tokens based on the latest Figma design.
--   : Contains all Czech strings for the UI.
+-   : Contains all backend logic. Has grown very large.
+-   : Completely new multi-step registration wizard.
+-   : New tabbed interface for program management.
+-   : UI for role and user management.
+-   : The new directory containing all refactored settings pages.
+-   : Contains logic for conditional button display.
+-   : Contains all new UI text strings.
 
 **Areas that need refactoring**:
--   ****: This file was rewritten several times due to JSX syntax errors. It is complex and could benefit from being broken down into smaller, more manageable components for each step of the booking wizard.
--   ****: The entire backend is in a single file. As the application grows, it should be refactored into a more structured project with separate files for models, routes, and services.
+-   ****: This file is now monolithic, containing all models, routes, and business logic. It urgently needs to be broken down into a structured project (e.g., , , ) to improve maintainability.
+-   ****: This complex file was identified as fragile in a previous session. It would benefit from being split into smaller components for each step of the booking wizard.
 
 **key api endpoints**
--   : Creates a new institution and an admin user.
--   : Authenticates a user and returns a JWT.
--   : Retrieves theme settings for a specific institution.
--   : Updates the theme settings for the authenticated institution.
--   : Creates a new program.
--   : Retrieves all programs for the authenticated institution.
--   : Retrieves public programs for the booking page.
--   : Creates a new booking.
--   : Submits the arrange a demo contact form.
+-   : Invites a new user with a specific role.
+-   : Retrieves all team members for the institution.
+-   : Updates a user's role.
+-   : Removes a user.
+-   : Submits the new contact form on the .
+-   , : Manage institution settings.
+-   , : Manage notification settings.
 
 **Critical Info for New Agent**
--   The user provides requirements and design updates via Figma links and screenshots. You must be able to interpret these visual specifications.
--   Pay close attention to JSX syntax, especially when writing large, multi-line strings or embedding translated text with special characters. The  file has been a source of recurring syntax errors.
--   The user is technical and provides specific feedback. Implement features exactly as requested.
--   Always respond in Czech.
+-   The user canceled their last request. **Do not proceed with any new work.** Wait for the user to provide new instructions.
+-   The user is highly engaged, provides detailed wireframes, and frequently adjusts the project's direction. Be prepared for rapid changes in priority.
+-   All communication and UI text must be in Czech.
 
 **documents and test reports created in this job**
 -   
+-    (updated multiple times)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Asks to add more attributes for selecting a reservation program, providing a Figma link. (PENDING)
-2.  **User:** Shares a publicly accessible Figma link after the first one failed.
-3.  **Agent:** Informs user the crawl tool still fails and asks for screenshots or a description.
-4.  **User:** Provides a screenshot of the Figma prototype for the booking flow.
-5.  **Agent:** Acknowledges the new design and outlines the plan to implement the 4-step booking flow with new program attributes.
-6.  **User:** Asks to change the entire site's visuals and colors based on a new Figma link.
-7.  **Agent:** States the new Figma link is inaccessible and asks for screenshots or a description of the design system.
-8.  **User:** Provides a screenshot of the new homepage design.
-9.  **Agent:** Confirms understanding of the new design system (colors, fonts, layout) and plans the implementation.
-10. **User:** Reports that the BookingPage is broken due to a syntax error. (This was part of the implementation of the new design).
-11. **User:** Asks to add necessary attributes when setting up a program, providing a screenshot of the admin program management UI from Figma. (IN PROGRESS)
+1.  **User:** Asks how to connect the project to a custom domain. (COMPLETED)
+2.  **Agent:** Provides a detailed, step-by-step guide on how to deploy and link a domain.
+3.  **User:** Provides a very detailed feature request for a role-based preview system, including UI mockups and specific permissions for 4 different roles. (CANCELED)
+4.  **Agent:** Acknowledges the request and prepares to start implementation.
+5.  **User:** Cancel previous request. (COMPLETED)
+6.  **Agent:** Confirms the request for the role-based preview system is canceled and asks for the next task.
+
+The agent is currently idle, awaiting new instructions from the user.
 
 **Project Health Check:**
--   **Working:** Core application structure, marketing page, admin dashboard (login, register, settings), public booking flow.
+-   **Working:** Core application, rebranding, new registration flow, redesigned program management, new role system, and overhauled settings section.
 -   **Broken:** None.
--   **Mocked:** Email notifications. Payment gateway integration is for display only.
+-   **Mocked:** Email notifications, Stripe payment integration.
 
 **3rd Party Integrations**
--   **Stripe:** Chosen for payments, but not yet integrated. Test keys are available.
+-   **Stripe:** Chosen for payments, but implementation has been postponed by the user.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES (once)
+-   **Testing agent used after significant changes:** YES, for the program/registration wizard implementation. Minor frontend bugs were found and fixed.
 -   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None.
 -   **Known regressions:** None.
 
 **Credentials to test flow:**
-Use the registration form to create a new institution and user. For example:
--   **Email:** test@example.com
--   **Password:** password123
+Use the registration form on the homepage to create a new test institution and user.
 
 **What agent forgot to execute**
--   **Role System:** The PRD specified Admin, Staff, and Viewer roles, but this has not been implemented. All registered users are effectively admins.
--   **i18n Toggle:** The language files and context are set up, but the UI toggle to switch between Czech and English is not functional.
--   **Stripe Integration:** Chosen but not implemented beyond the UI display of pricing tiers.
--   **Statistics & Reporting:** The statistics page in the admin dashboard is a placeholder.
--   **GDPR Features:** Data export and deletion functionalities are pending.</analysis>
+- The agent correctly followed the user's instructions, including the final command to cancel the last pending task. No work was forgotten. The remaining tasks from the original PRD are considered part of the backlog.</analysis>

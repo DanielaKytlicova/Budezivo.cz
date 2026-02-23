@@ -49,6 +49,7 @@ export const BookingPage = () => {
     group_type: 'ms_3_6',
     age_or_class: '',
     num_students: 15,
+    num_teachers: 1,
     special_requirements: '',
     contact_name: '',
     contact_email: '',

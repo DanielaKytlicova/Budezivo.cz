@@ -11,7 +11,7 @@ import { Card } from '../../components/ui/card';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Trash2, Upload } from 'lucide-react';
+import { Plus, Trash2, Upload, Clock } from 'lucide-react';
 
 const STEPS = ['account', 'info', 'schedule', 'programs'];
 
@@ -427,24 +427,75 @@ export const RegisterPage = () => {
 
       <div>
         <Label>Časový blok</Label>
+        <p className="text-xs text-gray-500 mt-1">Zadejte čas ve formátu HH:MM (např. 09:00)</p>
         <div className="space-y-3 mt-2">
           {formData.default_time_blocks.map((block, index) => (
             <div key={index} className="flex items-center gap-2">
-              <Input
-                type="time"
-                data-testid={`register-time-start-${index}`}
-                value={block.start}
-                onChange={(e) => updateTimeBlock(index, 'start', e.target.value)}
-                className="flex-1"
-              />
+              <div className="flex-1 relative">
+                <Input
+                  type="text"
+                  data-testid={`register-time-start-${index}`}
+                  value={block.start}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (val.length === 2 && !val.includes(':') && /^\d{2}$/.test(val)) {
+                      val = val + ':';
+                    }
+                    if (val === '' || /^[0-2]?[0-9]?:?[0-5]?[0-9]?$/.test(val)) {
+                      updateTimeBlock(index, 'start', val);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    let val = e.target.value;
+                    if (/^\d{1}:\d{2}$/.test(val)) {
+                      updateTimeBlock(index, 'start', '0' + val);
+                    }
+                  }}
+                  placeholder="09:00"
+                  maxLength={5}
+                  className="pr-8 font-mono text-center"
+                />
+                <input
+                  type="time"
+                  value={block.start}
+                  onChange={(e) => updateTimeBlock(index, 'start', e.target.value)}
+                  className="absolute right-0 top-0 h-full w-8 opacity-0 cursor-pointer"
+                />
+                <Clock className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
               <span className="text-gray-400">—</span>
-              <Input
-                type="time"
-                data-testid={`register-time-end-${index}`}
-                value={block.end}
-                onChange={(e) => updateTimeBlock(index, 'end', e.target.value)}
-                className="flex-1"
-              />
+              <div className="flex-1 relative">
+                <Input
+                  type="text"
+                  data-testid={`register-time-end-${index}`}
+                  value={block.end}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (val.length === 2 && !val.includes(':') && /^\d{2}$/.test(val)) {
+                      val = val + ':';
+                    }
+                    if (val === '' || /^[0-2]?[0-9]?:?[0-5]?[0-9]?$/.test(val)) {
+                      updateTimeBlock(index, 'end', val);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    let val = e.target.value;
+                    if (/^\d{1}:\d{2}$/.test(val)) {
+                      updateTimeBlock(index, 'end', '0' + val);
+                    }
+                  }}
+                  placeholder="10:00"
+                  maxLength={5}
+                  className="pr-8 font-mono text-center"
+                />
+                <input
+                  type="time"
+                  value={block.end}
+                  onChange={(e) => updateTimeBlock(index, 'end', e.target.value)}
+                  className="absolute right-0 top-0 h-full w-8 opacity-0 cursor-pointer"
+                />
+                <Clock className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              </div>
               {formData.default_time_blocks.length > 1 && (
                 <Button
                   type="button"

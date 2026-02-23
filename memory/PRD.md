@@ -9,8 +9,44 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 ## Architektura
 - **Frontend:** React + TailwindCSS + Shadcn/UI
 - **Backend:** FastAPI (Python)
-- **Databáze:** MongoDB
-- **Auth:** JWT tokens
+- **Databáze:** Supabase (PostgreSQL) s RLS
+- **Auth:** Supabase Auth + JWT tokens
+
+---
+
+## 🆕 SUPABASE PRODUCTION CONFIG (Prosinec 2025)
+
+### Vytvořené soubory:
+```
+/app/supabase/
+├── .env.example                    # Šablona environment proměnných
+├── DEPLOYMENT_CHECKLIST.md         # Checklist pro nasazení
+├── docs/
+│   ├── PRODUCTION_CONFIG.md        # Kompletní produkční dokumentace
+│   └── ROLE_PERMISSIONS.md         # Matice oprávnění rolí
+├── migrations/
+│   ├── 001_schema.sql              # Databázové schéma
+│   └── FULL_MIGRATION.sql          # Kompletní migrační skript
+├── policies/
+│   ├── 002_rls_policies.sql        # RLS politiky
+│   └── 003_rls_cashier_restriction.sql  # Omezení pro pokladní
+└── scripts/
+    ├── 004_audit_triggers.sql      # Audit logging
+    ├── 005_backup_recovery.sql     # Backup & GDPR
+    └── 006_performance_optimization.sql  # Indexy & optimalizace
+```
+
+### RLS (Row Level Security):
+- ✅ Povoleno na všech tabulkách
+- ✅ Multi-tenant izolace (institution_id)
+- ✅ Role-based přístup (admin, edukator, lektor, pokladni, viewer)
+- ✅ Veřejný přístup pro booking (anon role)
+
+### Bezpečnostní opatření:
+- Service role key pouze na serveru
+- Anon key bezpečný pro klienta
+- Audit logging všech změn
+- GDPR export a anonymizace
 
 ---
 

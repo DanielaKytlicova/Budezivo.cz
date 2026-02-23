@@ -780,7 +780,7 @@ async def unassign_lecturer_from_booking(
         if booking.get("assigned_lecturer_id") != current_user["user_id"]:
             raise HTTPException(status_code=403, detail="Only admin or assigned lecturer can unassign")
     
-    result = await db.bookings.update_one(
+    await db.bookings.update_one(
         {"id": booking_id, "institution_id": current_user["institution_id"]},
         {"$set": {
             "assigned_lecturer_id": None,

@@ -129,6 +129,7 @@ class BookingBase(BaseModel):
     group_type: str  # "ms_3_6", "zs1_7_12", etc.
     age_or_class: str  # "3-4 roky" or "4.A"
     num_students: int
+    num_teachers: int = 1  # Počet pedagogů
     special_requirements: Optional[str] = ""
     contact_name: str
     contact_email: EmailStr
@@ -143,7 +144,28 @@ class Booking(BookingBase):
     id: str
     institution_id: str
     status: str = "pending"
+    # Skutečná účast (vyplňuje pokladní)
+    actual_students: Optional[int] = None
+    actual_teachers: Optional[int] = None
+    # Přiřazený lektor
+    assigned_lecturer_id: Optional[str] = None
+    assigned_lecturer_name: Optional[str] = None
+    assigned_lecturer_at: Optional[str] = None
+    # Poznámky
+    notes: Optional[str] = None
     created_at: datetime
+
+class BookingUpdate(BaseModel):
+    """Model pro aktualizaci rezervace"""
+    status: Optional[str] = None
+    actual_students: Optional[int] = None
+    actual_teachers: Optional[int] = None
+    notes: Optional[str] = None
+
+class BookingLectorAssign(BaseModel):
+    """Model pro přiřazení lektora"""
+    lecturer_id: str
+    lecturer_name: str
 
 class SchoolBase(BaseModel):
     name: str

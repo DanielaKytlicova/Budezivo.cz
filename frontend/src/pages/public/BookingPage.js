@@ -446,7 +446,7 @@ export const BookingPage = () => {
                   </div>
 
                   <div>
-                    <Label className="text-[#2B3E50]">Počet osob *</Label>
+                    <Label className="text-[#2B3E50]">Počet studentů *</Label>
                     <Input
                       type="number"
                       value={formData.num_students}
@@ -459,6 +459,23 @@ export const BookingPage = () => {
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Min. {selectedProgram?.min_capacity || 5}, Max {selectedProgram?.max_capacity || 30} osob.
+                    </p>
+                  </div>
+
+                  <div>
+                    <Label className="text-[#2B3E50]">Počet pedagogů *</Label>
+                    <Input
+                      type="number"
+                      value={formData.num_teachers}
+                      onChange={(e) => setFormData({ ...formData, num_teachers: parseInt(e.target.value) || 1 })}
+                      required
+                      min={1}
+                      max={10}
+                      className="mt-2 h-12 rounded-lg border-gray-300"
+                      data-testid="booking-num-teachers"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Minimálně 1 doprovázející pedagog.
                     </p>
                   </div>
 

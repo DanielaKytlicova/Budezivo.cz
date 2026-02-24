@@ -190,6 +190,8 @@ class SchoolBase(BaseModel):
     contact_person: str
     email: EmailStr
     phone: str
+    ico: Optional[str] = None
+    city: Optional[str] = None
 
 class School(SchoolBase):
     model_config = ConfigDict(extra="ignore")

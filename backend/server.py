@@ -156,16 +156,34 @@ class Booking(BookingBase):
     created_at: datetime
 
 class BookingUpdate(BaseModel):
-    """Model pro aktualizaci rezervace"""
+    """Model pro aktualizaci rezervace - rozšířeno pro admin/pedagog"""
     status: Optional[str] = None
     actual_students: Optional[int] = None
     actual_teachers: Optional[int] = None
     notes: Optional[str] = None
+    # Admin/Pedagog can edit these
+    date: Optional[str] = None
+    time_block: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    contact_name: Optional[str] = None
 
 class BookingLectorAssign(BaseModel):
     """Model pro přiřazení lektora"""
     lecturer_id: str
     lecturer_name: str
+
+class ProSettings(BaseModel):
+    """PRO funkce nastavení"""
+    csv_export_enabled: bool = True
+    mass_propagation_enabled: bool = True
+    email_subject_template: str = "Nový program: {program_name}"
+    email_body_template: str = "Dobrý den,\\n\\nrádi bychom Vás informovali o novém programu {program_name}.\\n\\n{program_description}\\n\\nRezervovat můžete zde: {reservation_url}\\n\\nS pozdravem,\\n{institution_name}"
+
+class PropagationRequest(BaseModel):
+    """Request pro rozeslání propagace"""
+    school_ids: List[str]
+    program_id: str
 
 class SchoolBase(BaseModel):
     name: str

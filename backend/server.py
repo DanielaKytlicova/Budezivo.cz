@@ -821,6 +821,138 @@ async def get_schools(current_user: dict = Depends(get_current_user)):
     ).to_list(1000)
     return schools
 
+@api_router.get("/schools/export-csv")
+async def export_schools_csv(current_user: dict = Depends(get_current_user)):
+    """Export škol do CSV - pouze PRO verze"""
+    # Check PRO status
+    institution = await db.institutions.find_one(
+        {"id": current_user["institution_id"]},
+        {"_id": 0}
+    )
+    if not institution or institution.get("plan") not in ["standard", "premium"]:
+        raise HTTPException(status_code=403, detail="Tato funkce je dostupná pouze v PRO verzi")
+    
+    # Get schools
+    schools = await db.schools.find(
+        {"institution_id": current_user["institution_id"]},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    # Generate CSV
+    import io
+    output = io.StringIO()
+    output.write("Název školy;IČO;Email;Telefon;Město;Datum registrace\n")
+    for school in schools:
+        created = school.get("created_at", "")
+        if hasattr(created, "strftime"):
+            created = created.strftime("%d.%m.%Y")
+        output.write(f"{school.get('name', '')};{school.get('ico', '')};{school.get('email', '')};{school.get('phone', '')};{school.get('city', '')};{created}\n")
+    
+    csv_content = output.getvalue()
+    output.close()
+    
+    from fastapi.responses import Response
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=skoly_export.csv"}
+    )
+
+@api_router.post("/schools/send-propagation")
+async def send_propagation(
+    request: PropagationRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Rozeslání propagace programu školám - pouze PRO verze"""
+    # Check PRO status
+    institution = await db.institutions.find_one(
+        {"id": current_user["institution_id"]},
+        {"_id": 0}
+    )
+    if not institution or institution.get("plan") not in ["standard", "premium"]:
+        raise HTTPException(status_code=403, detail="Tato funkce je dostupná pouze v PRO verzi")
+    
+    # Get program
+    program = await db.programs.find_one(
+        {"id": request.program_id, "institution_id": current_user["institution_id"]},
+        {"_id": 0}
+    )
+    if not program:
+        raise HTTPException(status_code=404, detail="Program nenalezen")
+    
+    # Get schools
+    schools = await db.schools.find(
+        {"institution_id": current_user["institution_id"], "id": {"$in": request.school_ids}},
+        {"_id": 0}
+    ).to_list(1000)
+    
+    if not schools:
+        raise HTTPException(status_code=400, detail="Nebyly vybrány žádné školy")
+    
+    # Get PRO settings
+    pro_settings = institution.get("pro_settings", {})
+    subject = pro_settings.get("email_subject_template", "Nový program: {program_name}")
+    body = pro_settings.get("email_body_template", "Dobrý den,\n\nrádi bychom Vás informovali o novém programu {program_name}.\n\n{program_description}\n\nRezervovat můžete zde: {reservation_url}\n\nS pozdravem,\n{institution_name}")
+    
+    reservation_url = f"https://budezivo.cz/booking/{current_user['institution_id']}?program={request.program_id}"
+    
+    # Format email
+    subject = subject.replace("{program_name}", program.get("name_cs", ""))
+    body = body.replace("{program_name}", program.get("name_cs", ""))
+    body = body.replace("{program_description}", program.get("description_cs", ""))
+    body = body.replace("{reservation_url}", reservation_url)
+    body = body.replace("{institution_name}", institution.get("name", ""))
+    
+    # Mock send emails (log for now)
+    sent_count = 0
+    for school in schools:
+        logging.info(f"[PROPAGATION] Sending to {school.get('email')}: {subject}")
+        sent_count += 1
+    
+    return {
+        "message": f"Propagace odeslána {sent_count} školám",
+        "sent_count": sent_count,
+        "schools": [s.get("name") for s in schools]
+    }
+
+# ============ PRO Settings Routes ============
+
+@api_router.get("/settings/pro")
+async def get_pro_settings(current_user: dict = Depends(get_current_user)):
+    """Získat PRO nastavení"""
+    institution = await db.institutions.find_one(
+        {"id": current_user["institution_id"]},
+        {"_id": 0}
+    )
+    if not institution:
+        raise HTTPException(status_code=404, detail="Institution not found")
+    
+    default_settings = {
+        "csv_export_enabled": True,
+        "mass_propagation_enabled": True,
+        "email_subject_template": "Nový program: {program_name}",
+        "email_body_template": "Dobrý den,\n\nrádi bychom Vás informovali o novém programu {program_name}.\n\n{program_description}\n\nRezervovat můžete zde: {reservation_url}\n\nS pozdravem,\n{institution_name}"
+    }
+    
+    return {
+        "plan": institution.get("plan", "free"),
+        "is_pro": institution.get("plan") in ["standard", "premium"],
+        **default_settings,
+        **institution.get("pro_settings", {})
+    }
+
+@api_router.put("/settings/pro")
+async def update_pro_settings(
+    settings: ProSettings,
+    current_user: dict = Depends(get_current_user)
+):
+    """Aktualizovat PRO nastavení"""
+    await db.institutions.update_one(
+        {"id": current_user["institution_id"]},
+        {"$set": {"pro_settings": settings.model_dump()}}
+    )
+    return {"message": "PRO nastavení uloženo"}
+
 # ============ Institution Settings Routes ============
 
 class InstitutionSettings(BaseModel):

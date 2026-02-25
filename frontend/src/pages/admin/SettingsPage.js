@@ -735,6 +735,95 @@ export const SettingsPage = () => {
     </div>
   );
 
+  // Render PRO funkce
+  const renderProSettings = () => (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4 mb-6">
+        <button onClick={() => setActiveSection(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <h1 className="text-xl font-semibold text-slate-900">PRO funkce</h1>
+      </div>
+
+      {!isPro && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <p className="text-yellow-800 font-medium">Tyto funkce jsou dostupné pouze v PRO verzi</p>
+          <p className="text-yellow-700 text-sm mt-1">Upgradujte na Standard nebo Premium plán pro přístup k PRO funkcím.</p>
+        </div>
+      )}
+
+      {/* Funkce */}
+      <Card className="p-4 space-y-4">
+        <h2 className="font-semibold text-slate-900">Dostupné funkce</h2>
+        
+        <div className="flex items-start gap-3">
+          <Switch
+            checked={proSettings.csv_export_enabled}
+            onCheckedChange={(checked) => setProSettings({ ...proSettings, csv_export_enabled: checked })}
+            disabled={!isPro}
+            data-testid="pro-csv-export"
+          />
+          <div>
+            <p className="font-medium text-slate-900">CSV export škol</p>
+            <p className="text-sm text-gray-500">Umožní export seznamu škol do CSV souboru.</p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3">
+          <Switch
+            checked={proSettings.mass_propagation_enabled}
+            onCheckedChange={(checked) => setProSettings({ ...proSettings, mass_propagation_enabled: checked })}
+            disabled={!isPro}
+            data-testid="pro-propagation"
+          />
+          <div>
+            <p className="font-medium text-slate-900">Hromadná propagace programů</p>
+            <p className="text-sm text-gray-500">Rozesílání informací o nových programech školám.</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Email šablona */}
+      <Card className="p-4 space-y-4">
+        <h2 className="font-semibold text-slate-900">Email šablona propagace</h2>
+        <p className="text-sm text-gray-500">Můžete použít proměnné: {'{program_name}'}, {'{program_description}'}, {'{reservation_url}'}, {'{institution_name}'}</p>
+        
+        <div>
+          <Label className="text-gray-600 text-sm">Předmět emailu</Label>
+          <Input
+            value={proSettings.email_subject_template}
+            onChange={(e) => setProSettings({ ...proSettings, email_subject_template: e.target.value })}
+            disabled={!isPro}
+            className="mt-1"
+            data-testid="pro-email-subject"
+          />
+        </div>
+
+        <div>
+          <Label className="text-gray-600 text-sm">Tělo emailu</Label>
+          <textarea
+            value={proSettings.email_body_template}
+            onChange={(e) => setProSettings({ ...proSettings, email_body_template: e.target.value })}
+            disabled={!isPro}
+            rows={8}
+            className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-800 disabled:bg-gray-100"
+            data-testid="pro-email-body"
+          />
+        </div>
+      </Card>
+
+      {/* Save button */}
+      <Button
+        onClick={handleSaveProSettings}
+        disabled={loading || !isPro}
+        className="w-full bg-[#2B3E50] text-white hover:bg-[#1e2d3a] h-12"
+        data-testid="save-pro"
+      >
+        {loading ? 'Ukládání...' : 'Uložit'}
+      </Button>
+    </div>
+  );
+
   // Render GDPR a export dat
   const renderGdprSettings = () => (
     <div className="space-y-6">

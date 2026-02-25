@@ -247,6 +247,28 @@ export const ProgramsPage = () => {
   const programsCount = programs.filter(p => p.status !== 'archived').length;
   const freeLimit = 3;
 
+  const generateInstitutionUrl = async () => {
+    try {
+      // Get institution ID from first program or fetch it
+      const response = await axios.get(`${API}/auth/me`);
+      const institutionId = response.data.institution_id;
+      const institutionName = response.data.institution_name || 'Vaše instituce';
+      
+      const baseUrl = "https://budezivo.cz";
+      const externalUrl = `${baseUrl}/booking/${institutionId}`;
+      
+      setUrlData({
+        url: externalUrl,
+        program_name: 'Všechny programy',
+        institution_name: institutionName,
+        embed_code: `<a href="${externalUrl}" target="_blank">Rezervovat program v ${institutionName}</a>`
+      });
+      setShowUrlModal(true);
+    } catch (error) {
+      toast.error('Nepodařilo se vygenerovat URL');
+    }
+  };
+
   const renderProgramList = () => (
     <div className="space-y-6">
       {/* Header with limit info */}
@@ -262,14 +284,27 @@ export const ProgramsPage = () => {
         </Button>
       </div>
 
-      {/* Plan limit banner */}
+      {/* Plan limit banner with URL generator */}
       <Card className="p-4 bg-gray-50 border-gray-200">
-        <p className="text-sm text-gray-600">
-          Máte ještě {Math.max(0, freeLimit - programsCount)} volné místo pro bezúplatný tarif.
-        </p>
-        <button className="text-sm font-medium text-slate-800 hover:underline">
-          Navýšit tarif
-        </button>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm text-gray-600">
+              Máte ještě <span className="font-semibold">{Math.max(0, freeLimit - programsCount)}</span> volné místo pro bezúplatný tarif.
+            </p>
+            <button className="text-sm font-medium text-slate-800 hover:underline">
+              Navýšit tarif
+            </button>
+          </div>
+          <Button
+            variant="outline"
+            onClick={generateInstitutionUrl}
+            className="shrink-0"
+            data-testid="generate-url-btn"
+          >
+            <LinkIcon className="w-4 h-4 mr-2" />
+            Generovat URL pro web
+          </Button>
+        </div>
       </Card>
 
       {/* Programs grid */}

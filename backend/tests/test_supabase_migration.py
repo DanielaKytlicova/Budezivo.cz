@@ -77,12 +77,12 @@ class TestAuthRegister:
     
     def test_register_duplicate_email_rejected(self):
         """POST /api/auth/register - rejects duplicate email"""
-        # Use existing demo account email
+        # Use existing test account email
         payload = {
             "institution_name": "Duplicate Test",
             "institution_type": "museum",
             "country": "CZ",
-            "email": "demo@budezivo.cz",
+            "email": "test@budezivo.cz",
             "password": "testPass123!",
             "gdpr_consent": True
         }

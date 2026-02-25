@@ -306,8 +306,8 @@ class TestPublicPrograms:
         """GET /api/programs/public/{institution_id} - returns real institution programs"""
         # First get a real institution ID by logging in
         login_response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "demo@budezivo.cz",
-            "password": "demo123"
+            "email": "test@budezivo.cz",
+            "password": "test123"
         })
         if login_response.status_code == 200:
             institution_id = login_response.json()["user"]["institution_id"]

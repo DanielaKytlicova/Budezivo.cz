@@ -73,6 +73,8 @@ export const ProgramsPage = () => {
   const [activeTab, setActiveTab] = useState('detail');
   const [formData, setFormData] = useState(getDefaultFormData());
   const [openMenu, setOpenMenu] = useState(null);
+  const [showUrlModal, setShowUrlModal] = useState(false);
+  const [urlData, setUrlData] = useState(null);
 
   useEffect(() => {
     fetchPrograms();
@@ -87,6 +89,21 @@ export const ProgramsPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const generateExternalUrl = async (programId) => {
+    try {
+      const response = await axios.get(`${API}/programs/${programId}/external-url`);
+      setUrlData(response.data);
+      setShowUrlModal(true);
+    } catch (error) {
+      toast.error('Nepodařilo se vygenerovat URL');
+    }
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
+    toast.success('URL zkopírována do schránky');
   };
 
   const handleSubmit = async (e) => {

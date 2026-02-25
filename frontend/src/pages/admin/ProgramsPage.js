@@ -373,14 +373,6 @@ export const ProgramsPage = () => {
                         Upravit
                       </button>
                       <button
-                        onClick={() => { generateExternalUrl(program.id); setOpenMenu(null); }}
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
-                        data-testid={`url-program-${program.id}`}
-                      >
-                        <LinkIcon className="w-4 h-4" />
-                        Generovat URL
-                      </button>
-                      <button
                         onClick={() => handleDuplicate(program)}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                         data-testid={`duplicate-program-${program.id}`}

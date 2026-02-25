@@ -1,14 +1,21 @@
 """
 Booking/Reservation management routes.
+Uses Supabase (PostgreSQL) for database operations.
 """
 import logging
 from datetime import datetime, timezone
 from typing import List
 from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import BookingCreate, Booking, BookingUpdate
 from core.security import get_current_user
-from database.repositories import BookingRepository, UserRepository, SchoolRepository
+from database.supabase import get_db
+from database.supabase_repositories import (
+    BookingRepositorySupabase, 
+    UserRepositorySupabase, 
+    SchoolRepositorySupabase
+)
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 logger = logging.getLogger(__name__)
@@ -17,10 +24,11 @@ logger = logging.getLogger(__name__)
 @router.post("", response_model=Booking)
 async def create_booking(
     booking_data: BookingCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Create booking for authenticated user."""
-    booking_repo = BookingRepository()
+    booking_repo = BookingRepositorySupabase(db)
     booking = await booking_repo.create(
         booking_data.model_dump(),
         current_user["institution_id"]
@@ -29,17 +37,33 @@ async def create_booking(
 
 
 @router.post("/public/{institution_id}", response_model=Booking)
-async def create_public_booking(institution_id: str, booking_data: BookingCreate):
+async def create_public_booking(
+    institution_id: str,
+    booking_data: BookingCreate,
+    db: AsyncSession = Depends(get_db)
+):
     """Create public booking without authentication."""
-    booking_repo = BookingRepository()
-    school_repo = SchoolRepository()
+    booking_repo = BookingRepositorySupabase(db)
+    school_repo = SchoolRepositorySupabase(db)
     
     # Handle demo institution
     if institution_id == "demo":
         demo_booking = {
             "id": f"demo-{datetime.now(timezone.utc).timestamp()}",
             "institution_id": "demo",
-            **booking_data.model_dump(),
+            "program_id": booking_data.program_id,
+            "date": booking_data.date,
+            "time_block": booking_data.time_block,
+            "school_name": booking_data.school_name,
+            "group_type": booking_data.group_type,
+            "age_or_class": booking_data.age_or_class,
+            "num_students": booking_data.num_students,
+            "num_teachers": booking_data.num_teachers,
+            "special_requirements": booking_data.special_requirements,
+            "contact_name": booking_data.contact_name,
+            "contact_email": booking_data.contact_email,
+            "contact_phone": booking_data.contact_phone,
+            "gdpr_consent": booking_data.gdpr_consent,
             "status": "pending",
             "actual_students": None,
             "actual_teachers": None,
@@ -72,16 +96,23 @@ async def create_public_booking(institution_id: str, booking_data: BookingCreate
 
 
 @router.get("", response_model=List[Booking])
-async def get_bookings(current_user: dict = Depends(get_current_user)):
+async def get_bookings(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Get all bookings for institution."""
-    booking_repo = BookingRepository()
+    booking_repo = BookingRepositorySupabase(db)
     return await booking_repo.find_by_institution(current_user["institution_id"])
 
 
 @router.get("/{booking_id}", response_model=Booking)
-async def get_booking(booking_id: str, current_user: dict = Depends(get_current_user)):
+async def get_booking(
+    booking_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Get single booking by ID."""
-    booking_repo = BookingRepository()
+    booking_repo = BookingRepositorySupabase(db)
     booking = await booking_repo.find_by_id(booking_id, current_user["institution_id"])
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -92,10 +123,11 @@ async def get_booking(booking_id: str, current_user: dict = Depends(get_current_
 async def update_booking_status(
     booking_id: str,
     status: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Update booking status."""
-    booking_repo = BookingRepository()
+    booking_repo = BookingRepositorySupabase(db)
     result = await booking_repo.update_status(
         booking_id,
         current_user["institution_id"],
@@ -110,11 +142,12 @@ async def update_booking_status(
 async def update_booking(
     booking_id: str,
     update_data: BookingUpdate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Update booking - role-based access."""
-    user_repo = UserRepository()
-    booking_repo = BookingRepository()
+    user_repo = UserRepositorySupabase(db)
+    booking_repo = BookingRepositorySupabase(db)
     
     # Get current user's role
     user = await user_repo.find_by_id(current_user["user_id"])
@@ -187,11 +220,12 @@ async def update_booking(
 @router.post("/{booking_id}/assign-lecturer")
 async def assign_lecturer_to_booking(
     booking_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Self-assign as lecturer to a booking."""
-    user_repo = UserRepository()
-    booking_repo = BookingRepository()
+    user_repo = UserRepositorySupabase(db)
+    booking_repo = BookingRepositorySupabase(db)
     
     # Get current user's role and name
     user = await user_repo.find_by_id(current_user["user_id"])
@@ -229,11 +263,12 @@ async def assign_lecturer_to_booking(
 @router.delete("/{booking_id}/unassign-lecturer")
 async def unassign_lecturer_from_booking(
     booking_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Unassign lecturer from booking."""
-    user_repo = UserRepository()
-    booking_repo = BookingRepository()
+    user_repo = UserRepositorySupabase(db)
+    booking_repo = BookingRepositorySupabase(db)
     
     user = await user_repo.find_by_id(current_user["user_id"])
     user_role = user.get("role", "viewer") if user else "viewer"

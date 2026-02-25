@@ -75,9 +75,12 @@ export const ProgramsPage = () => {
   const [openMenu, setOpenMenu] = useState(null);
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [urlData, setUrlData] = useState(null);
+  const [selectedProgramForUrl, setSelectedProgramForUrl] = useState('all');
+  const [institutionData, setInstitutionData] = useState(null);
 
   useEffect(() => {
     fetchPrograms();
+    fetchInstitutionData();
   }, []);
 
   const fetchPrograms = async () => {
@@ -91,19 +94,56 @@ export const ProgramsPage = () => {
     }
   };
 
-  const generateExternalUrl = async (programId) => {
+  const fetchInstitutionData = async () => {
     try {
-      const response = await axios.get(`${API}/programs/${programId}/external-url`);
-      setUrlData(response.data);
-      setShowUrlModal(true);
+      const response = await axios.get(`${API}/auth/me`);
+      setInstitutionData(response.data);
     } catch (error) {
-      toast.error('Nepodařilo se vygenerovat URL');
+      console.error('Failed to fetch institution data');
     }
+  };
+
+  const openUrlGenerator = () => {
+    setSelectedProgramForUrl('all');
+    setUrlData(null);
+    setShowUrlModal(true);
+  };
+
+  const generateUrl = (programId = 'all') => {
+    if (!institutionData) return;
+    
+    const baseUrl = "https://budezivo.cz";
+    const institutionId = institutionData.institution_id;
+    const institutionName = institutionData.institution_name || 'Vaše instituce';
+    
+    if (programId === 'all') {
+      const url = `${baseUrl}/booking/${institutionId}`;
+      setUrlData({
+        url,
+        program_name: 'Všechny programy',
+        institution_name: institutionName,
+        embed_code: `<a href="${url}" target="_blank">Rezervovat program v ${institutionName}</a>`
+      });
+    } else {
+      const program = programs.find(p => p.id === programId);
+      const url = `${baseUrl}/booking/${institutionId}?program=${programId}`;
+      setUrlData({
+        url,
+        program_name: program?.name_cs || 'Program',
+        institution_name: institutionName,
+        embed_code: `<a href="${url}" target="_blank">Rezervovat: ${program?.name_cs || 'Program'}</a>`
+      });
+    }
+  };
+
+  const handleProgramSelectForUrl = (programId) => {
+    setSelectedProgramForUrl(programId);
+    generateUrl(programId);
   };
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
-    toast.success('URL zkopírována do schránky');
+    toast.success('Zkopírováno do schránky');
   };
 
   const handleSubmit = async (e) => {

@@ -154,6 +154,15 @@ export const SettingsPage = () => {
     anonymize: false,
   });
 
+  // PRO settings
+  const [proSettings, setProSettings] = useState({
+    csv_export_enabled: true,
+    mass_propagation_enabled: true,
+    email_subject_template: 'Nový program: {program_name}',
+    email_body_template: 'Dobrý den,\n\nrádi bychom Vás informovali o novém programu {program_name}.\n\n{program_description}\n\nRezervovat můžete zde: {reservation_url}\n\nS pozdravem,\n{institution_name}',
+  });
+  const [isPro, setIsPro] = useState(false);
+
   useEffect(() => {
     if (activeSection === 'institution') {
       fetchInstitutionData();

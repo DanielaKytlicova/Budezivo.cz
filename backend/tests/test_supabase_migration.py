@@ -99,19 +99,19 @@ class TestAuthLogin:
     def test_login_success_returns_token(self):
         """POST /api/auth/login - returns JWT token on success"""
         response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "demo@budezivo.cz",
-            "password": "demo123"
+            "email": "test@budezivo.cz",
+            "password": "test123"
         })
         assert response.status_code == 200, f"Login failed: {response.text}"
         
         data = response.json()
         assert "token" in data
         assert "user" in data
-        assert data["user"]["email"] == "demo@budezivo.cz"
+        assert data["user"]["email"] == "test@budezivo.cz"
         assert "institution_id" in data["user"]
         assert "role" in data["user"]
         
-        print(f"✓ Login: Token received for demo@budezivo.cz")
+        print(f"✓ Login: Token received for test@budezivo.cz")
         return data["token"]
     
     def test_login_invalid_credentials_rejected(self):
@@ -126,7 +126,7 @@ class TestAuthLogin:
     def test_login_wrong_password_rejected(self):
         """POST /api/auth/login - rejects wrong password"""
         response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": "demo@budezivo.cz",
+            "email": "test@budezivo.cz",
             "password": "wrongpassword123"
         })
         assert response.status_code == 401

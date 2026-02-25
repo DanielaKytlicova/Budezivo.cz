@@ -1,163 +1,163 @@
 <analysis>**original_problem_statement:**
-Build a complete responsive SaaS web application (mobile-first) for a cultural booking system targeted at Czech public institutions.
+The user's primary goal is to finalize the architectural stabilization of a multi-tenant SaaS cultural booking system named Budeživo.cz. This involves two critical, high-priority tasks:
+1.  **Backend Refactoring:** Convert the current monolithic  into a modular, production-ready FastAPI structure (routes, services, repositories).
+2.  **Database Migration:** Completely remove the existing MongoDB implementation and migrate the entire application to use a pre-configured Supabase (PostgreSQL) database. The SQL schema, roles, and RLS policies have already been created and are located in .
 
-**PRODUCT REQUIREMENTS:**
--   **Application Type:** Multi-tenant SaaS for cultural institutions (museums, galleries, etc.).
--   **Core Components:**
-    1.  **Public Marketing Microsite:** Renamed to Budeživo.cz. Professional, institutional feel with specific Czech content.
-    2.  **Institution Admin Application:** A dashboard for managing programs, bookings, schools/groups, and settings. Includes statistics and plan management.
-    3.  **Public Booking Interface:** A mobile-first, multi-step booking flow for teachers/group leaders that requires no login.
-    4.  **Centralized Theme Customization:** Admins can customize their public-facing pages.
--   **Global Features:**
-    -   **Languages:** Full Czech (default) and English support. The language switcher is currently hidden per user request.
-    -   **Responsiveness:** Mobile-first design.
-    -   **Authentication:** JWT-based registration and login.
-    -   **Roles:** Implemented a detailed role system (Správce, Edukator, Externí lektor, Pokladní).
-    -   **GDPR:** A basic GDPR page has been created; full data management features are pending.
--   **User-provided additions:**
-    -   A Domluvit online ukázku (Arrange an online demo) button that opens a contact form.
-    -   Specific UI/UX for program creation, a multi-step registration wizard, and a detailed multi-page settings section based on user-provided wireframes.
-    -   A dedicated Contact page.
+**PRODUCT REQUIREMENTS (from User Message #350):**
+-   **URL Generator Refactor:** Centralize the URL generator on the  page with a single global button and a modal for program selection.
+-   **Backend Architecture:** Refactor the backend into a clean structure: , , , , , and  (with a repository pattern).
+-   **Supabase Migration:**
+    -   Remove all MongoDB dependencies, connections, and queries.
+    -   Implement a  for all database interactions.
+    -   Ensure all existing features (reservations, roles, settings, etc.) work correctly on Supabase.
+    -   Enforce multi-tenancy and role-based access using the provided RLS policies.
+-   **STRICTLY FORBIDDEN:**
+    -   Do NOT implement Stripe or any payment gateways.
+    -   Do NOT add any new features beyond the refactor and migration.
+    -   Do NOT modify pricing logic.
+    -   Do NOT perform any UI redesigns.
 
 **User's preferred language**: Czech (Čeština). The user communicates in Czech and all UI text must be in Czech. The next agent MUST respond in Czech.
 
 **what currently exists?**
-The application is a full-stack SaaS platform using React, FastAPI, and MongoDB. The initial project has been significantly expanded and rebranded to Budeživo.cz.
+The application is a functional full-stack SaaS platform using React, FastAPI, and **MongoDB**. It includes a public marketing site, a multi-step booking process, and a comprehensive admin dashboard with features like program management, role-based team management (Správce, Edukator, Externí lektor, Pokladní), and PRO-plan features (CSV export, email promotion).
 
-Key implemented features include:
--   **Frontend:** A public marketing homepage, a multi-step booking page, and a comprehensive admin dashboard.
--   **Branding:** The application is branded as Budeživo.cz with a custom logo. The Vyzkoušet zdarma and Přihlášení buttons in the header are conditionally displayed based on the current page. Auth pages (login/register) now have a light blue/white background.
--   **Registration:** A 4-step wizard for new institution registration has replaced the original simple form.
--   **Admin Dashboard:**
-    -   **Program Management:** A completely redesigned page with Detail and Nastavení tabs to manage extended program attributes.
-    -   **Role Management:** A Správa týmu (Team Management) page allows inviting users and assigning roles (Správce, Uživatel/Edukator, Uživatel/Externí lektor, Uživatel/Pokladní).
-    -   **Settings:** The settings section has been overhauled into a multi-page interface with dedicated sections for Institution Management, Notifications, Language, and GDPR, as per detailed wireframes.
--   **Backend:** The FastAPI backend has been extended with new models and API endpoints to support the new registration flow, program attributes, role management, and settings pages.
--   **Static Pages:** A  and a basic  have been created and integrated.
+A complete set of SQL scripts for a **Supabase (PostgreSQL)** database has been created and stored in , including table definitions, roles, RLS policies, and functions. However, the application has **not yet been migrated** and is still fully dependent on MongoDB.
 
 **Last working item**:
-*   **Last item agent was working:** The user requested the implementation of a complex role-based preview system (Message #311), but then immediately canceled the request (Message #314). The agent acknowledged the cancellation and is now awaiting new instructions.
-*   **Status:** NONE
-*   **Agent Testing Done:** N/A
-*   **Which testing method agent to use?** N/A
+*   **Last item agent was working:** The agent just finished refactoring the URL generator on the  as per the user's latest instructions. The generator was moved from individual program cards to a single global button that opens a modal, allowing the user to select a program before generating the URL. This was the first task in a major architectural overhaul requested by the user.
+*   **Status:** USER VERIFICATION PENDING
+*   **Agent Testing Done:** Y (Verified via screenshot)
+*   **Which testing method agent to use?** screenshot tool (To show the user the new UI)
 *   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-*   **Issue 1:** The  component was previously identified as fragile and prone to syntax errors. Although it hasn't caused issues in this session, it remains a candidate for refactoring to improve stability.
+*   **Issue 1:** The  component has been previously identified as fragile. While not currently causing errors, it's a candidate for future refactoring to improve stability by breaking it into smaller components. (Priority: P3 - Low)
     *   **Status:** RESOLVED (but at risk of recurrence)
     *   **Is recurring issue?** Y
     *   **Should Test frontend/backend/both after fix?** frontend
 
 **In progress Task List**:
-None.
+The user has defined a critical, multi-phase task for architectural stabilization. The agent has completed the first sub-task.
+
+*   **Task 1:** **Architectural Stabilization & Supabase Migration (P0)**
+    *   **Where to resume:** The next step is to begin the backend refactoring. Start by creating the new directory structure (, , , , , ) and moving logic out of the monolithic .
+    *   **What will be achieved with this?** A stable, maintainable, and production-ready backend architecture, completely migrated from MongoDB to Supabase.
+    *   **Status:** IN PROGRESS
+    *   **Should Test frontend/backend/both after fix?** both (Extensive testing using  will be required after migration is complete).
+    *   **Blocked on something:** No.
 
 **Upcoming and Future Tasks**
-*   **Upcoming Tasks:**
-    *   **(P1) Implement Statistics Page:** The  is a placeholder. It needs to be implemented with charts for bookings, popular programs, and capacity utilization.
-    *   **(P2) Implement i18n Language Toggle:** The language files (cs.json, en.json) exist, but the language switching functionality in the header was explicitly hidden by user request. Re-enabling and making it functional is a future task.
-    *   **(P2) Implement Stripe Integration:** The user asked to skip this for now, but it remains a key feature from the original PRD for handling plan payments.
+The following tasks are from the original product roadmap but are now on hold until the critical architectural refactor and Supabase migration are complete.
+
 *   **Future Tasks:**
-    *   **(P3) Implement Bulk Actions:** The booking management list needs bulk actions (Confirm, Cancel) for  plans.
-    *   **(P3) Implement Real Email Notifications:** Email notifications are currently mocked. Integration with a service like Resend or SendGrid is required.
-    -   **(P3) Implement Full GDPR Data Management:** Implement features for data export and deletion beyond the current static page.
+    *   **(P2) Implement Statistics Page:** The  is a placeholder and needs to be implemented with charts.
+    *   **(P2) Implement i18n Language Toggle:** Re-enable the language switcher in the header.
+    *   **(P3) Implement Bulk Actions:** The booking management list needs bulk actions (Confirm, Cancel).
+    *   **(P3) Implement Real Email Notifications:** Integrate with a service like Resend or SendGrid to replace mocked emails.
+    *   **(P3) Implement Full GDPR Data Management:** Implement data export and deletion features.
 
 **Completed work in this session**
--   **Recently completed:**
-    -   **Rebranding:** Renamed the app to Budeživo.cz, created and integrated a new logo.
-    -   **Registration Overhaul:** Implemented a 4-step registration wizard based on wireframes.
-    -   **Program Management Redesign:** Rebuilt the  with a two-tab interface for detailed program configuration.
-    -   **Role System:** Implemented a backend and frontend for a 4-tier role system (Správce, Edukator, Externí lektor, Pokladní) with a Správa týmu page.
-    -   **Settings Overhaul:** Rebuilt the entire admin settings area into a multi-page section as per new wireframes (, , , ).
-    -   **UI/UX Improvements:**
-        -   Changed login/register page backgrounds to a light neutral color.
-        -   Conditionally displayed Vyzkoušet zdarma & Přihlášení buttons in the main header.
-        -   Added the Přihlášení button to the mobile header.
-    -   **New Pages:** Created and routed a  (with backend endpoint) and a .
-    -   **Bug Fix:** Resolved a pricing display issue where a translation key was shown instead of the price for the free yearly plan.
-    -   **Accessibility Fix:** Added  to the program management dialog.
+-   **URL Generator Refactor:** Centralized the URL generator on the  with a global button and a program-selection modal. (DONE)
+-   **Reservation Detail Feature:** Implemented a modal to show reservation details with role-based actions for:
+    -   Editing actual attendance (role: ).
+    -   Self-assigning to a reservation (role: ).
+    -   Editing reservation details like date/time/contact (role: ).
+-   **PRO-Plan Features:**
+    -   Added a PRO features section in settings.
+    -   Implemented bulk CSV export for schools.
+    -   Implemented bulk email promotion to selected schools.
+-   **UI/UX Improvements:**
+    -   Allowed manual text entry for time inputs in forms.
+    -   Corrected a heading on the homepage.
+    -   Adjusted vertical spacing on several admin pages for consistency.
+-   **Supabase Configuration:** Created a full set of production-ready SQL scripts and configuration documentation for a Supabase database (stored in ).
+-   **Test Environment Setup:** Created a persistent test user ( / ) with associated test data (programs, reservations).
 
 **Earlier issues found/mentioned but not fixed**
 None.
 
 **Known issue recurrence from previous fork**
--   Issue recurrence in previous fork: None.
+None.
 
 **Code Architecture**
+The user has mandated a new target backend architecture.
+
 
 
 **Key Technical Concepts**
 -   **Frontend:** React, TailwindCSS, Shadcn/UI
 -   **Backend:** FastAPI (Python)
--   **Database:** MongoDB
--   **Architecture:** Multi-tenant SaaS
--   **Internationalization (i18n):** JSON-based file system for Czech and English.
+-   **Current Database:** MongoDB
+-   **Target Database:** **Supabase (PostgreSQL)**
+-   **Architecture:** Multi-tenant SaaS, Role-Based Access Control (RBAC)
 
 **key DB schema**
--   **institutions:** Expanded with fields for multi-step registration  and new settings .
--   **users:**  field updated to use new roles: , , , .
--   **programs:** Expanded to include , , , , .
--   **team_invites:** .
+-   **MongoDB (Current):** , , , , .
+-   **Supabase (Target):** The schema is defined in  with tables for , , , , , etc., designed with foreign key relationships and multi-tenancy ().
 
 **changes in tech stack**
-None.
+-   A major migration from **MongoDB to Supabase (PostgreSQL)** is in progress.
 
 **All files of reference**
--   : Contains all backend logic. Has grown very large.
--   : Completely new multi-step registration wizard.
--   : New tabbed interface for program management.
--   : UI for role and user management.
--   : The new directory containing all refactored settings pages.
--   : Contains logic for conditional button display.
--   : Contains all new UI text strings.
+-   : The monolithic file that is the primary target for refactoring.
+-   : The file containing the recently refactored URL generator.
+-   : The directory containing all necessary SQL files for the database migration.
+-   User Message #350: This message contains the master plan for the current work and must be followed precisely.
 
 **Areas that need refactoring**:
--   ****: This file is now monolithic, containing all models, routes, and business logic. It urgently needs to be broken down into a structured project (e.g., , , ) to improve maintainability.
--   ****: This complex file was identified as fragile in a previous session. It would benefit from being split into smaller components for each step of the booking wizard.
+-   ****: This is the highest priority (P0). It must be broken down into the user-defined modular structure.
+-   ****: A lower priority (P3) candidate for being split into smaller components.
 
 **key api endpoints**
--   : Invites a new user with a specific role.
--   : Retrieves all team members for the institution.
--   : Updates a user's role.
--   : Removes a user.
--   : Submits the new contact form on the .
--   , : Manage institution settings.
--   , : Manage notification settings.
+-   : Updates actual attendance (role: cashier).
+-   : Assigns a lecturer (role: external lecturer).
+-   : Exports school data to CSV (PRO feature).
+-   : Sends promotional emails (PRO feature).
 
 **Critical Info for New Agent**
--   The user canceled their last request. **Do not proceed with any new work.** Wait for the user to provide new instructions.
--   The user is highly engaged, provides detailed wireframes, and frequently adjusts the project's direction. Be prepared for rapid changes in priority.
--   All communication and UI text must be in Czech.
+-   **Your primary goal is architectural, not feature-based.** You must follow the user's plan from message #350 precisely.
+-   **1. Backend Refactor:** Break down  into the specified modular structure (, , ).
+-   **2. Supabase Migration:** After refactoring, replace all MongoDB logic with Supabase, using the client and repository pattern. All database code must go through the repository layer.
+-   **DO NOT add new features.** The user has explicitly forbidden the implementation of Stripe, payment gateways, or any other new functionality.
+-   The first step of the user's plan (URL generator refactor) is complete. You must now start the backend refactor.
 
 **documents and test reports created in this job**
 -   
--    (updated multiple times)
+-   
+-   
+-   
+-   
+-   
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Asks how to connect the project to a custom domain. (COMPLETED)
-2.  **Agent:** Provides a detailed, step-by-step guide on how to deploy and link a domain.
-3.  **User:** Provides a very detailed feature request for a role-based preview system, including UI mockups and specific permissions for 4 different roles. (CANCELED)
-4.  **Agent:** Acknowledges the request and prepares to start implementation.
-5.  **User:** Cancel previous request. (COMPLETED)
-6.  **Agent:** Confirms the request for the role-based preview system is canceled and asks for the next task.
-
-The agent is currently idle, awaiting new instructions from the user.
+1.  **User (Message #339):** Corrects the agent. The URL generator should be a single global button on the programs page, not on each program card.
+2.  **Agent (Message #340):** Acknowledges the correction and starts the refactor.
+3.  **User (Message #350):** **CRITICAL PIVOT.** Provides a detailed, multi-phase plan to refactor the backend and migrate from MongoDB to Supabase. This overrides all previous feature requests.
+4.  **Agent (Message #351):** Acknowledges the new plan and starts with the first task: centralizing the URL generator.
+5.  **Agent (Messages #352-372):** Implements the URL generator refactor as requested.
+6.  **Agent (Message #373):** Takes a screenshot of the new, centralized URL generator.
+7.  **Agent (Message #375):** Explains the new functionality with the screenshot.
+8.  **Agent (Message #376):** Takes a second screenshot showing the modal with a program selected.
 
 **Project Health Check:**
--   **Working:** Core application, rebranding, new registration flow, redesigned program management, new role system, and overhauled settings section.
+-   **Working:** The application is fully functional on the current **React/FastAPI/MongoDB** stack.
 -   **Broken:** None.
--   **Mocked:** Email notifications, Stripe payment integration.
+-   **Mocked:** Email notifications.
 
 **3rd Party Integrations**
--   **Stripe:** Chosen for payments, but implementation has been postponed by the user.
+-   **Supabase (PostgreSQL):** Configured but not yet integrated. This is the main task.
+-   **Stripe:** Explicitly de-prioritized by the user. **DO NOT IMPLEMENT.**
 
 **Testing status**
--   **Testing agent used after significant changes:** YES, for the program/registration wizard implementation. Minor frontend bugs were found and fixed.
--   **Troubleshoot agent used after agent stuck in loop:** NO
+-   **Testing agent used after significant changes:** YES. The agent was used successfully after implementing the reservation detail and PRO features.
 -   **Test files created:** None.
 -   **Known regressions:** None.
 
 **Credentials to test flow:**
-Use the registration form on the homepage to create a new test institution and user.
+-   **Email:** 
+-   **Password:** 
+-   **Role:** Admin (Správce)
 
 **What agent forgot to execute**
-- The agent correctly followed the user's instructions, including the final command to cancel the last pending task. No work was forgotten. The remaining tasks from the original PRD are considered part of the backlog.</analysis>
+The agent has followed the user's instructions, including the critical pivot to the architectural refactor. No tasks were forgotten.</analysis>

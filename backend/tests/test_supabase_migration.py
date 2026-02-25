@@ -15,8 +15,8 @@ BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
 def get_auth_headers(email=None, password=None):
     """Login and return auth headers"""
     if email is None:
-        email = "demo@budezivo.cz"
-        password = "demo123"
+        email = "test@budezivo.cz"
+        password = "test123"
     
     response = requests.post(f"{BASE_URL}/api/auth/login", json={
         "email": email,

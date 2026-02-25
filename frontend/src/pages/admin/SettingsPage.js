@@ -918,6 +918,8 @@ export const SettingsPage = () => {
         return renderNotificationSettings();
       case 'locale':
         return renderLocaleSettings();
+      case 'pro':
+        return renderProSettings();
       case 'gdpr':
         return renderGdprSettings();
       default:

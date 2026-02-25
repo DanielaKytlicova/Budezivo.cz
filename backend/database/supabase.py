@@ -56,8 +56,9 @@ async def test_connection():
     if engine is None:
         return False, "DATABASE_URL not configured"
     try:
+        from sqlalchemy import text
         async with engine.begin() as conn:
-            await conn.execute("SELECT 1")
+            await conn.execute(text("SELECT 1"))
         return True, "Connection successful"
     except Exception as e:
         return False, str(e)

@@ -1,13 +1,16 @@
 """
 Program management routes.
+Uses Supabase (PostgreSQL) for database operations.
 """
 from datetime import datetime, timezone
 from typing import List
 from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import ProgramCreate, Program
 from core.security import get_current_user
-from database.repositories import ProgramRepository, InstitutionRepository
+from database.supabase import get_db
+from database.supabase_repositories import ProgramRepositorySupabase, InstitutionRepositorySupabase
 
 router = APIRouter(prefix="/programs", tags=["Programs"])
 
@@ -15,10 +18,11 @@ router = APIRouter(prefix="/programs", tags=["Programs"])
 @router.post("", response_model=Program)
 async def create_program(
     program_data: ProgramCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Create new program."""
-    program_repo = ProgramRepository()
+    program_repo = ProgramRepositorySupabase(db)
     program = await program_repo.create(
         program_data.model_dump(),
         current_user["institution_id"]
@@ -27,14 +31,17 @@ async def create_program(
 
 
 @router.get("", response_model=List[Program])
-async def get_programs(current_user: dict = Depends(get_current_user)):
+async def get_programs(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Get all programs for authenticated user's institution."""
-    program_repo = ProgramRepository()
+    program_repo = ProgramRepositorySupabase(db)
     return await program_repo.find_by_institution(current_user["institution_id"])
 
 
 @router.get("/public/{institution_id}", response_model=List[Program])
-async def get_public_programs(institution_id: str):
+async def get_public_programs(institution_id: str, db: AsyncSession = Depends(get_db)):
     """Get public programs for booking page."""
     # Handle demo institution
     if institution_id == "demo":
@@ -122,14 +129,18 @@ async def get_public_programs(institution_id: str):
             }
         ]
     
-    program_repo = ProgramRepository()
+    program_repo = ProgramRepositorySupabase(db)
     return await program_repo.find_public(institution_id)
 
 
 @router.get("/{program_id}", response_model=Program)
-async def get_program(program_id: str, current_user: dict = Depends(get_current_user)):
+async def get_program(
+    program_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Get single program by ID."""
-    program_repo = ProgramRepository()
+    program_repo = ProgramRepositorySupabase(db)
     program = await program_repo.find_by_id(program_id, current_user["institution_id"])
     if not program:
         raise HTTPException(status_code=404, detail="Program not found")
@@ -140,10 +151,11 @@ async def get_program(program_id: str, current_user: dict = Depends(get_current_
 async def update_program(
     program_id: str,
     program_data: ProgramCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Update existing program."""
-    program_repo = ProgramRepository()
+    program_repo = ProgramRepositorySupabase(db)
     result = await program_repo.update(
         program_id,
         current_user["institution_id"],
@@ -156,9 +168,13 @@ async def update_program(
 
 
 @router.delete("/{program_id}")
-async def delete_program(program_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_program(
+    program_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Delete program."""
-    program_repo = ProgramRepository()
+    program_repo = ProgramRepositorySupabase(db)
     result = await program_repo.delete(program_id, current_user["institution_id"])
     if result == 0:
         raise HTTPException(status_code=404, detail="Program not found")
@@ -168,11 +184,12 @@ async def delete_program(program_id: str, current_user: dict = Depends(get_curre
 @router.get("/{program_id}/external-url")
 async def get_program_external_url(
     program_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Generate URL for external bookings."""
-    program_repo = ProgramRepository()
-    institution_repo = InstitutionRepository()
+    program_repo = ProgramRepositorySupabase(db)
+    institution_repo = InstitutionRepositorySupabase(db)
     
     program = await program_repo.find_by_id(program_id, current_user["institution_id"])
     if not program:

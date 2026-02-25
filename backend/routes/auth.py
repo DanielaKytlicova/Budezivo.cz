@@ -1,23 +1,30 @@
 """
 Authentication routes: register, login, verify, forgot password.
+Uses Supabase (PostgreSQL) for database operations.
 """
 import logging
 from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import UserCreate, UserLogin, TokenResponse, ForgotPasswordRequest
 from core.security import hash_password, verify_password, create_jwt_token, get_current_user
-from database.repositories import UserRepository, InstitutionRepository, ThemeRepository
+from database.supabase import get_db
+from database.supabase_repositories import (
+    UserRepositorySupabase, 
+    InstitutionRepositorySupabase, 
+    ThemeRepositorySupabase
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=TokenResponse)
-async def register(user_data: UserCreate):
+async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
     """Register new user and institution."""
-    user_repo = UserRepository()
-    institution_repo = InstitutionRepository()
-    theme_repo = ThemeRepository()
+    user_repo = UserRepositorySupabase(db)
+    institution_repo = InstitutionRepositorySupabase(db)
+    theme_repo = ThemeRepositorySupabase(db)
     
     # Check if user exists
     existing = await user_repo.find_by_email(user_data.email)
@@ -35,9 +42,6 @@ async def register(user_data: UserCreate):
         "logo_url": user_data.logo_url,
         "default_available_days": user_data.default_available_days or ["monday", "tuesday", "wednesday", "thursday", "friday"],
         "default_time_blocks": user_data.default_time_blocks or [{"start": "09:00", "end": "10:00"}],
-        "operating_start_date": user_data.operating_start_date,
-        "operating_end_date": user_data.operating_end_date,
-        "default_program_description": user_data.default_program_description,
         "default_program_duration": user_data.default_program_duration or 60,
         "default_program_capacity": user_data.default_program_capacity or 30,
         "default_target_group": user_data.default_target_group or "schools",
@@ -52,7 +56,6 @@ async def register(user_data: UserCreate):
         "institution_id": institution["id"],
         "role": "admin",
         "gdpr_consent": user_data.gdpr_consent,
-        "gdpr_consent_date": institution["created_at"],
     })
     
     # Create default theme settings
@@ -81,13 +84,22 @@ async def register(user_data: UserCreate):
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(credentials: UserLogin):
+async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     """Login existing user."""
-    user_repo = UserRepository()
-    institution_repo = InstitutionRepository()
+    user_repo = UserRepositorySupabase(db)
+    institution_repo = InstitutionRepositorySupabase(db)
     
     user = await user_repo.find_by_email(credentials.email)
-    if not user or not verify_password(credentials.password, user["password_hash"]):
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Get password hash from database (need to query without excluding it)
+    from sqlalchemy import select
+    from database.models import User
+    result = await db.execute(select(User).where(User.email == credentials.email))
+    user_obj = result.scalar_one_or_none()
+    
+    if not user_obj or not verify_password(credentials.password, user_obj.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     institution = await institution_repo.find_by_id(user["institution_id"])
@@ -106,9 +118,9 @@ async def login(credentials: UserLogin):
 
 
 @router.post("/forgot-password")
-async def forgot_password(data: ForgotPasswordRequest):
+async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
     """Request password reset."""
-    user_repo = UserRepository()
+    user_repo = UserRepositorySupabase(db)
     user = await user_repo.find_by_email(data.email)
     
     if not user:
@@ -127,9 +139,12 @@ async def verify_token(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/me")
-async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+async def get_current_user_info(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Get current user info including role."""
-    user_repo = UserRepository()
+    user_repo = UserRepositorySupabase(db)
     user = await user_repo.find_by_id(current_user["user_id"])
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

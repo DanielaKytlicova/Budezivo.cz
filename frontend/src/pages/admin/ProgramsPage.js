@@ -287,28 +287,6 @@ export const ProgramsPage = () => {
   const programsCount = programs.filter(p => p.status !== 'archived').length;
   const freeLimit = 3;
 
-  const generateInstitutionUrl = async () => {
-    try {
-      // Get institution ID from first program or fetch it
-      const response = await axios.get(`${API}/auth/me`);
-      const institutionId = response.data.institution_id;
-      const institutionName = response.data.institution_name || 'Vaše instituce';
-      
-      const baseUrl = "https://budezivo.cz";
-      const externalUrl = `${baseUrl}/booking/${institutionId}`;
-      
-      setUrlData({
-        url: externalUrl,
-        program_name: 'Všechny programy',
-        institution_name: institutionName,
-        embed_code: `<a href="${externalUrl}" target="_blank">Rezervovat program v ${institutionName}</a>`
-      });
-      setShowUrlModal(true);
-    } catch (error) {
-      toast.error('Nepodařilo se vygenerovat URL');
-    }
-  };
-
   const renderProgramList = () => (
     <div className="space-y-6">
       {/* Header with limit info */}

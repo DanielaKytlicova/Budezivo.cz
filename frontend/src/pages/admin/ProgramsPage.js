@@ -315,7 +315,7 @@ export const ProgramsPage = () => {
           </div>
           <Button
             variant="outline"
-            onClick={generateInstitutionUrl}
+            onClick={openUrlGenerator}
             className="shrink-0"
             data-testid="generate-url-btn"
           >

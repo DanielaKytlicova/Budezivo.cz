@@ -9,7 +9,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
-import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2 } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 

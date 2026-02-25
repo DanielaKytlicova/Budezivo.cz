@@ -25,19 +25,21 @@ import {
   UserPlus,
   UserMinus,
   Eye,
-  AlertCircle
+  AlertCircle,
+  Link as LinkIcon,
+  Copy
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 // Role permissions helper
 const PERMISSIONS = {
-  admin: { canEditAll: true, canEditAttendance: true, canAssignLecturer: true },
-  spravce: { canEditAll: true, canEditAttendance: true, canAssignLecturer: true },
-  edukator: { canEditAll: true, canEditAttendance: true, canAssignLecturer: true },
-  pokladni: { canEditAll: false, canEditAttendance: true, canAssignLecturer: false },
-  lektor: { canEditAll: false, canEditAttendance: false, canAssignLecturer: true },
-  viewer: { canEditAll: false, canEditAttendance: false, canAssignLecturer: false },
+  admin: { canEditAll: true, canEditAttendance: true, canAssignLecturer: true, canEditDateTime: true, canEditContact: true },
+  spravce: { canEditAll: true, canEditAttendance: true, canAssignLecturer: true, canEditDateTime: true, canEditContact: true },
+  edukator: { canEditAll: true, canEditAttendance: true, canAssignLecturer: true, canEditDateTime: true, canEditContact: true },
+  pokladni: { canEditAll: false, canEditAttendance: true, canAssignLecturer: false, canEditDateTime: false, canEditContact: false },
+  lektor: { canEditAll: false, canEditAttendance: false, canAssignLecturer: true, canEditDateTime: false, canEditContact: false },
+  viewer: { canEditAll: false, canEditAttendance: false, canAssignLecturer: false, canEditDateTime: false, canEditContact: false },
 };
 
 export const BookingsPage = () => {
@@ -48,7 +50,7 @@ export const BookingsPage = () => {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState('viewer');
-  const [editMode, setEditMode] = useState(false);
+  const [editMode, setEditMode] = useState(null); // 'attendance' | 'datetime' | 'contact' | null
   const [editData, setEditData] = useState({});
 
   useEffect(() => {
@@ -101,7 +103,7 @@ export const BookingsPage = () => {
       toast.success('Rezervace byla aktualizována');
       fetchBookings();
       setSelectedBooking(prev => ({ ...prev, ...editData }));
-      setEditMode(false);
+      setEditMode(null);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Chyba při aktualizaci');
     }
@@ -114,7 +116,6 @@ export const BookingsPage = () => {
       const response = await axios.post(`${API}/bookings/${selectedBooking.id}/assign-lecturer`);
       toast.success(`Lektor ${response.data.lecturer_name} byl přiřazen`);
       fetchBookings();
-      // Update selected booking
       const updatedBooking = await axios.get(`${API}/bookings/${selectedBooking.id}`);
       setSelectedBooking(updatedBooking.data);
     } catch (error) {
@@ -146,8 +147,13 @@ export const BookingsPage = () => {
       actual_students: booking.actual_students || '',
       actual_teachers: booking.actual_teachers || '',
       notes: booking.notes || '',
+      date: booking.date || '',
+      time_block: booking.time_block || '',
+      contact_email: booking.contact_email || '',
+      contact_phone: booking.contact_phone || '',
+      contact_name: booking.contact_name || '',
     });
-    setEditMode(false);
+    setEditMode(null);
     setShowDetailModal(true);
   };
 
@@ -188,6 +194,8 @@ export const BookingsPage = () => {
     if (!selectedBooking) return null;
 
     const canEditAttendance = permissions.canEditAttendance;
+    const canEditDateTime = permissions.canEditDateTime;
+    const canEditContact = permissions.canEditContact;
     const canAssign = permissions.canAssignLecturer;
     const isAssignedToMe = selectedBooking.assigned_lecturer_id === user?.id;
     const hasAssignedLecturer = !!selectedBooking.assigned_lecturer_id;
@@ -228,22 +236,68 @@ export const BookingsPage = () => {
               </div>
             </Card>
 
-            {/* Datum a čas */}
+            {/* Datum a čas - editable by admin */}
             <Card className="p-4">
-              <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                Datum a čas
-              </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <span className="text-gray-500">Datum:</span>
-                  <p className="font-medium">{selectedBooking.date}</p>
-                </div>
-                <div>
-                  <span className="text-gray-500">Časový blok:</span>
-                  <p className="font-medium">{selectedBooking.time_block}</p>
-                </div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <Calendar className="w-5 h-5" />
+                  Datum a čas
+                </h3>
+                {canEditDateTime && editMode !== 'datetime' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditMode('datetime')}
+                    data-testid="edit-datetime-btn"
+                  >
+                    <Edit className="w-4 h-4 mr-1" />
+                    Upravit
+                  </Button>
+                )}
               </div>
+              
+              {editMode === 'datetime' ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs text-gray-500">Datum</Label>
+                      <Input
+                        type="date"
+                        value={editData.date}
+                        onChange={(e) => setEditData({ ...editData, date: e.target.value })}
+                        data-testid="edit-date-input"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">Časový blok</Label>
+                      <Input
+                        type="text"
+                        value={editData.time_block}
+                        onChange={(e) => setEditData({ ...editData, time_block: e.target.value })}
+                        placeholder="09:00-10:30"
+                        data-testid="edit-time-input"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button size="sm" variant="outline" onClick={() => setEditMode(null)}>Zrušit</Button>
+                    <Button size="sm" onClick={updateBooking} className="bg-slate-800 text-white" data-testid="save-datetime-btn">
+                      Uložit
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500">Datum:</span>
+                    <p className="font-medium">{selectedBooking.date}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Časový blok:</span>
+                    <p className="font-medium">{selectedBooking.time_block}</p>
+                  </div>
+                </div>
+              )}
             </Card>
 
             {/* Počet účastníků */}
@@ -263,16 +317,16 @@ export const BookingsPage = () => {
                 </div>
               </div>
 
-              {/* Skutečná účast - editovatelné pokladním */}
+              {/* Skutečná účast */}
               {(selectedBooking.status === 'confirmed' || selectedBooking.status === 'completed') && (
                 <div className="mt-4 pt-4 border-t">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-medium text-slate-700">Skutečná účast</span>
-                    {canEditAttendance && !editMode && (
+                    {canEditAttendance && editMode !== 'attendance' && (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setEditMode(true)}
+                        onClick={() => setEditMode('attendance')}
                         data-testid="edit-attendance-btn"
                       >
                         <Edit className="w-4 h-4 mr-1" />
@@ -281,7 +335,7 @@ export const BookingsPage = () => {
                     )}
                   </div>
 
-                  {editMode && canEditAttendance ? (
+                  {editMode === 'attendance' ? (
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -290,7 +344,6 @@ export const BookingsPage = () => {
                             type="number"
                             value={editData.actual_students}
                             onChange={(e) => setEditData({ ...editData, actual_students: parseInt(e.target.value) || 0 })}
-                            placeholder="0"
                             data-testid="actual-students-input"
                           />
                         </div>
@@ -300,25 +353,13 @@ export const BookingsPage = () => {
                             type="number"
                             value={editData.actual_teachers}
                             onChange={(e) => setEditData({ ...editData, actual_teachers: parseInt(e.target.value) || 0 })}
-                            placeholder="0"
                             data-testid="actual-teachers-input"
                           />
                         </div>
                       </div>
                       <div className="flex gap-2 justify-end">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setEditMode(false)}
-                        >
-                          Zrušit
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={updateBooking}
-                          className="bg-slate-800 text-white"
-                          data-testid="save-attendance-btn"
-                        >
+                        <Button size="sm" variant="outline" onClick={() => setEditMode(null)}>Zrušit</Button>
+                        <Button size="sm" onClick={updateBooking} className="bg-slate-800 text-white" data-testid="save-attendance-btn">
                           Uložit
                         </Button>
                       </div>
@@ -343,30 +384,80 @@ export const BookingsPage = () => {
               )}
             </Card>
 
-            {/* Kontaktní údaje */}
+            {/* Kontaktní údaje - editable */}
             <Card className="p-4">
-              <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                <User className="w-5 h-5" />
-                Kontaktní údaje
-              </h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-gray-400" />
-                  <span>{selectedBooking.contact_name}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-gray-400" />
-                  <a href={`mailto:${selectedBooking.contact_email}`} className="text-blue-600 hover:underline">
-                    {selectedBooking.contact_email}
-                  </a>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 text-gray-400" />
-                  <a href={`tel:${selectedBooking.contact_phone}`} className="text-blue-600 hover:underline">
-                    {selectedBooking.contact_phone}
-                  </a>
-                </div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <User className="w-5 h-5" />
+                  Kontaktní údaje
+                </h3>
+                {canEditContact && editMode !== 'contact' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditMode('contact')}
+                    data-testid="edit-contact-btn"
+                  >
+                    <Edit className="w-4 h-4 mr-1" />
+                    Upravit
+                  </Button>
+                )}
               </div>
+              
+              {editMode === 'contact' ? (
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-gray-500">Jméno kontaktu</Label>
+                    <Input
+                      value={editData.contact_name}
+                      onChange={(e) => setEditData({ ...editData, contact_name: e.target.value })}
+                      data-testid="edit-contact-name"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">Email</Label>
+                    <Input
+                      type="email"
+                      value={editData.contact_email}
+                      onChange={(e) => setEditData({ ...editData, contact_email: e.target.value })}
+                      data-testid="edit-contact-email"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">Telefon</Label>
+                    <Input
+                      value={editData.contact_phone}
+                      onChange={(e) => setEditData({ ...editData, contact_phone: e.target.value })}
+                      data-testid="edit-contact-phone"
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button size="sm" variant="outline" onClick={() => setEditMode(null)}>Zrušit</Button>
+                    <Button size="sm" onClick={updateBooking} className="bg-slate-800 text-white" data-testid="save-contact-btn">
+                      Uložit
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-gray-400" />
+                    <span>{selectedBooking.contact_name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-gray-400" />
+                    <a href={`mailto:${selectedBooking.contact_email}`} className="text-blue-600 hover:underline">
+                      {selectedBooking.contact_email}
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-gray-400" />
+                    <a href={`tel:${selectedBooking.contact_phone}`} className="text-blue-600 hover:underline">
+                      {selectedBooking.contact_phone}
+                    </a>
+                  </div>
+                </div>
+              )}
             </Card>
 
             {/* Přiřazený lektor */}
@@ -435,16 +526,27 @@ export const BookingsPage = () => {
             {permissions.canEditAll && (
               <Card className="p-4">
                 <h3 className="font-semibold text-slate-900 mb-3">Interní poznámky</h3>
-                {editMode ? (
-                  <Textarea
-                    value={editData.notes}
-                    onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
-                    placeholder="Přidejte interní poznámku..."
-                    rows={3}
-                    data-testid="notes-textarea"
-                  />
+                {editMode === 'notes' ? (
+                  <div className="space-y-3">
+                    <Textarea
+                      value={editData.notes}
+                      onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
+                      placeholder="Přidejte interní poznámku..."
+                      rows={3}
+                      data-testid="notes-textarea"
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <Button size="sm" variant="outline" onClick={() => setEditMode(null)}>Zrušit</Button>
+                      <Button size="sm" onClick={updateBooking} className="bg-slate-800 text-white">Uložit</Button>
+                    </div>
+                  </div>
                 ) : (
-                  <p className="text-sm text-gray-700">{selectedBooking.notes || 'Žádné poznámky'}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-gray-700">{selectedBooking.notes || 'Žádné poznámky'}</p>
+                    <Button size="sm" variant="ghost" onClick={() => setEditMode('notes')}>
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                  </div>
                 )}
               </Card>
             )}

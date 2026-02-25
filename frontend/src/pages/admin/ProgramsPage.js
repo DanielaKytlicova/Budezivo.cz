@@ -943,78 +943,115 @@ export const ProgramsPage = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <LinkIcon className="w-5 h-5" />
-              URL pro externí rezervace
+              URL pro vložení na web
             </DialogTitle>
             <p id="url-description" className="text-sm text-gray-500 mt-2">
-              Tuto URL můžete vložit na webové stránky školy pro přímou rezervaci.
+              Vyberte program a zkopírujte URL pro vložení na webové stránky.
             </p>
           </DialogHeader>
 
-          {urlData && (
-            <div className="space-y-4 py-4">
-              <div>
-                <Label className="text-xs text-gray-500">Program</Label>
-                <p className="font-medium">{urlData.program_name}</p>
-              </div>
-
-              <div>
-                <Label className="text-xs text-gray-500">URL pro rezervaci</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input
-                    value={urlData.url}
-                    readOnly
-                    className="flex-1 text-sm font-mono"
-                    data-testid="external-url-input"
-                  />
-                  <Button
-                    size="sm"
-                    onClick={() => copyToClipboard(urlData.url)}
-                    className="bg-slate-800 text-white"
-                    data-testid="copy-url-btn"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs text-gray-500">HTML kód pro vložení</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input
-                    value={urlData.embed_code}
-                    readOnly
-                    className="flex-1 text-sm font-mono"
-                    data-testid="embed-code-input"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => copyToClipboard(urlData.embed_code)}
-                  >
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-4 border-t">
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(urlData.url, '_blank')}
-                  className="flex-1"
-                  data-testid="preview-url-btn"
+          <div className="space-y-4 py-4">
+            {/* Program Selection */}
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-2 block">Vyberte program</Label>
+              <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">
+                <button
+                  type="button"
+                  onClick={() => handleProgramSelectForUrl('all')}
+                  className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                    selectedProgramForUrl === 'all' 
+                      ? 'bg-slate-800 text-white' 
+                      : 'hover:bg-gray-100'
+                  }`}
+                  data-testid="url-select-all"
                 >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Náhled
-                </Button>
-                <Button
-                  onClick={() => setShowUrlModal(false)}
-                  className="flex-1 bg-slate-800 text-white"
-                >
-                  Zavřít
-                </Button>
+                  Všechny programy
+                </button>
+                {programs.filter(p => p.status === 'active').map(program => (
+                  <button
+                    key={program.id}
+                    type="button"
+                    onClick={() => handleProgramSelectForUrl(program.id)}
+                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                      selectedProgramForUrl === program.id 
+                        ? 'bg-slate-800 text-white' 
+                        : 'hover:bg-gray-100'
+                    }`}
+                    data-testid={`url-select-${program.id}`}
+                  >
+                    {program.name_cs}
+                  </button>
+                ))}
               </div>
             </div>
-          )}
+
+            {/* Generated URL */}
+            {urlData && (
+              <>
+                <div>
+                  <Label className="text-xs text-gray-500">Vybraný program</Label>
+                  <p className="font-medium">{urlData.program_name}</p>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-gray-500">URL pro rezervaci</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      value={urlData.url}
+                      readOnly
+                      className="flex-1 text-sm font-mono"
+                      data-testid="external-url-input"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => copyToClipboard(urlData.url)}
+                      className="bg-slate-800 text-white"
+                      data-testid="copy-url-btn"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-gray-500">HTML kód pro vložení</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      value={urlData.embed_code}
+                      readOnly
+                      className="flex-1 text-sm font-mono"
+                      data-testid="embed-code-input"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyToClipboard(urlData.embed_code)}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open(urlData.url, '_blank')}
+                    className="flex-1"
+                    data-testid="preview-url-btn"
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Náhled
+                  </Button>
+                  <Button
+                    onClick={() => setShowUrlModal(false)}
+                    className="flex-1 bg-slate-800 text-white"
+                  >
+                    Zavřít
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </AdminLayout>

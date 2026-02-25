@@ -581,6 +581,31 @@ async def delete_program(program_id: str, current_user: dict = Depends(get_curre
         raise HTTPException(status_code=404, detail="Program not found")
     return {"message": "Program deleted"}
 
+@api_router.get("/programs/{program_id}/external-url")
+async def get_program_external_url(program_id: str, current_user: dict = Depends(get_current_user)):
+    """Generovat URL pro externí rezervace programu"""
+    program = await db.programs.find_one(
+        {"id": program_id, "institution_id": current_user["institution_id"]},
+        {"_id": 0}
+    )
+    if not program:
+        raise HTTPException(status_code=404, detail="Program not found")
+    
+    institution = await db.institutions.find_one(
+        {"id": current_user["institution_id"]},
+        {"_id": 0}
+    )
+    
+    base_url = "https://budezivo.cz"
+    external_url = f"{base_url}/booking/{current_user['institution_id']}?program={program_id}"
+    
+    return {
+        "url": external_url,
+        "program_name": program.get("name_cs", ""),
+        "institution_name": institution.get("name", "") if institution else "",
+        "embed_code": f'<a href="{external_url}" target="_blank">Rezervovat: {program.get("name_cs", "")}</a>'
+    }
+
 # ============ Bookings Routes ============
 
 @api_router.post("/bookings", response_model=Booking)

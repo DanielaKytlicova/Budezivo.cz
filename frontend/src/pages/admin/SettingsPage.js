@@ -52,6 +52,13 @@ const SETTINGS_MENU = [
     description: 'Správa jazyku, časového a datového formátování',
   },
   {
+    id: 'pro',
+    icon: Shield,
+    title: 'PRO funkce',
+    description: 'CSV export, hromadná propagace, email šablony',
+    isPro: true,
+  },
+  {
     id: 'gdpr',
     icon: Shield,
     title: 'GDPR a reporting dat',

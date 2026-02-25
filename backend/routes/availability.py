@@ -1,16 +1,24 @@
 """
 Availability and calendar routes.
+Uses Supabase (PostgreSQL) for database operations.
 """
 import calendar
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.repositories import BookingRepository
+from database.supabase import get_db
+from database.supabase_repositories import BookingRepositorySupabase
 
 router = APIRouter(tags=["Availability"])
 
 
 @router.get("/availability/{institution_id}/{program_id}/{date}")
-async def get_program_availability(institution_id: str, program_id: str, date: str):
+async def get_program_availability(
+    institution_id: str,
+    program_id: str,
+    date: str,
+    db: AsyncSession = Depends(get_db)
+):
     """Get available time blocks for a program on a specific date."""
     # Default time blocks (90 minutes each)
     time_blocks = [
@@ -24,7 +32,7 @@ async def get_program_availability(institution_id: str, program_id: str, date: s
         return {"date": date, "time_blocks": time_blocks}
     
     # Check existing bookings for this date
-    booking_repo = BookingRepository()
+    booking_repo = BookingRepositorySupabase(db)
     bookings = await booking_repo.find_by_program_and_date(
         institution_id, program_id, date
     )
@@ -39,7 +47,12 @@ async def get_program_availability(institution_id: str, program_id: str, date: s
 
 
 @router.get("/calendar/{institution_id}/{year}/{month}")
-async def get_calendar_availability(institution_id: str, year: int, month: int):
+async def get_calendar_availability(
+    institution_id: str,
+    year: int,
+    month: int,
+    db: AsyncSession = Depends(get_db)
+):
     """Get calendar month view with availability indicators."""
     # For demo, return some available dates
     if institution_id == "demo":

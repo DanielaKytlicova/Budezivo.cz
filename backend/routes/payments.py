@@ -1,16 +1,17 @@
 """
 Payment routes.
+Uses Supabase (PostgreSQL) for database operations.
 """
 import os
-import uuid
 import logging
-from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import PaymentSessionCreate
 from core.config import STRIPE_API_KEY, PACKAGE_PRICES
 from core.security import get_current_user
-from database.repositories import PaymentRepository
+from database.supabase import get_db
+from database.supabase_repositories import PaymentRepositorySupabase
 from emergentintegrations.payments.stripe.checkout import (
     StripeCheckout, CheckoutSessionRequest
 )
@@ -23,7 +24,8 @@ logger = logging.getLogger(__name__)
 async def create_payment_session(
     payment_data: PaymentSessionCreate,
     request: Request,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Create Stripe checkout session."""
     if payment_data.package not in PACKAGE_PRICES:
@@ -57,7 +59,7 @@ async def create_payment_session(
     session = await stripe_checkout.create_checkout_session(checkout_request)
     
     # Create payment transaction record
-    payment_repo = PaymentRepository()
+    payment_repo = PaymentRepositorySupabase(db)
     await payment_repo.create({
         "institution_id": current_user["institution_id"],
         "user_id": current_user["user_id"],
@@ -75,10 +77,11 @@ async def create_payment_session(
 @router.get("/status/{session_id}")
 async def get_payment_status(
     session_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Get payment status."""
-    payment_repo = PaymentRepository()
+    payment_repo = PaymentRepositorySupabase(db)
     
     # Check transaction
     transaction = await payment_repo.find_by_session(
@@ -114,7 +117,7 @@ async def get_payment_status(
 
 
 @router.post("/webhook/stripe")
-async def stripe_webhook(request: Request):
+async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """Handle Stripe webhook."""
     body = await request.body()
     signature = request.headers.get("Stripe-Signature")
@@ -126,7 +129,7 @@ async def stripe_webhook(request: Request):
         webhook_response = await stripe_checkout.handle_webhook(body, signature)
         
         # Update transaction
-        payment_repo = PaymentRepository()
+        payment_repo = PaymentRepositorySupabase(db)
         await payment_repo.update_status(
             webhook_response.session_id,
             webhook_response.event_type,

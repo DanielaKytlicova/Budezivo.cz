@@ -1,15 +1,17 @@
 """
 Team management routes.
+Uses Supabase (PostgreSQL) for database operations.
 """
 import uuid
 import logging
-from datetime import datetime, timezone
 from typing import List
 from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import TeamMember, TeamInvite, RoleUpdate
 from core.security import hash_password, get_current_user
-from database.repositories import UserRepository
+from database.supabase import get_db
+from database.supabase_repositories import UserRepositorySupabase
 
 router = APIRouter(prefix="/team", tags=["Team"])
 logger = logging.getLogger(__name__)
@@ -18,19 +20,23 @@ VALID_ROLES = ["spravce", "edukator", "lektor", "pokladni", "admin", "staff", "v
 
 
 @router.get("", response_model=List[TeamMember])
-async def get_team_members(current_user: dict = Depends(get_current_user)):
+async def get_team_members(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Get all team members for the institution."""
-    user_repo = UserRepository()
+    user_repo = UserRepositorySupabase(db)
     return await user_repo.find_by_institution(current_user["institution_id"])
 
 
 @router.post("/invite")
 async def invite_team_member(
     invite_data: TeamInvite,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Invite a new team member (admin only)."""
-    user_repo = UserRepository()
+    user_repo = UserRepositorySupabase(db)
     
     # Check if current user is admin
     user = await user_repo.find_by_id(current_user["user_id"])
@@ -67,10 +73,11 @@ async def invite_team_member(
 async def update_member_role(
     member_id: str,
     role_data: RoleUpdate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Update a team member's role (admin only)."""
-    user_repo = UserRepository()
+    user_repo = UserRepositorySupabase(db)
     
     # Check if current user is admin
     user = await user_repo.find_by_id(current_user["user_id"])
@@ -100,10 +107,11 @@ async def update_member_role(
 @router.delete("/{member_id}")
 async def remove_team_member(
     member_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Remove a team member (admin only)."""
-    user_repo = UserRepository()
+    user_repo = UserRepositorySupabase(db)
     
     # Check if current user is admin
     user = await user_repo.find_by_id(current_user["user_id"])

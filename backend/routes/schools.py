@@ -1,32 +1,45 @@
 """
 Schools CRM routes - including PRO features.
+Uses Supabase (PostgreSQL) for database operations.
 """
 import io
 import logging
 from typing import List
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import Response
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import School, PropagationRequest
 from core.security import get_current_user
-from database.repositories import SchoolRepository, InstitutionRepository, ProgramRepository
+from database.supabase import get_db
+from database.supabase_repositories import (
+    SchoolRepositorySupabase,
+    InstitutionRepositorySupabase,
+    ProgramRepositorySupabase
+)
 
 router = APIRouter(prefix="/schools", tags=["Schools"])
 logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=List[School])
-async def get_schools(current_user: dict = Depends(get_current_user)):
+async def get_schools(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Get all schools for institution."""
-    school_repo = SchoolRepository()
+    school_repo = SchoolRepositorySupabase(db)
     return await school_repo.find_by_institution(current_user["institution_id"])
 
 
 @router.get("/export-csv")
-async def export_schools_csv(current_user: dict = Depends(get_current_user)):
+async def export_schools_csv(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
     """Export schools to CSV - PRO feature only."""
-    institution_repo = InstitutionRepository()
-    school_repo = SchoolRepository()
+    institution_repo = InstitutionRepositorySupabase(db)
+    school_repo = SchoolRepositorySupabase(db)
     
     # Check PRO status
     institution = await institution_repo.find_by_id(current_user["institution_id"])
@@ -58,12 +71,13 @@ async def export_schools_csv(current_user: dict = Depends(get_current_user)):
 @router.post("/send-propagation")
 async def send_propagation(
     request: PropagationRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """Send program promotion to schools - PRO feature only."""
-    institution_repo = InstitutionRepository()
-    program_repo = ProgramRepository()
-    school_repo = SchoolRepository()
+    institution_repo = InstitutionRepositorySupabase(db)
+    program_repo = ProgramRepositorySupabase(db)
+    school_repo = SchoolRepositorySupabase(db)
     
     # Check PRO status
     institution = await institution_repo.find_by_id(current_user["institution_id"])
@@ -81,7 +95,7 @@ async def send_propagation(
         raise HTTPException(status_code=400, detail="Nebyly vybrány žádné školy")
     
     # Get PRO settings
-    pro_settings = institution.get("pro_settings", {})
+    pro_settings = institution.get("pro_settings", {}) or {}
     subject = pro_settings.get("email_subject_template", "Nový program: {program_name}")
     body = pro_settings.get("email_body_template", 
         "Dobrý den,\n\nrádi bychom Vás informovali o novém programu {program_name}.\n\n"

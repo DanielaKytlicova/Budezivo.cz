@@ -706,8 +706,8 @@ async def update_booking(
     # Role-based field access
     update_fields = {}
     
-    # Admin/Správce can update everything
-    if user_role in ["admin", "spravce", "edukator"]:
+    # Admin/Správce can update everything including date/time/contact
+    if user_role in ["admin", "spravce"]:
         if update_data.status is not None:
             update_fields["status"] = update_data.status
         if update_data.actual_students is not None:
@@ -716,13 +716,42 @@ async def update_booking(
             update_fields["actual_teachers"] = update_data.actual_teachers
         if update_data.notes is not None:
             update_fields["notes"] = update_data.notes
+        # Admin can edit date, time, contact
+        if update_data.date is not None:
+            update_fields["date"] = update_data.date
+        if update_data.time_block is not None:
+            update_fields["time_block"] = update_data.time_block
+        if update_data.contact_email is not None:
+            update_fields["contact_email"] = update_data.contact_email
+        if update_data.contact_phone is not None:
+            update_fields["contact_phone"] = update_data.contact_phone
+        if update_data.contact_name is not None:
+            update_fields["contact_name"] = update_data.contact_name
+    # Edukator/Pedagog can edit date and contact
+    elif user_role == "edukator":
+        if update_data.status is not None:
+            update_fields["status"] = update_data.status
+        if update_data.actual_students is not None:
+            update_fields["actual_students"] = update_data.actual_students
+        if update_data.actual_teachers is not None:
+            update_fields["actual_teachers"] = update_data.actual_teachers
+        if update_data.notes is not None:
+            update_fields["notes"] = update_data.notes
+        # Pedagog can edit date and contact
+        if update_data.date is not None:
+            update_fields["date"] = update_data.date
+        if update_data.contact_email is not None:
+            update_fields["contact_email"] = update_data.contact_email
+        if update_data.contact_phone is not None:
+            update_fields["contact_phone"] = update_data.contact_phone
+        if update_data.contact_name is not None:
+            update_fields["contact_name"] = update_data.contact_name
     # Pokladní can only update actual attendance
     elif user_role == "pokladni":
         if update_data.actual_students is not None:
             update_fields["actual_students"] = update_data.actual_students
         if update_data.actual_teachers is not None:
             update_fields["actual_teachers"] = update_data.actual_teachers
-        # Ignore other fields for pokladni
     else:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     

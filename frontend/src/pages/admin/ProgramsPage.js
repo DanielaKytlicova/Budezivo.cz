@@ -891,6 +891,87 @@ export const ProgramsPage = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* URL Generator Modal */}
+      <Dialog open={showUrlModal} onOpenChange={setShowUrlModal}>
+        <DialogContent className="max-w-lg" aria-describedby="url-description">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LinkIcon className="w-5 h-5" />
+              URL pro externí rezervace
+            </DialogTitle>
+            <p id="url-description" className="text-sm text-gray-500 mt-2">
+              Tuto URL můžete vložit na webové stránky školy pro přímou rezervaci.
+            </p>
+          </DialogHeader>
+
+          {urlData && (
+            <div className="space-y-4 py-4">
+              <div>
+                <Label className="text-xs text-gray-500">Program</Label>
+                <p className="font-medium">{urlData.program_name}</p>
+              </div>
+
+              <div>
+                <Label className="text-xs text-gray-500">URL pro rezervaci</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={urlData.url}
+                    readOnly
+                    className="flex-1 text-sm font-mono"
+                    data-testid="external-url-input"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={() => copyToClipboard(urlData.url)}
+                    className="bg-slate-800 text-white"
+                    data-testid="copy-url-btn"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs text-gray-500">HTML kód pro vložení</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={urlData.embed_code}
+                    readOnly
+                    className="flex-1 text-sm font-mono"
+                    data-testid="embed-code-input"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => copyToClipboard(urlData.embed_code)}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(urlData.url, '_blank')}
+                  className="flex-1"
+                  data-testid="preview-url-btn"
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Náhled
+                </Button>
+                <Button
+                  onClick={() => setShowUrlModal(false)}
+                  className="flex-1 bg-slate-800 text-white"
+                >
+                  Zavřít
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };

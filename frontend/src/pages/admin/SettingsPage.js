@@ -166,6 +166,8 @@ export const SettingsPage = () => {
   useEffect(() => {
     if (activeSection === 'institution') {
       fetchInstitutionData();
+    } else if (activeSection === 'pro') {
+      fetchProSettings();
     }
   }, [activeSection]);
 
@@ -177,6 +179,36 @@ export const SettingsPage = () => {
       }
     } catch (error) {
       // Use defaults if no data
+    }
+  };
+
+  const fetchProSettings = async () => {
+    try {
+      const response = await axios.get(`${API}/settings/pro`);
+      if (response.data) {
+        setIsPro(response.data.is_pro);
+        setProSettings(prev => ({
+          ...prev,
+          csv_export_enabled: response.data.csv_export_enabled ?? true,
+          mass_propagation_enabled: response.data.mass_propagation_enabled ?? true,
+          email_subject_template: response.data.email_subject_template || prev.email_subject_template,
+          email_body_template: response.data.email_body_template || prev.email_body_template,
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching PRO settings');
+    }
+  };
+
+  const handleSaveProSettings = async () => {
+    setLoading(true);
+    try {
+      await axios.put(`${API}/settings/pro`, proSettings);
+      toast.success('PRO nastavení bylo uloženo');
+    } catch (error) {
+      toast.error('Nepodařilo se uložit nastavení');
+    } finally {
+      setLoading(false);
     }
   };
 

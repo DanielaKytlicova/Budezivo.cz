@@ -1,163 +1,187 @@
 <analysis>**original_problem_statement:**
-The user's primary goal is to finalize the architectural stabilization of a multi-tenant SaaS cultural booking system named Budeživo.cz. This involves two critical, high-priority tasks:
-1.  **Backend Refactoring:** Convert the current monolithic  into a modular, production-ready FastAPI structure (routes, services, repositories).
-2.  **Database Migration:** Completely remove the existing MongoDB implementation and migrate the entire application to use a pre-configured Supabase (PostgreSQL) database. The SQL schema, roles, and RLS policies have already been created and are located in .
+The user's initial goal was to refactor the monolithic backend () into a modular FastAPI structure and migrate the database from MongoDB to Supabase (PostgreSQL). After completing this, the user requested assistance with deploying the entire application to a production environment, with the frontend on Vercel and the backend on Railway. This involved extensive debugging of build processes, environment configurations, and routing rules for both platforms. The final state is a fully deployed and functional application.
 
-**PRODUCT REQUIREMENTS (from User Message #350):**
--   **URL Generator Refactor:** Centralize the URL generator on the  page with a single global button and a modal for program selection.
--   **Backend Architecture:** Refactor the backend into a clean structure: , , , , , and  (with a repository pattern).
--   **Supabase Migration:**
-    -   Remove all MongoDB dependencies, connections, and queries.
-    -   Implement a  for all database interactions.
-    -   Ensure all existing features (reservations, roles, settings, etc.) work correctly on Supabase.
-    -   Enforce multi-tenancy and role-based access using the provided RLS policies.
+**PRODUCT REQUIREMENTS (Still applicable):**
+-   **Backend Architecture:** A clean structure: , , , , , and .
+-   **Supabase Migration:** All features must work correctly on the Supabase (PostgreSQL) database.
 -   **STRICTLY FORBIDDEN:**
     -   Do NOT implement Stripe or any payment gateways.
-    -   Do NOT add any new features beyond the refactor and migration.
+    -   Do NOT add any new features until instructed.
     -   Do NOT modify pricing logic.
     -   Do NOT perform any UI redesigns.
 
-**User's preferred language**: Czech (Čeština). The user communicates in Czech and all UI text must be in Czech. The next agent MUST respond in Czech.
+**User's preferred language**: Czech (Čeština). The user communicates primarily in Czech. The next agent **MUST** respond in Czech.
 
 **what currently exists?**
-The application is a functional full-stack SaaS platform using React, FastAPI, and **MongoDB**. It includes a public marketing site, a multi-step booking process, and a comprehensive admin dashboard with features like program management, role-based team management (Správce, Edukator, Externí lektor, Pokladní), and PRO-plan features (CSV export, email promotion).
-
-A complete set of SQL scripts for a **Supabase (PostgreSQL)** database has been created and stored in , including table definitions, roles, RLS policies, and functions. However, the application has **not yet been migrated** and is still fully dependent on MongoDB.
+A full-stack SaaS application (Budeživo.cz) with a React frontend, a modular FastAPI backend, and a Supabase (PostgreSQL) database. The entire application has been successfully deployed and is operational. The frontend is hosted on Vercel, and the backend is hosted on Railway, with both services correctly configured and communicating with each other and the database.
 
 **Last working item**:
-*   **Last item agent was working:** The agent just finished refactoring the URL generator on the  as per the user's latest instructions. The generator was moved from individual program cards to a single global button that opens a modal, allowing the user to select a program before generating the URL. This was the first task in a major architectural overhaul requested by the user.
+*   **Last item agent was working:** The agent finished debugging and verifying the complete end-to-end functionality of the deployed application. This included ensuring the Vercel frontend could communicate with the Railway backend, perform user authentication, and fetch/display data from the Supabase database. The final action was a full-system test after the user configured the necessary environment variables.
 *   **Status:** USER VERIFICATION PENDING
-*   **Agent Testing Done:** Y (Verified via screenshot)
-*   **Which testing method agent to use?** screenshot tool (To show the user the new UI)
+*   **Agent Testing Done:** Y
+*   **Which testing method agent to use?** Manual testing. The agent has already verified the live URLs. The next agent should ask the user to perform a final check on their end to confirm everything works as expected before moving to new tasks.
 *   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-*   **Issue 1:** The  component has been previously identified as fragile. While not currently causing errors, it's a candidate for future refactoring to improve stability by breaking it into smaller components. (Priority: P3 - Low)
-    *   **Status:** RESOLVED (but at risk of recurrence)
+*   **Issue 1: Fragile  Component (P3 - Low)**
+    *   **Description:** The  component has been previously identified as complex and fragile. It is a candidate for future refactoring to improve stability and maintainability by breaking it into smaller, more manageable components.
+    *   **Attempted fixes:** None in this session; it was not a priority.
+    *   **Next debug checklist:** Review  and identify logical sections (e.g., form handling, date selection, summary) that can be extracted into separate components.
+    *   **Why fix this issue and what will be achieved with the fix?** To increase the long-term stability and maintainability of the booking process, which is a critical user flow.
+    *   **Status:** NOT STARTED
     *   **Is recurring issue?** Y
     *   **Should Test frontend/backend/both after fix?** frontend
+    *   **Blocked on other issue:** None.
 
 **In progress Task List**:
-The user has defined a critical, multi-phase task for architectural stabilization. The agent has completed the first sub-task.
-
-*   **Task 1:** **Architectural Stabilization & Supabase Migration (P0)**
-    *   **Where to resume:** The next step is to begin the backend refactoring. Start by creating the new directory structure (, , , , , ) and moving logic out of the monolithic .
-    *   **What will be achieved with this?** A stable, maintainable, and production-ready backend architecture, completely migrated from MongoDB to Supabase.
-    *   **Status:** IN PROGRESS
-    *   **Should Test frontend/backend/both after fix?** both (Extensive testing using  will be required after migration is complete).
-    *   **Blocked on something:** No.
+None. The major tasks of refactoring, migration, and deployment are complete.
 
 **Upcoming and Future Tasks**
-The following tasks are from the original product roadmap but are now on hold until the critical architectural refactor and Supabase migration are complete.
-
-*   **Future Tasks:**
-    *   **(P2) Implement Statistics Page:** The  is a placeholder and needs to be implemented with charts.
-    *   **(P2) Implement i18n Language Toggle:** Re-enable the language switcher in the header.
-    *   **(P3) Implement Bulk Actions:** The booking management list needs bulk actions (Confirm, Cancel).
-    *   **(P3) Implement Real Email Notifications:** Integrate with a service like Resend or SendGrid to replace mocked emails.
-    *   **(P3) Implement Full GDPR Data Management:** Implement data export and deletion features.
+With the architectural stabilization and deployment complete, the project can now resume feature development. The following tasks are from the original backlog.
+*   **(P1) Implement Statistics Page:** The  is currently a placeholder and needs to be implemented with data visualizations and charts based on data from the Supabase DB.
+*   **(P2) Implement i18n Language Toggle:** Re-enable and wire up the language switcher component in the header to allow users to toggle between languages (e.g., Czech and English).
+*   **(P3) Implement Bulk Actions:** The booking management list in the admin dashboard requires bulk actions (e.g., Confirm, Cancel).
+*   **(P3) Implement Real Email Notifications:** Replace the mocked email notification system with a real integration (e.g., Resend, SendGrid) for user actions like registration and booking confirmation.
+*   **(P3) Implement Full GDPR Data Management:** Add features for users to export and delete their personal data to comply with GDPR.
 
 **Completed work in this session**
--   **URL Generator Refactor:** Centralized the URL generator on the  with a global button and a program-selection modal. (DONE)
--   **Reservation Detail Feature:** Implemented a modal to show reservation details with role-based actions for:
-    -   Editing actual attendance (role: ).
-    -   Self-assigning to a reservation (role: ).
-    -   Editing reservation details like date/time/contact (role: ).
--   **PRO-Plan Features:**
-    -   Added a PRO features section in settings.
-    -   Implemented bulk CSV export for schools.
-    -   Implemented bulk email promotion to selected schools.
--   **UI/UX Improvements:**
-    -   Allowed manual text entry for time inputs in forms.
-    -   Corrected a heading on the homepage.
-    -   Adjusted vertical spacing on several admin pages for consistency.
--   **Supabase Configuration:** Created a full set of production-ready SQL scripts and configuration documentation for a Supabase database (stored in ).
--   **Test Environment Setup:** Created a persistent test user ( / ) with associated test data (programs, reservations).
+-   **Backend Refactoring (DONE):** The monolithic  was successfully refactored into a modular, production-ready FastAPI structure (, , , , ).
+-   **Database Migration (DONE):** The entire application was migrated from MongoDB to Supabase (PostgreSQL). This included creating SQLAlchemy models, a repository pattern for database access, and updating all API endpoints.
+-   **Vercel Deployment (DONE):** Successfully debugged and deployed the React frontend to Vercel, which involved:
+    -   Creating  to handle SPA routing ().
+    -   Fixing the build command to use yarn install v1.22.22
+[1/4] Resolving packages...
+[2/4] Fetching packages...
+[3/4] Linking dependencies...
+[4/4] Building fresh packages...
+success Saved lockfile.
+Done in 0.09s. instead of npm <command>
+
+Usage:
+
+npm install        install all the dependencies in your project
+npm install <foo>  add the <foo> dependency to your project
+npm test           run this project's tests
+npm run <foo>      run the script named <foo>
+npm <command> -h   quick help on <command>
+npm -l             display usage info for all commands
+npm help <term>    search for help on <term>
+npm help npm       more involved overview
+
+All commands:
+
+    access, adduser, audit, bugs, cache, ci, completion,
+    config, dedupe, deprecate, diff, dist-tag, docs, doctor,
+    edit, exec, explain, explore, find-dupes, fund, get, help,
+    help-search, hook, init, install, install-ci-test,
+    install-test, link, ll, login, logout, ls, org, outdated,
+    owner, pack, ping, pkg, prefix, profile, prune, publish,
+    query, rebuild, repo, restart, root, run-script, sbom,
+    search, set, shrinkwrap, star, stars, start, stop, team,
+    test, token, uninstall, unpublish, unstar, update, version,
+    view, whoami
+
+Specify configs in the ini-formatted file:
+    /root/.npmrc
+or on the command line via: npm <command> --key=value
+
+More configuration info: npm help config
+Configuration fields: npm help 7 config
+
+npm@10.8.2 /usr/lib/node_modules/npm.
+    -   Resolving ESLint errors by setting  in the  build script.
+    -   Guiding the user to set the  and  environment variable in the Vercel dashboard.
+-   **Railway Deployment (DONE):** Successfully debugged and deployed the FastAPI backend to Railway, which involved:
+    -   Creating a robust  after Nixpacks build failed.
+    -   Fixing  errors for the private  package by adding an .
+    -   Guiding the user to set the  and database environment variables in the Railway dashboard.
+-   **End-to-End Integration (DONE):** Verified that the deployed Vercel frontend, Railway backend, and Supabase database all work together seamlessly.
 
 **Earlier issues found/mentioned but not fixed**
-None.
+None. All issues raised during the session were resolved.
 
 **Known issue recurrence from previous fork**
 None.
 
 **Code Architecture**
-The user has mandated a new target backend architecture.
-
 
 
 **Key Technical Concepts**
 -   **Frontend:** React, TailwindCSS, Shadcn/UI
--   **Backend:** FastAPI (Python)
--   **Current Database:** MongoDB
--   **Target Database:** **Supabase (PostgreSQL)**
--   **Architecture:** Multi-tenant SaaS, Role-Based Access Control (RBAC)
+-   **Backend:** FastAPI (Python), SQLAlchemy
+-   **Database:** Supabase (PostgreSQL)
+-   **Deployment:** Vercel (Frontend), Railway (Backend), Docker
 
 **key DB schema**
--   **MongoDB (Current):** , , , , .
--   **Supabase (Target):** The schema is defined in  with tables for , , , , , etc., designed with foreign key relationships and multi-tenancy ().
+-   The application is now live on the **Supabase (PostgreSQL)** schema. The schema is defined by the SQL files located in , primarily . Key tables include , , , .
 
 **changes in tech stack**
--   A major migration from **MongoDB to Supabase (PostgreSQL)** is in progress.
+-   **Database:** Migration from MongoDB to **Supabase (PostgreSQL)** is complete.
+-   **Hosting:** The application is now deployed on **Vercel** and **Railway**.
 
 **All files of reference**
--   : The monolithic file that is the primary target for refactoring.
--   : The file containing the recently refactored URL generator.
--   : The directory containing all necessary SQL files for the database migration.
--   User Message #350: This message contains the master plan for the current work and must be followed precisely.
+-   : Defines the build environment for the Railway deployment.
+-   : Configures the Vercel deployment, including SPA rewrites.
+-   : Configures Railway deployment settings.
+-   : Build script was modified to .
+-   : The new entry point for the refactored FastAPI application.
+-   : Handles the Supabase database connection.
+-   : Directory containing the definitive SQL schema.
 
 **Areas that need refactoring**:
--   ****: This is the highest priority (P0). It must be broken down into the user-defined modular structure.
--   ****: A lower priority (P3) candidate for being split into smaller components.
+-   ****: Low-priority candidate for being split into smaller components to improve maintainability.
 
 **key api endpoints**
--   : Updates actual attendance (role: cashier).
--   : Assigns a lecturer (role: external lecturer).
--   : Exports school data to CSV (PRO feature).
--   : Sends promotional emails (PRO feature).
+All backend API endpoints are now served from the Railway deployment. Examples:
+-   
+-   
+-   
+-   
 
 **Critical Info for New Agent**
--   **Your primary goal is architectural, not feature-based.** You must follow the user's plan from message #350 precisely.
--   **1. Backend Refactor:** Break down  into the specified modular structure (, , ).
--   **2. Supabase Migration:** After refactoring, replace all MongoDB logic with Supabase, using the client and repository pattern. All database code must go through the repository layer.
--   **DO NOT add new features.** The user has explicitly forbidden the implementation of Stripe, payment gateways, or any other new functionality.
--   The first step of the user's plan (URL generator refactor) is complete. You must now start the backend refactor.
+-   The massive architectural overhaul and deployment are **complete**. The application is live and stable.
+-   Your primary focus should now shift to implementing the **upcoming and future tasks** from the backlog.
+-   Before starting any new task, confirm with the user that they have tested the deployed application and are satisfied with its current state.
+-   Propose a plan to the user based on the  list and ask for their priority.
+-   All development and testing should now consider the deployed production environment on Vercel/Railway.
 
 **documents and test reports created in this job**
 -   
--   
--   
--   
--   
--   
+-    (updated after migration)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User (Message #339):** Corrects the agent. The URL generator should be a single global button on the programs page, not on each program card.
-2.  **Agent (Message #340):** Acknowledges the correction and starts the refactor.
-3.  **User (Message #350):** **CRITICAL PIVOT.** Provides a detailed, multi-phase plan to refactor the backend and migrate from MongoDB to Supabase. This overrides all previous feature requests.
-4.  **Agent (Message #351):** Acknowledges the new plan and starts with the first task: centralizing the URL generator.
-5.  **Agent (Messages #352-372):** Implements the URL generator refactor as requested.
-6.  **Agent (Message #373):** Takes a screenshot of the new, centralized URL generator.
-7.  **Agent (Message #375):** Explains the new functionality with the screenshot.
-8.  **Agent (Message #376):** Takes a second screenshot showing the modal with a program selected.
+1.  **User:** Shared the final build error from Railway: .
+2.  **Agent:** Fixed the  by adding the correct .
+3.  **User:** Asked the agent to verify if the deployment was implemented correctly, providing the Vercel and Railway URLs.
+4.  **Agent:** Tested the URLs and found that the backend was working, but the frontend login was stuck. Deduced it was a missing environment variable on Vercel.
+5.  **User:** Confirmed they had set the environment variable by saying hotovo (done).
+6.  **Agent:** Re-tested and confirmed that the entire application was now working perfectly end-to-end.
+7.  **User:** Asked what to set up for the Vercel-Railway connection.
+8.  **Agent:** Explained how to set the  in Vercel.
+9.  **User:** Asked for help with a Railway deployment failure: .
+10. **Agent:** Started the process of debugging the Railway build, eventually switching from Nixpacks to a custom Dockerfile.
 
 **Project Health Check:**
--   **Working:** The application is fully functional on the current **React/FastAPI/MongoDB** stack.
+-   **Working:** The entire application stack (React Frontend, FastAPI Backend, PostgreSQL DB) is deployed and fully functional on Vercel and Railway.
 -   **Broken:** None.
--   **Mocked:** Email notifications.
+-   **Mocked:** Email notifications are still mocked and need a real integration.
 
 **3rd Party Integrations**
--   **Supabase (PostgreSQL):** Configured but not yet integrated. This is the main task.
--   **Stripe:** Explicitly de-prioritized by the user. **DO NOT IMPLEMENT.**
+-   **Supabase (PostgreSQL):** Fully integrated as the primary database.
+-   **Vercel:** Used for frontend hosting.
+-   **Railway:** Used for backend hosting.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES. The agent was used successfully after implementing the reservation detail and PRO features.
+-   **Testing agent used after significant changes:** YES (after the Supabase migration).
+-   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None.
 -   **Known regressions:** None.
 
 **Credentials to test flow:**
--   **Email:** 
--   **Password:** 
--   **Role:** Admin (Správce)
+-   **Admin Email:** 
+-   **Admin Password:** 
+-   **Test User Email:** 
+-   **Test User Password:** 
 
 **What agent forgot to execute**
-The agent has followed the user's instructions, including the critical pivot to the architectural refactor. No tasks were forgotten.</analysis>
+The agent was thorough and completed all requested tasks, including the complex, multi-step debugging of the Vercel and Railway deployments. No tasks were forgotten.</analysis>

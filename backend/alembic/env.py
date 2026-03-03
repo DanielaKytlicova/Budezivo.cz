@@ -68,3 +68,7 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+
+# Resend .env soubor
+RESEND_API_KEY=re_your_api_key_here
+SENDER_EMAIL=noreply@budezivo.cz

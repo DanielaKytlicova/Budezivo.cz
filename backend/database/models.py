@@ -358,3 +358,58 @@ class ContactMessage(Base):
     # Metadata
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     replied_at = Column(DateTime(timezone=True))
+
+
+class ProgramEmailTemplate(Base):
+    """Email template for program booking confirmations."""
+    __tablename__ = 'program_email_templates'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    program_id = Column(UUID(as_uuid=True), ForeignKey('programs.id', ondelete='CASCADE'), nullable=False, unique=True)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    
+    # Template Content
+    subject = Column(Text, nullable=False)
+    body = Column(Text, nullable=False)
+    
+    # Metadata
+    updated_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_email_templates_program', 'program_id'),
+        Index('idx_email_templates_institution', 'institution_id'),
+    )
+
+
+class EmailLog(Base):
+    """Log of sent emails for audit and debugging."""
+    __tablename__ = 'email_logs'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    program_id = Column(UUID(as_uuid=True), ForeignKey('programs.id', ondelete='SET NULL'))
+    reservation_id = Column(UUID(as_uuid=True), ForeignKey('reservations.id', ondelete='SET NULL'))
+    
+    # Email Details
+    recipient_email = Column(Text, nullable=False)
+    subject = Column(Text, nullable=False)
+    body_snapshot = Column(Text)  # Snapshot of rendered email body
+    
+    # Status
+    status = Column(Text, nullable=False, default='pending')  # pending, sent, failed
+    error_message = Column(Text)
+    email_id = Column(Text)  # External ID from email provider (Resend)
+    
+    # Metadata
+    sent_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_email_logs_institution', 'institution_id'),
+        Index('idx_email_logs_reservation', 'reservation_id'),
+        Index('idx_email_logs_status', 'status'),
+    )

@@ -5,7 +5,7 @@ Uses Supabase (PostgreSQL) for database operations.
 import logging
 from datetime import datetime, timezone
 from typing import List
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import BookingCreate, Booking, BookingUpdate
@@ -14,8 +14,13 @@ from database.supabase import get_db
 from database.supabase_repositories import (
     BookingRepositorySupabase, 
     UserRepositorySupabase, 
-    SchoolRepositorySupabase
+    SchoolRepositorySupabase,
+    ProgramRepositorySupabase,
+    InstitutionRepositorySupabase,
+    EmailTemplateRepositorySupabase,
+    EmailLogRepositorySupabase
 )
+from services.email_service import EmailService
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 logger = logging.getLogger(__name__)
@@ -40,11 +45,16 @@ async def create_booking(
 async def create_public_booking(
     institution_id: str,
     booking_data: BookingCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     """Create public booking without authentication."""
     booking_repo = BookingRepositorySupabase(db)
     school_repo = SchoolRepositorySupabase(db)
+    program_repo = ProgramRepositorySupabase(db)
+    institution_repo = InstitutionRepositorySupabase(db)
+    template_repo = EmailTemplateRepositorySupabase(db)
+    log_repo = EmailLogRepositorySupabase(db)
     
     # Handle demo institution
     if institution_id == "demo":
@@ -92,6 +102,47 @@ async def create_public_booking(
         }, institution_id)
     
     logger.info(f"Booking created: {booking['id']} for {booking_data.contact_email}")
+    
+    # Send confirmation email in background (if program has email enabled)
+    try:
+        program = await program_repo.find_by_id(booking_data.program_id, institution_id)
+        institution = await institution_repo.find_by_id(institution_id)
+        
+        if program and program.get("send_email_notification", False):
+            email_template = await template_repo.find_by_program(booking_data.program_id)
+            
+            # Send email asynchronously
+            async def send_booking_email():
+                try:
+                    result = await EmailService.send_booking_confirmation(
+                        booking_data=booking,
+                        program_data=program,
+                        institution_data=institution or {},
+                        email_template=email_template
+                    )
+                    
+                    # Log the email
+                    await log_repo.create({
+                        "institution_id": institution_id,
+                        "program_id": booking_data.program_id,
+                        "reservation_id": booking["id"],
+                        "recipient_email": booking_data.contact_email,
+                        "subject": result.get("subject", "Potvrzení rezervace"),
+                        "body_snapshot": None,  # Don't store full body for privacy
+                        "status": result.get("status", "sent"),
+                        "error_message": result.get("error"),
+                        "email_id": result.get("email_id"),
+                    })
+                    
+                    logger.info(f"Booking confirmation email sent for {booking['id']}")
+                except Exception as e:
+                    logger.error(f"Failed to send booking email: {str(e)}")
+            
+            # Run in background
+            background_tasks.add_task(send_booking_email)
+    except Exception as e:
+        logger.error(f"Error preparing booking email: {str(e)}")
+    
     return booking
 
 

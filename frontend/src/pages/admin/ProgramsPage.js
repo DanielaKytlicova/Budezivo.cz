@@ -9,9 +9,10 @@ import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
-import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
+import { ProgramMailingTab } from '../../components/admin/ProgramMailingTab';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -863,11 +864,11 @@ export const ProgramsPage = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b">
+      <div className="flex border-b overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab('detail')}
-          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === 'detail'
               ? 'border-slate-800 text-slate-900'
               : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -879,7 +880,7 @@ export const ProgramsPage = () => {
         <button
           type="button"
           onClick={() => setActiveTab('settings')}
-          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === 'settings'
               ? 'border-slate-800 text-slate-900'
               : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -888,35 +889,59 @@ export const ProgramsPage = () => {
         >
           Nastavení
         </button>
+        {editingProgram && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('mailing')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+              activeTab === 'mailing'
+                ? 'border-slate-800 text-slate-900'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+            data-testid="program-tab-mailing"
+          >
+            <Mail className="w-4 h-4" />
+            Mailing
+          </button>
+        )}
       </div>
 
       {/* Tab content */}
       <div className="max-h-[60vh] overflow-y-auto pb-20">
-        {activeTab === 'detail' ? renderDetailTab() : renderSettingsTab()}
-      </div>
-
-      {/* Fixed footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex gap-2 md:relative md:border-0 md:p-0 md:mt-4">
-        <Button
-          onClick={handleSubmit}
-          className="flex-1 bg-slate-800 text-white hover:bg-slate-700"
-          data-testid="program-save-button"
-        >
-          <span className="mr-2">💾</span>
-          Uložit volby
-        </Button>
-        {editingProgram && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => handleDelete(editingProgram.id)}
-            className="text-red-500 border-red-200 hover:bg-red-50"
-            data-testid="program-delete-button"
-          >
-            <Trash2 className="w-5 h-5" />
-          </Button>
+        {activeTab === 'detail' && renderDetailTab()}
+        {activeTab === 'settings' && renderSettingsTab()}
+        {activeTab === 'mailing' && editingProgram && (
+          <ProgramMailingTab 
+            programId={editingProgram.id} 
+            programName={editingProgram.name_cs}
+          />
         )}
       </div>
+
+      {/* Fixed footer - only show for detail/settings tabs */}
+      {activeTab !== 'mailing' && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex gap-2 md:relative md:border-0 md:p-0 md:mt-4">
+          <Button
+            onClick={handleSubmit}
+            className="flex-1 bg-slate-800 text-white hover:bg-slate-700"
+            data-testid="program-save-button"
+          >
+            <span className="mr-2">💾</span>
+            Uložit volby
+          </Button>
+          {editingProgram && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleDelete(editingProgram.id)}
+              className="text-red-500 border-red-200 hover:bg-red-50"
+              data-testid="program-delete-button"
+            >
+              <Trash2 className="w-5 h-5" />
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 

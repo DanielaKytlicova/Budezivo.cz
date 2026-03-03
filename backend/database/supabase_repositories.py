@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from .models import (
     Institution, User, Program, Reservation, School, 
-    ThemeSetting, Payment, ContactMessage
+    ThemeSetting, Payment, ContactMessage, ProgramEmailTemplate, EmailLog
 )
 
 logger = logging.getLogger(__name__)
@@ -610,3 +610,160 @@ class SettingsRepositorySupabase:
             .values(gdpr_settings=settings)
         )
         await self.db.commit()
+
+
+
+class EmailTemplateRepositorySupabase:
+    """Repository for program email templates with Supabase."""
+    
+    def __init__(self, db: AsyncSession):
+        self.db = db
+    
+    async def find_by_program(self, program_id: str) -> Optional[dict]:
+        """Find email template by program ID."""
+        result = await self.db.execute(
+            select(ProgramEmailTemplate).where(
+                ProgramEmailTemplate.program_id == uuid.UUID(program_id)
+            )
+        )
+        template = result.scalar_one_or_none()
+        return to_dict(template) if template else None
+    
+    async def find_by_institution(self, institution_id: str) -> List[dict]:
+        """Find all email templates for an institution."""
+        result = await self.db.execute(
+            select(ProgramEmailTemplate).where(
+                ProgramEmailTemplate.institution_id == uuid.UUID(institution_id)
+            )
+        )
+        templates = result.scalars().all()
+        return [to_dict(t) for t in templates]
+    
+    async def create_or_update(
+        self,
+        program_id: str,
+        institution_id: str,
+        subject: str,
+        body: str,
+        updated_by: str
+    ) -> dict:
+        """Create or update email template."""
+        from datetime import datetime, timezone
+        
+        existing = await self.find_by_program(program_id)
+        
+        if existing:
+            # Update existing template
+            await self.db.execute(
+                update(ProgramEmailTemplate)
+                .where(ProgramEmailTemplate.program_id == uuid.UUID(program_id))
+                .values(
+                    subject=subject,
+                    body=body,
+                    updated_by=uuid.UUID(updated_by),
+                    updated_at=datetime.now(timezone.utc)
+                )
+            )
+            await self.db.commit()
+        else:
+            # Create new template
+            template = ProgramEmailTemplate(
+                id=uuid.uuid4(),
+                program_id=uuid.UUID(program_id),
+                institution_id=uuid.UUID(institution_id),
+                subject=subject,
+                body=body,
+                updated_by=uuid.UUID(updated_by),
+            )
+            self.db.add(template)
+            await self.db.commit()
+        
+        return await self.find_by_program(program_id)
+    
+    async def delete(self, program_id: str) -> int:
+        """Delete email template."""
+        result = await self.db.execute(
+            delete(ProgramEmailTemplate)
+            .where(ProgramEmailTemplate.program_id == uuid.UUID(program_id))
+        )
+        await self.db.commit()
+        return result.rowcount
+
+
+class EmailLogRepositorySupabase:
+    """Repository for email logs with Supabase."""
+    
+    def __init__(self, db: AsyncSession):
+        self.db = db
+    
+    async def create(self, log_data: dict) -> dict:
+        """Create email log entry."""
+        from datetime import datetime, timezone
+        
+        log = EmailLog(
+            id=uuid.uuid4(),
+            institution_id=uuid.UUID(log_data['institution_id']),
+            program_id=uuid.UUID(log_data['program_id']) if log_data.get('program_id') else None,
+            reservation_id=uuid.UUID(log_data['reservation_id']) if log_data.get('reservation_id') else None,
+            recipient_email=log_data['recipient_email'],
+            subject=log_data['subject'],
+            body_snapshot=log_data.get('body_snapshot'),
+            status=log_data.get('status', 'pending'),
+            error_message=log_data.get('error_message'),
+            email_id=log_data.get('email_id'),
+            sent_at=datetime.now(timezone.utc) if log_data.get('status') == 'sent' else None,
+        )
+        self.db.add(log)
+        await self.db.commit()
+        await self.db.refresh(log)
+        return to_dict(log)
+    
+    async def find_by_program(self, program_id: str, limit: int = 50) -> List[dict]:
+        """Find email logs by program."""
+        result = await self.db.execute(
+            select(EmailLog)
+            .where(EmailLog.program_id == uuid.UUID(program_id))
+            .order_by(EmailLog.created_at.desc())
+            .limit(limit)
+        )
+        logs = result.scalars().all()
+        return [to_dict(l) for l in logs]
+    
+    async def find_by_reservation(self, reservation_id: str) -> List[dict]:
+        """Find email logs by reservation."""
+        result = await self.db.execute(
+            select(EmailLog)
+            .where(EmailLog.reservation_id == uuid.UUID(reservation_id))
+            .order_by(EmailLog.created_at.desc())
+        )
+        logs = result.scalars().all()
+        return [to_dict(l) for l in logs]
+    
+    async def find_by_institution(self, institution_id: str, limit: int = 100) -> List[dict]:
+        """Find all email logs for an institution."""
+        result = await self.db.execute(
+            select(EmailLog)
+            .where(EmailLog.institution_id == uuid.UUID(institution_id))
+            .order_by(EmailLog.created_at.desc())
+            .limit(limit)
+        )
+        logs = result.scalars().all()
+        return [to_dict(l) for l in logs]
+    
+    async def update_status(self, log_id: str, status: str, error_message: str = None) -> int:
+        """Update log status."""
+        from datetime import datetime, timezone
+        
+        values = {"status": status}
+        if status == "sent":
+            values["sent_at"] = datetime.now(timezone.utc)
+        if error_message:
+            values["error_message"] = error_message
+        
+        result = await self.db.execute(
+            update(EmailLog)
+            .where(EmailLog.id == uuid.UUID(log_id))
+            .values(**values)
+        )
+        await self.db.commit()
+        return result.rowcount

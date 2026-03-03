@@ -29,28 +29,31 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 │   ├── dashboard.py     # /api/dashboard/*
 │   ├── payments.py      # /api/payments/*
 │   ├── availability.py  # /api/availability/*
-│   └── statistics.py    # /api/statistics/*
+│   ├── statistics.py    # /api/statistics/*
+│   └── email_templates.py # /api/programs/{id}/email-template/* (NEW)
 ├── database/
 │   ├── supabase.py              # PostgreSQL connection
 │   ├── supabase_repositories.py # Repository pattern
 │   ├── models.py                # SQLAlchemy models
 │   ├── mongodb.py               # [DEPRECATED] MongoDB client
 │   └── repositories.py          # [DEPRECATED] MongoDB repos
-├── services/                    # Business logika (připraveno)
+├── services/
+│   └── email_service.py         # Email sending (Resend) + Template rendering (NEW)
 └── alembic/                     # Databázové migrace
 ```
 
 ### Technologie
-- **Frontend:** React + TailwindCSS + Shadcn/UI
+- **Frontend:** React + TailwindCSS + Shadcn/UI + TipTap (rich text editor)
 - **Backend:** FastAPI (Python)
 - **Databáze:** ~~MongoDB~~ → **Supabase (PostgreSQL)**
 - **Auth:** JWT tokens
 - **ORM:** SQLAlchemy (async)
 - **Migrace:** Alembic
+- **Email:** Resend (připraveno k aktivaci)
 
 ---
 
-## ✅ DOKONČENÉ ÚKOLY (Únor 2026)
+## ✅ DOKONČENÉ ÚKOLY (Únor-Březen 2026)
 
 ### 1. Backend Refaktoring
 - [x] Rozdělit monolitický `server.py` do modulární struktury
@@ -79,6 +82,21 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 - [x] POKLADNÍ - pouze skutečná účast
 - [x] LEKTOR - self-assign k rezervaci
 
+### 5. ✅ Email šablony per program (Březen 2026) - NEW
+- [x] **Backend:**
+  - [x] Email service s Resend API (`services/email_service.py`)
+  - [x] Template rendering engine s proměnnými ({{variable}})
+  - [x] API endpoints pro CRUD šablon (`routes/email_templates.py`)
+  - [x] DB tabulky: `program_email_templates`, `email_logs`
+  - [x] Trigger odeslání emailu po vytvoření rezervace
+- [x] **Frontend:**
+  - [x] Nový tab "Mailing" v editaci programu
+  - [x] TipTap rich text editor pro tělo emailu
+  - [x] Panel dostupných proměnných s kopírováním
+  - [x] Náhled šablony s vzorovými daty
+  - [x] Testovací odeslání emailu
+- [x] **Testováno:** 100% backend + frontend testy prošly
+
 ---
 
 ## Databázové schéma (Supabase)
@@ -92,6 +110,8 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 - `theme_settings` - brandingové nastavení
 - `payments` - platební transakce
 - `contact_messages` - kontaktní formulář
+- `program_email_templates` - email šablony per program (NEW)
+- `email_logs` - logy odeslaných emailů (NEW)
 
 ### Role uživatelů
 - `admin` - plný přístup
@@ -125,6 +145,32 @@ GET    /api/programs/public/{institution_id} # Veřejné programy
 GET    /api/programs/{id}/external-url      # URL pro web
 ```
 
+### Email Templates (NEW)
+```
+GET    /api/programs/email-config/status             # Status email služby
+GET    /api/programs/{id}/email-template             # Získat šablonu
+PUT    /api/programs/{id}/email-template             # Uložit šablonu
+POST   /api/programs/{id}/email-template/preview     # Náhled s vzorovými daty
+POST   /api/programs/{id}/email-template/test        # Odeslat testovací email
+GET    /api/programs/{id}/email-logs                 # Logy odeslaných emailů
+```
+
+### Template proměnné
+```
+{{school_name}}          - Název školy/skupiny
+{{contact_person}}       - Jméno kontaktní osoby
+{{email}}                - E-mail kontaktní osoby
+{{phone}}                - Telefon
+{{reservation_date}}     - Datum rezervace
+{{reservation_time}}     - Čas rezervace
+{{number_of_students}}   - Počet žáků
+{{number_of_teachers}}   - Počet pedagogů
+{{program_name}}         - Název programu
+{{program_duration}}     - Délka programu (min)
+{{institution_name}}     - Název instituce
+{{special_requirements}} - Speciální požadavky
+```
+
 ### Bookings
 ```
 GET    /api/bookings                        # Seznam rezervací
@@ -134,7 +180,7 @@ PUT    /api/bookings/{id}                   # Upravit
 PATCH  /api/bookings/{id}/status            # Změnit status
 POST   /api/bookings/{id}/assign-lecturer   # Přiřadit lektora
 DELETE /api/bookings/{id}/unassign-lecturer # Odhlásit lektora
-POST   /api/bookings/public/{institution_id} # Veřejná rezervace
+POST   /api/bookings/public/{institution_id} # Veřejná rezervace (+ email trigger)
 ```
 
 ### Settings
@@ -156,31 +202,55 @@ PUT /api/settings/pro                       # Upravit PRO
 
 ---
 
+## ⚠️ K AKTIVACI
+
+### Email služba (Resend)
+Email šablony jsou implementovány, ale odesílání není aktivní.
+
+**Pro aktivaci přidejte do `/app/backend/.env`:**
+```
+RESEND_API_KEY=re_your_api_key_here
+SENDER_EMAIL=noreply@budezivo.cz
+```
+
+**Získání API klíče:**
+1. Registrace na https://resend.com
+2. Dashboard → API Keys → Create API Key
+3. Ověření odesílací domény (nebo použít testovací onboarding@resend.dev)
+
+---
+
 ## 🔜 NADCHÁZEJÍCÍ ÚKOLY
 
 ### P1 - Statistiky a reporty
 - [ ] Implementace grafů návštěvnosti
 - [ ] Export statistik do CSV
 
-### P2 - Email notifikace
-- [ ] Integrace Resend/SendGrid (aktuálně MOCKED)
-
-### P3 - Další vylepšení
+### P2 - Další vylepšení
 - [ ] Jazykový přepínač (i18n)
 - [ ] Hromadné akce pro rezervace
 - [ ] GDPR správa dat
 
----
-
-## Supabase konfigurace
-
-**Connection:**
-```
-postgresql://postgres.dhuujqpxazadbbdlwago:[PASSWORD]@aws-1-eu-west-1.pooler.supabase.com:6543/postgres
-```
-
-**Dashboard:** https://dhuujqpxazadbbdlwago.supabase.co
+### P3 - Refaktoring
+- [ ] BookingPage.js - rozdělit na menší komponenty
 
 ---
 
-Poslední aktualizace: 25. února 2026
+## Deployment
+
+### Vercel (Frontend)
+- URL: budezivo.cz
+- Environment: `REACT_APP_BACKEND_URL=https://api.budezivo.cz`
+
+### Railway (Backend)
+- URL: api.budezivo.cz
+- Dockerfile: `/app/backend/Dockerfile`
+- Environment: DATABASE_URL, JWT_SECRET, RESEND_API_KEY, SENDER_EMAIL
+
+### Supabase (Database)
+- Dashboard: https://dhuujqpxazadbbdlwago.supabase.co
+- Connection string in Railway env vars
+
+---
+
+Poslední aktualizace: 3. března 2026

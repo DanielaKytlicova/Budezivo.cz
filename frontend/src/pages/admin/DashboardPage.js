@@ -5,8 +5,7 @@ import { Card } from '../../components/ui/card';
 import { AuthContext } from '../../context/AuthContext';
 import axios from 'axios';
 import { Calendar, Users, TrendingUp, AlertCircle } from 'lucide-react';
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from '../../config/api';
 
 export const DashboardPage = () => {
   const { t } = useTranslation();

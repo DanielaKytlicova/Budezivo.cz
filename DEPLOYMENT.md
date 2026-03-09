@@ -8,7 +8,18 @@
 │   (Frontend)    │     │    (Backend)    │     │  (PostgreSQL)   │
 │   React SPA     │     │   FastAPI API   │     │    Database     │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                       ▲
+        │   /api/* proxy        │
+        └───────────────────────┘
 ```
+
+## DŮLEŽITÉ: Vercel API Proxy
+
+Frontend používá Vercel rewrites pro proxy API požadavků na Railway backend.
+Toto řešení:
+- Eliminuje CORS problémy
+- Zjednodušuje konfiguraci
+- Frontend automaticky detekuje produkční prostředí
 
 ## 1. Backend - Railway
 
@@ -40,22 +51,26 @@ curl https://your-railway-url.up.railway.app/api/
 2. Nastavte root directory: `frontend`
 3. Framework: Create React App
 
-### Environment Variables (Vercel) - DŮLEŽITÉ!
+### Environment Variables (Vercel) - KRITICKÉ!
 ```
-REACT_APP_BACKEND_URL=https://your-railway-url.up.railway.app
+BACKEND_URL=https://your-railway-url.up.railway.app
 ```
 
-⚠️ **KRITICKÉ:** Tato proměnná MUSÍ ukazovat na váš Railway backend, NE na Vercel URL!
+⚠️ **POZOR:** Proměnná se jmenuje `BACKEND_URL` (NE `REACT_APP_BACKEND_URL`)!
+Tato proměnná je použita v `vercel.json` pro proxy rewrites.
 
-### Časté chyby
+### Jak funguje proxy
+`vercel.json` obsahuje:
+```json
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "${BACKEND_URL}/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
+```
 
-#### HTTP 405 Method Not Allowed
-**Příčina:** `REACT_APP_BACKEND_URL` ukazuje na Vercel místo Railway
-**Řešení:** Nastavte správnou Railway URL v Vercel environment variables
-
-#### CORS errors
-**Příčina:** Backend nepovoluje origin Vercel URL
-**Řešení:** Nastavte `CORS_ORIGINS=*` nebo konkrétní Vercel URL na Railway
+Frontend kód automaticky detekuje produkční prostředí (`budezivo.cz`) a používá relativní cesty `/api/*`.
 
 ## 3. Database - Supabase
 
@@ -69,25 +84,20 @@ REACT_APP_BACKEND_URL=https://your-railway-url.up.railway.app
 postgresql://postgres.[project-ref]:[password]@aws-1-eu-west-1.pooler.supabase.com:6543/postgres
 ```
 
-## 4. Domain Setup (volitelné)
+## 4. Domain Setup
 
-### Vercel (Frontend)
+### Vercel (Frontend) - budezivo.cz
 1. Settings → Domains → Add domain
-2. Přidejte CNAME záznam u registrátora
+2. Přidejte DNS záznamy u Wedos:
 
-### Railway (Backend API)
-1. Settings → Networking → Add custom domain
-2. Přidejte CNAME záznam u registrátora
-
-### DNS záznamy (příklad pro budezivo.cz)
 ```
-# Frontend
-CNAME  www          cname.vercel-dns.com
-CNAME  @            cname.vercel-dns.com
-
-# Backend API  
-CNAME  api          your-app.up.railway.app
+A     @     76.76.21.21
+CNAME www   cname.vercel-dns.com
 ```
+
+### Railway (Backend API) - NENÍ POTŘEBA CUSTOM DOMAIN
+Díky Vercel proxy není potřeba nastavovat custom doménu pro Railway.
+Všechny API požadavky jdou přes `budezivo.cz/api/*` → Railway.
 
 ## 5. Testovací Credentials
 ```
@@ -98,10 +108,20 @@ Password: Demo2026!
 ## Troubleshooting
 
 ### "Request failed with status code 405"
-Frontend posílá API požadavky na špatnou URL. Zkontrolujte `REACT_APP_BACKEND_URL` na Vercel.
-
-### "Network Error" nebo CORS chyby
-Backend nepovoluje cross-origin požadavky. Zkontrolujte `CORS_ORIGINS` na Railway.
+**Příčina:** Vercel nemá nastavenou `BACKEND_URL` environment variable.
+**Řešení:** 
+1. Jděte do Vercel → Settings → Environment Variables
+2. Přidejte `BACKEND_URL` = `https://your-railway-url.up.railway.app`
+3. Redeploy projekt
 
 ### Login nefunguje ale API funguje přes curl
-Frontend environment variable není správně nastavena nebo nebyl proveden redeploy.
+**Příčina:** Frontend environment variable není správně nastavena.
+**Řešení:** Zkontrolujte že `BACKEND_URL` je nastavena na Vercel a proveďte redeploy.
+
+### CORS chyby
+**Příčina:** Backend nepovoluje cross-origin požadavky.
+**Řešení:** Nastavte `CORS_ORIGINS=*` na Railway. S proxy by CORS neměl být problém.
+
+### Demo programy se nenačítají
+**Příčina:** API požadavky nejdou na Railway backend.
+**Řešení:** Stejné jako pro HTTP 405 - zkontrolujte `BACKEND_URL` na Vercel.

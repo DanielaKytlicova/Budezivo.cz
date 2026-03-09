@@ -10,8 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { toast } from 'sonner';
 import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react';
 import axios from 'axios';
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from '../../config/api';
 
 export const ContactPage = () => {
   const [loading, setLoading] = useState(false);

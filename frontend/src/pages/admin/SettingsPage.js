@@ -21,8 +21,7 @@ import {
   LogOut,
   Upload
 } from 'lucide-react';
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from '../../config/api';
 
 // Menu položky nastavení
 const SETTINGS_MENU = [

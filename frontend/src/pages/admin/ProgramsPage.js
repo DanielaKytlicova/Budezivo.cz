@@ -13,8 +13,7 @@ import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Lin
 import { toast } from 'sonner';
 import axios from 'axios';
 import { ProgramMailingTab } from '../../components/admin/ProgramMailingTab';
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from '../../config/api';
 
 const DAYS = [
   { key: 'monday', label: 'Po' },

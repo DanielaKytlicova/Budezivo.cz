@@ -13,8 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from '../../config/api';
 
 const AGE_GROUPS = {
   ms_3_6: 'MŠ (3-6 let)',

@@ -11,8 +11,7 @@ import { AuthContext } from '../../context/AuthContext';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { Plus, ArrowLeft, Trash2, Shield, BookOpen, Calendar, Receipt } from 'lucide-react';
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from '../../config/api';
 
 // Role podle wireframu
 const ROLES = [

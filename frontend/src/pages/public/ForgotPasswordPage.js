@@ -8,8 +8,7 @@ import { Label } from '../../components/ui/label';
 import { Card } from '../../components/ui/card';
 import { toast } from 'sonner';
 import axios from 'axios';
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { API } from '../../config/api';
 
 export const ForgotPasswordPage = () => {
   const { t } = useTranslation();

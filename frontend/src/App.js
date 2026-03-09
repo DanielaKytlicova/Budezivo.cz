@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
 import { LanguageProvider } from './context/LanguageContext';
 import { AuthProvider } from './context/AuthContext';
@@ -27,9 +27,22 @@ import { TeamPage } from './pages/admin/TeamPage';
 
 import './App.css';
 
+// Component to handle dynamic page title
+function TitleUpdater() {
+  const location = useLocation();
+  
+  useEffect(() => {
+    const isAdminRoute = location.pathname.startsWith('/admin');
+    document.title = isAdminRoute ? 'Dashboard Bude živo' : 'Bude živo';
+  }, [location]);
+  
+  return null;
+}
+
 function App() {
   return (
     <BrowserRouter>
+      <TitleUpdater />
       <LanguageProvider>
         <AuthProvider>
           <ThemeProvider>

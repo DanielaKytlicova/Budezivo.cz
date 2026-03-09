@@ -66,7 +66,7 @@ export const TeamPage = () => {
   const fetchTeamMembers = async () => {
     try {
       const response = await axios.get(`${API}/team`);
-      setTeamMembers(response.data);
+      setTeamMembers(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       // If endpoint doesn't exist yet, show current user only
       setTeamMembers([{
@@ -174,7 +174,7 @@ export const TeamPage = () => {
           </div>
         ) : (
           <div className="space-y-3">
-            {teamMembers.map((member) => {
+            {Array.isArray(teamMembers) && teamMembers.map((member) => {
               const roleInfo = getRoleInfo(member.role);
               const isCurrentUser = member.id === user?.id;
               

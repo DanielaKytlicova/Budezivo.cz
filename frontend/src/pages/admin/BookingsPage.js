@@ -61,9 +61,10 @@ export const BookingsPage = () => {
   const fetchBookings = async () => {
     try {
       const response = await axios.get(`${API}/bookings`);
-      setBookings(response.data);
+      setBookings(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       toast.error(t('common.error'));
+      setBookings([]);
     } finally {
       setLoading(false);
     }
@@ -611,7 +612,7 @@ export const BookingsPage = () => {
           </Card>
         ) : (
           <div className="space-y-4">
-            {bookings.map((booking) => (
+            {Array.isArray(bookings) && bookings.map((booking) => (
               <Card 
                 key={booking.id} 
                 className="p-4 md:p-6 cursor-pointer hover:shadow-md transition-shadow" 

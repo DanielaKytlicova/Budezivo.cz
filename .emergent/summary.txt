@@ -1,104 +1,81 @@
 <analysis>**original_problem_statement:**
-The user's initial goal was to refactor the monolithic backend () into a modular FastAPI structure and migrate the database from MongoDB to Supabase (PostgreSQL). After completing this, the user requested assistance with deploying the entire application to a production environment, with the frontend on Vercel and the backend on Railway. This involved extensive debugging of build processes, environment configurations, and routing rules for both platforms. The final state is a fully deployed and functional application.
+The user's initial goal was to refactor a monolithic backend to a modular FastAPI structure, migrate the database to Supabase (PostgreSQL), and deploy the application to Vercel/Railway. After completing this, the user requested a major new feature: the ability for admins to create and manage custom email templates for each Doprovodný program (Accompanying Program). These emails should be sent automatically upon successful booking. Subsequently, the user reported issues with logging in, missing demo data, and incorrect UI elements (page title, favicon), which were then addressed.
 
 **PRODUCT REQUIREMENTS (Still applicable):**
--   **Backend Architecture:** A clean structure: , , , , , and .
--   **Supabase Migration:** All features must work correctly on the Supabase (PostgreSQL) database.
--   **STRICTLY FORBIDDEN:**
-    -   Do NOT implement Stripe or any payment gateways.
-    -   Do NOT add any new features until instructed.
-    -   Do NOT modify pricing logic.
-    -   Do NOT perform any UI redesigns.
+-   **Part 1: Admin UI for Mailing:** In the Edit Program view, add a Mailing tab with a subject field, a rich text editor for the body, a list of available variables, a preview mode, and a save button.
+-   **Part 2: Backend Implementation:** Create an email sending service, a template rendering engine, and trigger email sending on successful booking. Log all sent emails.
+-   **Part 3: Email Delivery:** Implement production-ready email sending using an SMTP provider (Resend was chosen).
+-   **Part 4: Security & GDPR:** No secret keys on the frontend, no logging of sensitive data, and an opt-out placeholder in the email footer.
+-   **Part 5: Bug Fixes & UI Polish:**
+    -   Fix login with demo credentials.
+    -   Ensure demo programs and reservations are visible after login.
+    -   Set the browser tab title to Bude živo for the public site and Dashboard Bude živo for the admin area.
+    -   Update the site's favicon.
 
 **User's preferred language**: Czech (Čeština). The user communicates primarily in Czech. The next agent **MUST** respond in Czech.
 
 **what currently exists?**
-A full-stack SaaS application (Budeživo.cz) with a React frontend, a modular FastAPI backend, and a Supabase (PostgreSQL) database. The entire application has been successfully deployed and is operational. The frontend is hosted on Vercel, and the backend is hosted on Railway, with both services correctly configured and communicating with each other and the database.
+A full-stack SaaS application (Budeživo.cz) with a React frontend, a modular FastAPI backend, and a Supabase (PostgreSQL) database, deployed to Vercel and Railway respectively. A comprehensive email templating and sending feature using Resend and TipTap has been implemented. The agent has also just fixed several critical user-reported issues related to login, data visibility, and UI elements (titles/favicon).
 
 **Last working item**:
-*   **Last item agent was working:** The agent finished debugging and verifying the complete end-to-end functionality of the deployed application. This included ensuring the Vercel frontend could communicate with the Railway backend, perform user authentication, and fetch/display data from the Supabase database. The final action was a full-system test after the user configured the necessary environment variables.
+*   **Last item agent was working:** The agent fixed multiple issues reported by the user:
+    1.  Login failure with the provided demo credentials.
+    2.  Empty lists for programs and reservations after logging in, which was traced to a data seeding/model bug.
+    3.  Incorrect browser tab titles and favicon.
+    The agent fixed the login flow, corrected a bug in the  model, updated the data seeding logic to ensure data is present, and modified  and  to set the title and favicon dynamically.
 *   **Status:** USER VERIFICATION PENDING
 *   **Agent Testing Done:** Y
-*   **Which testing method agent to use?** Manual testing. The agent has already verified the live URLs. The next agent should ask the user to perform a final check on their end to confirm everything works as expected before moving to new tasks.
+*   **Which testing method agent to use?** Manual testing by the user. The agent has already verified the fixes via screenshots and  tests. The next agent should ask the user to test the login, check for the presence of demo data, and verify the browser tab titles and favicon.
 *   **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
-*   **Issue 1: Fragile  Component (P3 - Low)**
-    *   **Description:** The  component has been previously identified as complex and fragile. It is a candidate for future refactoring to improve stability and maintainability by breaking it into smaller, more manageable components.
-    *   **Attempted fixes:** None in this session; it was not a priority.
-    *   **Next debug checklist:** Review  and identify logical sections (e.g., form handling, date selection, summary) that can be extracted into separate components.
-    *   **Why fix this issue and what will be achieved with the fix?** To increase the long-term stability and maintainability of the booking process, which is a critical user flow.
+*   **Issue 1: Email Domain Verification (P1 - Blocker for Production Emails)**
+    *   **Description:** The email sending functionality currently uses Resend's test key and  sender. This only allows sending emails to the user's own verified email address. To send emails to any customer, the user must verify their domain () with Resend and update the  environment variable.
+    *   **Next debug checklist:** Guide the user through adding the required TXT/DKIM records in their Wedos DNS settings as provided by Resend, then update the  file.
+    *   **Why fix this issue and what will be achieved with the fix?** Enables the application to send transactional emails to real users, making the new feature fully operational.
+    *   **Status:** BLOCKED (on user action)
+    *   **Is recurring issue?** N
+    *   **Should Test frontend/backend/both after fix?** Backend (by sending a test email to an external address).
+
+*   **Issue 2: Fragile  Component (P3 - Low)**
+    *   **Description:** The  component has been previously identified as complex and fragile. It is a candidate for future refactoring to improve stability and maintainability.
     *   **Status:** NOT STARTED
     *   **Is recurring issue?** Y
-    *   **Should Test frontend/backend/both after fix?** frontend
-    *   **Blocked on other issue:** None.
+    *   **Should Test frontend/backend/both after fix?** Frontend
 
 **In progress Task List**:
-None. The major tasks of refactoring, migration, and deployment are complete.
+None.
 
 **Upcoming and Future Tasks**
-With the architectural stabilization and deployment complete, the project can now resume feature development. The following tasks are from the original backlog.
-*   **(P1) Implement Statistics Page:** The  is currently a placeholder and needs to be implemented with data visualizations and charts based on data from the Supabase DB.
-*   **(P2) Implement i18n Language Toggle:** Re-enable and wire up the language switcher component in the header to allow users to toggle between languages (e.g., Czech and English).
-*   **(P3) Implement Bulk Actions:** The booking management list in the admin dashboard requires bulk actions (e.g., Confirm, Cancel).
-*   **(P3) Implement Real Email Notifications:** Replace the mocked email notification system with a real integration (e.g., Resend, SendGrid) for user actions like registration and booking confirmation.
-*   **(P3) Implement Full GDPR Data Management:** Add features for users to export and delete their personal data to comply with GDPR.
+*   **(P1) Implement Statistics Page:** Implement the  with data visualizations.
+*   **(P2) Implement i18n Language Toggle:** Wire up the language switcher component.
+*   **(P3) Implement Bulk Actions:** Add bulk actions (Confirm, Cancel) to the booking management list.
+*   **(P3) Implement Full GDPR Data Management:** Add features for users to export and delete their personal data.
 
 **Completed work in this session**
--   **Backend Refactoring (DONE):** The monolithic  was successfully refactored into a modular, production-ready FastAPI structure (, , , , ).
--   **Database Migration (DONE):** The entire application was migrated from MongoDB to Supabase (PostgreSQL). This included creating SQLAlchemy models, a repository pattern for database access, and updating all API endpoints.
--   **Vercel Deployment (DONE):** Successfully debugged and deployed the React frontend to Vercel, which involved:
-    -   Creating  to handle SPA routing ().
-    -   Fixing the build command to use yarn install v1.22.22
-[1/4] Resolving packages...
-[2/4] Fetching packages...
-[3/4] Linking dependencies...
-[4/4] Building fresh packages...
-success Saved lockfile.
-Done in 0.09s. instead of npm <command>
-
-Usage:
-
-npm install        install all the dependencies in your project
-npm install <foo>  add the <foo> dependency to your project
-npm test           run this project's tests
-npm run <foo>      run the script named <foo>
-npm <command> -h   quick help on <command>
-npm -l             display usage info for all commands
-npm help <term>    search for help on <term>
-npm help npm       more involved overview
-
-All commands:
-
-    access, adduser, audit, bugs, cache, ci, completion,
-    config, dedupe, deprecate, diff, dist-tag, docs, doctor,
-    edit, exec, explain, explore, find-dupes, fund, get, help,
-    help-search, hook, init, install, install-ci-test,
-    install-test, link, ll, login, logout, ls, org, outdated,
-    owner, pack, ping, pkg, prefix, profile, prune, publish,
-    query, rebuild, repo, restart, root, run-script, sbom,
-    search, set, shrinkwrap, star, stars, start, stop, team,
-    test, token, uninstall, unpublish, unstar, update, version,
-    view, whoami
-
-Specify configs in the ini-formatted file:
-    /root/.npmrc
-or on the command line via: npm <command> --key=value
-
-More configuration info: npm help config
-Configuration fields: npm help 7 config
-
-npm@10.8.2 /usr/lib/node_modules/npm.
-    -   Resolving ESLint errors by setting  in the  build script.
-    -   Guiding the user to set the  and  environment variable in the Vercel dashboard.
--   **Railway Deployment (DONE):** Successfully debugged and deployed the FastAPI backend to Railway, which involved:
-    -   Creating a robust  after Nixpacks build failed.
-    -   Fixing  errors for the private  package by adding an .
-    -   Guiding the user to set the  and database environment variables in the Railway dashboard.
--   **End-to-End Integration (DONE):** Verified that the deployed Vercel frontend, Railway backend, and Supabase database all work together seamlessly.
+-   **Email Template Feature (DONE):**
+    -   Implemented a Mailing tab in the program edit view using a new  component and a  for rich text.
+    -   Created backend endpoints () to handle CRUD for email templates.
+    -   Integrated  via  to send emails.
+    -   Updated the booking creation service to automatically trigger emails.
+    -   Added  and  tables to the database with an Alembic migration.
+    -   Successfully verified the entire feature with the .
+-   **Login and Data Bug Fixes (DONE):**
+    -   Fixed an issue preventing login with .
+    -   Corrected a bug in  that prevented reservations from being displayed.
+    -   Ensured demo programs and reservations are seeded and visible.
+-   **UI Polish (DONE):**
+    -   Updated the favicon across the application.
+    -   Implemented dynamic page titles: Bude živo on the public site and Dashboard Bude živo in the admin area.
+-   **User Guidance (DONE):**
+    -   Provided detailed instructions for configuring DNS records (at Wedos) for custom domains on Vercel and Railway.
+    -   Assisted the user in adding their Resend API key to the environment.
+    -   Guided the user on how to verify their domain with Resend for production email sending.
+-   **Environment Setup (DONE):**
+    -   Created a root  file and confirmed it is correctly handled by .
 
 **Earlier issues found/mentioned but not fixed**
-None. All issues raised during the session were resolved.
+None.
 
 **Known issue recurrence from previous fork**
 None.
@@ -107,72 +84,74 @@ None.
 
 
 **Key Technical Concepts**
--   **Frontend:** React, TailwindCSS, Shadcn/UI
+-   **Frontend:** React, TailwindCSS, Shadcn/UI, **TipTap** (Rich Text Editor)
 -   **Backend:** FastAPI (Python), SQLAlchemy
 -   **Database:** Supabase (PostgreSQL)
--   **Deployment:** Vercel (Frontend), Railway (Backend), Docker
+-   **Deployment:** Vercel (Frontend), Railway (Backend)
+-   **Email:** **Resend**
 
 **key DB schema**
--   The application is now live on the **Supabase (PostgreSQL)** schema. The schema is defined by the SQL files located in , primarily . Key tables include , , , .
+-   **program_email_templates**: 
+-   **email_logs**: 
 
 **changes in tech stack**
--   **Database:** Migration from MongoDB to **Supabase (PostgreSQL)** is complete.
--   **Hosting:** The application is now deployed on **Vercel** and **Railway**.
+-   **Email Service:** Added **Resend** for transactional emails.
+-   **Frontend Editor:** Added **TipTap** for rich text editing.
 
 **All files of reference**
--   : Defines the build environment for the Railway deployment.
--   : Configures the Vercel deployment, including SPA rewrites.
--   : Configures Railway deployment settings.
--   : Build script was modified to .
--   : The new entry point for the refactored FastAPI application.
--   : Handles the Supabase database connection.
--   : Directory containing the definitive SQL schema.
+*   : Contains logic for rendering and sending emails via Resend.
+*   : API endpoints for managing email templates.
+*   : Modified to trigger the email service upon new reservation.
+*   : The new UI component for the Mailing tab.
+*   : Modified to include the .
+*   : Modified to handle dynamic page titles.
+*   : Modified to fix a data display bug.
+*   : Updated with new title and favicon link.
 
 **Areas that need refactoring**:
--   ****: Low-priority candidate for being split into smaller components to improve maintainability.
+-   ****: Low-priority candidate for being split into smaller components.
 
 **key api endpoints**
-All backend API endpoints are now served from the Railway deployment. Examples:
 -   
 -   
 -   
 -   
 
 **Critical Info for New Agent**
--   The massive architectural overhaul and deployment are **complete**. The application is live and stable.
--   Your primary focus should now shift to implementing the **upcoming and future tasks** from the backlog.
--   Before starting any new task, confirm with the user that they have tested the deployed application and are satisfied with its current state.
--   Propose a plan to the user based on the  list and ask for their priority.
--   All development and testing should now consider the deployed production environment on Vercel/Railway.
+-   The last action was fixing several critical bugs for the user. **Your first step MUST be to ask the user to verify these fixes:** login, data visibility, and UI titles/favicon.
+-   The email feature is functionally complete but is in a **test-only state**. The user must verify their domain in Resend to enable sending emails to their customers. This is a current blocker for production use.
+-   Once the user confirms the fixes are working, you should propose a plan based on the .
 
 **documents and test reports created in this job**
--   
--    (updated after migration)
+-    (from the email feature implementation)
+-    (updated after the email feature)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Shared the final build error from Railway: .
-2.  **Agent:** Fixed the  by adding the correct .
-3.  **User:** Asked the agent to verify if the deployment was implemented correctly, providing the Vercel and Railway URLs.
-4.  **Agent:** Tested the URLs and found that the backend was working, but the frontend login was stuck. Deduced it was a missing environment variable on Vercel.
-5.  **User:** Confirmed they had set the environment variable by saying hotovo (done).
-6.  **Agent:** Re-tested and confirmed that the entire application was now working perfectly end-to-end.
-7.  **User:** Asked what to set up for the Vercel-Railway connection.
-8.  **Agent:** Explained how to set the  in Vercel.
-9.  **User:** Asked for help with a Railway deployment failure: .
-10. **Agent:** Started the process of debugging the Railway build, eventually switching from Nixpacks to a custom Dockerfile.
+1.  **User:** Requested new demo credentials.
+2.  **Agent:** Provided new demo credentials ( / ).
+3.  **User:** Reported that login is still failing, there are no demo programs/reservations visible, and asked to change the page titles and favicon.
+4.  **Agent:** Began fixing the title and favicon.
+5.  **User:** pokračuj (continue).
+6.  **Agent:** Continued implementation, modifying  for dynamic titles.
+7.  **Agent:** Tested login and confirmed it worked.
+8.  **Agent:** Identified the missing data issue was due to a bug in the  field of the  model.
+9.  **Agent:** Fixed the model bug and verified that reservations and programs are now visible.
+10. **Agent:** Confirmed all fixes are in place, verified with screenshots, and informed the user that the app is ready for their testing.
 
 **Project Health Check:**
--   **Working:** The entire application stack (React Frontend, FastAPI Backend, PostgreSQL DB) is deployed and fully functional on Vercel and Railway.
+-   **Working:** The entire application stack, including the login, data display, and UI elements.
 -   **Broken:** None.
--   **Mocked:** Email notifications are still mocked and need a real integration.
+-   **Mocked:** Email sending is restricted. It uses Resend's onboarding domain (), which can only send to emails verified within the user's Resend account. Full functionality is pending user domain verification.
 
 **3rd Party Integrations**
--   **Supabase (PostgreSQL):** Fully integrated as the primary database.
--   **Vercel:** Used for frontend hosting.
--   **Railway:** Used for backend hosting.
+-   **Supabase (PostgreSQL):** Primary database.
+-   **Vercel:** Frontend hosting.
+-   **Railway:** Backend hosting.
+-   **Resend:** Email delivery service.
+-   **TipTap:** Rich text editor library.
 
 **Testing status**
--   **Testing agent used after significant changes:** YES (after the Supabase migration).
+-   **Testing agent used after significant changes:** YES, for the email templating feature.
 -   **Troubleshoot agent used after agent stuck in loop:** NO
 -   **Test files created:** None.
 -   **Known regressions:** None.
@@ -180,8 +159,6 @@ All backend API endpoints are now served from the Railway deployment. Examples:
 **Credentials to test flow:**
 -   **Admin Email:** 
 -   **Admin Password:** 
--   **Test User Email:** 
--   **Test User Password:** 
 
 **What agent forgot to execute**
-The agent was thorough and completed all requested tasks, including the complex, multi-step debugging of the Vercel and Railway deployments. No tasks were forgotten.</analysis>
+Nothing. The agent successfully implemented a major feature and then pivoted to address multiple user-reported bugs and UI requests in a single session.</analysis>

@@ -97,6 +97,19 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
   - [x] Testovací odeslání emailu
 - [x] **Testováno:** 100% backend + frontend testy prošly
 
+### 6. ✅ Opravy UI a Stability (Březen 2026) - NEW
+- [x] **Tlačítko pro zobrazení hesla** v přihlašovacím formuláři
+- [x] **Oprava `.map()` chyb** - přidány Array.isArray() kontroly napříč aplikací
+  - BookingsPage.js
+  - ProgramsPage.js
+  - SchoolsPage.js
+  - TeamPage.js
+  - BookingPage.js (public)
+  - PlanPage.js
+  - RegisterPage.js
+  - toaster.jsx
+- [x] **Prevence bílé stránky** - bezpečné zpracování API odpovědí
+
 ---
 
 ## Databázové schéma (Supabase)

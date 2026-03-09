@@ -7,13 +7,14 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Checkbox } from '../../components/ui/checkbox';
 import { toast } from 'sonner';
-import { Mail, Lock } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
 
 export const LoginPage = () => {
   const { login } = useContext(AuthContext);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -24,11 +25,17 @@ export const LoginPage = () => {
     setLoading(true);
 
     try {
-      await login(formData.email, formData.password);
-      toast.success('Přihlášení úspěšné');
-      navigate('/admin');
+      const result = await login(formData.email, formData.password);
+      if (result) {
+        toast.success('Přihlášení úspěšné');
+        navigate('/admin');
+      }
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Chyba při přihlašování');
+      console.error('Login error:', error);
+      const errorMessage = error.response?.data?.detail || 
+                          error.message || 
+                          'Chyba při přihlašování. Zkontrolujte připojení.';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -78,14 +85,23 @@ export const LoginPage = () => {
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     data-testid="login-password-input"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="••••••••"
                     required
-                    className="pl-10 h-12 rounded-lg border-gray-300 bg-white"
+                    className="pl-10 pr-10 h-12 rounded-lg border-gray-300 bg-white"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    data-testid="toggle-password-visibility"
+                    aria-label={showPassword ? "Skrýt heslo" : "Zobrazit heslo"}
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
               </div>
 

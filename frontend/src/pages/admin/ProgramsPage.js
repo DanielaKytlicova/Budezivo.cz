@@ -87,9 +87,10 @@ export const ProgramsPage = () => {
   const fetchPrograms = async () => {
     try {
       const response = await axios.get(`${API}/programs`);
-      setPrograms(response.data);
+      setPrograms(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       toast.error(t('common.error'));
+      setPrograms([]);
     } finally {
       setLoading(false);
     }
@@ -341,7 +342,7 @@ export const ProgramsPage = () => {
         </Card>
       ) : (
         <div className="space-y-4">
-          {programs.filter(p => p.status !== 'archived').map((program) => (
+          {Array.isArray(programs) && programs.filter(p => p.status !== 'archived').map((program) => (
             <Card 
               key={program.id} 
               className="p-4 md:p-6 relative" 
@@ -702,7 +703,7 @@ export const ProgramsPage = () => {
         <h3 className="font-semibold text-slate-900">Časové bloky</h3>
         <p className="text-sm text-gray-500">Zadejte čas ve formátu HH:MM (např. 09:00, 14:30)</p>
         <div className="space-y-3">
-          {formData.time_blocks.map((block, index) => (
+          {(formData.time_blocks || []).map((block, index) => (
             <div key={index} className="flex items-center gap-3">
               <Switch
                 checked={true}
@@ -992,7 +993,7 @@ export const ProgramsPage = () => {
                 >
                   Všechny programy
                 </button>
-                {programs.filter(p => p.status === 'active').map(program => (
+                {Array.isArray(programs) && programs.filter(p => p.status === 'active').map(program => (
                   <button
                     key={program.id}
                     type="button"

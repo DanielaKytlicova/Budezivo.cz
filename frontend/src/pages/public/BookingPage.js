@@ -75,9 +75,10 @@ export const BookingPage = () => {
   const fetchPrograms = async () => {
     try {
       const response = await axios.get(`${API}/programs/public/${institutionId}`);
-      setPrograms(response.data);
+      setPrograms(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       toast.error('Chyba při načítání programů');
+      setPrograms([]);
     } finally {
       setLoading(false);
     }
@@ -95,9 +96,10 @@ export const BookingPage = () => {
   const fetchTimeBlocks = async (date) => {
     try {
       const response = await axios.get(`${API}/availability/${institutionId}/${formData.program_id}/${date}`);
-      setTimeBlocks(response.data.time_blocks);
+      setTimeBlocks(Array.isArray(response.data?.time_blocks) ? response.data.time_blocks : []);
     } catch (error) {
       toast.error('Chyba při načítání volných bloků');
+      setTimeBlocks([]);
     }
   };
 
@@ -189,7 +191,7 @@ export const BookingPage = () => {
           {Array(adjustedFirstDay).fill(null).map((_, i) => (
             <div key={`empty-${i}`} className="aspect-square" />
           ))}
-          {calendarData.dates.map((dateInfo, i) => {
+          {Array.isArray(calendarData?.dates) && calendarData.dates.map((dateInfo, i) => {
             const day = i + 1;
             const isPast = new Date(dateInfo.date) < new Date();
             const hasAvailability = dateInfo.has_availability && !isPast;
@@ -291,7 +293,7 @@ export const BookingPage = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {programs.map((program) => (
+                {Array.isArray(programs) && programs.map((program) => (
                   <Card
                     key={program.id}
                     className="p-6 cursor-pointer hover:shadow-sm hover:border-[#4A6FA5] transition-all border border-gray-200 rounded-lg"
@@ -343,7 +345,7 @@ export const BookingPage = () => {
               {new Date(formData.date).toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
             <div className="space-y-3">
-              {timeBlocks.map((block) => (
+              {Array.isArray(timeBlocks) && timeBlocks.map((block) => (
                 <button
                   key={block.time}
                   onClick={() => block.status === 'available' && handleTimeBlockSelect(block.time)}

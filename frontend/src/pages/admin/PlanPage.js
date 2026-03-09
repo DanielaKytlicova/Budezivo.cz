@@ -151,7 +151,7 @@ export const PlanPage = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {plans.map((plan) => (
+          {Array.isArray(plans) && plans.map((plan) => (
             <Card
               key={plan.name}
               data-testid={`plan-card-${plan.name}`}
@@ -172,7 +172,7 @@ export const PlanPage = () => {
                 </span>
               </div>
               <ul className="space-y-3 mb-6">
-                {plan.features.map((feature, idx) => (
+                {Array.isArray(plan.features) && plan.features.map((feature, idx) => (
                   <li key={idx} className="flex items-start">
                     <Check className="w-5 h-5 text-[#84A98C] mr-2 flex-shrink-0 mt-0.5" />
                     <span className="text-sm text-slate-700">{feature}</span>

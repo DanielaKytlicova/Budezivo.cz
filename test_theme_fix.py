@@ -3,7 +3,7 @@ import sys
 
 def test_theme_update_fix():
     """Test the theme settings update fix"""
-    base_url = "https://booking-system-dev-2.preview.emergentagent.com"
+    base_url = "https://template-manager-29.preview.emergentagent.com"
     api_url = f"{base_url}/api"
     
     # First register a new user to get a token

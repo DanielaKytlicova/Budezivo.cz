@@ -429,7 +429,7 @@ export const RegisterPage = () => {
         <Label>Časový blok</Label>
         <p className="text-xs text-gray-500 mt-1">Zadejte čas ve formátu HH:MM (např. 09:00)</p>
         <div className="space-y-3 mt-2">
-          {formData.default_time_blocks.map((block, index) => (
+          {(formData.default_time_blocks || []).map((block, index) => (
             <div key={index} className="flex items-center gap-2">
               <div className="flex-1 relative">
                 <Input

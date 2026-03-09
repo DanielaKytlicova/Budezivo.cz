@@ -34,11 +34,13 @@ export const SchoolsPage = () => {
         axios.get(`${API}/settings/pro`),
         axios.get(`${API}/programs`)
       ]);
-      setSchools(schoolsRes.data);
+      setSchools(Array.isArray(schoolsRes.data) ? schoolsRes.data : []);
       setIsPro(proRes.data.is_pro);
-      setPrograms(programsRes.data);
+      setPrograms(Array.isArray(programsRes.data) ? programsRes.data : []);
     } catch (error) {
       toast.error(t('common.error'));
+      setSchools([]);
+      setPrograms([]);
     } finally {
       setLoading(false);
     }
@@ -74,7 +76,7 @@ export const SchoolsPage = () => {
     if (selectedSchools.length === schools.length) {
       setSelectedSchools([]);
     } else {
-      setSelectedSchools(schools.map(s => s.id));
+      setSelectedSchools((schools || []).map(s => s.id));
     }
   };
 
@@ -166,7 +168,7 @@ export const SchoolsPage = () => {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {schools.map((school) => (
+            {Array.isArray(schools) && schools.map((school) => (
               <Card 
                 key={school.id} 
                 className={`p-6 transition-all ${
@@ -243,7 +245,7 @@ export const SchoolsPage = () => {
                   <SelectValue placeholder="Vyberte program..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {programs.map(program => (
+                  {Array.isArray(programs) && programs.map(program => (
                     <SelectItem key={program.id} value={program.id}>
                       {program.name_cs}
                     </SelectItem>

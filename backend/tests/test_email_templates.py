@@ -7,7 +7,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://booking-system-dev-2.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://template-manager-29.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = "test@budezivo.cz"

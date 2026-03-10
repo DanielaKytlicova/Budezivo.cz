@@ -3,18 +3,22 @@
  * 
  * Determines the correct API base URL based on environment:
  * - Development/Preview: Uses REACT_APP_BACKEND_URL (absolute URL)
- * - Production (Vercel): Uses relative path /api (Vercel proxies to backend)
+ * - Production (Vercel): Uses REACT_APP_BACKEND_URL pointing to Railway
+ * 
+ * IMPORTANT: On Vercel production, REACT_APP_BACKEND_URL must be set to 
+ * the Railway backend URL (e.g., https://budezivo-backend.up.railway.app)
  */
 
-// Check if we're running on Vercel production (not preview)
-const isVercelProduction = typeof window !== 'undefined' && 
-  window.location.hostname.includes('budezivo.cz');
+// Get the backend URL from environment
+const backendUrl = process.env.REACT_APP_BACKEND_URL;
 
-// For Vercel production, use relative path (Vercel proxies /api/* to backend)
-// For development/preview, use the full backend URL
-export const API_BASE_URL = isVercelProduction 
-  ? '/api'
-  : `${process.env.REACT_APP_BACKEND_URL}/api`;
+// Validate that we have a backend URL configured
+if (!backendUrl) {
+  console.warn('REACT_APP_BACKEND_URL is not set. API calls will fail.');
+}
+
+// Always use the full backend URL
+export const API_BASE_URL = backendUrl ? `${backendUrl}/api` : '/api';
 
 // Export for backwards compatibility
 export const API = API_BASE_URL;

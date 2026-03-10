@@ -3,23 +3,17 @@
 ## Architektura
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│     Vercel      │────▶│     Railway     │────▶│    Supabase     │
-│   (Frontend)    │     │    (Backend)    │     │  (PostgreSQL)   │
-│   React SPA     │     │   FastAPI API   │     │    Database     │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
-        │                       ▲
-        │   /api/* proxy        │
-        └───────────────────────┘
+┌─────────────────┐                    ┌─────────────────┐     ┌─────────────────┐
+│     Vercel      │                    │     Railway     │────▶│    Supabase     │
+│   (Frontend)    │──── API calls ────▶│    (Backend)    │     │  (PostgreSQL)   │
+│   React SPA     │   (cross-origin)   │   FastAPI API   │     │    Database     │
+└─────────────────┘                    └─────────────────┘     └─────────────────┘
 ```
 
-## DŮLEŽITÉ: Vercel API Proxy
+## DŮLEŽITÉ: Cross-Origin API Architecture
 
-Frontend používá Vercel rewrites pro proxy API požadavků na Railway backend.
-Toto řešení:
-- Eliminuje CORS problémy
-- Zjednodušuje konfiguraci
-- Frontend automaticky detekuje produkční prostředí
+Frontend přímo volá Railway backend API (cross-origin).
+**CORS je povolen** na backendu (`CORS_ORIGINS=*`).
 
 ## 1. Backend - Railway
 
@@ -37,10 +31,10 @@ RESEND_API_KEY=re_xxxxxx (optional)
 SENDER_EMAIL=noreply@yourdomain.com (optional)
 ```
 
-### Ověření
+### Ověření backendu
 Po deployment zkontrolujte:
 ```bash
-curl https://your-railway-url.up.railway.app/api/
+curl https://YOUR-RAILWAY-URL.up.railway.app/api/
 # Mělo by vrátit: {"message": "KulturaBooking API v2.0 - Supabase Edition"}
 ```
 
@@ -53,24 +47,17 @@ curl https://your-railway-url.up.railway.app/api/
 
 ### Environment Variables (Vercel) - KRITICKÉ!
 ```
-BACKEND_URL=https://your-railway-url.up.railway.app
+REACT_APP_BACKEND_URL=https://YOUR-RAILWAY-URL.up.railway.app
 ```
 
-⚠️ **POZOR:** Proměnná se jmenuje `BACKEND_URL` (NE `REACT_APP_BACKEND_URL`)!
-Tato proměnná je použita v `vercel.json` pro proxy rewrites.
+⚠️ **DŮLEŽITÉ:** 
+- Tato proměnná MUSÍ ukazovat na váš Railway backend
+- Frontend bude volat API přímo na Railway (cross-origin)
+- CORS je povolen na backendu
 
-### Jak funguje proxy
-`vercel.json` obsahuje:
-```json
-{
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "${BACKEND_URL}/api/:path*" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
-}
-```
-
-Frontend kód automaticky detekuje produkční prostředí (`budezivo.cz`) a používá relativní cesty `/api/*`.
+### Po nastavení env variable
+1. **Redeploy** projekt na Vercel (nebo nový commit)
+2. Vercel musí rebuild s novou env variable
 
 ## 3. Database - Supabase
 
@@ -84,9 +71,9 @@ Frontend kód automaticky detekuje produkční prostředí (`budezivo.cz`) a pou
 postgresql://postgres.[project-ref]:[password]@aws-1-eu-west-1.pooler.supabase.com:6543/postgres
 ```
 
-## 4. Domain Setup
+## 4. Domain Setup (budezivo.cz)
 
-### Vercel (Frontend) - budezivo.cz
+### Vercel (Frontend) - budezivo.cz, www.budezivo.cz
 1. Settings → Domains → Add domain
 2. Přidejte DNS záznamy u Wedos:
 
@@ -95,9 +82,8 @@ A     @     76.76.21.21
 CNAME www   cname.vercel-dns.com
 ```
 
-### Railway (Backend API) - NENÍ POTŘEBA CUSTOM DOMAIN
-Díky Vercel proxy není potřeba nastavovat custom doménu pro Railway.
-Všechny API požadavky jdou přes `budezivo.cz/api/*` → Railway.
+### Railway (Backend)
+Není potřeba custom domain - frontend používá Railway URL přímo.
 
 ## 5. Testovací Credentials
 ```
@@ -105,23 +91,32 @@ Email: demo@budezivo.cz
 Password: Demo2026!
 ```
 
+---
+
 ## Troubleshooting
 
-### "Request failed with status code 405"
-**Příčina:** Vercel nemá nastavenou `BACKEND_URL` environment variable.
-**Řešení:** 
-1. Jděte do Vercel → Settings → Environment Variables
-2. Přidejte `BACKEND_URL` = `https://your-railway-url.up.railway.app`
+### ❌ HTTP 405 "Method Not Allowed"
+**Příčina:** `REACT_APP_BACKEND_URL` není nastavena nebo ukazuje na špatnou URL.
+
+**Řešení:**
+1. Na Vercel → Settings → Environment Variables
+2. Přidejte/opravte: `REACT_APP_BACKEND_URL` = `https://YOUR-RAILWAY-URL.up.railway.app`
 3. Redeploy projekt
 
-### Login nefunguje ale API funguje přes curl
-**Příčina:** Frontend environment variable není správně nastavena.
-**Řešení:** Zkontrolujte že `BACKEND_URL` je nastavena na Vercel a proveďte redeploy.
-
-### CORS chyby
+### ❌ CORS chyby
 **Příčina:** Backend nepovoluje cross-origin požadavky.
-**Řešení:** Nastavte `CORS_ORIGINS=*` na Railway. S proxy by CORS neměl být problém.
 
-### Demo programy se nenačítají
-**Příčina:** API požadavky nejdou na Railway backend.
-**Řešení:** Stejné jako pro HTTP 405 - zkontrolujte `BACKEND_URL` na Vercel.
+**Řešení:**
+Na Railway nastavte: `CORS_ORIGINS=*`
+
+### ❌ Login nefunguje ale curl funguje
+**Příčina:** Frontend env variable chybí nebo nebyl proveden redeploy.
+
+**Řešení:**
+1. Zkontrolujte `REACT_APP_BACKEND_URL` na Vercel
+2. Proveďte redeploy (nebo nový commit)
+
+### ❌ Demo programy se nenačítají
+**Příčina:** Stejná jako HTTP 405 - API volání nejdou na Railway.
+
+**Řešení:** Nastavte správně `REACT_APP_BACKEND_URL` na Vercel.

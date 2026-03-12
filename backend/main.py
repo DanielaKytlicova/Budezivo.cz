@@ -25,6 +25,7 @@ from routes import (
     availability_router,
     statistics_router,
     email_templates_router,
+    public_router,
 )
 from models.schemas import ContactFormData, InstitutionSettings
 
@@ -57,6 +58,7 @@ api_router.include_router(payments_router)
 api_router.include_router(availability_router)
 api_router.include_router(statistics_router)
 api_router.include_router(email_templates_router)
+api_router.include_router(public_router)
 
 
 # ============ Additional Routes ============

@@ -110,6 +110,22 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
   - toaster.jsx
 - [x] **Prevence bílé stránky** - bezpečné zpracování API odpovědí
 
+### 7. ✅ Rozšíření HomePage a ARES integrace (Březen 2026) - NEW
+- [x] **Nové marketingové sekce na HomePage:**
+  - "Znáte tuto realitu?" - pain points s ikonami
+  - "Vše na jednom místě" - 6 klíčových funkcí
+  - "Úleva pro zaměstnance / Přínos pro vedení" - 2-sloupcové benefits
+  - "Jak to funguje" - 3 kroky
+  - "Vyzkoušejte si to" - demo odkaz
+- [x] **Dynamické statistiky na login stránce:**
+  - Počet institucí, rezervací, spokojenost
+  - Automaticky skryté pokud < 20 institucí
+  - API: `/api/public/stats`
+- [x] **ARES integrace pro ověření IČ:**
+  - Validace IČ v reálném čase při registraci
+  - Automatické doplnění názvu a adresy instituce
+  - API: `/api/public/ares/{ico}`
+
 ---
 
 ## Databázové schéma (Supabase)

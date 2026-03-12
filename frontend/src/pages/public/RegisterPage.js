@@ -11,7 +11,9 @@ import { Card } from '../../components/ui/card';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Trash2, Upload, Clock } from 'lucide-react';
+import { Plus, Trash2, Upload, Clock, Search, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import axios from 'axios';
+import { API } from '../../config/api';
 
 const STEPS = ['account', 'info', 'schedule', 'programs'];
 
@@ -45,6 +47,9 @@ export const RegisterPage = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const [aresLoading, setAresLoading] = useState(false);
+  const [aresValidated, setAresValidated] = useState(null); // null = not checked, true = valid, false = invalid
+  const [aresData, setAresData] = useState(null);
   
   const [formData, setFormData] = useState({
     // Step 1 - Account
@@ -107,6 +112,45 @@ export const RegisterPage = () => {
         i === index ? { ...block, [field]: value } : block
       )
     }));
+  };
+
+  // ARES validation function
+  const validateIcoWithAres = async () => {
+    const ico = formData.ico_dic?.replace(/\D/g, ''); // Remove non-digits
+    
+    if (!ico || ico.length < 7) {
+      toast.error('Zadejte platné IČ (7-8 číslic)');
+      return;
+    }
+
+    setAresLoading(true);
+    setAresValidated(null);
+    setAresData(null);
+
+    try {
+      const response = await axios.get(`${API}/public/ares/${ico}`);
+      
+      if (response.data.valid) {
+        setAresValidated(true);
+        setAresData(response.data);
+        
+        // Auto-fill institution name and address if empty
+        if (!formData.institution_name && response.data.name) {
+          updateField('institution_name', response.data.name);
+        }
+        if (!formData.address && response.data.address) {
+          updateField('address', response.data.address);
+        }
+        
+        toast.success(`IČ ověřeno: ${response.data.name}`);
+      }
+    } catch (error) {
+      setAresValidated(false);
+      const message = error.response?.data?.detail || 'Chyba při ověřování IČ';
+      toast.error(message);
+    } finally {
+      setAresLoading(false);
+    }
   };
 
   const validateStep = (step) => {
@@ -320,15 +364,56 @@ export const RegisterPage = () => {
       </div>
 
       <div>
-        <Label htmlFor="ico_dic">IČ/DIČ</Label>
-        <Input
-          id="ico_dic"
-          data-testid="register-ico"
-          value={formData.ico_dic}
-          onChange={(e) => updateField('ico_dic', e.target.value)}
-          placeholder="CZ123456"
-          className="mt-2"
-        />
+        <Label htmlFor="ico_dic">IČ (Identifikační číslo)</Label>
+        <div className="flex gap-2 mt-2">
+          <div className="relative flex-1">
+            <Input
+              id="ico_dic"
+              data-testid="register-ico"
+              value={formData.ico_dic}
+              onChange={(e) => {
+                updateField('ico_dic', e.target.value);
+                setAresValidated(null); // Reset validation on change
+              }}
+              placeholder="12345678"
+              className={`pr-10 ${
+                aresValidated === true ? 'border-green-500 focus:border-green-500' : 
+                aresValidated === false ? 'border-red-500 focus:border-red-500' : ''
+              }`}
+            />
+            {aresValidated === true && (
+              <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-green-500" />
+            )}
+            {aresValidated === false && (
+              <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-red-500" />
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={validateIcoWithAres}
+            disabled={aresLoading || !formData.ico_dic}
+            className="px-4"
+            data-testid="ares-validate-btn"
+          >
+            {aresLoading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Search className="w-4 h-4" />
+            )}
+            <span className="ml-2 hidden sm:inline">Ověřit v ARES</span>
+          </Button>
+        </div>
+        {aresData && aresValidated && (
+          <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm" data-testid="ares-result">
+            <p className="font-medium text-green-800">{aresData.name}</p>
+            {aresData.address && <p className="text-green-700">{aresData.address}</p>}
+            {aresData.legal_form && <p className="text-green-600 text-xs">{aresData.legal_form}</p>}
+          </div>
+        )}
+        <p className="text-xs text-gray-500 mt-1">
+          IČ bude automaticky ověřeno v registru ARES
+        </p>
       </div>
 
       <div>

@@ -5,7 +5,7 @@ import { Footer } from '../../components/layout/Footer';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
-import { Check } from 'lucide-react';
+import { Check, Mail, RefreshCw, Table2, Copy, Eye, Calendar, Bell, Settings, Users, UserCheck, BarChart3, FileText, Clock, TrendingUp, Shield, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
@@ -32,6 +32,83 @@ export const HomePage = () => {
   };
 
   const pricingTiers = ['free', 'basic', 'standard', 'premium'];
+
+  // Pain points data
+  const painPoints = [
+    { icon: Mail, text: 'Nekonečné e-maily se školami' },
+    { icon: RefreshCw, text: 'Ruční potvrzování rezervací' },
+    { icon: Table2, text: 'Nepřehledné tabulky' },
+    { icon: Copy, text: 'Duplicitní objednávky' },
+    { icon: Eye, text: 'Chybějící přehled o obsazenosti' },
+  ];
+
+  // Features data
+  const features = [
+    { 
+      icon: Calendar, 
+      title: 'Přehledný kalendář',
+      description: 'Všechny termíny na jednom místě. Žádné hledání v e-mailech.'
+    },
+    { 
+      icon: Bell, 
+      title: 'Automatická potvrzení',
+      description: 'Systém potvrdí rezervaci okamžitě. Vy nemusíte psát desítky e-mailů.'
+    },
+    { 
+      icon: Settings, 
+      title: 'Správa kapacit',
+      description: 'Nastavte kapacity, časy a pravidla jednou. Systém hlídá obsazenost.'
+    },
+    { 
+      icon: UserCheck, 
+      title: 'Bez registrace',
+      description: 'Školy rezervují jednoduše, bez zbytečného zakládání účtů.'
+    },
+    { 
+      icon: Users, 
+      title: 'Týmové role',
+      description: 'Každý člen týmu má přístup jen k tomu, co potřebuje.'
+    },
+    { 
+      icon: BarChart3, 
+      title: 'Statistiky',
+      description: 'Podklady pro vedení a zřizovatele vždy po ruce.'
+    },
+  ];
+
+  // Benefits data
+  const employeeBenefits = [
+    'Méně rutinní administrativy',
+    'Úspora hodin týdně',
+    'Méně chyb a nedorozumění',
+    'Klidnější pracovní den',
+  ];
+
+  const managementBenefits = [
+    'Statistiky a přehledy',
+    'Podklady pro zřizovatele',
+    'Lepší plánování kapacit',
+    'Transparentní evidence rezervací',
+  ];
+
+  // How it works steps
+  const howItWorks = [
+    {
+      step: 1,
+      title: 'Vytvoříte program',
+      description: 'Nastavíte název, popis, délku trvání a kapacitu programu.',
+    },
+    {
+      step: 2,
+      title: 'Nastavíte dostupné termíny',
+      description: 'Určíte, kdy je program dostupný. Systém hlídá obsazenost.',
+    },
+    {
+      step: 3,
+      title: 'Školy rezervují online',
+      description: 'Učitelé si vyberou termín a rezervují online. Dostanete okamžité potvrzení.',
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
@@ -99,7 +176,7 @@ export const HomePage = () => {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="demo_availability">Kdy máte obecně čas? (např. středy dopoledne, pátky dopoledne)</Label>
+                      <Label htmlFor="demo_availability">Kdy máte obecně čas?</Label>
                       <Textarea
                         id="demo_availability"
                         data-testid="demo-availability-input"
@@ -125,15 +202,133 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {/* Demo Booking Section */}
-      <section className="py-16 bg-white" id="funkce">
+      {/* Pain Points Section - "Znáte tuto realitu?" */}
+      <section className="py-16 bg-white" id="problemy">
         <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <div className="text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-12">
+            Znáte tuto realitu?
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {painPoints.map((point, idx) => (
+              <Card 
+                key={idx} 
+                className="p-8 bg-[#F8F9FA] border-0 rounded-2xl text-center hover:shadow-md transition-shadow"
+                data-testid={`pain-point-${idx}`}
+              >
+                <div className="w-16 h-16 bg-[#E8EDF2] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <point.icon className="w-7 h-7 text-[#6B7C8F]" />
+                </div>
+                <p className="text-[#2B3E50] font-medium">{point.text}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section - "Vše na jednom místě" */}
+      <section className="py-16 bg-[#F8F9FA]" id="funkce">
+        <div className="max-w-7xl mx-auto px-6 md:px-8">
+          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-4">
+            Vše na jednom místě.
+          </h2>
+          <p className="text-gray-600 text-center mb-12 max-w-2xl mx-auto">
+            Rezervační systém navržený speciálně pro kulturní instituce
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((feature, idx) => (
+              <Card 
+                key={idx} 
+                className="p-6 bg-white border border-gray-100 rounded-2xl hover:shadow-md transition-shadow"
+                data-testid={`feature-${idx}`}
+              >
+                <div className="w-12 h-12 bg-[#E8F5E9] rounded-xl flex items-center justify-center mb-4">
+                  <feature.icon className="w-6 h-6 text-[#84A98C]" />
+                </div>
+                <h3 className="text-lg font-semibold text-[#2B3E50] mb-2">{feature.title}</h3>
+                <p className="text-gray-600 text-sm leading-relaxed">{feature.description}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Benefits Section - "Úleva pro zaměstnance / Přínos pro vedení" */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-6 md:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-5xl mx-auto">
+            {/* Employee Benefits */}
+            <div>
+              <div className="flex items-center mb-6">
+                <div className="w-1 h-8 bg-[#84A98C] rounded mr-4"></div>
+                <h3 className="text-2xl font-bold text-[#2B3E50]">Úleva pro zaměstnance</h3>
+              </div>
+              <div className="space-y-4">
+                {employeeBenefits.map((benefit, idx) => (
+                  <div key={idx} className="flex items-center" data-testid={`employee-benefit-${idx}`}>
+                    <div className="w-10 h-10 bg-[#E8F5E9] rounded-xl flex items-center justify-center mr-4 flex-shrink-0">
+                      <Check className="w-5 h-5 text-[#84A98C]" />
+                    </div>
+                    <span className="text-[#2B3E50]">{benefit}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Management Benefits */}
+            <div>
+              <div className="flex items-center mb-6">
+                <div className="w-1 h-8 bg-[#4A6FA5] rounded mr-4"></div>
+                <h3 className="text-2xl font-bold text-[#2B3E50]">Přínos pro vedení</h3>
+              </div>
+              <div className="space-y-4">
+                {managementBenefits.map((benefit, idx) => (
+                  <div key={idx} className="flex items-center" data-testid={`management-benefit-${idx}`}>
+                    <div className="w-10 h-10 bg-[#E8EDF5] rounded-xl flex items-center justify-center mr-4 flex-shrink-0">
+                      <Check className="w-5 h-5 text-[#4A6FA5]" />
+                    </div>
+                    <span className="text-[#2B3E50]">{benefit}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works Section - "Jak to funguje" */}
+      <section className="py-16 bg-[#F8F9FA]" id="jak-to-funguje">
+        <div className="max-w-7xl mx-auto px-6 md:px-8">
+          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-12">
+            Jak to funguje
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {howItWorks.map((item, idx) => (
+              <Card 
+                key={idx} 
+                className="p-8 bg-white border-0 rounded-2xl text-center relative"
+                data-testid={`how-it-works-${idx}`}
+              >
+                <div className="w-14 h-14 bg-[#4A6FA5] rounded-full flex items-center justify-center mx-auto mb-6">
+                  <span className="text-2xl font-bold text-white">{item.step}</span>
+                </div>
+                <h3 className="text-lg font-semibold text-[#2B3E50] mb-2">{item.title}</h3>
+                <div className="w-8 h-0.5 bg-[#4A6FA5] mx-auto mb-4"></div>
+                <p className="text-gray-600 text-sm leading-relaxed">{item.description}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Demo Booking Section */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-6 md:px-8">
+          <div className="text-center mb-8">
             <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] mb-4">
-              Vyzkoušejte si rezervační systém
+              Vyzkoušejte si to
             </h2>
-            <p className="text-lg text-gray-600">
-              Projděte si ukázkový proces rezervace jako učitel nebo vedoucí skupiny
+            <p className="text-gray-600">
+              Projděte si ukázkový proces rezervace jako učitel
             </p>
           </div>
           <div className="flex justify-center">
@@ -180,7 +375,6 @@ export const HomePage = () => {
             {pricingTiers.map((tier) => {
               const isBasic = tier === 'basic';
               
-              // Pevně definované ceny
               const prices = {
                 free: { monthly: 0, yearly: 0 },
                 basic: { monthly: 990, yearly: 9900 },
@@ -189,7 +383,7 @@ export const HomePage = () => {
               };
               
               const price = prices[tier][billingCycle];
-              const features = t(`pricing.${tier}.features`);
+              const tierFeatures = t(`pricing.${tier}.features`);
 
               return (
                 <Card
@@ -219,7 +413,7 @@ export const HomePage = () => {
                     )}
                   </div>
                   <ul className="space-y-3 mb-6">
-                    {Array.isArray(features) && features.map((feature, idx) => (
+                    {Array.isArray(tierFeatures) && tierFeatures.map((feature, idx) => (
                       <li key={idx} className="flex items-start">
                         <Check className="w-5 h-5 text-[#4A6FA5] mr-2 flex-shrink-0 mt-0.5" />
                         <span className="text-sm text-gray-700">{feature}</span>
@@ -249,9 +443,13 @@ export const HomePage = () => {
                 Začít zdarma
               </Button>
             </Link>
-            <Button variant="outline" className="border-2 border-[#4A6FA5] text-[#4A6FA5] rounded-lg px-8 h-12">
-              Nezávazná konzultace
-            </Button>
+            <Dialog open={showDemoDialog} onOpenChange={setShowDemoDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="border-2 border-[#4A6FA5] text-[#4A6FA5] rounded-lg px-8 h-12">
+                  Nezávazná konzultace
+                </Button>
+              </DialogTrigger>
+            </Dialog>
           </div>
         </div>
       </section>
@@ -271,9 +469,13 @@ export const HomePage = () => {
                 Vyzkoušet zdarma
               </Button>
             </Link>
-            <Button size="lg" variant="outline" className="h-12 px-8 rounded-lg border-2 border-white text-white hover:bg-white/10">
-              Domluvit online ukázku
-            </Button>
+            <Dialog open={showDemoDialog} onOpenChange={setShowDemoDialog}>
+              <DialogTrigger asChild>
+                <Button size="lg" variant="outline" className="h-12 px-8 rounded-lg border-2 border-white text-white hover:bg-white/10">
+                  Domluvit online ukázku
+                </Button>
+              </DialogTrigger>
+            </Dialog>
           </div>
         </div>
       </section>

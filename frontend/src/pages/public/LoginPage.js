@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { Header, BudezivoLogo } from '../../components/layout/Header';
@@ -7,7 +7,9 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Checkbox } from '../../components/ui/checkbox';
 import { toast } from 'sonner';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, Building2, Calendar, ThumbsUp } from 'lucide-react';
+import axios from 'axios';
+import { API } from '../../config/api';
 
 export const LoginPage = () => {
   const { login } = useContext(AuthContext);
@@ -15,10 +17,24 @@ export const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [stats, setStats] = useState({ show_stats: false, institutions: 0, reservations: 0, satisfaction: 0 });
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const response = await axios.get(`${API}/public/stats`);
+      setStats(response.data);
+    } catch (error) {
+      // Silently fail - stats are optional
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -41,9 +57,15 @@ export const LoginPage = () => {
     }
   };
 
+  const formatNumber = (num) => {
+    if (num >= 1000) {
+      return `${Math.floor(num / 1000)}k+`;
+    }
+    return `${num}+`;
+  };
+
   return (
     <div className="min-h-screen bg-white">
-      {/* Minimal header - na mobilu pouze ikona loga */}
       <Header minimal={true} />
       
       <div className="flex min-h-[calc(100vh-4rem)]">
@@ -178,20 +200,38 @@ export const LoginPage = () => {
                 Spravujte své rezervace přehledně a efektivně. Ušetřete čas pro to, na čem skutečně záleží.
               </p>
 
-              <div className="grid grid-cols-3 gap-6">
-                <div>
-                  <div className="text-3xl font-bold text-[#4A6FA5]">500+</div>
-                  <div className="text-sm text-gray-600">Institucí</div>
+              {/* Dynamic stats - only show if 20+ institutions */}
+              {stats.show_stats && (
+                <div className="grid grid-cols-3 gap-6" data-testid="login-stats">
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-[#4A6FA5]/10 rounded-xl flex items-center justify-center mx-auto mb-2">
+                      <Building2 className="w-6 h-6 text-[#4A6FA5]" />
+                    </div>
+                    <div className="text-3xl font-bold text-[#4A6FA5]" data-testid="stats-institutions">
+                      {formatNumber(stats.institutions)}
+                    </div>
+                    <div className="text-sm text-gray-600">Institucí</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-[#84A98C]/10 rounded-xl flex items-center justify-center mx-auto mb-2">
+                      <Calendar className="w-6 h-6 text-[#84A98C]" />
+                    </div>
+                    <div className="text-3xl font-bold text-[#84A98C]" data-testid="stats-reservations">
+                      {formatNumber(stats.reservations)}
+                    </div>
+                    <div className="text-sm text-gray-600">Rezervací</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="w-12 h-12 bg-[#C4AB86]/10 rounded-xl flex items-center justify-center mx-auto mb-2">
+                      <ThumbsUp className="w-6 h-6 text-[#C4AB86]" />
+                    </div>
+                    <div className="text-3xl font-bold text-[#C4AB86]" data-testid="stats-satisfaction">
+                      {stats.satisfaction}%
+                    </div>
+                    <div className="text-sm text-gray-600">Spokojenost</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-3xl font-bold text-[#4A6FA5]">10k+</div>
-                  <div className="text-sm text-gray-600">Rezervací</div>
-                </div>
-                <div>
-                  <div className="text-3xl font-bold text-[#4A6FA5]">95%</div>
-                  <div className="text-sm text-gray-600">Spokojenost</div>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

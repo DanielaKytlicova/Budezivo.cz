@@ -10,3 +10,4 @@ from .payments import router as payments_router
 from .availability import router as availability_router
 from .statistics import router as statistics_router
 from .email_templates import router as email_templates_router
+from .public import router as public_router

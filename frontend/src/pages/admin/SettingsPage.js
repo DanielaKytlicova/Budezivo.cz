@@ -19,7 +19,9 @@ import {
   Globe, 
   Shield, 
   LogOut,
-  Upload
+  Upload,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { API } from '../../config/api';
 
@@ -161,6 +163,11 @@ export const SettingsPage = () => {
     email_body_template: 'Dobrý den,\n\nrádi bychom Vás informovali o novém programu {program_name}.\n\n{program_description}\n\nRezervovat můžete zde: {reservation_url}\n\nS pozdravem,\n{institution_name}',
   });
   const [isPro, setIsPro] = useState(false);
+
+  // Delete account state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     if (activeSection === 'institution') {
@@ -320,6 +327,17 @@ export const SettingsPage = () => {
             </div>
           </div>
         </Card>
+
+        {/* Smazat účet - méně výrazné */}
+        <div className="pt-6 mt-6 border-t border-gray-100">
+          <button
+            onClick={() => setActiveSection('delete-account')}
+            className="text-sm text-gray-400 hover:text-red-500 transition-colors"
+            data-testid="settings-delete-account"
+          >
+            Smazat účet
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -908,6 +926,96 @@ export const SettingsPage = () => {
     </div>
   );
 
+  // Handle account deletion
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation !== 'DELETE') {
+      toast.error('Pro smazání účtu napište DELETE');
+      return;
+    }
+
+    setDeleteLoading(true);
+    try {
+      await axios.delete(`${API}/account/delete`, {
+        data: { confirmation: 'DELETE' }
+      });
+      toast.success('Účet byl úspěšně deaktivován');
+      logout();
+      navigate('/login');
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Nepodařilo se smazat účet';
+      toast.error(message);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  // Render Delete Account section
+  const renderDeleteAccountSection = () => (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4 mb-6">
+        <button onClick={() => setActiveSection(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <h1 className="text-xl font-semibold text-slate-900">Smazání účtu</h1>
+      </div>
+
+      <Card className="p-6 border-red-100 bg-red-50/30">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-red-100 rounded-full">
+            <AlertTriangle className="w-6 h-6 text-red-600" />
+          </div>
+          <div className="flex-1">
+            <h2 className="font-semibold text-red-800 mb-2">Opravdu chcete smazat svůj účet?</h2>
+            <p className="text-sm text-red-700 mb-4">
+              Tato akce je nevratná. Smazáním účtu:
+            </p>
+            <ul className="text-sm text-red-700 list-disc list-inside space-y-1 mb-4">
+              <li>Ztratíte přístup ke svému účtu</li>
+              <li>Vaše osobní údaje budou deaktivovány</li>
+              <li>Nebudete se moci přihlásit</li>
+            </ul>
+            <p className="text-xs text-gray-500 mb-6">
+              Poznámka: Některé údaje mohou být uchovány pro účely auditních záznamů a právních požadavků.
+            </p>
+
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm text-gray-600">
+                  Pro potvrzení napište <span className="font-mono font-bold">DELETE</span>
+                </Label>
+                <Input
+                  value={deleteConfirmation}
+                  onChange={(e) => setDeleteConfirmation(e.target.value)}
+                  placeholder="DELETE"
+                  className="mt-2 max-w-xs"
+                  data-testid="delete-confirmation-input"
+                />
+              </div>
+
+              <Button
+                onClick={handleDeleteAccount}
+                disabled={deleteLoading || deleteConfirmation !== 'DELETE'}
+                variant="destructive"
+                className="bg-red-600 hover:bg-red-700 disabled:bg-gray-300"
+                data-testid="confirm-delete-account"
+              >
+                {deleteLoading ? 'Mazání...' : 'Trvale smazat účet'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      <Button
+        variant="outline"
+        onClick={() => setActiveSection(null)}
+        className="w-full"
+      >
+        Zrušit a vrátit se zpět
+      </Button>
+    </div>
+  );
+
   // Render based on active section
   const renderContent = () => {
     switch (activeSection) {
@@ -921,6 +1029,8 @@ export const SettingsPage = () => {
         return renderProSettings();
       case 'gdpr':
         return renderGdprSettings();
+      case 'delete-account':
+        return renderDeleteAccountSection();
       default:
         return renderMainMenu();
     }

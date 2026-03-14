@@ -20,7 +20,12 @@ from database.supabase_repositories import (
     EmailTemplateRepositorySupabase,
     EmailLogRepositorySupabase
 )
-from services.email_service import EmailService
+from services.email_service import (
+    EmailService, 
+    trigger_reservation_created_emails,
+    trigger_reservation_confirmed_email,
+    trigger_reservation_cancelled_email,
+)
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 logger = logging.getLogger(__name__)
@@ -103,7 +108,7 @@ async def create_public_booking(
     
     logger.info(f"Booking created: {booking['id']} for {booking_data.contact_email}")
     
-    # Send confirmation email in background (if program has email enabled)
+    # Send confirmation emails in background (if program has email enabled)
     try:
         program = await program_repo.find_by_id(booking_data.program_id, institution_id)
         institution = await institution_repo.find_by_id(institution_id)
@@ -111,35 +116,56 @@ async def create_public_booking(
         if program and program.get("send_email_notification", False):
             email_template = await template_repo.find_by_program(booking_data.program_id)
             
-            # Send email asynchronously
-            async def send_booking_email():
+            # Send emails asynchronously using new trigger system
+            async def send_booking_emails():
                 try:
-                    result = await EmailService.send_booking_confirmation(
-                        booking_data=booking,
-                        program_data=program,
-                        institution_data=institution or {},
-                        email_template=email_template
-                    )
+                    # Use custom template if available, otherwise use transactional templates
+                    if email_template and email_template.get("subject") and email_template.get("body"):
+                        result = await EmailService.send_booking_confirmation(
+                            booking_data=booking,
+                            program_data=program,
+                            institution_data=institution or {},
+                            email_template=email_template
+                        )
+                        
+                        # Log custom template email
+                        await log_repo.create({
+                            "institution_id": institution_id,
+                            "program_id": booking_data.program_id,
+                            "reservation_id": booking["id"],
+                            "recipient_email": booking_data.contact_email,
+                            "subject": "Custom template",
+                            "status": result.get("status", "sent"),
+                            "error_message": result.get("error"),
+                            "email_id": result.get("email_id"),
+                        })
+                    else:
+                        # Use standard transactional emails
+                        results = await trigger_reservation_created_emails(
+                            booking_data=booking,
+                            program_data=program,
+                            institution_data=institution or {},
+                        )
+                        
+                        # Log emails
+                        for recipient, result in results.items():
+                            await log_repo.create({
+                                "institution_id": institution_id,
+                                "program_id": booking_data.program_id,
+                                "reservation_id": booking["id"],
+                                "recipient_email": result.get("actual_recipient", booking_data.contact_email),
+                                "subject": f"reservation_created_{recipient}",
+                                "status": result.get("status", "sent"),
+                                "error_message": result.get("error"),
+                                "email_id": result.get("email_id"),
+                            })
                     
-                    # Log the email
-                    await log_repo.create({
-                        "institution_id": institution_id,
-                        "program_id": booking_data.program_id,
-                        "reservation_id": booking["id"],
-                        "recipient_email": booking_data.contact_email,
-                        "subject": result.get("subject", "Potvrzení rezervace"),
-                        "body_snapshot": None,  # Don't store full body for privacy
-                        "status": result.get("status", "sent"),
-                        "error_message": result.get("error"),
-                        "email_id": result.get("email_id"),
-                    })
-                    
-                    logger.info(f"Booking confirmation email sent for {booking['id']}")
+                    logger.info(f"Booking confirmation emails sent for {booking['id']}")
                 except Exception as e:
-                    logger.error(f"Failed to send booking email: {str(e)}")
+                    logger.error(f"Failed to send booking emails: {str(e)}")
             
             # Run in background
-            background_tasks.add_task(send_booking_email)
+            background_tasks.add_task(send_booking_emails)
     except Exception as e:
         logger.error(f"Error preparing booking email: {str(e)}")
     
@@ -174,11 +200,24 @@ async def get_booking(
 async def update_booking_status(
     booking_id: str,
     status: str,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update booking status."""
+    """Update booking status and trigger appropriate emails."""
     booking_repo = BookingRepositorySupabase(db)
+    program_repo = ProgramRepositorySupabase(db)
+    institution_repo = InstitutionRepositorySupabase(db)
+    log_repo = EmailLogRepositorySupabase(db)
+    
+    # Get booking before update
+    booking = await booking_repo.find_by_id(booking_id, current_user["institution_id"])
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    old_status = booking.get("status")
+    
+    # Update status
     result = await booking_repo.update_status(
         booking_id,
         current_user["institution_id"],
@@ -186,6 +225,54 @@ async def update_booking_status(
     )
     if result == 0:
         raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Trigger emails based on status change
+    async def send_status_email():
+        try:
+            program = await program_repo.find_by_id(booking.get("program_id"), current_user["institution_id"])
+            institution = await institution_repo.find_by_id(current_user["institution_id"])
+            
+            if not program or not institution:
+                return
+            
+            email_result = None
+            template_name = None
+            
+            if status == "confirmed" and old_status != "confirmed":
+                email_result = await trigger_reservation_confirmed_email(
+                    booking_data=booking,
+                    program_data=program,
+                    institution_data=institution,
+                )
+                template_name = "reservation_confirmed"
+                
+            elif status == "cancelled" and old_status != "cancelled":
+                email_result = await trigger_reservation_cancelled_email(
+                    booking_data=booking,
+                    program_data=program,
+                    institution_data=institution,
+                    cancellation_reason="",
+                )
+                template_name = "reservation_cancelled"
+            
+            # Log email if sent
+            if email_result and template_name:
+                await log_repo.create({
+                    "institution_id": current_user["institution_id"],
+                    "program_id": booking.get("program_id"),
+                    "reservation_id": booking_id,
+                    "recipient_email": booking.get("contact_email", ""),
+                    "subject": f"{template_name}",
+                    "status": email_result.get("status", "sent"),
+                    "error_message": email_result.get("error"),
+                    "email_id": email_result.get("email_id"),
+                })
+                
+        except Exception as e:
+            logger.error(f"Failed to send status change email: {str(e)}")
+    
+    background_tasks.add_task(send_status_email)
+    
     return {"message": "Status updated"}
 
 

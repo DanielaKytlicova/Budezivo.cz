@@ -8,7 +8,7 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 
 ## Architektura
 
-### ✅ NOVÁ MODULÁRNÍ ARCHITEKTURA (Únor 2026)
+### ✅ AKTUÁLNÍ MODULÁRNÍ ARCHITEKTURA (Březen 2026)
 
 ```
 /app/backend/
@@ -17,6 +17,8 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 ├── core/
 │   ├── config.py        # Konfigurace z .env
 │   └── security.py      # JWT, hashování hesel
+├── config/
+│   └── email_config.py  # Email konfigurace, sender adresy (NEW)
 ├── models/
 │   └── schemas.py       # Pydantic modely
 ├── routes/
@@ -30,7 +32,10 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 │   ├── payments.py      # /api/payments/*
 │   ├── availability.py  # /api/availability/*
 │   ├── statistics.py    # /api/statistics/*
-│   └── email_templates.py # /api/programs/{id}/email-template/* (NEW)
+│   ├── email_templates.py # /api/programs/{id}/email-template/*
+│   ├── emails.py        # /api/emails/* (NEW)
+│   ├── account.py       # /api/account/* (NEW)
+│   └── public.py        # /api/public/*
 ├── database/
 │   ├── supabase.py              # PostgreSQL connection
 │   ├── supabase_repositories.py # Repository pattern
@@ -38,7 +43,13 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 │   ├── mongodb.py               # [DEPRECATED] MongoDB client
 │   └── repositories.py          # [DEPRECATED] MongoDB repos
 ├── services/
-│   └── email_service.py         # Email sending (Resend) + Template rendering (NEW)
+│   └── email_service.py         # Kompletní email service s triggery (UPDATED)
+├── templates/
+│   └── emails/
+│       ├── __init__.py          # Export šablon (NEW)
+│       └── templates.py         # 13 HTML email šablon (NEW)
+├── docs/
+│   └── email-system.md          # Dokumentace email systému (NEW)
 └── alembic/                     # Databázové migrace
 ```
 
@@ -49,7 +60,7 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 - **Auth:** JWT tokens
 - **ORM:** SQLAlchemy (async)
 - **Migrace:** Alembic
-- **Email:** Resend (připraveno k aktivaci)
+- **Email:** Resend ✅ AKTIVNÍ
 
 ---
 
@@ -82,7 +93,7 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 - [x] POKLADNÍ - pouze skutečná účast
 - [x] LEKTOR - self-assign k rezervaci
 
-### 5. ✅ Email šablony per program (Březen 2026) - NEW
+### 5. ✅ Email šablony per program (Březen 2026)
 - [x] **Backend:**
   - [x] Email service s Resend API (`services/email_service.py`)
   - [x] Template rendering engine s proměnnými ({{variable}})
@@ -97,34 +108,60 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
   - [x] Testovací odeslání emailu
 - [x] **Testováno:** 100% backend + frontend testy prošly
 
-### 6. ✅ Opravy UI a Stability (Březen 2026) - NEW
+### 6. ✅ Opravy UI a Stability (Březen 2026)
 - [x] **Tlačítko pro zobrazení hesla** v přihlašovacím formuláři
-- [x] **Oprava `.map()` chyb** - přidány Array.isArray() kontroly napříč aplikací
-  - BookingsPage.js
-  - ProgramsPage.js
-  - SchoolsPage.js
-  - TeamPage.js
-  - BookingPage.js (public)
-  - PlanPage.js
-  - RegisterPage.js
-  - toaster.jsx
+- [x] **Oprava `.map()` chyb** - přidány Array.isArray() kontroly
 - [x] **Prevence bílé stránky** - bezpečné zpracování API odpovědí
 
-### 7. ✅ Rozšíření HomePage a ARES integrace (Březen 2026) - NEW
-- [x] **Nové marketingové sekce na HomePage:**
-  - "Znáte tuto realitu?" - pain points s ikonami
-  - "Vše na jednom místě" - 6 klíčových funkcí
-  - "Úleva pro zaměstnance / Přínos pro vedení" - 2-sloupcové benefits
-  - "Jak to funguje" - 3 kroky
-  - "Vyzkoušejte si to" - demo odkaz
-- [x] **Dynamické statistiky na login stránce:**
-  - Počet institucí, rezervací, spokojenost
-  - Automaticky skryté pokud < 20 institucí
-  - API: `/api/public/stats`
-- [x] **ARES integrace pro ověření IČ:**
-  - Validace IČ v reálném čase při registraci
-  - Automatické doplnění názvu a adresy instituce
-  - API: `/api/public/ares/{ico}`
+### 7. ✅ Rozšíření HomePage a ARES integrace (Březen 2026)
+- [x] **Nové marketingové sekce na HomePage**
+- [x] **Dynamické statistiky na login stránce**
+- [x] **ARES integrace pro ověření IČ při registraci**
+
+### 8. ✅ KOMPLETNÍ TRANSAKČNÍ EMAIL SYSTÉM (14. března 2026) - NEW
+- [x] **Backend email infrastruktura:**
+  - [x] `/config/email_config.py` - Centralizovaná konfigurace
+  - [x] `/services/email_service.py` - Rozšířený email service
+  - [x] `/templates/emails/templates.py` - 13 HTML šablon
+  - [x] `/routes/emails.py` - Test a správa emailů
+  - [x] `/routes/account.py` - Správa účtu a smazání
+  - [x] `/docs/email-system.md` - Kompletní dokumentace
+- [x] **13 typů transakčních emailů:**
+  - Account: user_registration_confirmation, account_activation, password_reset, password_changed
+  - Reservations: reservation_created_teacher, reservation_created_institution, reservation_confirmed, reservation_rejected, reservation_updated, reservation_cancelled
+  - Reminders: reservation_reminder_teacher, reservation_reminder_institution
+  - Admin: new_institution_registration
+- [x] **Sender adresy:**
+  - no-reply@budezivo.cz
+  - reservations@budezivo.cz
+  - accounts@budezivo.cz
+- [x] **Email triggery:**
+  - Po vytvoření rezervace → email učiteli + instituci
+  - Po potvrzení rezervace → email učiteli
+  - Po zrušení rezervace → email učiteli
+- [x] **API endpointy:**
+  - GET /api/emails/config
+  - GET /api/emails/templates
+  - GET /api/emails/templates/{name}
+  - GET /api/emails/variables
+  - POST /api/emails/test
+  - GET /api/emails/logs
+- [x] **Development mode** - přesměrování emailů na dev@budezivo.cz
+- [x] **Email logging** - všechny odeslané emaily v databázi
+- [x] **Testováno:** 100% (14/14 backend testů prošlo)
+
+### 9. ✅ SMAZÁNÍ ÚČTU V NASTAVENÍ (14. března 2026) - NEW
+- [x] **Backend:**
+  - [x] GET /api/account/status - stav účtu a can_delete flag
+  - [x] DELETE /api/account/delete - soft delete (deaktivace)
+  - [x] Validace: admin nemůže smazat účet pokud je jediný admin
+- [x] **Frontend:**
+  - [x] "Smazat účet" odkaz v dolní části menu Nastavení (nevýrazný)
+  - [x] Sekce smazání účtu s varováním
+  - [x] Potvrzovací input (musí napsat "DELETE")
+  - [x] Tlačítko disabled dokud není zadáno DELETE
+  - [x] Informace o trvalém vymazání dat
+- [x] **Testováno:** 100% (UI + API funkční)
 
 ---
 
@@ -132,15 +169,15 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
 
 ### Tabulky
 - `institutions` - organizace/instituce
-- `users` - uživatelé s rolemi
+- `users` - uživatelé s rolemi (+ deleted_at pro soft delete)
 - `programs` - vzdělávací programy
 - `reservations` - rezervace/bookingy
 - `schools` - CRM škol
 - `theme_settings` - brandingové nastavení
 - `payments` - platební transakce
 - `contact_messages` - kontaktní formulář
-- `program_email_templates` - email šablony per program (NEW)
-- `email_logs` - logy odeslaných emailů (NEW)
+- `program_email_templates` - email šablony per program
+- `email_logs` - logy odeslaných emailů
 
 ### Role uživatelů
 - `admin` - plný přístup
@@ -174,7 +211,7 @@ GET    /api/programs/public/{institution_id} # Veřejné programy
 GET    /api/programs/{id}/external-url      # URL pro web
 ```
 
-### Email Templates (NEW)
+### Email Templates (per program)
 ```
 GET    /api/programs/email-config/status             # Status email služby
 GET    /api/programs/{id}/email-template             # Získat šablonu
@@ -184,20 +221,20 @@ POST   /api/programs/{id}/email-template/test        # Odeslat testovací email
 GET    /api/programs/{id}/email-logs                 # Logy odeslaných emailů
 ```
 
-### Template proměnné
+### Emails (NEW - transakční systém)
 ```
-{{school_name}}          - Název školy/skupiny
-{{contact_person}}       - Jméno kontaktní osoby
-{{email}}                - E-mail kontaktní osoby
-{{phone}}                - Telefon
-{{reservation_date}}     - Datum rezervace
-{{reservation_time}}     - Čas rezervace
-{{number_of_students}}   - Počet žáků
-{{number_of_teachers}}   - Počet pedagogů
-{{program_name}}         - Název programu
-{{program_duration}}     - Délka programu (min)
-{{institution_name}}     - Název instituce
-{{special_requirements}} - Speciální požadavky
+GET    /api/emails/config                   # Konfigurace email služby
+GET    /api/emails/templates                # Seznam všech 13 šablon
+GET    /api/emails/templates/{name}         # Náhled šablony
+GET    /api/emails/variables                # Dostupné proměnné (25)
+POST   /api/emails/test                     # Odeslat testovací email
+GET    /api/emails/logs                     # Historie odeslaných emailů
+```
+
+### Account (NEW)
+```
+GET    /api/account/status                  # Stav účtu, can_delete flag
+DELETE /api/account/delete                  # Soft delete účtu
 ```
 
 ### Bookings
@@ -206,7 +243,7 @@ GET    /api/bookings                        # Seznam rezervací
 POST   /api/bookings                        # Vytvořit rezervaci
 GET    /api/bookings/{id}                   # Detail
 PUT    /api/bookings/{id}                   # Upravit
-PATCH  /api/bookings/{id}/status            # Změnit status
+PATCH  /api/bookings/{id}/status            # Změnit status (+ email trigger)
 POST   /api/bookings/{id}/assign-lecturer   # Přiřadit lektora
 DELETE /api/bookings/{id}/unassign-lecturer # Odhlásit lektora
 POST   /api/bookings/public/{institution_id} # Veřejná rezervace (+ email trigger)
@@ -221,31 +258,69 @@ GET /api/settings/pro                       # PRO nastavení
 PUT /api/settings/pro                       # Upravit PRO
 ```
 
+### Public
+```
+GET /api/public/stats                       # Veřejné statistiky
+GET /api/public/ares/{ico}                  # ARES validace IČ
+```
+
+---
+
+## Email proměnné (25 dostupných)
+
+```
+{{institution_name}}     - Název instituce
+{{institution_email}}    - Email instituce
+{{institution_phone}}    - Telefon instituce
+{{institution_address}}  - Adresa instituce
+{{program_name}}         - Název programu
+{{program_description}}  - Popis programu
+{{program_duration}}     - Délka programu (min)
+{{reservation_date}}     - Datum rezervace
+{{reservation_time}}     - Čas rezervace
+{{reservation_id}}       - ID rezervace
+{{teacher_name}}         - Jméno učitele/kontaktu
+{{teacher_email}}        - Email učitele
+{{teacher_phone}}        - Telefon učitele
+{{school_name}}          - Název školy
+{{children_count}}       - Počet dětí/žáků
+{{teachers_count}}       - Počet pedagogů
+{{special_requirements}} - Speciální požadavky
+{{user_name}}            - Jméno uživatele
+{{user_email}}           - Email uživatele
+{{reset_link}}           - Odkaz pro reset hesla
+{{activation_link}}      - Aktivační odkaz
+{{cancellation_reason}}  - Důvod zrušení
+{{rejection_reason}}     - Důvod odmítnutí
+{{booking_url}}          - URL rezervačního systému
+{{dashboard_url}}        - URL administrace
+```
+
 ---
 
 ## Testovací účet
-- **Email:** test@budezivo.cz
-- **Heslo:** test123
+- **Email:** demo@budezivo.cz
+- **Heslo:** Demo2026!
 - **Role:** admin
 - **Instituce:** Test Muzeum
 
 ---
 
-## ⚠️ K AKTIVACI
+## ✅ EMAIL SLUŽBA (Resend) - AKTIVNÍ
 
-### Email služba (Resend)
-Email šablony jsou implementovány, ale odesílání není aktivní.
+Email systém je plně funkční a konfigurovaný:
 
-**Pro aktivaci přidejte do `/app/backend/.env`:**
-```
-RESEND_API_KEY=re_your_api_key_here
-SENDER_EMAIL=noreply@budezivo.cz
+```env
+RESEND_API_KEY=re_RBiLJpAK_FXh42ngaBPYWyLUdjriA5YX2
+SENDER_EMAIL=onboarding@resend.dev
 ```
 
-**Získání API klíče:**
-1. Registrace na https://resend.com
-2. Dashboard → API Keys → Create API Key
-3. Ověření odesílací domény (nebo použít testovací onboarding@resend.dev)
+**Sender adresy (po ověření domény):**
+- no-reply@budezivo.cz
+- reservations@budezivo.cz
+- accounts@budezivo.cz
+
+**Dokumentace:** `/app/docs/email-system.md`
 
 ---
 
@@ -258,10 +333,15 @@ SENDER_EMAIL=noreply@budezivo.cz
 ### P2 - Další vylepšení
 - [ ] Jazykový přepínač (i18n)
 - [ ] Hromadné akce pro rezervace
-- [ ] GDPR správa dat
+- [ ] GDPR správa dat (export, anonymizace)
 
 ### P3 - Refaktoring
 - [ ] BookingPage.js - rozdělit na menší komponenty
+
+### P3 - Email rozšíření
+- [ ] Reminder cron job (automatické připomínky)
+- [ ] Webhook pro status updates z Resend
+- [ ] A/B testování šablon
 
 ---
 
@@ -282,4 +362,4 @@ SENDER_EMAIL=noreply@budezivo.cz
 
 ---
 
-Poslední aktualizace: 3. března 2026
+Poslední aktualizace: 14. března 2026

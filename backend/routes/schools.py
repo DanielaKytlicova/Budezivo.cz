@@ -103,7 +103,7 @@ async def send_propagation(
         "S pozdravem,\n{institution_name}"
     )
     
-    reservation_url = f"https://budezivo.cz/booking/{current_user['institution_id']}?program={request.program_id}"
+    reservation_url = f"https://www.budezivo.cz/booking/{current_user['institution_id']}?program={request.program_id}"
     
     # Format email
     subject = subject.replace("{program_name}", program.get("name_cs", ""))

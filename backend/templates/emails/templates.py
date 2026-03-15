@@ -107,7 +107,7 @@ def user_registration_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
         </p>
         
         <div style="text-align: center; margin: 32px 0;">
-            <a href="{data.get('dashboard_url', 'https://budezivo.cz/admin')}" style="{BASE_STYLES['button']}">
+            <a href="{data.get('dashboard_url', 'https://www.budezivo.cz/admin')}" style="{BASE_STYLES['button']}">
                 Přejít do administrace
             </a>
         </div>
@@ -129,7 +129,7 @@ Dobrý den, {data.get('user_name', '')},
 
 děkujeme za registraci instituce {data.get('institution_name', '')} v rezervačním systému Budeživo.cz.
 
-Váš účet byl úspěšně vytvořen. Přihlaste se zde: {data.get('dashboard_url', 'https://budezivo.cz/admin')}
+Váš účet byl úspěšně vytvořen. Přihlaste se zde: {data.get('dashboard_url', 'https://www.budezivo.cz/admin')}
 
 Co můžete dělat dál?
 - Vytvořit své první vzdělávací programy
@@ -398,7 +398,7 @@ def reservation_created_institution(data: Dict[str, Any]) -> Dict[str, str]:
         {_reservation_details_box(data)}
         
         <div style="text-align: center; margin: 32px 0;">
-            <a href="{data.get('dashboard_url', 'https://budezivo.cz/admin')}/bookings" style="{BASE_STYLES['button']}">
+            <a href="{data.get('dashboard_url', 'https://www.budezivo.cz/admin')}/bookings" style="{BASE_STYLES['button']}">
                 Zobrazit rezervaci
             </a>
         </div>
@@ -414,7 +414,7 @@ Byla vytvořena nová rezervace:
 - Škola: {data.get('school_name', '')}
 - Kontakt: {data.get('teacher_name', '')} ({data.get('teacher_email', '')})
 
-Přejděte do administrace pro potvrzení: {data.get('dashboard_url', 'https://budezivo.cz/admin')}/bookings
+Přejděte do administrace pro potvrzení: {data.get('dashboard_url', 'https://www.budezivo.cz/admin')}/bookings
 """
     
     return {
@@ -707,7 +707,7 @@ def reservation_reminder_institution(data: Dict[str, Any]) -> Dict[str, str]:
         {_reservation_details_box(data)}
         
         <div style="text-align: center; margin: 32px 0;">
-            <a href="{data.get('dashboard_url', 'https://budezivo.cz/admin')}/bookings" style="{BASE_STYLES['button']}">
+            <a href="{data.get('dashboard_url', 'https://www.budezivo.cz/admin')}/bookings" style="{BASE_STYLES['button']}">
                 Zobrazit detail
             </a>
         </div>

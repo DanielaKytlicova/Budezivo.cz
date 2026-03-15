@@ -443,7 +443,7 @@ async def trigger_reservation_cancelled_email(
         "program_name": program_data.get("name_cs", ""),
         "institution_name": institution_data.get("name", ""),
         "cancellation_reason": cancellation_reason,
-        "booking_url": f"https://budezivo.cz/booking/{institution_data.get('id', '')}",
+        "booking_url": f"https://www.budezivo.cz/booking/{institution_data.get('id', '')}",
     }
     
     return await EmailService.send_transactional_email(

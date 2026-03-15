@@ -174,7 +174,7 @@ async def forgot_password(
     # Generate reset token (in production, save this to DB with expiration)
     import secrets
     reset_token = secrets.token_urlsafe(32)
-    reset_link = f"https://budezivo.cz/reset-password?token={reset_token}&email={data.email}"
+    reset_link = f"https://www.budezivo.cz/reset-password?token={reset_token}&email={data.email}"
     
     # Send password reset email in background
     async def send_reset_email():

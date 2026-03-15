@@ -126,6 +126,25 @@ async def update_institution_settings(
 app.include_router(api_router)
 
 
+# ============ Health Check Endpoint ============
+# This endpoint is at root level (not under /api) for Railway healthcheck
+# It requires no auth and no database connection
+
+@app.get("/health")
+async def health_check():
+    """
+    Health check endpoint for Railway/container orchestration.
+    Returns HTTP 200 with status ok - no dependencies.
+    """
+    return {"status": "ok"}
+
+
+@app.get("/")
+async def app_root():
+    """Root endpoint redirect info."""
+    return {"message": "Budeživo.cz API", "api": "/api/", "health": "/health"}
+
+
 # ============ Middleware ============
 
 app.add_middleware(

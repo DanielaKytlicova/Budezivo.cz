@@ -112,6 +112,7 @@ async def get_pro_settings(
     return {
         "plan": institution.get("plan", "free"),
         "is_pro": institution.get("plan") in ["standard", "premium"],
+        "csv_export_exception": pro_settings.get("csv_export_exception", False),
         **default_settings,
         **pro_settings
     }

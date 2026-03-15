@@ -1,0 +1,141 @@
+{
+  "summary": "Comprehensive testing of Statistics Page P1 feature. All 22 backend API tests passed (100%). All frontend UI components verified working correctly with real data from database.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+
+  "passed_tests": [
+    "Backend: GET /api/statistics - returns overview, monthly, by_program, by_status, by_age_group data",
+    "Backend: GET /api/statistics?period_type=month - defaults to current month (March 2026)",
+    "Backend: GET /api/statistics?period_type=school_year&year=2025 - returns Sep 2025 - Jun 2026 data",
+    "Backend: GET /api/statistics?period_type=semester&semester=1 - first semester Sep-Jan",
+    "Backend: GET /api/statistics?period_type=semester&semester=2 - second semester Feb-Jun",
+    "Backend: GET /api/statistics?period_type=calendar_year - calendar year Jan-Dec",
+    "Backend: Statistics overview contains all required metrics (bookings, students, teachers, visitors)",
+    "Backend: Statistics by_program returns program breakdown",
+    "Backend: Statistics by_status returns Czech status labels",
+    "Backend: Statistics by_age_group returns age group breakdown",
+    "Backend: Statistics monthly returns month-by-month data for period",
+    "Backend: Statistics requires authentication (401 without token)",
+    "Backend: GET /api/statistics/export/csv?export_type=summary - CSV with monthly summary",
+    "Backend: GET /api/statistics/export/csv?export_type=reservations - CSV with all reservations",
+    "Backend: GET /api/statistics/export/csv?export_type=programs - CSV with program breakdown",
+    "Backend: CSV export with period filters works correctly",
+    "Backend: CSV export returns 400 for invalid export type",
+    "Backend: CSV export requires authentication",
+    "Backend: GET /api/settings/pro - returns plan, is_pro, csv_export_exception flags",
+    "Backend: CSV export allowed with csv_export_exception=true despite free plan",
+    "Backend: GET /api/statistics/bookings-over-time - legacy endpoint working",
+    "Backend: GET /api/statistics/popular-programs - legacy endpoint working",
+    "Frontend: Period filter dropdown shows month, school year, semester, calendar year options",
+    "Frontend: Year selector shows school year format (2025/2026) for school_year period",
+    "Frontend: Semester selector appears when Pololetí period selected",
+    "Frontend: Overview cards display total bookings (3), students (70), teachers (6), visitors (76)",
+    "Frontend: Status cards show confirmed (1), pending (2), completed (0), cancelled (0)",
+    "Frontend: Line chart shows reservation trend with Rezervace and Žáci lines",
+    "Frontend: Bar chart shows popular programs (Historická prohlídka, Test Program)",
+    "Frontend: Pie chart shows status distribution (33% Potvrzené, 67% Čekající)",
+    "Frontend: Bar chart shows age group distribution (MŠ, SŠ, ZŠ 1. stupeň)",
+    "Frontend: Average group size card shows 23.3 žáků",
+    "Frontend: Export buttons enabled when csv_export_exception=true",
+    "Frontend: Export CSV downloads successfully with toast notification",
+    "Frontend: PRO banner hidden when csv_export_exception=true",
+    "Frontend: Empty state shows 'Žádná data pro vybrané období' when no data"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_statistics.py",
+    "/app/test_reports/pytest/pytest_statistics.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "Statistics API properly filters by institution_id - data isolation working",
+    "Period calculations (school year, semester) correctly handle year transitions",
+    "CSV export properly checks PRO plan OR csv_export_exception flag before allowing export",
+    "All date calculations use timezone-aware datetime objects",
+    "Monthly data excludes cancelled reservations for accurate counts",
+    "Frontend isPro check includes csv_export_exception: response.data?.is_pro || response.data?.csv_export_exception",
+    "Charts use Recharts library with proper ResponsiveContainer wrapping",
+    "All data-testid attributes present for key elements"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_statistics.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (22/22 tests passed)",
+    "frontend": "100% (all Statistics page features working)"
+  },
+
+  "test_credentials": {
+    "email": "demo@budezivo.cz",
+    "password": "Demo2026!",
+    "role": "admin",
+    "institution": "Test Muzeum"
+  },
+
+  "seed_data_creation": "Test data exists in March 2026: 3 reservations (1 confirmed, 2 pending), 70 students, 6 teachers, 2 programs (Historická prohlídka, Test Program), 3 age groups",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Statistics page fully tested with real data. Test account: demo@budezivo.cz / Demo2026!. Institution Test Muzeum has csv_export_exception=true (free plan but can export CSV). Test data for March 2026: 3 reservations. Period filters (month, school_year, semester, calendar_year) all working. CSV export (summary, reservations, programs) all working. All 4 chart types (line, bar, pie, bar for age groups) rendering correctly.",
+
+  "features_verified": {
+    "backend_endpoints": {
+      "get_statistics": "PASS - Returns all required data sections",
+      "period_month": "PASS - Defaults to current month",
+      "period_school_year": "PASS - Sep to Jun format",
+      "period_semester": "PASS - First (Sep-Jan) and second (Feb-Jun)",
+      "period_calendar_year": "PASS - Jan to Dec",
+      "csv_export_summary": "PASS - Monthly summary export",
+      "csv_export_reservations": "PASS - All reservations export",
+      "csv_export_programs": "PASS - Program breakdown export",
+      "pro_status": "PASS - Returns plan and exception flags",
+      "legacy_endpoints": "PASS - bookings-over-time and popular-programs"
+    },
+    "frontend_components": {
+      "period_filter": "PASS - Dropdown with 4 period options",
+      "year_selector": "PASS - Shows school year format when appropriate",
+      "semester_selector": "PASS - Appears for semester period",
+      "overview_cards": "PASS - 4 cards (bookings, students, teachers, visitors)",
+      "status_cards": "PASS - 4 status cards with counts",
+      "line_chart": "PASS - Trend rezervací with monthly data",
+      "bar_chart_programs": "PASS - Nejpopulárnější programy",
+      "pie_chart": "PASS - Stav rezervací with percentages",
+      "bar_chart_age": "PASS - Věkové skupiny distribution",
+      "avg_group_size": "PASS - Shows average with 23.3 žáků",
+      "export_buttons": "PASS - Enabled when isPro or exception",
+      "empty_state": "PASS - Message when no data"
+    },
+    "data_accuracy": {
+      "total_bookings": "3 - Verified",
+      "total_students": "70 - Verified",
+      "total_teachers": "6 - Verified",
+      "total_visitors": "76 - Verified (students + teachers)",
+      "confirmed": "1 - Verified",
+      "pending": "2 - Verified",
+      "avg_group_size": "23.3 - Verified (70/3)"
+    }
+  },
+
+  "csv_export_verification": {
+    "summary_format": "Měsíc;Rok;Počet rezervací;Počet žáků;Počet pedagogů;Celkem návštěvníků",
+    "reservations_format": "Datum;Čas;Program;Škola;Kontakt;Email;Telefon;Počet žáků;Počet pedagogů;Věková skupina;Status;Poznámky",
+    "programs_format": "Program;Počet rezervací;Počet žáků;Počet pedagogů;Celkem návštěvníků;Průměrná velikost skupiny",
+    "delimiter": "semicolon (;) for Czech Excel compatibility",
+    "encoding": "UTF-8 with BOM"
+  }
+}

@@ -195,6 +195,7 @@ class ThemeUpdate(BaseModel):
 
 class ProSettings(BaseModel):
     csv_export_enabled: bool = True
+    csv_export_exception: bool = False  # Admin může povolit výjimku pro free plán
     mass_propagation_enabled: bool = True
     email_subject_template: str = "Nový program: {program_name}"
     email_body_template: str = "Dobrý den,\\n\\nrádi bychom Vás informovali o novém programu {program_name}.\\n\\n{program_description}\\n\\nRezervovat můžete zde: {reservation_url}\\n\\nS pozdravem,\\n{institution_name}"

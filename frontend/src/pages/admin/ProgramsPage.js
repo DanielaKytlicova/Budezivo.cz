@@ -9,6 +9,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
+import { Checkbox } from '../../components/ui/checkbox';
 import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -27,10 +28,12 @@ const DAYS = [
 
 const TARGET_GROUPS = [
   { value: 'ms_3_6', label: 'MŠ (3-6 let)' },
-  { value: 'zs1_7_12', label: 'I. stupeň ZŠ' },
-  { value: 'zs2_12_15', label: 'II. stupeň ZŠ' },
-  { value: 'ss_14_18', label: 'SŠ' },
-  { value: 'schools', label: 'Školy a veřejnost' },
+  { value: 'zs1_7_12', label: 'I. stupeň ZŠ (7-12 let)' },
+  { value: 'zs2_12_15', label: 'II. stupeň ZŠ (12-15 let)' },
+  { value: 'ss_14_18', label: 'SŠ (14-18 let)' },
+  { value: 'gym_14_18', label: 'Gymnázium (14-18 let)' },
+  { value: 'adults', label: 'Dospělí' },
+  { value: 'all', label: 'Všechny věkové skupiny' },
 ];
 
 const TARIFFS = [
@@ -44,6 +47,7 @@ const getDefaultFormData = () => ({
   description_cs: '',
   description_en: '',
   target_group: 'schools',
+  target_groups: [],  // New: multiple target groups
   duration: 90,
   max_capacity: 20,
   min_capacity: 5,
@@ -218,9 +222,18 @@ export const ProgramsPage = () => {
 
   const handleEdit = (program) => {
     setEditingProgram(program);
+    // Convert legacy single target_group to target_groups array
+    let targetGroups = program.target_groups || [];
+    if (targetGroups.length === 0 && program.target_group) {
+      targetGroups = [program.target_group];
+    }
+    if (targetGroups.length === 0 && program.age_group) {
+      targetGroups = [program.age_group];
+    }
     setFormData({
       ...getDefaultFormData(),
       ...program,
+      target_groups: targetGroups,
       target_group: program.target_group || program.age_group || 'schools',
     });
     setActiveTab('detail');
@@ -283,6 +296,34 @@ export const ProgramsPage = () => {
   const getTargetGroupLabel = (group) => {
     const found = TARGET_GROUPS.find(g => g.value === group);
     return found ? found.label : 'Školy a veřejnost';
+  };
+
+  const getTargetGroupsLabel = (groups, fallbackGroup) => {
+    // Use target_groups if available, otherwise fall back to single target_group/age_group
+    const effectiveGroups = (groups && groups.length > 0) ? groups : (fallbackGroup ? [fallbackGroup] : []);
+    
+    if (effectiveGroups.length === 0) return 'Neurčeno';
+    if (effectiveGroups.length === 1) return getTargetGroupLabel(effectiveGroups[0]);
+    if (effectiveGroups.includes('all')) return 'Všechny věkové skupiny';
+    
+    // Show first 2 groups + count of remaining
+    const labels = effectiveGroups.slice(0, 2).map(g => {
+      const found = TARGET_GROUPS.find(tg => tg.value === g);
+      // Shorter labels for list view
+      const shortLabels = {
+        'ms_3_6': 'MŠ',
+        'zs1_7_12': 'ZŠ I.',
+        'zs2_12_15': 'ZŠ II.',
+        'ss_14_18': 'SŠ',
+        'gym_14_18': 'Gym.',
+        'adults': 'Dospělí',
+      };
+      return shortLabels[g] || (found ? found.label : g);
+    });
+    if (effectiveGroups.length > 2) {
+      return `${labels.join(', ')} +${effectiveGroups.length - 2}`;
+    }
+    return labels.join(', ');
   };
 
   const programsCount = programs.filter(p => p.status !== 'archived').length;
@@ -354,7 +395,7 @@ export const ProgramsPage = () => {
                   
                   <div className="flex flex-wrap gap-2 mb-3">
                     <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded">
-                      {getTargetGroupLabel(program.target_group || program.age_group)}
+                      {getTargetGroupsLabel(program.target_groups, program.target_group || program.age_group)}
                     </span>
                     <span className={`px-2 py-1 text-xs rounded ${getStatusBadgeColor(program.status)}`}>
                       {getStatusLabel(program.status)}
@@ -476,20 +517,49 @@ export const ProgramsPage = () => {
         </div>
 
         <div>
-          <Label className="text-gray-500 text-sm">Cílová skupina</Label>
-          <Select
-            value={formData.target_group}
-            onValueChange={(value) => setFormData({ ...formData, target_group: value, age_group: value })}
-          >
-            <SelectTrigger className="mt-1" data-testid="program-target-group">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TARGET_GROUPS.map(group => (
-                <SelectItem key={group.value} value={group.value}>{group.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label className="text-gray-500 text-sm mb-2 block">Cílové skupiny</Label>
+          <div className="space-y-2 mt-1">
+            {TARGET_GROUPS.map(group => (
+              <div key={group.value} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`target-${group.value}`}
+                  checked={(formData.target_groups || []).includes(group.value)}
+                  onCheckedChange={(checked) => {
+                    const currentGroups = formData.target_groups || [];
+                    let newGroups;
+                    if (checked) {
+                      // If selecting "all", clear others
+                      if (group.value === 'all') {
+                        newGroups = ['all'];
+                      } else {
+                        // Remove "all" if present and add the new group
+                        newGroups = [...currentGroups.filter(g => g !== 'all'), group.value];
+                      }
+                    } else {
+                      newGroups = currentGroups.filter(g => g !== group.value);
+                    }
+                    setFormData({ 
+                      ...formData, 
+                      target_groups: newGroups,
+                      // Legacy compatibility
+                      target_group: newGroups[0] || 'schools',
+                      age_group: newGroups[0] || 'zs1_7_12'
+                    });
+                  }}
+                  data-testid={`target-group-${group.value}`}
+                />
+                <label
+                  htmlFor={`target-${group.value}`}
+                  className="text-sm cursor-pointer select-none"
+                >
+                  {group.label}
+                </label>
+              </div>
+            ))}
+          </div>
+          {(formData.target_groups || []).length === 0 && (
+            <p className="text-xs text-amber-600 mt-2">Vyberte alespoň jednu cílovou skupinu</p>
+          )}
         </div>
       </Card>
 

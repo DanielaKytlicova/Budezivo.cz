@@ -214,6 +214,7 @@ class ProgramRepositorySupabase:
             min_capacity=program_data.get('min_capacity', 5),
             max_capacity=program_data.get('max_capacity', 30),
             target_group=program_data.get('target_group', 'schools'),
+            target_groups=program_data.get('target_groups', []),
             price=program_data.get('price', 0.0),
             status=program_data.get('status', 'active'),
             is_published=program_data.get('is_published', True),

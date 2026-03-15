@@ -163,6 +163,36 @@ Multi-tenant SaaS rezervační systém pro české kulturní instituce (muzea, g
   - [x] Informace o trvalém vymazání dat
 - [x] **Testováno:** 100% (UI + API funkční)
 
+### 10. ✅ STATISTIKY PAGE S VIZUALIZACEMI (15. března 2026)
+- [x] **Backend:**
+  - [x] GET /api/statistics - kompletní statistiky z DB
+  - [x] Filtry: měsíc, školní rok (září-červen), pololetí, kalendářní rok, vlastní období
+  - [x] GET /api/statistics/export/csv - CSV export (3 typy: reservations, summary, programs)
+  - [x] PRO kontrola + csv_export_exception pro admin výjimky
+- [x] **Frontend:**
+  - [x] Přehledové karty (rezervace, žáci, pedagogové, návštěvníci)
+  - [x] Status karty (potvrzené, čekající, dokončené, zrušené)
+  - [x] Line chart - trend rezervací
+  - [x] Bar chart - nejpopulárnější programy
+  - [x] Pie chart - rozložení podle statusu
+  - [x] Bar chart - věkové skupiny
+  - [x] Export tlačítka (pouze PRO)
+  - [x] Filtry období s podporou školního roku
+- [x] **Testováno:** 100%
+
+### 11. ✅ VÍCE CÍLOVÝCH SKUPIN PRO PROGRAM (15. března 2026)
+- [x] **Backend:**
+  - [x] Nový sloupec `target_groups` (JSONB array) v tabulce programs
+  - [x] Zpětná kompatibilita s `target_group` (single value)
+  - [x] Schema aktualizace
+- [x] **Frontend:**
+  - [x] Multi-select checkboxy místo single select
+  - [x] 7 věkových skupin: MŠ, ZŠ I., ZŠ II., SŠ, Gymnázium, Dospělí, Všechny
+  - [x] Validace - alespoň jedna skupina musí být vybrána
+  - [x] Zobrazení v seznamu: "MŠ, ZŠ I. +1" pro více skupin
+  - [x] Zpětná kompatibilita pro starší programy
+- [x] **Testováno:** Funkční
+
 ---
 
 ## Databázové schéma (Supabase)

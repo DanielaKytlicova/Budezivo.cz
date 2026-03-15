@@ -69,10 +69,11 @@ class ProgramBase(BaseModel):
     description_cs: str
     description_en: str
     duration: int
-    age_group: str
+    age_group: str  # Legacy - kept for backwards compatibility
+    target_groups: List[str] = []  # New: Array of target groups ['ms_3_6', 'zs1_7_12', ...]
     min_capacity: int = 5
     max_capacity: int = 30
-    target_group: str
+    target_group: str  # Legacy - kept for backwards compatibility
     price: Optional[float] = 0.0
     status: str = "active"
     requires_approval: bool = False

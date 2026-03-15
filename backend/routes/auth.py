@@ -3,7 +3,7 @@ Authentication routes: register, login, verify, forgot password.
 Uses Supabase (PostgreSQL) for database operations.
 """
 import logging
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import UserCreate, UserLogin, TokenResponse, ForgotPasswordRequest
@@ -14,13 +14,22 @@ from database.supabase_repositories import (
     InstitutionRepositorySupabase, 
     ThemeRepositorySupabase
 )
+from services.email_service import (
+    trigger_user_registration_email,
+    trigger_password_reset_email,
+    EmailService,
+)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=TokenResponse)
-async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
+async def register(
+    user_data: UserCreate, 
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
     """Register new user and institution."""
     user_repo = UserRepositorySupabase(db)
     institution_repo = InstitutionRepositorySupabase(db)
@@ -68,8 +77,39 @@ async def register(user_data: UserCreate, db: AsyncSession = Depends(get_db)):
         "footer_text": None
     })
     
+    # Send registration confirmation email in background
+    async def send_registration_emails():
+        try:
+            # Send welcome email to the new user
+            await trigger_user_registration_email(
+                user_email=user_data.email,
+                user_name=user_data.email.split('@')[0],  # Use email prefix as name
+                institution_name=user_data.institution_name,
+            )
+            logger.info(f"Registration confirmation email sent to {user_data.email}")
+            
+            # Send notification to admin about new institution (optional)
+            admin_email = "info@budezivo.cz"
+            await EmailService.send_transactional_email(
+                template_name="new_institution_registration",
+                to_email=admin_email,
+                data={
+                    "institution_name": user_data.institution_name,
+                    "institution_type": user_data.institution_type,
+                    "user_email": user_data.email,
+                    "institution_city": user_data.city or "",
+                },
+            )
+            logger.info(f"New institution notification sent to admin")
+        except Exception as e:
+            logger.error(f"Failed to send registration emails: {str(e)}")
+    
+    background_tasks.add_task(send_registration_emails)
+    
     # Create JWT token
     token = create_jwt_token(user["id"], institution["id"], user_data.email)
+    
+    logger.info(f"New institution registered: {user_data.institution_name} ({user_data.email})")
     
     return {
         "token": token,
@@ -118,7 +158,11 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/forgot-password")
-async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+async def forgot_password(
+    data: ForgotPasswordRequest, 
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
     """Request password reset."""
     user_repo = UserRepositorySupabase(db)
     user = await user_repo.find_by_email(data.email)
@@ -127,7 +171,24 @@ async def forgot_password(data: ForgotPasswordRequest, db: AsyncSession = Depend
         # Don't reveal if email exists
         return {"message": "If email exists, password reset link has been sent"}
     
-    # TODO: Send email with reset link
+    # Generate reset token (in production, save this to DB with expiration)
+    import secrets
+    reset_token = secrets.token_urlsafe(32)
+    reset_link = f"https://budezivo.cz/reset-password?token={reset_token}&email={data.email}"
+    
+    # Send password reset email in background
+    async def send_reset_email():
+        try:
+            await trigger_password_reset_email(
+                user_email=data.email,
+                reset_link=reset_link,
+            )
+            logger.info(f"Password reset email sent to {data.email}")
+        except Exception as e:
+            logger.error(f"Failed to send password reset email: {str(e)}")
+    
+    background_tasks.add_task(send_reset_email)
+    
     logger.info(f"Password reset requested for {data.email}")
     return {"message": "If email exists, password reset link has been sent"}
 

@@ -2,11 +2,13 @@
 Public statistics and ARES integration routes.
 """
 import httpx
+import uuid
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 from database.supabase import get_db
+from database.supabase_repositories import InstitutionRepositorySupabase
 
 router = APIRouter(prefix="/public", tags=["Public"])
 
@@ -35,7 +37,7 @@ async def get_public_stats(db: AsyncSession = Depends(get_db)):
             "reservations": reservation_count if show_stats else 0,
             "satisfaction": 95 if show_stats else 0  # Static for now
         }
-    except Exception as e:
+    except Exception:
         # Return empty stats on error
         return {
             "show_stats": False,
@@ -43,6 +45,54 @@ async def get_public_stats(db: AsyncSession = Depends(get_db)):
             "reservations": 0,
             "satisfaction": 0
         }
+
+
+
+@router.get("/institutions/{institution_id}")
+async def get_public_institution_info(institution_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Get public institution information for booking pages.
+    Returns basic info: name, logo, plan (for feature gating).
+    Logo is fetched from theme settings.
+    """
+    from database.supabase_repositories import ThemeRepositorySupabase
+    
+    # Handle demo institution
+    if institution_id == "demo":
+        return {
+            "id": "demo",
+            "name": "Demo Muzeum",
+            "logo_url": None,
+            "plan": "pro",  # Demo has PRO features
+            "type": "museum"
+        }
+    
+    try:
+        institution_repo = InstitutionRepositorySupabase(db)
+        theme_repo = ThemeRepositorySupabase(db)
+        
+        institution = await institution_repo.find_by_id(institution_id)
+        
+        if not institution:
+            raise HTTPException(status_code=404, detail="Institution not found")
+        
+        # Get logo from theme settings
+        theme = await theme_repo.find_by_institution(institution_id)
+        logo_url = theme.get("logo_url") if theme else None
+        
+        # Return only public info
+        return {
+            "id": str(institution.get("id")),
+            "name": institution.get("name"),
+            "logo_url": logo_url,
+            "plan": institution.get("plan", "free"),
+            "type": institution.get("type")
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.get("/ares/{ico}")

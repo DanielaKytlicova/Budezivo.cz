@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from '../../i18n/useTranslation';
 import { ThemeContext } from '../../context/ThemeContext';
-import { Header } from '../../components/layout/Header';
+import { BookingHeader } from '../../components/layout/BookingHeader';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -37,6 +37,17 @@ export const BookingPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   
+  // Data instituce pro header a theme
+  const [institutionData, setInstitutionData] = useState({
+    logoUrl: null,
+    name: null,
+    primaryColor: '#4A6FA5',
+    secondaryColor: '#84A98C',
+    accentColor: '#E9C46A',
+    headerStyle: 'light',
+    plan: 'free'
+  });
+  
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   
@@ -58,6 +69,7 @@ export const BookingPage = () => {
 
   useEffect(() => {
     fetchTheme();
+    fetchInstitutionInfo();
     fetchPrograms();
     fetchCalendar(currentYear, currentMonth);
   }, []);
@@ -66,8 +78,31 @@ export const BookingPage = () => {
     try {
       const response = await axios.get(`${API}/settings/theme/public/${institutionId}`);
       applyTheme(response.data);
+      // Uložit všechna theme data pro header
+      setInstitutionData(prev => ({
+        ...prev,
+        logoUrl: response.data.logo_url,
+        primaryColor: response.data.primary_color || '#4A6FA5',
+        secondaryColor: response.data.secondary_color || '#84A98C',
+        accentColor: response.data.accent_color || '#E9C46A',
+        headerStyle: response.data.header_style || 'light'
+      }));
     } catch (error) {
       console.error('Error fetching theme:', error);
+    }
+  };
+
+  const fetchInstitutionInfo = async () => {
+    try {
+      const response = await axios.get(`${API}/public/institutions/${institutionId}`);
+      setInstitutionData(prev => ({
+        ...prev,
+        name: response.data.name,
+        logoUrl: response.data.logo_url || prev.logoUrl,
+        plan: response.data.plan || 'free'
+      }));
+    } catch (error) {
+      console.error('Error fetching institution info:', error);
     }
   };
 
@@ -202,15 +237,34 @@ export const BookingPage = () => {
                 disabled={!hasAvailability}
                 className={`aspect-square rounded-lg flex flex-col items-center justify-center text-sm relative transition-colors ${
                   hasAvailability
-                    ? 'bg-white border border-gray-300 hover:border-[#4A6FA5] hover:bg-blue-50 cursor-pointer'
+                    ? 'bg-white border border-gray-300 cursor-pointer'
                     : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 }`}
+                style={hasAvailability ? {
+                  '--tw-border-opacity': 1,
+                } : {}}
+                onMouseEnter={(e) => {
+                  if (hasAvailability) {
+                    e.currentTarget.style.borderColor = institutionData.primaryColor;
+                    e.currentTarget.style.backgroundColor = `${institutionData.primaryColor}10`;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (hasAvailability) {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.backgroundColor = '#ffffff';
+                  }
+                }}
               >
                 <span className="font-medium">{day}</span>
                 {hasAvailability && (
                   <div className="flex gap-1 mt-1">
                     {[...Array(Math.min(dateInfo.available_blocks, 3))].map((_, i) => (
-                      <div key={i} className="w-1 h-1 rounded-full bg-[#4A6FA5]" />
+                      <div 
+                        key={i} 
+                        className="w-1 h-1 rounded-full" 
+                        style={{ backgroundColor: institutionData.primaryColor }}
+                      />
                     ))}
                   </div>
                 )}
@@ -223,9 +277,9 @@ export const BookingPage = () => {
           <p className="text-sm font-medium mb-2 text-[#2B3E50]">Legenda</p>
           <div className="flex items-center gap-2 text-sm">
             <div className="flex gap-1">
-              <div className="w-1 h-1 rounded-full bg-[#4A6FA5]" />
-              <div className="w-1 h-1 rounded-full bg-[#4A6FA5]" />
-              <div className="w-1 h-1 rounded-full bg-[#4A6FA5]" />
+              <div className="w-1 h-1 rounded-full" style={{ backgroundColor: institutionData.primaryColor }} />
+              <div className="w-1 h-1 rounded-full" style={{ backgroundColor: institutionData.primaryColor }} />
+              <div className="w-1 h-1 rounded-full" style={{ backgroundColor: institutionData.primaryColor }} />
             </div>
             <span className="text-gray-600">Volné bloky</span>
           </div>
@@ -237,10 +291,19 @@ export const BookingPage = () => {
   if (success) {
     return (
       <div className="min-h-screen bg-[#F8F9FA]">
-        <Header />
+        <BookingHeader 
+          logoUrl={institutionData.logoUrl}
+          institutionName={institutionData.name}
+          primaryColor={institutionData.primaryColor}
+          secondaryColor={institutionData.secondaryColor}
+          accentColor={institutionData.accentColor}
+          headerStyle={institutionData.headerStyle}
+          plan={institutionData.plan}
+          institutionId={institutionId}
+        />
         <div className="max-w-2xl mx-auto px-4 py-16">
           <Card className="p-12 text-center border border-gray-200">
-            <div className="mb-6 text-[#4A6FA5]">
+            <div className="mb-6" style={{ color: institutionData.primaryColor }}>
               <CheckCircle className="w-24 h-24 mx-auto" />
             </div>
             <h1 className="text-3xl font-bold text-[#2B3E50] mb-4">Rezervace byla odeslána</h1>
@@ -249,7 +312,8 @@ export const BookingPage = () => {
             </p>
             <Button
               onClick={() => window.location.reload()}
-              className="bg-[#C4AB86] text-white hover:bg-[#b39975] rounded-lg"
+              style={{ backgroundColor: institutionData.accentColor }}
+              className="text-white hover:opacity-90 rounded-lg"
             >
               Vytvořit další rezervaci
             </Button>
@@ -261,19 +325,30 @@ export const BookingPage = () => {
 
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
-      <Header />
+      <BookingHeader 
+        logoUrl={institutionData.logoUrl}
+        institutionName={institutionData.name}
+        primaryColor={institutionData.primaryColor}
+        secondaryColor={institutionData.secondaryColor}
+        accentColor={institutionData.accentColor}
+        headerStyle={institutionData.headerStyle}
+        plan={institutionData.plan}
+        institutionId={institutionId}
+      />
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="flex items-center justify-center mb-8">
           {[1, 2, 3, 4].map((s) => (
             <React.Fragment key={s}>
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm ${
-                  s === step
-                    ? 'bg-[#4A6FA5] text-white'
-                    : s < step
-                    ? 'bg-[#C4AB86] text-white'
-                    : 'bg-gray-200 text-gray-500'
-                }`}
+                className="w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm"
+                style={{
+                  backgroundColor: s === step 
+                    ? institutionData.primaryColor 
+                    : s < step 
+                    ? institutionData.accentColor 
+                    : '#e5e7eb',
+                  color: s <= step ? '#ffffff' : '#6b7280'
+                }}
               >
                 {s}
               </div>
@@ -288,14 +363,34 @@ export const BookingPage = () => {
           <div>
             {loading ? (
               <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4A6FA5] mx-auto"></div>
+                <div 
+                  className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto"
+                  style={{ borderColor: institutionData.primaryColor }}
+                ></div>
               </div>
             ) : (
               <div className="space-y-4">
-                {Array.isArray(programs) && programs.map((program) => (
+                {Array.isArray(programs) && programs.map((program) => {
+                  // Format validity dates
+                  const formatDate = (dateStr) => {
+                    if (!dateStr) return null;
+                    try {
+                      return new Date(dateStr).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
+                    } catch {
+                      return null;
+                    }
+                  };
+                  const startDate = formatDate(program.start_date);
+                  const endDate = formatDate(program.end_date);
+                  const hasValidity = startDate || endDate;
+                  
+                  return (
                   <Card
                     key={program.id}
-                    className="p-6 cursor-pointer hover:shadow-sm hover:border-[#4A6FA5] transition-all border border-gray-200 rounded-lg"
+                    className="p-6 cursor-pointer hover:shadow-sm transition-all border border-gray-200 rounded-lg"
+                    style={{ 
+                      '--hover-border-color': institutionData.primaryColor 
+                    }}
                     onClick={() => handleProgramSelect(program)}
                     data-testid={`program-card-${program.id}`}
                   >
@@ -306,16 +401,36 @@ export const BookingPage = () => {
                       </div>
                     </div>
                     <p className="text-gray-600 mb-4">{program.description_cs}</p>
-                    <div className="flex gap-3">
-                      <span className="px-3 py-1 bg-blue-50 text-[#4A6FA5] rounded-md text-sm font-medium">
+                    <div className="flex flex-wrap gap-3 mb-3">
+                      <span 
+                        className="px-3 py-1 rounded-md text-sm font-medium"
+                        style={{ 
+                          backgroundColor: `${institutionData.primaryColor}15`,
+                          color: institutionData.primaryColor 
+                        }}
+                      >
                         {AGE_GROUPS[program.age_group]}
                       </span>
                       <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm font-medium">
                         {program.duration} min.
                       </span>
                     </div>
+                    {hasValidity && (
+                      <div className="pt-3 border-t border-gray-100">
+                        <p className="text-sm text-gray-500">
+                          {startDate && endDate ? (
+                            <>Platnost: {startDate} – {endDate}</>
+                          ) : startDate ? (
+                            <>Od: {startDate}</>
+                          ) : (
+                            <>Do: {endDate}</>
+                          )}
+                        </p>
+                      </div>
+                    )}
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -344,31 +459,55 @@ export const BookingPage = () => {
               {new Date(formData.date).toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
             <div className="space-y-3">
-              {Array.isArray(timeBlocks) && timeBlocks.map((block) => (
+              {Array.isArray(timeBlocks) && timeBlocks.map((block) => {
+                const isSelected = formData.time_block === block.time;
+                const isAvailable = block.status === 'available';
+                
+                return (
                 <button
                   key={block.time}
-                  onClick={() => block.status === 'available' && handleTimeBlockSelect(block.time)}
-                  disabled={block.status !== 'available'}
+                  onClick={() => isAvailable && handleTimeBlockSelect(block.time)}
+                  disabled={!isAvailable}
                   className={`w-full p-4 rounded-lg text-left transition-all border ${
-                    formData.time_block === block.time
-                      ? 'bg-blue-50 border-2 border-[#4A6FA5]'
-                      : block.status === 'available'
-                      ? 'bg-white border-gray-200 hover:border-[#4A6FA5] hover:bg-blue-50'
-                      : 'bg-gray-100 border-gray-200 cursor-not-allowed'
+                    !isAvailable ? 'bg-gray-100 border-gray-200 cursor-not-allowed' : 'bg-white'
                   }`}
+                  style={isAvailable ? {
+                    borderWidth: isSelected ? '2px' : '1px',
+                    borderColor: isSelected ? institutionData.primaryColor : '#e5e7eb',
+                    backgroundColor: isSelected ? `${institutionData.primaryColor}10` : '#ffffff'
+                  } : {}}
+                  onMouseEnter={(e) => {
+                    if (isAvailable && !isSelected) {
+                      e.currentTarget.style.borderColor = institutionData.primaryColor;
+                      e.currentTarget.style.backgroundColor = `${institutionData.primaryColor}08`;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (isAvailable && !isSelected) {
+                      e.currentTarget.style.borderColor = '#e5e7eb';
+                      e.currentTarget.style.backgroundColor = '#ffffff';
+                    }
+                  }}
                   data-testid={`time-block-${block.time}`}
                 >
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-lg font-semibold text-[#2B3E50]">{block.time}</p>
-                      <p className="text-sm text-gray-500">{block.status === 'available' ? 'Volný' : 'Obsazeno'}</p>
+                      <p className="text-sm text-gray-500">{isAvailable ? 'Volný' : 'Obsazeno'}</p>
                     </div>
                   </div>
                 </button>
-              ))}
+                );
+              })}
             </div>
-            <div className="mt-6 p-4 bg-blue-50 rounded-md border border-blue-100">
-              <p className="text-sm text-blue-900">
+            <div 
+              className="mt-6 p-4 rounded-md border"
+              style={{ 
+                backgroundColor: `${institutionData.primaryColor}10`,
+                borderColor: `${institutionData.primaryColor}30`
+              }}
+            >
+              <p className="text-sm" style={{ color: institutionData.primaryColor }}>
                 Všechny časové bloky jsou 90 min. dlouhé. Prosím přiďte o 10 minut dříve, aby bylo dost času na organizační prvky.
               </p>
             </div>
@@ -382,7 +521,8 @@ export const BookingPage = () => {
                 Zpět
               </Button>
               <Button
-                className="flex-1 bg-[#C4AB86] text-white hover:bg-[#b39975] rounded-lg"
+                className="flex-1 text-white hover:opacity-90 rounded-lg"
+                style={{ backgroundColor: institutionData.accentColor }}
                 onClick={() => {
                   if (!formData.time_block) {
                     toast.error('Vyberte prosím časový blok');
@@ -564,7 +704,8 @@ export const BookingPage = () => {
                 <Button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 bg-[#C4AB86] text-white hover:bg-[#b39975] rounded-lg h-12"
+                  className="flex-1 text-white hover:opacity-90 rounded-lg h-12"
+                  style={{ backgroundColor: institutionData.accentColor }}
                   data-testid="booking-submit"
                 >
                   {submitting ? 'Odesílání...' : 'Odeslat rezervaci'}

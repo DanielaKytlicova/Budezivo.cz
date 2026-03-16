@@ -27,6 +27,8 @@ Rezervační systém pro kulturní instituce (muzea, galerie, knihovny) v Česk�
 - [x] **Stránka statistik** - Grafy, filtry, CSV export (PRO)
 - [x] **Multi-select cílových skupin** - Více věkových skupin na program
 - [x] **Datum platnosti programu** - start_date/end_date u programů
+- [x] **Logo instituce na booking** - Vlastní logo v headeru rezervační stránky
+- [x] **Theme na booking stránkách** - Barvy instituce aplikované na celou stránku
 
 ### Bug fixy (prosinec 2025)
 - [x] Railway healthcheck endpoint (`/health`)

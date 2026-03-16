@@ -292,7 +292,21 @@ export const BookingPage = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {Array.isArray(programs) && programs.map((program) => (
+                {Array.isArray(programs) && programs.map((program) => {
+                  // Format validity dates
+                  const formatDate = (dateStr) => {
+                    if (!dateStr) return null;
+                    try {
+                      return new Date(dateStr).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' });
+                    } catch {
+                      return null;
+                    }
+                  };
+                  const startDate = formatDate(program.start_date);
+                  const endDate = formatDate(program.end_date);
+                  const hasValidity = startDate || endDate;
+                  
+                  return (
                   <Card
                     key={program.id}
                     className="p-6 cursor-pointer hover:shadow-sm hover:border-[#4A6FA5] transition-all border border-gray-200 rounded-lg"
@@ -306,7 +320,7 @@ export const BookingPage = () => {
                       </div>
                     </div>
                     <p className="text-gray-600 mb-4">{program.description_cs}</p>
-                    <div className="flex gap-3">
+                    <div className="flex flex-wrap gap-3 mb-3">
                       <span className="px-3 py-1 bg-blue-50 text-[#4A6FA5] rounded-md text-sm font-medium">
                         {AGE_GROUPS[program.age_group]}
                       </span>
@@ -314,8 +328,22 @@ export const BookingPage = () => {
                         {program.duration} min.
                       </span>
                     </div>
+                    {hasValidity && (
+                      <div className="pt-3 border-t border-gray-100">
+                        <p className="text-sm text-gray-500">
+                          {startDate && endDate ? (
+                            <>Platnost: {startDate} – {endDate}</>
+                          ) : startDate ? (
+                            <>Od: {startDate}</>
+                          ) : (
+                            <>Do: {endDate}</>
+                          )}
+                        </p>
+                      </div>
+                    )}
                   </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

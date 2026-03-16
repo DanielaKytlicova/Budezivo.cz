@@ -230,11 +230,24 @@ export const ProgramsPage = () => {
     if (targetGroups.length === 0 && program.age_group) {
       targetGroups = [program.age_group];
     }
+    // Convert ISO datetime strings to YYYY-MM-DD format for date inputs
+    const formatDateForInput = (dateStr) => {
+      if (!dateStr) return '';
+      try {
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return '';
+        return date.toISOString().split('T')[0];
+      } catch {
+        return '';
+      }
+    };
     setFormData({
       ...getDefaultFormData(),
       ...program,
       target_groups: targetGroups,
       target_group: program.target_group || program.age_group || 'schools',
+      start_date: formatDateForInput(program.start_date),
+      end_date: formatDateForInput(program.end_date),
     });
     setActiveTab('detail');
     setShowDialog(true);

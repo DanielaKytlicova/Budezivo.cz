@@ -202,6 +202,20 @@ class ProgramRepositorySupabase:
     
     async def create(self, program_data: dict, institution_id: str) -> dict:
         """Create new program."""
+        # Parse date strings to datetime objects
+        start_date = None
+        end_date = None
+        if program_data.get('start_date'):
+            try:
+                start_date = datetime.strptime(program_data['start_date'], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                pass
+        if program_data.get('end_date'):
+            try:
+                end_date = datetime.strptime(program_data['end_date'], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                pass
+        
         prog = Program(
             id=uuid.uuid4(),
             institution_id=uuid.UUID(institution_id),
@@ -222,6 +236,8 @@ class ProgramRepositorySupabase:
             send_email_notification=program_data.get('send_email_notification', True),
             available_days=program_data.get('available_days', ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']),
             time_blocks=program_data.get('time_blocks', ["09:00-10:30"]),
+            start_date=start_date,
+            end_date=end_date,
             min_days_before_booking=program_data.get('min_days_before_booking', 14),
             max_days_before_booking=program_data.get('max_days_before_booking', 90),
             preparation_time=program_data.get('preparation_time', 10),
@@ -234,13 +250,32 @@ class ProgramRepositorySupabase:
     
     async def update(self, program_id: str, institution_id: str, update_data: dict) -> int:
         """Update program."""
+        # Convert date strings to datetime objects
+        processed_data = update_data.copy()
+        if 'start_date' in processed_data:
+            if processed_data['start_date']:
+                try:
+                    processed_data['start_date'] = datetime.strptime(processed_data['start_date'], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                except (ValueError, TypeError):
+                    processed_data['start_date'] = None
+            else:
+                processed_data['start_date'] = None
+        if 'end_date' in processed_data:
+            if processed_data['end_date']:
+                try:
+                    processed_data['end_date'] = datetime.strptime(processed_data['end_date'], '%Y-%m-%d').replace(tzinfo=timezone.utc)
+                except (ValueError, TypeError):
+                    processed_data['end_date'] = None
+            else:
+                processed_data['end_date'] = None
+        
         result = await self.db.execute(
             update(Program)
             .where(and_(
                 Program.id == uuid.UUID(program_id),
                 Program.institution_id == uuid.UUID(institution_id)
             ))
-            .values(**update_data)
+            .values(**processed_data)
         )
         await self.db.commit()
         return result.rowcount

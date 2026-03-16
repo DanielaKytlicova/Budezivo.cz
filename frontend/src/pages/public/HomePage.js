@@ -202,25 +202,25 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {/* Pain Points Section - "Znáte tuto realitu?" - Compact horizontal strip */}
-      <section className="py-8 bg-gradient-to-r from-[#2B3E50] via-[#3d5166] to-[#2B3E50]" id="problemy">
+      {/* Pain Points Section - "Znáte tuto realitu?" */}
+      <section className="py-16 bg-white" id="problemy">
         <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8">
-            <h2 className="text-lg md:text-xl font-semibold text-white/90 whitespace-nowrap">
-              Znáte tuto realitu?
-            </h2>
-            <div className="flex flex-wrap justify-center gap-3 md:gap-6">
-              {painPoints.map((point, idx) => (
-                <div 
-                  key={idx}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-full border border-white/20 hover:bg-white/20 transition-colors cursor-default"
-                  data-testid={`pain-point-${idx}`}
-                >
-                  <point.icon className="w-4 h-4 text-[#C4AB86]" />
-                  <span className="text-sm text-white/90 whitespace-nowrap">{point.text}</span>
+          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-12">
+            Znáte tuto realitu?
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {painPoints.map((point, idx) => (
+              <Card 
+                key={idx} 
+                className="p-8 bg-[#F8F9FA] border-0 rounded-2xl text-center hover:shadow-md transition-shadow"
+                data-testid={`pain-point-${idx}`}
+              >
+                <div className="w-16 h-16 bg-[#E8EDF2] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <point.icon className="w-7 h-7 text-[#6B7C8F]" />
                 </div>
-              ))}
-            </div>
+                <p className="text-[#2B3E50] font-medium">{point.text}</p>
+              </Card>
+            ))}
           </div>
         </div>
       </section>

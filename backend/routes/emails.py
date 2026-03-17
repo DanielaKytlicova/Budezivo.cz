@@ -73,6 +73,37 @@ async def debug_email_config():
     }
 
 
+# Temporary public debug endpoint - DELETE AFTER DEBUGGING
+@router.get("/debug-public")
+async def debug_email_config_public():
+    """
+    PUBLIC debug endpoint - no auth required.
+    ⚠️ DELETE THIS AFTER DEBUGGING!
+    """
+    import os
+    from config.email_config import RESEND_API_KEY, SENDER_EMAIL, IS_DEVELOPMENT, ENV
+    
+    key_status = "SET" if RESEND_API_KEY else "NOT SET"
+    key_preview = f"{RESEND_API_KEY[:10]}..." if RESEND_API_KEY and len(RESEND_API_KEY) > 10 else "N/A"
+    env_key = os.environ.get("RESEND_API_KEY")
+    env_key_status = "SET" if env_key else "NOT SET"
+    
+    return {
+        "status": "debug_info",
+        "warning": "⚠️ DELETE THIS ENDPOINT AFTER DEBUGGING!",
+        "config": {
+            "RESEND_API_KEY": key_status,
+            "RESEND_API_KEY_preview": key_preview,
+            "SENDER_EMAIL": SENDER_EMAIL,
+            "ENV": ENV,
+        },
+        "os_environ": {
+            "RESEND_API_KEY": env_key_status,
+        },
+        "email_configured": EmailService.is_configured(),
+    }
+
+
 @router.get("/templates")
 async def list_email_templates():
     """List all available email templates."""

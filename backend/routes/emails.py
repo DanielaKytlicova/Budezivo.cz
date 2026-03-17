@@ -42,6 +42,37 @@ async def get_email_config():
     return EmailService.get_config_status()
 
 
+@router.get("/debug")
+async def debug_email_config():
+    """Debug endpoint to check email configuration - shows what environment variables are set."""
+    import os
+    from config.email_config import RESEND_API_KEY, SENDER_EMAIL, IS_DEVELOPMENT, ENV
+    
+    # Check if key exists (don't expose the actual key)
+    key_status = "SET" if RESEND_API_KEY else "NOT SET"
+    key_preview = f"{RESEND_API_KEY[:10]}..." if RESEND_API_KEY and len(RESEND_API_KEY) > 10 else "N/A"
+    
+    # Also check directly from environment
+    env_key = os.environ.get("RESEND_API_KEY")
+    env_key_status = "SET" if env_key else "NOT SET"
+    
+    return {
+        "config_module": {
+            "RESEND_API_KEY": key_status,
+            "RESEND_API_KEY_preview": key_preview,
+            "SENDER_EMAIL": SENDER_EMAIL,
+            "IS_DEVELOPMENT": IS_DEVELOPMENT,
+            "ENV": ENV,
+        },
+        "os_environ": {
+            "RESEND_API_KEY": env_key_status,
+            "SENDER_EMAIL": os.environ.get("SENDER_EMAIL", "not set"),
+            "ENV": os.environ.get("ENV", "not set"),
+        },
+        "email_service_configured": EmailService.is_configured(),
+    }
+
+
 @router.get("/templates")
 async def list_email_templates():
     """List all available email templates."""

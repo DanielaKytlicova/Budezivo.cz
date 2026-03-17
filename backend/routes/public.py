@@ -1,16 +1,67 @@
 """
-Public statistics and ARES integration routes.
+Public statistics, ARES integration, and contact form routes.
 """
 import httpx
 import uuid
-from fastapi import APIRouter, HTTPException
+import os
+import logging
+from fastapi import APIRouter, HTTPException, BackgroundTasks
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
 from database.supabase import get_db
 from database.supabase_repositories import InstitutionRepositorySupabase
+from services.email_service import EmailService
 
 router = APIRouter(prefix="/public", tags=["Public"])
+logger = logging.getLogger(__name__)
+
+# Admin email for contact form submissions
+ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "info@budezivo.cz")
+
+
+class ContactFormRequest(BaseModel):
+    """Contact/demo form request model."""
+    name: str
+    institution: str
+    email: EmailStr
+    availability: str = ""
+    source: str = "Kontaktní formulář"
+
+
+@router.post("/contact")
+async def submit_contact_form(
+    data: ContactFormRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Submit contact/demo form. Sends email to admin.
+    """
+    async def send_contact_email():
+        try:
+            result = await EmailService.send_transactional_email(
+                template_name="contact_form_submission",
+                to_email=ADMIN_EMAIL,
+                data={
+                    "name": data.name,
+                    "institution": data.institution,
+                    "email": data.email,
+                    "availability": data.availability,
+                    "source": data.source,
+                },
+                reply_to=data.email,
+            )
+            logger.info(f"Contact form email sent: {result.get('status')} - {result.get('email_id')}")
+        except Exception as e:
+            logger.error(f"Failed to send contact form email: {str(e)}")
+    
+    background_tasks.add_task(send_contact_email)
+    
+    return {
+        "status": "success",
+        "message": "Děkujeme za váš zájem! Brzy vás budeme kontaktovat."
+    }
 
 
 @router.get("/stats")

@@ -782,6 +782,69 @@ Byla zaregistrována nová instituce:
     }
 
 
+def contact_form_submission(data: Dict[str, Any]) -> Dict[str, str]:
+    """Email sent when someone submits contact/demo form."""
+    content = f"""
+        <h1 style="{BASE_STYLES['h1']}">Nová poptávka z webu</h1>
+        
+        <p style="{BASE_STYLES['text']}">
+            Někdo vyplnil kontaktní formulář na webu Budeživo.cz.
+        </p>
+        
+        <div style="{BASE_STYLES['info_box']}">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr style="border-bottom: 1px solid #E2E8F0;">
+                    <td style="{BASE_STYLES['info_label']}; padding: 12px 0;">Jméno:</td>
+                    <td style="{BASE_STYLES['info_value']}; padding: 12px 0;">{data.get('name', '-')}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #E2E8F0;">
+                    <td style="{BASE_STYLES['info_label']}; padding: 12px 0;">Instituce:</td>
+                    <td style="{BASE_STYLES['info_value']}; padding: 12px 0;">{data.get('institution', '-')}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #E2E8F0;">
+                    <td style="{BASE_STYLES['info_label']}; padding: 12px 0;">E-mail:</td>
+                    <td style="{BASE_STYLES['info_value']}; padding: 12px 0;">
+                        <a href="mailto:{data.get('email', '')}" style="color: #1E293B;">{data.get('email', '-')}</a>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="{BASE_STYLES['info_label']}; padding: 12px 0;">Dostupnost:</td>
+                    <td style="{BASE_STYLES['info_value']}; padding: 12px 0;">{data.get('availability', '-')}</td>
+                </tr>
+            </table>
+        </div>
+        
+        <p style="{BASE_STYLES['text']}">
+            <strong>Zdroj:</strong> {data.get('source', 'Kontaktní formulář')}
+        </p>
+        
+        <hr style="{BASE_STYLES['divider']}">
+        
+        <p style="text-align: center;">
+            <a href="mailto:{data.get('email', '')}" style="{BASE_STYLES['button']}">
+                Odpovědět
+            </a>
+        </p>
+    """
+    
+    plain = f"""
+Nová poptávka z webu Budeživo.cz
+================================
+
+Jméno: {data.get('name', '-')}
+Instituce: {data.get('institution', '-')}
+E-mail: {data.get('email', '-')}
+Dostupnost: {data.get('availability', '-')}
+Zdroj: {data.get('source', 'Kontaktní formulář')}
+"""
+    
+    return {
+        "subject": f"Nová poptávka: {data.get('institution', 'Neznámá instituce')}",
+        "html": _base_template(content),
+        "text": _plain_text_base(plain)
+    }
+
+
 # ============ TEMPLATE REGISTRY ============
 
 TEMPLATE_REGISTRY = {
@@ -798,6 +861,7 @@ TEMPLATE_REGISTRY = {
     "reservation_reminder_teacher": reservation_reminder_teacher,
     "reservation_reminder_institution": reservation_reminder_institution,
     "new_institution_registration": new_institution_registration,
+    "contact_form_submission": contact_form_submission,
 }
 
 

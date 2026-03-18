@@ -46,26 +46,43 @@ async def get_email_config():
 async def debug_email_config():
     """Debug endpoint to check email configuration - shows what environment variables are set."""
     import os
-    from config.email_config import RESEND_API_KEY, SENDER_EMAIL, IS_DEVELOPMENT, ENV
+    from config.email_config import (
+        get_resend_api_key, 
+        get_sender_email, 
+        is_development, 
+        get_env,
+        RESEND_API_KEY  # Also check the module-level constant
+    )
     
-    # Check if key exists (don't expose the actual key)
-    key_status = "SET" if RESEND_API_KEY else "NOT SET"
-    key_preview = f"{RESEND_API_KEY[:10]}..." if RESEND_API_KEY and len(RESEND_API_KEY) > 10 else "N/A"
+    # Runtime check
+    runtime_key = get_resend_api_key()
+    runtime_key_status = "SET" if runtime_key else "NOT SET"
+    runtime_key_preview = f"{runtime_key[:10]}..." if runtime_key and len(runtime_key) > 10 else "N/A"
     
-    # Also check directly from environment
+    # Module-level constant (set at import time)
+    module_key_status = "SET" if RESEND_API_KEY else "NOT SET"
+    module_key_preview = f"{RESEND_API_KEY[:10]}..." if RESEND_API_KEY and len(RESEND_API_KEY) > 10 else "N/A"
+    
+    # Direct environment check
     env_key = os.environ.get("RESEND_API_KEY")
     env_key_status = "SET" if env_key else "NOT SET"
+    env_key_preview = f"{env_key[:10]}..." if env_key and len(env_key) > 10 else "N/A"
     
     return {
-        "config_module": {
-            "RESEND_API_KEY": key_status,
-            "RESEND_API_KEY_preview": key_preview,
-            "SENDER_EMAIL": SENDER_EMAIL,
-            "IS_DEVELOPMENT": IS_DEVELOPMENT,
-            "ENV": ENV,
+        "runtime_check": {
+            "RESEND_API_KEY": runtime_key_status,
+            "RESEND_API_KEY_preview": runtime_key_preview,
+            "SENDER_EMAIL": get_sender_email(),
+            "IS_DEVELOPMENT": is_development(),
+            "ENV": get_env(),
         },
-        "os_environ": {
+        "module_constant": {
+            "RESEND_API_KEY": module_key_status,
+            "RESEND_API_KEY_preview": module_key_preview,
+        },
+        "os_environ_direct": {
             "RESEND_API_KEY": env_key_status,
+            "RESEND_API_KEY_preview": env_key_preview,
             "SENDER_EMAIL": os.environ.get("SENDER_EMAIL", "not set"),
             "ENV": os.environ.get("ENV", "not set"),
         },
@@ -81,21 +98,23 @@ async def debug_email_config_public():
     ⚠️ DELETE THIS AFTER DEBUGGING!
     """
     import os
-    from config.email_config import RESEND_API_KEY, SENDER_EMAIL, IS_DEVELOPMENT, ENV
+    from config.email_config import get_resend_api_key, get_sender_email, get_env
     
-    key_status = "SET" if RESEND_API_KEY else "NOT SET"
-    key_preview = f"{RESEND_API_KEY[:10]}..." if RESEND_API_KEY and len(RESEND_API_KEY) > 10 else "N/A"
+    runtime_key = get_resend_api_key()
+    runtime_key_status = "SET" if runtime_key else "NOT SET"
+    runtime_key_preview = f"{runtime_key[:10]}..." if runtime_key and len(runtime_key) > 10 else "N/A"
+    
     env_key = os.environ.get("RESEND_API_KEY")
     env_key_status = "SET" if env_key else "NOT SET"
     
     return {
         "status": "debug_info",
         "warning": "⚠️ DELETE THIS ENDPOINT AFTER DEBUGGING!",
-        "config": {
-            "RESEND_API_KEY": key_status,
-            "RESEND_API_KEY_preview": key_preview,
-            "SENDER_EMAIL": SENDER_EMAIL,
-            "ENV": ENV,
+        "runtime": {
+            "RESEND_API_KEY": runtime_key_status,
+            "RESEND_API_KEY_preview": runtime_key_preview,
+            "SENDER_EMAIL": get_sender_email(),
+            "ENV": get_env(),
         },
         "os_environ": {
             "RESEND_API_KEY": env_key_status,

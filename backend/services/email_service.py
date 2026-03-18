@@ -11,28 +11,33 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
 import resend
-from dotenv import load_dotenv
 
 from config.email_config import (
     EmailType,
     SenderType,
-    RESEND_API_KEY,
-    SENDER_EMAIL,
-    SENDER_ADDRESSES,
-    IS_DEVELOPMENT,
+    get_resend_api_key,
+    get_sender_email,
+    get_sender_addresses,
+    is_development,
     get_sender_for_email_type,
     get_dev_recipient,
     TEMPLATE_VARIABLES,
 )
 from templates.emails import get_template, get_available_templates
 
-load_dotenv()
-
 logger = logging.getLogger(__name__)
 
-# Initialize Resend
-if RESEND_API_KEY:
-    resend.api_key = RESEND_API_KEY
+
+def _init_resend():
+    """Initialize Resend API key at runtime."""
+    api_key = get_resend_api_key()
+    if api_key:
+        resend.api_key = api_key
+        logger.info(f"Resend API initialized: {api_key[:8]}...")
+        return True
+    else:
+        logger.warning("RESEND_API_KEY not found - email sending disabled")
+        return False
 
 
 class EmailTemplateRenderer:
@@ -102,17 +107,25 @@ class EmailService:
     
     @classmethod
     def is_configured(cls) -> bool:
-        """Check if email service is properly configured."""
-        return bool(RESEND_API_KEY)
+        """Check if email service is properly configured (runtime check)."""
+        api_key = get_resend_api_key()
+        configured = bool(api_key)
+        if configured:
+            logger.debug(f"Email service configured: API key {api_key[:8]}...")
+        else:
+            logger.debug("Email service NOT configured: RESEND_API_KEY missing")
+        return configured
     
     @classmethod
     def get_config_status(cls) -> Dict[str, Any]:
         """Get current email service configuration status."""
+        api_key = get_resend_api_key()
         return {
             "configured": cls.is_configured(),
-            "development_mode": IS_DEVELOPMENT,
+            "development_mode": is_development(),
             "available_templates": get_available_templates(),
-            "sender_addresses": {k.value: v for k, v in SENDER_ADDRESSES.items()},
+            "sender_addresses": {k.value: v for k, v in get_sender_addresses().items()},
+            "api_key_preview": f"{api_key[:8]}..." if api_key else None,
         }
     
     @classmethod
@@ -151,9 +164,12 @@ class EmailService:
                 "error": "RESEND_API_KEY not set"
             }
         
+        # Initialize Resend API key at runtime (ensures it's set before sending)
+        _init_resend()
+        
         # Development mode - redirect to dev email
         actual_recipient = get_dev_recipient(to_email)
-        if IS_DEVELOPMENT and actual_recipient != to_email:
+        if is_development() and actual_recipient != to_email:
             logger.info(f"Development mode: redirecting email from {to_email} to {actual_recipient}")
             subject = f"[DEV - původně pro: {to_email}] {subject}"
         
@@ -169,7 +185,7 @@ class EmailService:
         
         # Build email params
         params = {
-            "from": from_email or SENDER_EMAIL,
+            "from": from_email or get_sender_email(),
             "to": [actual_recipient],
             "subject": subject,
             "html": full_html,
@@ -237,7 +253,7 @@ class EmailService:
                 email_type = EmailType(template_name)
                 from_email = get_sender_for_email_type(email_type)
             except ValueError:
-                from_email = SENDER_EMAIL
+                from_email = get_sender_email()
             
             # Send email
             result = await cls.send_email(

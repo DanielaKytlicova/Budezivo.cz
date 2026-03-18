@@ -12,11 +12,15 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { toast } from 'sonner';
+import axios from 'axios';
+
+const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
 export const HomePage = () => {
   const { t } = useTranslation();
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [showDemoDialog, setShowDemoDialog] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [demoFormData, setDemoFormData] = useState({
     name: '',
     institution: '',
@@ -26,9 +30,22 @@ export const HomePage = () => {
 
   const handleDemoSubmit = async (e) => {
     e.preventDefault();
-    toast.success('Děkujeme! Brzy vás budeme kontaktovat.');
-    setShowDemoDialog(false);
-    setDemoFormData({ name: '', institution: '', email: '', availability: '' });
+    setSubmitting(true);
+    
+    try {
+      await axios.post(`${API}/public/contact`, {
+        ...demoFormData,
+        source: 'Demo formulář - Homepage'
+      });
+      toast.success('Děkujeme! Brzy vás budeme kontaktovat.');
+      setShowDemoDialog(false);
+      setDemoFormData({ name: '', institution: '', email: '', availability: '' });
+    } catch (error) {
+      console.error('Contact form error:', error);
+      toast.error('Nepodařilo se odeslat. Zkuste to prosím znovu.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const pricingTiers = ['free', 'basic', 'standard', 'premium'];
@@ -189,10 +206,11 @@ export const HomePage = () => {
                     </div>
                     <Button
                       type="submit"
+                      disabled={submitting}
                       data-testid="demo-submit-button"
-                      className="w-full bg-[#C4AB86] text-white hover:bg-[#b39975]"
+                      className="w-full bg-[#C4AB86] text-white hover:bg-[#b39975] disabled:opacity-50"
                     >
-                      Odeslat žádost
+                      {submitting ? 'Odesílám...' : 'Odeslat žádost'}
                     </Button>
                   </form>
                 </DialogContent>

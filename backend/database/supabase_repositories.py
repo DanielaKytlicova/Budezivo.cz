@@ -100,6 +100,16 @@ class UserRepositorySupabase:
         await self.db.commit()
         return result.rowcount
     
+    async def update(self, user_id: str, update_data: dict) -> int:
+        """Update user by ID."""
+        result = await self.db.execute(
+            update(User)
+            .where(User.id == uuid.UUID(user_id))
+            .values(**update_data)
+        )
+        await self.db.commit()
+        return result.rowcount
+    
     async def delete_by_id(self, user_id: str, institution_id: str) -> int:
         """Delete user by ID."""
         result = await self.db.execute(

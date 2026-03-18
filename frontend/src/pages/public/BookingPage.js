@@ -118,9 +118,13 @@ export const BookingPage = () => {
     }
   };
 
-  const fetchCalendar = async (year, month) => {
+  const fetchCalendar = async (year, month, programId = null) => {
     try {
-      const response = await axios.get(`${API}/calendar/${institutionId}/${year}/${month}`);
+      let url = `${API}/calendar/${institutionId}/${year}/${month}`;
+      if (programId) {
+        url += `?program_id=${programId}`;
+      }
+      const response = await axios.get(url);
       setCalendarData(response.data);
     } catch (error) {
       console.error('Error fetching calendar:', error);
@@ -137,9 +141,11 @@ export const BookingPage = () => {
     }
   };
 
-  const handleProgramSelect = (program) => {
+  const handleProgramSelect = async (program) => {
     setSelectedProgram(program);
     setFormData({ ...formData, program_id: program.id });
+    // Fetch calendar for selected program
+    await fetchCalendar(currentYear, currentMonth, program.id);
     setStep(2);
   };
 
@@ -192,7 +198,7 @@ export const BookingPage = () => {
               const newYear = currentMonth === 1 ? currentYear - 1 : currentYear;
               setCurrentMonth(newMonth);
               setCurrentYear(newYear);
-              fetchCalendar(newYear, newMonth);
+              fetchCalendar(newYear, newMonth, formData.program_id);
             }}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
@@ -205,7 +211,7 @@ export const BookingPage = () => {
               const newYear = currentMonth === 12 ? currentYear + 1 : currentYear;
               setCurrentMonth(newMonth);
               setCurrentYear(newYear);
-              fetchCalendar(newYear, newMonth);
+              fetchCalendar(newYear, newMonth, formData.program_id);
             }}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >

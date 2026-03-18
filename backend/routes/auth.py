@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import UserCreate, UserLogin, TokenResponse, ForgotPasswordRequest
+from pydantic import BaseModel, EmailStr
 from core.security import hash_password, verify_password, create_jwt_token, get_current_user
 from database.supabase import get_db
 from database.supabase_repositories import (
@@ -100,7 +101,7 @@ async def register(
                     "institution_city": user_data.city or "",
                 },
             )
-            logger.info(f"New institution notification sent to admin")
+            logger.info("New institution notification sent to admin")
         except Exception as e:
             logger.error(f"Failed to send registration emails: {str(e)}")
     
@@ -163,7 +164,11 @@ async def forgot_password(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
-    """Request password reset."""
+    """Request password reset using JWT token."""
+    from datetime import datetime, timezone, timedelta
+    import jwt
+    import os
+    
     user_repo = UserRepositorySupabase(db)
     user = await user_repo.find_by_email(data.email)
     
@@ -171,9 +176,17 @@ async def forgot_password(
         # Don't reveal if email exists
         return {"message": "If email exists, password reset link has been sent"}
     
-    # Generate reset token (in production, save this to DB with expiration)
-    import secrets
-    reset_token = secrets.token_urlsafe(32)
+    # Generate JWT reset token with 1 hour expiration
+    secret_key = os.environ.get("JWT_SECRET", "fallback-secret-key-change-in-production")
+    token_payload = {
+        "user_id": str(user["id"]),
+        "email": data.email,
+        "type": "password_reset",
+        "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+        "iat": datetime.now(timezone.utc),
+    }
+    reset_token = jwt.encode(token_payload, secret_key, algorithm="HS256")
+    
     reset_link = f"https://www.budezivo.cz/reset-password?token={reset_token}&email={data.email}"
     
     # Send password reset email in background
@@ -191,6 +204,83 @@ async def forgot_password(
     
     logger.info(f"Password reset requested for {data.email}")
     return {"message": "If email exists, password reset link has been sent"}
+
+
+class ResetPasswordRequest(BaseModel):
+    """Reset password request schema."""
+    token: str
+    email: EmailStr
+    new_password: str
+
+
+@router.post("/reset-password")
+async def reset_password(
+    data: ResetPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Reset user password using JWT token from email.
+    Validates token, updates password, and sends confirmation email.
+    """
+    import jwt
+    import os
+    from datetime import datetime, timezone
+    
+    user_repo = UserRepositorySupabase(db)
+    secret_key = os.environ.get("JWT_SECRET", "fallback-secret-key-change-in-production")
+    
+    # Verify JWT token
+    try:
+        payload = jwt.decode(data.token, secret_key, algorithms=["HS256"])
+        
+        # Verify token type and email
+        if payload.get("type") != "password_reset":
+            raise HTTPException(status_code=400, detail="Neplatný token")
+        
+        if payload.get("email") != data.email:
+            raise HTTPException(status_code=400, detail="E-mail neodpovídá tokenu")
+            
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=400, detail="Token pro obnovu hesla vypršel")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=400, detail="Neplatný token pro obnovu hesla")
+    
+    # Find user
+    user = await user_repo.find_by_email(data.email)
+    if not user:
+        raise HTTPException(status_code=400, detail="Uživatel nenalezen")
+    
+    # Validate password strength
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Heslo musí mít alespoň 8 znaků")
+    
+    # Update password
+    hashed_password = hash_password(data.new_password)
+    await user_repo.update(
+        user["id"],
+        {"password_hash": hashed_password}
+    )
+    
+    # Send confirmation email
+    async def send_password_changed_email():
+        try:
+            await EmailService.send_transactional_email(
+                template_name="password_changed",
+                to_email=data.email,
+                data={
+                    "user_name": user.get("name", ""),
+                    "user_email": data.email,
+                }
+            )
+            logger.info(f"Password changed confirmation email sent to {data.email}")
+        except Exception as e:
+            logger.error(f"Failed to send password changed email: {str(e)}")
+    
+    background_tasks.add_task(send_password_changed_email)
+    
+    logger.info(f"Password reset successful for {data.email}")
+    return {"message": "Heslo bylo úspěšně změněno"}
 
 
 @router.get("/verify")

@@ -3,13 +3,21 @@ Availability and calendar routes.
 Uses Supabase (PostgreSQL) for database operations.
 """
 import calendar
-from fastapi import APIRouter, Depends
+from datetime import datetime, date as date_type, timedelta
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 
 from database.supabase import get_db
-from database.supabase_repositories import BookingRepositorySupabase
+from database.supabase_repositories import BookingRepositorySupabase, ProgramRepositorySupabase
 
 router = APIRouter(tags=["Availability"])
+
+
+def get_day_name(date_obj: date_type) -> str:
+    """Get day name in English lowercase."""
+    days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    return days[date_obj.weekday()]
 
 
 @router.get("/availability/{institution_id}/{program_id}/{date}")
@@ -20,13 +28,28 @@ async def get_program_availability(
     db: AsyncSession = Depends(get_db)
 ):
     """Get available time blocks for a program on a specific date."""
-    # Default time blocks (90 minutes each)
-    time_blocks = [
-        {"time": "08:00-09:30", "status": "available"},
-        {"time": "09:00-10:30", "status": "available"},
-        {"time": "10:45-12:15", "status": "available"},
-        {"time": "13:00-14:30", "status": "available"},
-    ]
+    # Get program to check its time blocks and available days
+    program_repo = ProgramRepositorySupabase(db)
+    program = await program_repo.find_by_id(program_id, institution_id)
+    
+    if not program:
+        return {"date": date, "time_blocks": []}
+    
+    # Get time blocks from program settings or use defaults
+    program_time_blocks = program.get("time_blocks") or ["09:00-10:30", "10:45-12:15", "13:00-14:30"]
+    available_days = program.get("available_days") or ["monday", "tuesday", "wednesday", "thursday", "friday"]
+    
+    # Check if the date's day of week is in available days
+    try:
+        date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+        day_name = get_day_name(date_obj)
+        if day_name not in available_days:
+            return {"date": date, "time_blocks": []}
+    except ValueError:
+        return {"date": date, "time_blocks": []}
+    
+    # Create time blocks
+    time_blocks = [{"time": tb, "status": "available"} for tb in program_time_blocks]
     
     if institution_id == "demo":
         return {"date": date, "time_blocks": time_blocks}
@@ -38,7 +61,7 @@ async def get_program_availability(
     )
     
     # Mark booked time blocks as unavailable
-    booked_times = {b["time_block"] for b in bookings}
+    booked_times = {b.get("time_block") for b in bookings if b.get("status") != "cancelled"}
     for block in time_blocks:
         if block["time"] in booked_times:
             block["status"] = "booked"
@@ -51,17 +74,25 @@ async def get_calendar_availability(
     institution_id: str,
     year: int,
     month: int,
+    program_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get calendar month view with availability indicators."""
-    # For demo, return some available dates
+    """
+    Get calendar month view with availability indicators.
+    Shows which days have available time slots based on program settings.
+    """
+    num_days = calendar.monthrange(year, month)[1]
+    dates = []
+    today = date_type.today()
+    
+    # For demo institution, return mock data
     if institution_id == "demo":
-        num_days = calendar.monthrange(year, month)[1]
-        dates = []
         for day in range(1, num_days + 1):
             date_str = f"{year}-{month:02d}-{day:02d}"
-            # Mark some days as available
-            has_availability = day % 3 != 0
+            date_obj = date_type(year, month, day)
+            is_past = date_obj < today
+            is_weekend = date_obj.weekday() >= 5
+            has_availability = not is_past and not is_weekend and day % 3 != 0
             dates.append({
                 "date": date_str,
                 "has_availability": has_availability,
@@ -69,5 +100,94 @@ async def get_calendar_availability(
             })
         return {"year": year, "month": month, "dates": dates}
     
-    # Real implementation would check actual bookings
-    return {"year": year, "month": month, "dates": []}
+    # Get programs for this institution to determine available days and time blocks
+    program_repo = ProgramRepositorySupabase(db)
+    
+    # Get all active programs or specific program
+    if program_id:
+        program = await program_repo.find_by_id(program_id, institution_id)
+        programs = [program] if program else []
+    else:
+        programs = await program_repo.find_by_institution(institution_id)
+        programs = [p for p in programs if p.get("status") == "active" and p.get("is_published")]
+    
+    if not programs:
+        # No programs - return empty calendar
+        for day in range(1, num_days + 1):
+            date_str = f"{year}-{month:02d}-{day:02d}"
+            dates.append({
+                "date": date_str,
+                "has_availability": False,
+                "available_blocks": 0
+            })
+        return {"year": year, "month": month, "dates": dates}
+    
+    # Aggregate available days from all programs (or use specific program)
+    all_available_days = set()
+    all_time_blocks = []
+    
+    for prog in programs:
+        available_days = prog.get("available_days") or ["monday", "tuesday", "wednesday", "thursday", "friday"]
+        time_blocks = prog.get("time_blocks") or ["09:00-10:30", "10:45-12:15", "13:00-14:30"]
+        all_available_days.update(available_days)
+        all_time_blocks.extend(time_blocks)
+    
+    # Remove duplicates from time blocks
+    unique_time_blocks = list(set(all_time_blocks))
+    total_blocks = len(unique_time_blocks)
+    
+    # Get min/max days before booking from first program
+    min_days_before = programs[0].get("min_days_before_booking", 1) if programs else 1
+    max_days_before = programs[0].get("max_days_before_booking", 90) if programs else 90
+    
+    # Check validity dates
+    start_date = None
+    end_date = None
+    if programs:
+        prog = programs[0]
+        if prog.get("start_date"):
+            try:
+                start_date = datetime.fromisoformat(str(prog["start_date"]).replace('Z', '+00:00')).date()
+            except (ValueError, TypeError):
+                pass
+        if prog.get("end_date"):
+            try:
+                end_date = datetime.fromisoformat(str(prog["end_date"]).replace('Z', '+00:00')).date()
+            except (ValueError, TypeError):
+                pass
+    
+    # Build calendar
+    for day in range(1, num_days + 1):
+        date_str = f"{year}-{month:02d}-{day:02d}"
+        date_obj = date_type(year, month, day)
+        day_name = get_day_name(date_obj)
+        
+        # Check various availability conditions
+        is_past = date_obj < today
+        is_too_soon = (date_obj - today).days < min_days_before
+        is_too_far = (date_obj - today).days > max_days_before
+        is_available_day = day_name in all_available_days
+        
+        # Check validity period
+        is_before_start = start_date and date_obj < start_date
+        is_after_end = end_date and date_obj > end_date
+        
+        # Determine availability
+        has_availability = (
+            not is_past and 
+            not is_too_soon and 
+            not is_too_far and 
+            is_available_day and
+            not is_before_start and
+            not is_after_end
+        )
+        
+        available_blocks = total_blocks if has_availability else 0
+        
+        dates.append({
+            "date": date_str,
+            "has_availability": has_availability,
+            "available_blocks": available_blocks
+        })
+    
+    return {"year": year, "month": month, "dates": dates}

@@ -32,7 +32,7 @@ export const ForgotPasswordPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FDFCF8]">
+    <div className="min-h-screen bg-[#F8F9FA]">
       <Header />
       <div className="max-w-md mx-auto px-4 py-16">
         <Card className="p-8">

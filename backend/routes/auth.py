@@ -108,7 +108,7 @@ async def register(
     background_tasks.add_task(send_registration_emails)
     
     # Create JWT token
-    token = create_jwt_token(user["id"], institution["id"], user_data.email)
+    token = create_jwt_token(user["id"], institution["id"], user_data.email, "admin")
     
     logger.info(f"New institution registered: {user_data.institution_name} ({user_data.email})")
     
@@ -144,7 +144,7 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     
     institution = await institution_repo.find_by_id(user["institution_id"])
-    token = create_jwt_token(user["id"], user["institution_id"], user["email"])
+    token = create_jwt_token(user["id"], user["institution_id"], user["email"], user["role"])
     
     return {
         "token": token,

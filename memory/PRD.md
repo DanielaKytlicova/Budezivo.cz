@@ -1,96 +1,138 @@
 # Bude Živo - PRD (Product Requirements Document)
 
-## Původní zadání
-Rezervační systém pro kulturní instituce (muzea, galerie, knihovny) v České republice. Multi-tenant SaaS aplikace s podporou více institucí.
+## Přehled projektu
+Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů, rezervací a institucí v České republice.
 
-## Technický stack
-- **Frontend:** React, TailwindCSS, Recharts
-- **Backend:** FastAPI, SQLAlchemy
-- **Databáze:** PostgreSQL (Supabase)
-- **E-maily:** Resend API
-- **Deployment:** Vercel (frontend), Railway (backend)
+## Technologický stack
+- **Frontend:** React 18, TailwindCSS, Shadcn/UI, Axios
+- **Backend:** FastAPI, SQLAlchemy Async, Pydantic
+- **Databáze:** Supabase (PostgreSQL)
+- **Emaily:** Resend API
+- **Deployment:** Vercel (Frontend), Railway (Backend)
+- **Scheduler:** APScheduler (integrován v backendu)
+
+---
 
 ## Implementované funkce
 
-### Core funkce
-- [x] Registrace a přihlášení uživatelů
-- [x] Multi-tenant architektura (více institucí)
-- [x] Správa programů (CRUD)
-- [x] Veřejná rezervační stránka
-- [x] Kalendář dostupnosti
-- [x] Správa rezervací (potvrzení/odmítnutí)
-- [x] Správa škol (kontakty)
+### Fáze 1 - Core MVP ✅
+- [x] Registrace a přihlášení uživatelů (JWT)
+- [x] Správa institucí a programů
+- [x] Rezervační systém s kalendářem dostupnosti
+- [x] Dynamická témata a loga institucí na booking stránkách
+- [x] Správa škol a kontaktů
+- [x] Dashboard s přehledem statistik
+- [x] Transakční emaily (rezervace, potvrzení, reset hesla)
 
-### Nové funkce (prosinec 2025)
-- [x] **Transakční e-mailový systém** - Resend integrace, HTML šablony
-- [x] **Smazání účtu** - GDPR compliance
-- [x] **Stránka statistik** - Grafy, filtry, CSV export (PRO)
-- [x] **Multi-select cílových skupin** - Více věkových skupin na program
-- [x] **Datum platnosti programu** - start_date/end_date u programů
-- [x] **Logo instituce na booking** - Vlastní logo v headeru rezervační stránky
-- [x] **Theme na booking stránkách** - Barvy instituce aplikované na celou stránku
+### Fáze 2 - Feedback System ✅ (Březen 2026)
+- [x] **Database:** Tabulky `feedbacks` a `feedback_questions`
+- [x] **API Endpoints:**
+  - `POST /api/feedback/questions` - Vytvoření otázky (Admin)
+  - `GET /api/feedback/questions` - Seznam otázek
+  - `PUT /api/feedback/questions/{id}` - Úprava otázky
+  - `DELETE /api/feedback/questions/{id}` - Deaktivace otázky
+  - `GET /api/feedback/submissions` - Seznam zpětných vazeb s filtry
+  - `GET /api/feedback/statistics` - Statistiky
+  - `GET /api/feedback/export` - Export do CSV
+  - `GET /api/feedback/public/{token}` - Veřejný formulář
+  - `POST /api/feedback/public/{token}` - Odeslání zpětné vazby
+- [x] **Admin UI:** Stránka `/admin/feedback` se záložkami:
+  - Zpětné vazby (tabulka s filtry)
+  - Otázky (CRUD správa)
+  - Statistiky (rozložení hodnocení, programy)
+- [x] **Veřejný formulář:** `/feedback/{token}`
+- [x] **APScheduler:** Automatické odesílání emailů 1 pracovní den po rezervaci
+- [x] **Role-based access:** Admin (full), Edukator (view/filter)
 
-### Bug fixy (prosinec 2025)
-- [x] Railway healthcheck endpoint (`/health`)
-- [x] Registrační e-mail trigger
-- [x] Hardcoded URL oprava pro produkci
-- [x] Ukládání datumů platnosti programu (start_date/end_date)
+### UI/UX Aktualizace ✅ (Březen 2026)
+- [x] Nové SVG logo Budeživo.cz (navbar, login, footer, emaily)
+- [x] Nový favicon
+- [x] Barva pozadí změněna z #FDFCF8 na #F8F9FA
+- [x] **Dashboard vylepšení:**
+  - Přepínač pohledů (Seznam / Kalendář)
+  - Seznam: Filtry (Nadcházející události, Nedávno vytvořené)
+  - Kalendář: Týdenní pohled s rezervacemi, navigace, barevné bloky
+  - Modal s detailem rezervace po kliknutí
+  - Responzivní design
 
-## Blokované úkoly (vyžadují akci uživatele)
+---
 
-### P0 - Kritické
-1. **DNS nastavení pro `budezivo.cz`**
-   - Přidat A záznam u Wedos: `@ -> 76.76.21.21`
-   
-2. **Vercel env proměnná**
-   - `REACT_APP_BACKEND_URL=https://api.budezivo.cz`
+## Architektura
 
-### P1 - Důležité
-3. **Ověření domény v Resend**
-   - Přidat DNS záznamy pro SPF/DKIM
-
-## Backlog (prioritizovaný)
-
-### P2 - Střední priorita
-- [ ] Přepínač jazyků (i18n)
-- [ ] Hromadné akce pro rezervace
-
-### P3 - Nízká priorita
-- [ ] Kompletní GDPR data management
-- [ ] Refaktoring BookingPage.js
-
-## Klíčové API endpointy
-- `POST /api/auth/login` - Přihlášení
-- `GET /api/programs` - Seznam programů
-- `POST /api/programs` - Vytvoření programu
-- `PUT /api/programs/{id}` - Úprava programu
-- `GET /api/programs/public/{inst_id}` - Veřejné programy
-- `POST /api/bookings/public/{inst_id}` - Vytvoření rezervace
-- `GET /api/statistics` - Statistiky
-- `POST /api/emails/test-email` - Test e-mailu
-- `DELETE /api/users/me` - Smazání účtu
-- `GET /health` - Health check
-
-## Testovací přihlašovací údaje
-- **Email:** demo@budezivo.cz
-- **Heslo:** Demo2026!
-
-## Architektura souborů
 ```
 /app
 ├── backend/
-│   ├── routes/           # API endpointy
-│   ├── services/         # Business logika (email_service.py)
-│   ├── database/         # SQLAlchemy modely a repozitáře
-│   ├── templates/emails/ # HTML e-mailové šablony
-│   └── main.py           # FastAPI aplikace
+│   ├── main.py                     # FastAPI app + scheduler init
+│   ├── scheduler.py                # APScheduler pro feedback emaily
+│   ├── core/
+│   │   └── security.py             # JWT s role field
+│   ├── database/
+│   │   ├── models.py               # SQLAlchemy modely včetně Feedback
+│   │   └── supabase.py             # Async session
+│   ├── routes/
+│   │   ├── feedback.py             # Feedback system API
+│   │   └── ...
+│   └── services/
+│       └── email_service.py        # Resend integrace
 ├── frontend/
 │   └── src/
-│       ├── pages/        # React stránky
-│       └── components/   # UI komponenty
-└── docs/
-    └── email-system.md   # Dokumentace e-mailového systému
+│       ├── components/layout/
+│       │   ├── AdminLayout.js      # Navigace s Feedback položkou
+│       │   ├── Header.js           # Nové SVG logo
+│       │   └── Footer.js           # Nové SVG logo
+│       └── pages/
+│           ├── admin/
+│           │   └── FeedbackAdminPage.js
+│           └── public/
+│               └── FeedbackPage.js
 ```
 
 ---
-*Poslední aktualizace: 16. března 2026*
+
+## API Endpoints
+
+### Feedback System
+| Metoda | Endpoint | Popis | Role |
+|--------|----------|-------|------|
+| GET | /api/feedback/questions | Seznam otázek | Auth |
+| POST | /api/feedback/questions | Vytvoření otázky | Admin |
+| PUT | /api/feedback/questions/{id} | Úprava otázky | Admin |
+| DELETE | /api/feedback/questions/{id} | Deaktivace otázky | Admin |
+| GET | /api/feedback/submissions | Seznam zpětných vazeb | Auth |
+| GET | /api/feedback/statistics | Statistiky | Auth |
+| GET | /api/feedback/export | CSV export | Admin |
+| GET | /api/feedback/public/{token} | Veřejný formulář data | Public |
+| POST | /api/feedback/public/{token} | Odeslání zpětné vazby | Public |
+| POST | /api/feedback/setup-tables | Vytvoření DB tabulek | Admin |
+
+---
+
+## Testovací přístupy
+- **Demo účet:** demo@budezivo.cz / Demo2026!
+- **Role:** admin
+- **Instituce:** Test Muzeum
+
+---
+
+## Backlog (P0-P2)
+
+### P0 - Kritické
+- [ ] DNS nastavení domény budezivo.cz (čeká na uživatele - A záznam ve Wedos)
+
+### P1 - Vysoká priorita
+- [ ] Statistiky zpětné vazby na stats stránce (průměrná hodnocení, grafy)
+- [ ] Reminder email pro nevyplněné zpětné vazby (7 dní)
+
+### P2 - Střední priorita
+- [ ] i18n přepínač jazyků
+- [ ] Hromadné akce pro rezervace (Confirm/Cancel multiple)
+- [ ] GDPR správa dat (Export/Delete personal data)
+
+### P3 - Backlog
+- [ ] Platební integrace (Stripe)
+- [ ] Mobilní aplikace
+- [ ] Pokročilá analytika
+
+---
+
+*Poslední aktualizace: 20. března 2026*

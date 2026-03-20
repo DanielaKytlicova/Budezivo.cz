@@ -29,6 +29,7 @@ from routes import (
     emails_router,
     account_router,
 )
+from routes.feedback import router as feedback_router
 from models.schemas import ContactFormData, InstitutionSettings
 
 # Configure logging
@@ -63,6 +64,7 @@ api_router.include_router(email_templates_router)
 api_router.include_router(public_router)
 api_router.include_router(emails_router)
 api_router.include_router(account_router)
+api_router.include_router(feedback_router)
 
 
 # ============ Additional Routes ============
@@ -158,9 +160,26 @@ app.add_middleware(
 
 # ============ Event Handlers ============
 
+@app.on_event("startup")
+async def startup_event():
+    """Initialize resources on startup."""
+    try:
+        from scheduler import start_scheduler
+        start_scheduler()
+        logger.info("Application startup - Feedback scheduler initialized")
+    except Exception as e:
+        logger.warning(f"Failed to start scheduler: {e}")
+
+
 @app.on_event("shutdown")
 async def shutdown_event():
     """Clean up resources on shutdown."""
+    try:
+        from scheduler import stop_scheduler
+        stop_scheduler()
+    except Exception as e:
+        logger.warning(f"Failed to stop scheduler: {e}")
+    
     if engine:
         await engine.dispose()
     logger.info("Application shutdown - Database connection closed")

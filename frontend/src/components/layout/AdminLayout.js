@@ -10,7 +10,7 @@ const BudezivoLogo = ({ showText = true }) => (
     {showText ? (
       <svg 
         viewBox="0 0 265.42 73.09" 
-        className="h-8 w-auto"
+        className="h-10 w-auto"
         aria-label="Budeživo.cz"
       >
         <defs>
@@ -34,7 +34,7 @@ const BudezivoLogo = ({ showText = true }) => (
     ) : (
       <svg 
         viewBox="0 0 73.42 73.09" 
-        className="h-8 w-8"
+        className="h-10 w-10"
         aria-label="Budeživo.cz"
       >
         <defs>

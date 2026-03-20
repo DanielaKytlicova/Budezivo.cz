@@ -48,6 +48,12 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 - [x] Nové SVG logo Budeživo.cz (navbar, login, footer, emaily)
 - [x] Nový favicon
 - [x] Barva pozadí změněna z #FDFCF8 na #F8F9FA
+- [x] **Dashboard vylepšení:**
+  - Přepínač pohledů (Seznam / Kalendář)
+  - Seznam: Filtry (Nadcházející události, Nedávno vytvořené)
+  - Kalendář: Týdenní pohled s rezervacemi, navigace, barevné bloky
+  - Modal s detailem rezervace po kliknutí
+  - Responzivní design
 
 ---
 

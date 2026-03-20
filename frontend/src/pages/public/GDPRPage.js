@@ -5,7 +5,7 @@ import { Shield, Lock, Eye, FileText, Trash2, Download, Mail, Building } from 'l
 
 export const GDPRPage = () => {
   return (
-    <div className="min-h-screen bg-[#FDFCF8]">
+    <div className="min-h-screen bg-[#F8F9FA]">
       <Header />
       <div className="max-w-4xl mx-auto px-4 py-8 md:py-16">
         <div className="text-center mb-12">

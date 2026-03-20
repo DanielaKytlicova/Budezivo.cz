@@ -15,6 +15,7 @@ import { ResetPasswordPage } from './pages/public/ResetPasswordPage';
 import { BookingPage } from './pages/public/BookingPage';
 import { GDPRPage } from './pages/public/GDPRPage';
 import { ContactPage } from './pages/public/ContactPage';
+import FeedbackPage from './pages/public/FeedbackPage';
 
 // Admin pages
 import { DashboardPage } from './pages/admin/DashboardPage';
@@ -25,6 +26,7 @@ import { StatisticsPage } from './pages/admin/StatisticsPage';
 import { SettingsPage } from './pages/admin/SettingsPage';
 import { PlanPage } from './pages/admin/PlanPage';
 import { TeamPage } from './pages/admin/TeamPage';
+import FeedbackAdminPage from './pages/admin/FeedbackAdminPage';
 
 import './App.css';
 
@@ -57,6 +59,7 @@ function App() {
               <Route path="/booking/:institutionId" element={<BookingPage />} />
               <Route path="/gdpr" element={<GDPRPage />} />
               <Route path="/kontakt" element={<ContactPage />} />
+              <Route path="/feedback/:token" element={<FeedbackPage />} />
 
               {/* Admin routes */}
               <Route
@@ -120,6 +123,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <TeamPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/feedback"
+                element={
+                  <ProtectedRoute>
+                    <FeedbackAdminPage />
                   </ProtectedRoute>
                 }
               />

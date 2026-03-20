@@ -414,3 +414,82 @@ class EmailLog(Base):
         Index('idx_email_logs_reservation', 'reservation_id'),
         Index('idx_email_logs_status', 'status'),
     )
+
+
+class FeedbackQuestion(Base):
+    """Configurable feedback questions for institutions."""
+    __tablename__ = 'feedback_questions'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    
+    # Question Details
+    question_text = Column(Text, nullable=False)
+    question_type = Column(Text, nullable=False, default='rating')  # rating, text, yesno
+    is_required = Column(Boolean, default=True)
+    display_order = Column(Integer, default=0)
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    
+    # Metadata
+    created_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_feedback_questions_institution', 'institution_id'),
+        Index('idx_feedback_questions_active', 'is_active'),
+    )
+
+
+class Feedback(Base):
+    """Feedback submissions from teachers after reservations."""
+    __tablename__ = 'feedbacks'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    reservation_id = Column(UUID(as_uuid=True), ForeignKey('reservations.id', ondelete='CASCADE'), nullable=False, unique=True)
+    program_id = Column(UUID(as_uuid=True), ForeignKey('programs.id', ondelete='SET NULL'))
+    
+    # Feedback Token (for public access)
+    token = Column(Text, nullable=False, unique=True)
+    
+    # Answers (JSON format: {question_id: answer_value})
+    answers = Column(JSON, default={})
+    
+    # Overall Rating (1-5)
+    overall_rating = Column(Integer)
+    
+    # Would Recommend (yes/no)
+    would_recommend = Column(Boolean)
+    
+    # Additional Comments
+    additional_comments = Column(Text)
+    
+    # Status
+    status = Column(Text, nullable=False, default='pending')  # pending, submitted, expired
+    
+    # Email Tracking
+    email_sent_at = Column(DateTime(timezone=True))
+    reminder_sent_at = Column(DateTime(timezone=True))
+    
+    # Submission Info
+    submitted_at = Column(DateTime(timezone=True))
+    submitted_by_email = Column(Text)
+    
+    # Metadata
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    reservation = relationship("Reservation", backref="feedback")
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_feedbacks_institution', 'institution_id'),
+        Index('idx_feedbacks_reservation', 'reservation_id'),
+        Index('idx_feedbacks_token', 'token'),
+        Index('idx_feedbacks_status', 'status'),
+    )

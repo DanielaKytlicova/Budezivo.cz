@@ -22,12 +22,13 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
-def create_jwt_token(user_id: str, institution_id: str, email: str) -> str:
+def create_jwt_token(user_id: str, institution_id: str, email: str, role: str = "viewer") -> str:
     """Create a JWT token for authenticated user."""
     payload = {
         "user_id": user_id,
         "institution_id": institution_id,
         "email": email,
+        "role": role,
         "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)

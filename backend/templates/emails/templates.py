@@ -864,6 +864,82 @@ Zdroj: {data.get('source', 'Kontaktní formulář')}
     }
 
 
+# ============ TEAM INVITATION TEMPLATE ============
+
+def team_invitation(data: Dict[str, Any]) -> Dict[str, str]:
+    """Email sent when inviting a team member to join an institution."""
+    content = f"""
+        <h1 style="{BASE_STYLES['h1']}">Pozvánka do týmu</h1>
+        
+        <p style="{BASE_STYLES['text']}">
+            Dobrý den, {data.get('invitee_name', '')},
+        </p>
+        
+        <p style="{BASE_STYLES['text']}">
+            <strong>{data.get('inviter_name', '')}</strong> vás zve, abyste se připojili k týmu instituce 
+            <strong>{data.get('institution_name', '')}</strong> v systému Budeživo.cz.
+        </p>
+        
+        <div style="{BASE_STYLES['info_box']}">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 8px 0; color: #64748B; width: 140px;">Instituce:</td>
+                    <td style="padding: 8px 0; color: #1E293B; font-weight: 500;">{data.get('institution_name', '')}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #64748B; border-top: 1px solid #E2E8F0;">Vaše role:</td>
+                    <td style="padding: 8px 0; color: #1E293B; font-weight: 500; border-top: 1px solid #E2E8F0;">{data.get('role_name', '')}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #64748B; border-top: 1px solid #E2E8F0;">Platnost:</td>
+                    <td style="padding: 8px 0; color: #1E293B; font-weight: 500; border-top: 1px solid #E2E8F0;">{data.get('expires_hours', 48)} hodin</td>
+                </tr>
+            </table>
+        </div>
+        
+        <div style="text-align: center; margin: 32px 0;">
+            <a href="{data.get('invite_link', '#')}" style="{BASE_STYLES['button']}">
+                Přijmout pozvánku
+            </a>
+        </div>
+        
+        <p style="{BASE_STYLES['text']}; font-size: 13px; color: #64748B;">
+            Pokud tlačítko nefunguje, zkopírujte tento odkaz do prohlížeče:<br>
+            <a href="{data.get('invite_link', '#')}" style="color: #1E293B; word-break: break-all;">
+                {data.get('invite_link', '#')}
+            </a>
+        </p>
+        
+        <hr style="{BASE_STYLES['divider']}">
+        
+        <p style="{BASE_STYLES['text']}; font-size: 13px; color: #64748B;">
+            Pokud jste tuto pozvánku neočekávali, můžete tento email ignorovat.
+        </p>
+    """
+    
+    plain = f"""
+Pozvánka do týmu - Budeživo.cz
+
+Dobrý den, {data.get('invitee_name', '')},
+
+{data.get('inviter_name', '')} vás zve, abyste se připojili k týmu instituce {data.get('institution_name', '')} v systému Budeživo.cz.
+
+Vaše role: {data.get('role_name', '')}
+Platnost pozvánky: {data.get('expires_hours', 48)} hodin
+
+Pro přijetí pozvánky přejděte na tento odkaz:
+{data.get('invite_link', '#')}
+
+Pokud jste tuto pozvánku neočekávali, můžete tento email ignorovat.
+"""
+    
+    return {
+        "subject": f"Pozvánka do týmu - {data.get('institution_name', 'Budeživo.cz')}",
+        "html": _base_template(content),
+        "text": _plain_text_base(plain)
+    }
+
+
 # ============ TEMPLATE REGISTRY ============
 
 TEMPLATE_REGISTRY = {
@@ -881,6 +957,7 @@ TEMPLATE_REGISTRY = {
     "reservation_reminder_institution": reservation_reminder_institution,
     "new_institution_registration": new_institution_registration,
     "contact_form_submission": contact_form_submission,
+    "team_invitation": team_invitation,
 }
 
 

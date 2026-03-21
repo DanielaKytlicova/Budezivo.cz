@@ -252,6 +252,184 @@ Tým {institution_name}
         return False
 
 
+async def process_feedback_reminders():
+    """
+    Reminder scheduler job: Find feedback requests that were sent 7 days ago
+    but haven't been filled out yet, and send a reminder email.
+    """
+    logger.info("Running feedback reminder scheduler job...")
+    
+    async with AsyncSessionLocal() as db:
+        try:
+            today = datetime.now(timezone.utc)
+            seven_days_ago = today - timedelta(days=7)
+            eight_days_ago = today - timedelta(days=8)
+            
+            # Find pending feedbacks where email was sent ~7 days ago and no reminder was sent
+            result = await db.execute(
+                select(Feedback, Reservation, Institution, Program)
+                .join(Reservation, Feedback.reservation_id == Reservation.id)
+                .join(Institution, Feedback.institution_id == Institution.id)
+                .join(Program, Feedback.program_id == Program.id)
+                .where(
+                    and_(
+                        Feedback.status == 'pending',
+                        Feedback.email_sent_at.isnot(None),
+                        Feedback.email_sent_at >= eight_days_ago,
+                        Feedback.email_sent_at < seven_days_ago,
+                        Feedback.reminder_sent_at == None  # No reminder sent yet
+                    )
+                )
+            )
+            
+            rows = result.all()
+            
+            sent_count = 0
+            for feedback, reservation, institution, program in rows:
+                logger.info(f"Sending reminder for feedback {feedback.id}...")
+                
+                try:
+                    feedback_url = f"{os.getenv('FRONTEND_URL', 'https://www.budezivo.cz')}/feedback/{feedback.token}"
+                    
+                    email_sent = await send_feedback_reminder_email(
+                        recipient_email=reservation.contact_email,
+                        recipient_name=reservation.contact_name,
+                        institution_name=institution.name,
+                        program_name=program.name_cs,
+                        reservation_date=reservation.date,
+                        feedback_url=feedback_url
+                    )
+                    
+                    if email_sent:
+                        feedback.reminder_sent_at = datetime.now(timezone.utc)
+                        sent_count += 1
+                        logger.info(f"Reminder email sent for feedback {feedback.id}")
+                    else:
+                        logger.warning(f"Failed to send reminder email for feedback {feedback.id}")
+                    
+                except Exception as e:
+                    logger.error(f"Error sending reminder for feedback {feedback.id}: {e}")
+                    continue
+            
+            await db.commit()
+            logger.info(f"Feedback reminder job completed. Sent {sent_count} reminder emails.")
+            
+        except Exception as e:
+            logger.error(f"Feedback reminder job failed: {e}")
+            await db.rollback()
+
+
+async def send_feedback_reminder_email(
+    recipient_email: str,
+    recipient_name: str,
+    institution_name: str,
+    program_name: str,
+    reservation_date: str,
+    feedback_url: str
+) -> bool:
+    """Send feedback reminder email using Resend."""
+    try:
+        # Format date for display
+        try:
+            date_obj = datetime.strptime(reservation_date, "%Y-%m-%d")
+            formatted_date = date_obj.strftime("%d. %m. %Y")
+        except:
+            formatted_date = reservation_date
+        
+        subject = f"Připomínka: Vaše zpětná vazba na program {program_name}"
+        
+        html_content = f"""
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: 'Segoe UI', Arial, sans-serif;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 40px 20px;">
+                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+                    <!-- Header -->
+                    <div style="background-color: #c5ac87; padding: 32px; text-align: center;">
+                        <h1 style="color: #ffffff; font-size: 24px; margin: 0;">Připomínka</h1>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div style="padding: 32px;">
+                        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+                            Dobrý den, {recipient_name},
+                        </p>
+                        
+                        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
+                            před týdnem jsme vám poslali žádost o zpětnou vazbu na program 
+                            <strong>{program_name}</strong>, který jste navštívili dne {formatted_date} 
+                            v instituci <strong>{institution_name}</strong>.
+                        </p>
+                        
+                        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
+                            Pokud jste dotazník ještě nevyplnili, budeme velmi rádi za vaši zpětnou vazbu. 
+                            Zabere vám to pouze 2 minuty.
+                        </p>
+                        
+                        <div style="text-align: center; margin: 32px 0;">
+                            <a href="{feedback_url}" 
+                               style="display: inline-block; background-color: #c5ac87; color: #ffffff; 
+                                      padding: 14px 32px; text-decoration: none; border-radius: 6px; 
+                                      font-weight: 500; font-size: 16px;">
+                                Vyplnit dotazník
+                            </a>
+                        </div>
+                        
+                        <p style="color: #64748B; font-size: 14px; line-height: 1.6; margin: 24px 0 0 0;">
+                            Toto je poslední připomínka. Děkujeme za váš čas!
+                        </p>
+                    </div>
+                    
+                    <!-- Footer -->
+                    <div style="background-color: #F8FAFC; padding: 24px; text-align: center; border-top: 1px solid #E2E8F0;">
+                        <p style="color: #64748B; font-size: 12px; line-height: 1.5; margin: 0;">
+                            Tento email byl odeslán automaticky systémem Budeživo.cz<br>
+                            Pokud jste již dotazník vyplnili, můžete tento email ignorovat.
+                        </p>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+"""
+        
+        plain_text = f"""
+Dobrý den, {recipient_name},
+
+před týdnem jsme vám poslali žádost o zpětnou vazbu na program {program_name}, 
+který jste navštívili dne {formatted_date} v instituci {institution_name}.
+
+Pokud jste dotazník ještě nevyplnili, budeme velmi rádi za vaši zpětnou vazbu:
+{feedback_url}
+
+Toto je poslední připomínka. Děkujeme za váš čas!
+
+S pozdravem,
+Tým {institution_name}
+"""
+        
+        result = await EmailService.send_email(
+            to_email=recipient_email,
+            subject=subject,
+            html_content=html_content,
+            text_content=plain_text
+        )
+        
+        return result.get("status") == "sent"
+        
+    except Exception as e:
+        logger.error(f"Failed to send feedback reminder email: {e}")
+        return False
+
+
 def start_scheduler():
     """Start the APScheduler with feedback job."""
     if scheduler.running:
@@ -268,8 +446,17 @@ def start_scheduler():
         misfire_grace_time=3600  # 1 hour grace period
     )
     
+    # Run reminder job every day at 9:00 AM Prague time
+    scheduler.add_job(
+        process_feedback_reminders,
+        CronTrigger(hour=8, minute=0),
+        id='feedback_reminder_scheduler',
+        replace_existing=True,
+        misfire_grace_time=3600
+    )
+    
     scheduler.start()
-    logger.info("Feedback scheduler started - runs daily at 8:00 AM CET")
+    logger.info("Feedback scheduler started - runs daily at 8:00 AM CET, reminders at 9:00 AM CET")
 
 
 def stop_scheduler():

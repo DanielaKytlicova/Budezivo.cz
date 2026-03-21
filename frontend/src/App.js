@@ -16,6 +16,7 @@ import { BookingPage } from './pages/public/BookingPage';
 import { GDPRPage } from './pages/public/GDPRPage';
 import { ContactPage } from './pages/public/ContactPage';
 import FeedbackPage from './pages/public/FeedbackPage';
+import AcceptInvitePage from './pages/public/AcceptInvitePage';
 
 // Admin pages
 import { DashboardPage } from './pages/admin/DashboardPage';
@@ -60,6 +61,7 @@ function App() {
               <Route path="/gdpr" element={<GDPRPage />} />
               <Route path="/kontakt" element={<ContactPage />} />
               <Route path="/feedback/:token" element={<FeedbackPage />} />
+              <Route path="/accept-invite" element={<AcceptInvitePage />} />
 
               {/* Admin routes */}
               <Route

@@ -200,15 +200,24 @@ class ProgramRepositorySupabase:
         return [to_dict(p) for p in programs]
     
     async def find_public(self, institution_id: str) -> List[dict]:
-        """Find all active published programs."""
-        result = await self.db.execute(
-            select(Program).where(and_(
-                Program.institution_id == uuid.UUID(institution_id),
-                Program.status == 'active'
-            ))
-        )
-        programs = result.scalars().all()
-        return [to_dict(p) for p in programs]
+        """Find all active published programs for public booking page."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            result = await self.db.execute(
+                select(Program).where(and_(
+                    Program.institution_id == uuid.UUID(institution_id),
+                    Program.status == 'active',
+                    Program.is_published == True
+                ))
+            )
+            programs = result.scalars().all()
+            logger.info(f"find_public for institution {institution_id}: found {len(programs)} programs")
+            return [to_dict(p) for p in programs]
+        except Exception as e:
+            logger.error(f"find_public error for institution {institution_id}: {str(e)}")
+            raise
     
     async def create(self, program_data: dict, institution_id: str) -> dict:
         """Create new program."""

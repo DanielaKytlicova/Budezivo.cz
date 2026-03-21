@@ -156,10 +156,20 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 ### P0 - Kritické
 - [ ] DNS nastavení domény budezivo.cz (čeká na uživatele - A záznam ve Wedos)
 
-### P1 - Vysoká priorita
-- [ ] Statistiky zpětné vazby na stats stránce (průměrná hodnocení, grafy)
-- [ ] Reminder email pro nevyplněné zpětné vazby (7 dní)
-- [ ] Integrovat Team Invitation do TeamPage.js (Admin UI pro odesílání pozvánek)
+### P1 - Vysoká priorita ✅ (Dokončeno 21. března 2026)
+- [x] Integrovat Team Invitation do TeamPage.js (Admin UI pro odesílání pozvánek)
+  - Dialog pro pozvání kolegy (jméno, email, výběr role)
+  - Sekce čekajících pozvánek s možností zrušení
+  - Zobrazení aktivních členů s rolemi
+- [x] Statistiky feedbacku na stats stránce
+  - Přehledové karty (celkem, průměr, doporučení)
+  - Graf rozložení hodnocení
+  - Graf hodnocení podle programu
+  - Odkaz na detail zpětné vazby
+- [x] Reminder email pro nevyplněné zpětné vazby (7 dní)
+  - APScheduler job běží denně v 9:00 CET
+  - Odesílá připomínku 7 dní po prvním emailu
+  - Sledování reminder_sent_at v Feedback modelu
 
 ### P2 - Střední priorita
 - [ ] i18n přepínač jazyků

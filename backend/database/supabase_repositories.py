@@ -481,7 +481,14 @@ class SchoolRepositorySupabase:
             select(School).where(School.institution_id == uuid.UUID(institution_id))
         )
         schools = result.scalars().all()
-        return [to_dict(s) for s in schools]
+        school_dicts = []
+        for s in schools:
+            d = to_dict(s)
+            # Ensure booking_count is never None
+            if d.get('booking_count') is None:
+                d['booking_count'] = 0
+            school_dicts.append(d)
+        return school_dicts
     
     async def find_by_email(self, institution_id: str, email: str) -> Optional[dict]:
         """Find school by email in institution."""

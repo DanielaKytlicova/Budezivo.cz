@@ -217,6 +217,29 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 - [x] **DB rozšíření**:
   - `institutions.plan_updated_at` (timestamp)
 
+### Fáze 5 - School Import System ✅ (Březen 2026)
+- [x] **Backend API**:
+  - `GET /api/schools/import-template` - Stažení vzorového Excel souboru
+  - `POST /api/schools/import` - Import škol z Excel/CSV
+  - Podpora formátů: .xlsx, .xls, .csv
+  - Validace povinných polí (Název školy, Email)
+  - Validace formátu emailu
+  - Detekce duplicit podle emailu
+  - Možnost aktualizace existujících záznamů (`update_existing=true`)
+  - Limit velikosti souboru: 10 MB
+- [x] **Frontend UI**:
+  - Tlačítko "Importovat školy" na stránce Školy
+  - Modal s instrukcemi a uploadem
+  - Odkaz na stažení vzorového souboru
+  - Drag & drop upload oblast
+  - Progress bar při importu
+  - Výsledky importu (importováno/duplicity/chyby)
+  - Detail chyb s možností stažení CSV
+  - Checkbox "Aktualizovat existující záznamy"
+- [x] **Vzorový soubor**:
+  - List "Školy" s ukázkovými daty
+  - List "Nápověda" s instrukcemi
+
 ### P2 - Střední priorita
 - [ ] i18n přepínač jazyků
 - [ ] Hromadné akce pro rezervace (Confirm/Cancel multiple)

@@ -142,6 +142,22 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 | POST | /api/invitations/test-email | Testovací email | Admin |
 | POST | /api/invitations/setup-table | Vytvoření DB tabulky | Admin |
 
+### Legal System
+| Metoda | Endpoint | Popis | Role |
+|--------|----------|-------|------|
+| GET | /api/legal/terms | Podmínky používání | Public |
+| GET | /api/legal/reservation-terms | Text checkboxu + disclaimer | Public |
+| GET | /api/legal/terms/version | Aktuální verze | Public |
+
+### Plan Management
+| Metoda | Endpoint | Popis | Role |
+|--------|----------|-------|------|
+| GET | /api/plan/status | Stav plánu a funkce | Auth |
+| PUT | /api/plan/upgrade | Aktivace PRO | Admin/Správce |
+| PUT | /api/plan/downgrade | Downgrade na FREE | Admin/Správce |
+| GET | /api/plan/check-feature/{name} | Ověření přístupu | Auth |
+| POST | /api/plan/setup-columns | Migrace DB sloupců | Public |
+
 ---
 
 ## Testovací přístupy
@@ -170,6 +186,36 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
   - APScheduler job běží denně v 9:00 CET
   - Odesílá připomínku 7 dní po prvním emailu
   - Sledování reminder_sent_at v Feedback modelu
+
+### Fáze 4 - Legal & PRO Plan ✅ (Březen 2026)
+
+#### Legal/Terms System
+- [x] **Podmínky používání** (`/terms`):
+  - 11 článků včetně nového "Článek 10: Odpovědnost za realizaci rezervací"
+  - Verzovaný systém právních textů (`v1`)
+  - API: `GET /api/legal/terms`, `GET /api/legal/reservation-terms`
+- [x] **Booking form checkbox**:
+  - Povinný checkbox "Odesláním rezervace beru na vědomí..."
+  - Frontend + Backend validace (`terms_accepted=true`)
+  - DB sloupce: `terms_accepted`, `terms_accepted_at`, `terms_accepted_text_version`
+- [x] **Email disclaimer**:
+  - "Důležité informace" sekce v potvrzovacím emailu
+  - Žlutý banner s právním upozorněním
+- [x] **Admin detail rezervace**:
+  - Zobrazení souhlasu (ano/ne), datum, verze podmínek
+
+#### PRO Plan Upgrade
+- [x] **Plan Management API**:
+  - `GET /api/plan/status` - stav plánu a dostupné funkce
+  - `PUT /api/plan/upgrade` - aktivace PRO (admin only)
+  - `PUT /api/plan/downgrade` - downgrade na FREE (admin only)
+  - `GET /api/plan/check-feature/{name}` - ověření přístupu k funkci
+- [x] **Settings UI** (`/admin/settings` → PRO funkce):
+  - Karta "Nastavení tarifu" s aktuálním plánem (FREE/PRO badge)
+  - Tlačítko "Aktivovat PRO" s potvrzovacím modalem
+  - Feature gating pro CSV export, bulk email, pokročilé statistiky
+- [x] **DB rozšíření**:
+  - `institutions.plan_updated_at` (timestamp)
 
 ### P2 - Střední priorita
 - [ ] i18n přepínač jazyků

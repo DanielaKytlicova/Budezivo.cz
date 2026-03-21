@@ -55,6 +55,28 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
   - Modal s detailem rezervace po kliknutí
   - Responzivní design
 
+### Fáze 3 - Team Invitation System ✅ (Březen 2026)
+- [x] **Database:** Tabulka `team_invitations` s tokenem, rolí, expirací
+- [x] **API Endpoints:**
+  - `POST /api/invitations/send` - Odeslání pozvánky (Admin)
+  - `GET /api/invitations/pending` - Seznam čekajících pozvánek (Admin)
+  - `DELETE /api/invitations/{id}` - Zrušení pozvánky (Admin)
+  - `GET /api/invitations/verify/{token}` - Ověření tokenu (Public)
+  - `POST /api/invitations/accept` - Přijetí pozvánky a vytvoření účtu (Public)
+  - `POST /api/invitations/test-email` - Testovací email (Admin)
+  - `POST /api/invitations/setup-table` - Vytvoření DB tabulky (Admin)
+- [x] **Email šablona:** `team_invitation` s personalizovaným obsahem
+- [x] **Frontend:** `/accept-invite?token=xxx` stránka
+  - Zobrazení info o instituci a roli
+  - Formulář na zadání jména a hesla
+  - Validace hesla (min 8 znaků, shoda)
+  - Chybové stavy (neplatný/expirovaný/použitý token)
+  - Úspěšný stav s přesměrováním na login
+- [x] **Bezpečnost:**
+  - Secure random token (secrets.token_urlsafe)
+  - 48 hodin expirace
+  - Jednorázové použití tokenu
+
 ---
 
 ## Architektura
@@ -67,13 +89,16 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 │   ├── core/
 │   │   └── security.py             # JWT s role field
 │   ├── database/
-│   │   ├── models.py               # SQLAlchemy modely včetně Feedback
+│   │   ├── models.py               # SQLAlchemy modely včetně Feedback, TeamInvitation
 │   │   └── supabase.py             # Async session
 │   ├── routes/
 │   │   ├── feedback.py             # Feedback system API
+│   │   ├── invitations.py          # Team Invitation API
 │   │   └── ...
-│   └── services/
-│       └── email_service.py        # Resend integrace
+│   ├── services/
+│   │   └── email_service.py        # Resend integrace
+│   └── templates/emails/
+│       └── templates.py            # Email šablony včetně team_invitation
 ├── frontend/
 │   └── src/
 │       ├── components/layout/
@@ -84,7 +109,8 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 │           ├── admin/
 │           │   └── FeedbackAdminPage.js
 │           └── public/
-│               └── FeedbackPage.js
+│               ├── FeedbackPage.js
+│               └── AcceptInvitePage.js  # Stránka pro přijetí pozvánky
 ```
 
 ---
@@ -105,6 +131,17 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 | POST | /api/feedback/public/{token} | Odeslání zpětné vazby | Public |
 | POST | /api/feedback/setup-tables | Vytvoření DB tabulek | Admin |
 
+### Team Invitation System
+| Metoda | Endpoint | Popis | Role |
+|--------|----------|-------|------|
+| POST | /api/invitations/send | Odeslání pozvánky | Admin/Správce |
+| GET | /api/invitations/pending | Seznam čekajících pozvánek | Auth |
+| DELETE | /api/invitations/{id} | Zrušení pozvánky | Admin/Správce |
+| GET | /api/invitations/verify/{token} | Ověření tokenu | Public |
+| POST | /api/invitations/accept | Přijetí pozvánky | Public |
+| POST | /api/invitations/test-email | Testovací email | Admin |
+| POST | /api/invitations/setup-table | Vytvoření DB tabulky | Admin |
+
 ---
 
 ## Testovací přístupy
@@ -122,6 +159,7 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 ### P1 - Vysoká priorita
 - [ ] Statistiky zpětné vazby na stats stránce (průměrná hodnocení, grafy)
 - [ ] Reminder email pro nevyplněné zpětné vazby (7 dní)
+- [ ] Integrovat Team Invitation do TeamPage.js (Admin UI pro odesílání pozvánek)
 
 ### P2 - Střední priorita
 - [ ] i18n přepínač jazyků
@@ -135,4 +173,4 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 
 ---
 
-*Poslední aktualizace: 20. března 2026*
+*Poslední aktualizace: 21. března 2026*

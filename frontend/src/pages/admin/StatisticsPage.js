@@ -12,7 +12,8 @@ import {
 } from 'recharts';
 import {
   Calendar, Users, TrendingUp, Download, FileSpreadsheet,
-  GraduationCap, Building2, Clock, CheckCircle, XCircle, Loader2
+  GraduationCap, Building2, Clock, CheckCircle, XCircle, Loader2,
+  Star, MessageSquare, ThumbsUp
 } from 'lucide-react';
 
 // Barvy pro grafy
@@ -60,6 +61,8 @@ export const StatisticsPage = () => {
   const [exporting, setExporting] = useState(false);
   const [stats, setStats] = useState(null);
   const [isPro, setIsPro] = useState(false);
+  const [feedbackStats, setFeedbackStats] = useState(null);
+  const [loadingFeedback, setLoadingFeedback] = useState(true);
   
   // Filtry
   const [periodType, setPeriodType] = useState('month');
@@ -69,6 +72,7 @@ export const StatisticsPage = () => {
 
   useEffect(() => {
     fetchStatistics();
+    fetchFeedbackStatistics();
     checkProStatus();
   }, [periodType, selectedYear, selectedMonth, selectedSemester]);
 
@@ -78,6 +82,19 @@ export const StatisticsPage = () => {
       setIsPro(response.data?.is_pro || response.data?.csv_export_exception || false);
     } catch (error) {
       console.error('Error checking PRO status');
+    }
+  };
+
+  const fetchFeedbackStatistics = async () => {
+    setLoadingFeedback(true);
+    try {
+      const response = await axios.get(`${API}/feedback/statistics`);
+      setFeedbackStats(response.data);
+    } catch (error) {
+      console.log('Feedback statistics not available');
+      setFeedbackStats(null);
+    } finally {
+      setLoadingFeedback(false);
     }
   };
 
@@ -183,6 +200,22 @@ export const StatisticsPage = () => {
   const ageGroupChartData = stats?.by_age_group?.map(a => ({
     name: a.age_group,
     value: a.count,
+  })) || [];
+
+  // Feedback rating distribution data
+  const feedbackRatingData = feedbackStats?.by_rating ? 
+    Object.entries(feedbackStats.by_rating).map(([rating, count]) => ({
+      name: `${rating} ⭐`,
+      value: count,
+      rating: parseInt(rating)
+    })).sort((a, b) => a.rating - b.rating) : [];
+
+  // Feedback by program data
+  const feedbackByProgramData = feedbackStats?.by_program?.slice(0, 5).map(p => ({
+    name: p.program_name?.length > 18 ? p.program_name.substring(0, 18) + '...' : p.program_name,
+    fullName: p.program_name,
+    'Průměr': p.avg_rating ? parseFloat(p.avg_rating.toFixed(1)) : 0,
+    'Počet': p.count
   })) || [];
 
   if (loading && !stats) {
@@ -546,6 +579,169 @@ export const StatisticsPage = () => {
               <Users className="w-12 h-12 text-slate-300" />
             </div>
           </Card>
+        )}
+
+        {/* Feedback Statistics Section */}
+        {feedbackStats && feedbackStats.total_feedbacks > 0 && (
+          <>
+            {/* Feedback Header */}
+            <div className="pt-6 border-t border-gray-200">
+              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <MessageSquare className="w-6 h-6 text-[#84A98C]" />
+                Zpětná vazba od učitelů
+              </h2>
+              <p className="text-sm text-gray-500 mt-1">
+                Souhrnné statistiky z odeslaných zpětných vazeb
+              </p>
+            </div>
+
+            {/* Feedback Overview Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card className="p-4" data-testid="feedback-total">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-[#84A98C]/10 rounded-lg">
+                    <MessageSquare className="w-5 h-5 text-[#84A98C]" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Celkem hodnocení</p>
+                    <p className="text-2xl font-bold text-slate-900">{feedbackStats.total_feedbacks}</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4" data-testid="feedback-avg-rating">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-yellow-50 rounded-lg">
+                    <Star className="w-5 h-5 text-yellow-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Průměrné hodnocení</p>
+                    <p className="text-2xl font-bold text-slate-900">
+                      {feedbackStats.average_rating ? feedbackStats.average_rating.toFixed(1) : '-'}
+                      <span className="text-base font-normal text-gray-400">/5</span>
+                    </p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4" data-testid="feedback-recommendation">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-50 rounded-lg">
+                    <ThumbsUp className="w-5 h-5 text-green-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Doporučení</p>
+                    <p className="text-2xl font-bold text-slate-900">
+                      {feedbackStats.recommendation_rate !== null ? `${feedbackStats.recommendation_rate}%` : '-'}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4 bg-gradient-to-br from-yellow-50 to-orange-50" data-testid="feedback-stars">
+                <div className="flex items-center gap-2 justify-center h-full">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star 
+                      key={star}
+                      className={`w-6 h-6 ${
+                        feedbackStats.average_rating && star <= Math.round(feedbackStats.average_rating)
+                          ? 'fill-yellow-400 text-yellow-400'
+                          : 'text-gray-300'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            {/* Feedback Charts */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Rating Distribution */}
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">Rozložení hodnocení</h3>
+                {feedbackRatingData.length > 0 && feedbackRatingData.some(d => d.value > 0) ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={feedbackRatingData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                      <XAxis type="number" tick={{ fontSize: 12 }} />
+                      <YAxis 
+                        type="category" 
+                        dataKey="name" 
+                        width={60}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
+                        formatter={(value) => [value, 'Počet']}
+                      />
+                      <Bar dataKey="value" name="Počet" radius={[0, 4, 4, 0]}>
+                        {feedbackRatingData.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={entry.rating >= 4 ? '#22C55E' : entry.rating >= 3 ? '#F59E0B' : '#EF4444'} 
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-[250px] flex items-center justify-center text-gray-400">
+                    Zatím žádné hodnocení
+                  </div>
+                )}
+              </Card>
+
+              {/* Rating by Program */}
+              <Card className="p-6">
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">Hodnocení podle programu</h3>
+                {feedbackByProgramData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={feedbackByProgramData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                      <XAxis type="number" domain={[0, 5]} tick={{ fontSize: 12 }} />
+                      <YAxis 
+                        type="category" 
+                        dataKey="name" 
+                        width={100}
+                        tick={{ fontSize: 11 }}
+                      />
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
+                        labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
+                      />
+                      <Legend />
+                      <Bar dataKey="Průměr" fill="#F59E0B" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-[250px] flex items-center justify-center text-gray-400">
+                    Zatím žádná data
+                  </div>
+                )}
+              </Card>
+            </div>
+
+            {/* Link to full feedback page */}
+            <Card className="p-4 bg-[#84A98C]/5 border-[#84A98C]/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-slate-900">Podrobná zpětná vazba</h3>
+                  <p className="text-sm text-gray-600">
+                    Zobrazte všechny odpovědi, spravujte otázky a exportujte data.
+                  </p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.location.href = '/admin/feedback'}
+                  className="border-[#84A98C] text-[#84A98C] hover:bg-[#84A98C]/10"
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Zobrazit zpětnou vazbu
+                </Button>
+              </div>
+            </Card>
+          </>
         )}
 
         {/* PRO banner */}

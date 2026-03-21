@@ -5,12 +5,14 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { AuthContext } from '../../context/AuthContext';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { Plus, ArrowLeft, Trash2, Shield, BookOpen, Calendar, Receipt } from 'lucide-react';
+import { 
+  Plus, ArrowLeft, Trash2, Shield, BookOpen, Calendar, Receipt, 
+  Mail, Clock, X, Send, Loader2, UserPlus, Users, CheckCircle
+} from 'lucide-react';
 import { API } from '../../config/api';
 
 // Role podle wireframu
@@ -24,21 +26,21 @@ const ROLES = [
   },
   { 
     value: 'edukator', 
-    label: 'Uživatel/ Edukator', 
+    label: 'Edukátor', 
     description: 'Může vidět a spravovat doprovodné programy a rezervace.',
     icon: BookOpen,
     color: 'bg-[#4A6FA5] text-white'
   },
   { 
     value: 'lektor', 
-    label: 'Uživatel/ Externí lektor', 
+    label: 'Externí lektor', 
     description: 'Může se zapisovat k jednotlivým rezervacím.',
     icon: Calendar,
     color: 'bg-[#84A98C] text-white'
   },
   { 
     value: 'pokladni', 
-    label: 'Uživatel/ Pokladní', 
+    label: 'Pokladní', 
     description: 'Může ke vzniklým rezervacím doplňovat údaje.',
     icon: Receipt,
     color: 'bg-[#C4AB86] text-white'
@@ -48,18 +50,28 @@ const ROLES = [
 export const TeamPage = () => {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  
+  // Team members state
   const [teamMembers, setTeamMembers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddDialog, setShowAddDialog] = useState(false);
+  
+  // Pending invitations state
+  const [pendingInvitations, setPendingInvitations] = useState([]);
+  const [loadingInvitations, setLoadingInvitations] = useState(true);
+  
+  // Dialog states
+  const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    role: 'edukator',
-  });
+  
+  // Form states
+  const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: 'edukator' });
+  const [editForm, setEditForm] = useState({ name: '', role: '' });
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     fetchTeamMembers();
+    fetchPendingInvitations();
   }, []);
 
   const fetchTeamMembers = async () => {
@@ -67,7 +79,6 @@ export const TeamPage = () => {
       const response = await axios.get(`${API}/team`);
       setTeamMembers(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      // If endpoint doesn't exist yet, show current user only
       setTeamMembers([{
         id: user?.id,
         name: user?.name || user?.email?.split('@')[0],
@@ -81,33 +92,69 @@ export const TeamPage = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const fetchPendingInvitations = async () => {
     try {
-      if (editingMember) {
-        await axios.patch(`${API}/team/${editingMember.id}`, formData);
-        toast.success('Uživatel byl aktualizován');
-      } else {
-        await axios.post(`${API}/team/invite`, formData);
-        toast.success('Uživatel byl přidán');
-      }
-      setShowAddDialog(false);
-      setEditingMember(null);
-      resetForm();
-      fetchTeamMembers();
+      const response = await axios.get(`${API}/invitations/pending`);
+      setPendingInvitations(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Nepodařilo se uložit uživatele');
+      console.log('No pending invitations or endpoint not available');
+      setPendingInvitations([]);
+    } finally {
+      setLoadingInvitations(false);
     }
   };
 
-  const handleEdit = (member) => {
+  const handleSendInvitation = async (e) => {
+    e.preventDefault();
+    
+    if (!inviteForm.email) {
+      toast.error('Zadejte email');
+      return;
+    }
+    
+    setSending(true);
+    try {
+      await axios.post(`${API}/invitations/send`, inviteForm);
+      toast.success(`Pozvánka byla odeslána na ${inviteForm.email}`);
+      setShowInviteDialog(false);
+      setInviteForm({ name: '', email: '', role: 'edukator' });
+      fetchPendingInvitations();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Nepodařilo se odeslat pozvánku');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleCancelInvitation = async (invitationId) => {
+    if (!window.confirm('Opravdu chcete zrušit tuto pozvánku?')) return;
+    
+    try {
+      await axios.delete(`${API}/invitations/${invitationId}`);
+      toast.success('Pozvánka byla zrušena');
+      fetchPendingInvitations();
+    } catch (error) {
+      toast.error('Nepodařilo se zrušit pozvánku');
+    }
+  };
+
+  const handleEditMember = (member) => {
     setEditingMember(member);
-    setFormData({
-      name: member.name || '',
-      email: member.email,
-      role: member.role,
-    });
-    setShowAddDialog(true);
+    setEditForm({ name: member.name || '', role: member.role });
+    setShowEditDialog(true);
+  };
+
+  const handleUpdateMember = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.patch(`${API}/team/${editingMember.id}/role`, { role: editForm.role });
+      toast.success('Role byla aktualizována');
+      setShowEditDialog(false);
+      setEditingMember(null);
+      fetchTeamMembers();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Nepodařilo se aktualizovat uživatele');
+    }
   };
 
   const handleRemoveMember = async (memberId) => {
@@ -116,192 +163,271 @@ export const TeamPage = () => {
     try {
       await axios.delete(`${API}/team/${memberId}`);
       toast.success('Uživatel byl odebrán');
+      setShowEditDialog(false);
+      setEditingMember(null);
       fetchTeamMembers();
     } catch (error) {
       toast.error('Nepodařilo se odebrat uživatele');
     }
   };
 
-  const resetForm = () => {
-    setFormData({ name: '', email: '', role: 'edukator' });
-    setEditingMember(null);
-  };
-
   const getRoleInfo = (roleValue) => {
-    // Map old roles to new ones
-    const roleMap = {
-      'admin': 'spravce',
-      'staff': 'edukator',
-      'viewer': 'lektor',
-    };
+    const roleMap = { 'admin': 'spravce', 'staff': 'edukator', 'viewer': 'lektor' };
     const mappedRole = roleMap[roleValue] || roleValue;
     return ROLES.find(r => r.value === mappedRole) || ROLES[1];
   };
 
-  // Render member list view
-  const renderMemberList = () => (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button onClick={() => navigate('/admin/settings')} className="p-2 hover:bg-gray-100 rounded-lg">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h1 className="text-xl font-semibold text-slate-900">Správa uživatelů</h1>
-      </div>
+  const formatExpiryDate = (dateStr) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffHours = Math.round((date - now) / (1000 * 60 * 60));
+    
+    if (diffHours < 1) return 'Brzy vyprší';
+    if (diffHours < 24) return `${diffHours} hodin`;
+    return `${Math.round(diffHours / 24)} dní`;
+  };
 
-      {/* Users section */}
-      <Card className="p-4 md:p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Uživatelé</h2>
-            <p className="text-sm text-gray-500">Můžete přidat nebo odebraz uživatele i jejich oprávnění.</p>
+  return (
+    <AdminLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => navigate('/admin/settings')} 
+              className="p-2 hover:bg-gray-100 rounded-lg"
+              data-testid="back-button"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-xl font-semibold text-slate-900">Správa týmu</h1>
+              <p className="text-sm text-gray-500">Spravujte členy týmu a jejich oprávnění</p>
+            </div>
           </div>
           <Button 
-            onClick={() => { resetForm(); setShowAddDialog(true); }}
+            onClick={() => setShowInviteDialog(true)}
             className="bg-[#2B3E50] text-white hover:bg-[#1e2d3a]"
-            data-testid="add-user-button"
+            data-testid="invite-button"
           >
-            <Plus className="w-4 h-4 mr-2" />
-            Přidat
+            <UserPlus className="w-4 h-4 mr-2" />
+            Pozvat kolegu
           </Button>
         </div>
 
-        {/* Team members list */}
-        {loading ? (
-          <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#4A6FA5] mx-auto"></div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {Array.isArray(teamMembers) && teamMembers.map((member) => {
-              const roleInfo = getRoleInfo(member.role);
-              const isCurrentUser = member.id === user?.id;
-              
-              return (
-                <div 
-                  key={member.id} 
-                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
-                  data-testid={`team-member-${member.id}`}
-                >
-                  <div>
-                    <p className="font-medium text-slate-900">
-                      {member.name || member.email?.split('@')[0]}
-                    </p>
-                    <p className="text-sm text-gray-500">{member.email}</p>
-                    <div className="flex gap-2 mt-2">
-                      <span className={`px-2 py-0.5 text-xs rounded-full ${roleInfo.color}`}>
-                        {roleInfo.label.split('/')[0].trim()}
-                      </span>
-                      <span className="px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-700">
-                        {member.status === 'active' ? 'aktivní' : 'neaktivní'}
-                      </span>
+        {/* Pending Invitations */}
+        {pendingInvitations.length > 0 && (
+          <Card className="p-4 md:p-6 border-amber-200 bg-amber-50/50">
+            <div className="flex items-center gap-2 mb-4">
+              <Mail className="w-5 h-5 text-amber-600" />
+              <h2 className="text-lg font-semibold text-slate-900">Čekající pozvánky</h2>
+              <span className="px-2 py-0.5 text-xs rounded-full bg-amber-200 text-amber-800">
+                {pendingInvitations.length}
+              </span>
+            </div>
+            
+            <div className="space-y-3">
+              {pendingInvitations.map((invitation) => {
+                const roleInfo = getRoleInfo(invitation.role);
+                return (
+                  <div 
+                    key={invitation.id} 
+                    className="flex items-center justify-between p-3 bg-white border border-amber-200 rounded-lg"
+                    data-testid={`pending-invitation-${invitation.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                        <Mail className="w-5 h-5 text-amber-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-900">
+                          {invitation.name || invitation.email}
+                        </p>
+                        <p className="text-sm text-gray-500">{invitation.email}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`px-2 py-0.5 text-xs rounded-full ${roleInfo.color}`}>
+                            {roleInfo.label}
+                          </span>
+                          <span className="flex items-center gap-1 text-xs text-gray-500">
+                            <Clock className="w-3 h-3" />
+                            Vyprší za {formatExpiryDate(invitation.expires_at)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  
-                  {!isCurrentUser && (
+                    
                     <button
-                      onClick={() => handleEdit(member)}
-                      className="text-[#4A6FA5] text-sm font-medium hover:underline"
-                      data-testid={`edit-member-${member.id}`}
+                      onClick={() => handleCancelInvitation(invitation.id)}
+                      className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Zrušit pozvánku"
+                      data-testid={`cancel-invitation-${invitation.id}`}
                     >
-                      Upravit
+                      <X className="w-5 h-5" />
                     </button>
-                  )}
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        {/* Active Team Members */}
+        <Card className="p-4 md:p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="w-5 h-5 text-[#4A6FA5]" />
+            <h2 className="text-lg font-semibold text-slate-900">Aktivní členové</h2>
+            <span className="px-2 py-0.5 text-xs rounded-full bg-[#4A6FA5]/10 text-[#4A6FA5]">
+              {teamMembers.length}
+            </span>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-8">
+              <Loader2 className="w-8 h-8 animate-spin text-[#4A6FA5] mx-auto" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {teamMembers.map((member) => {
+                const roleInfo = getRoleInfo(member.role);
+                const isCurrentUser = member.id === user?.id;
+                const Icon = roleInfo.icon;
+                
+                return (
+                  <div 
+                    key={member.id} 
+                    className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
+                    data-testid={`team-member-${member.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full ${roleInfo.color} flex items-center justify-center`}>
+                        <Icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium text-slate-900">
+                            {member.name || member.email?.split('@')[0]}
+                          </p>
+                          {isCurrentUser && (
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">
+                              Vy
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-500">{member.email}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`px-2 py-0.5 text-xs rounded-full ${roleInfo.color}`}>
+                            {roleInfo.label}
+                          </span>
+                          <span className="flex items-center gap-1 text-xs text-green-600">
+                            <CheckCircle className="w-3 h-3" />
+                            Aktivní
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {!isCurrentUser && (
+                      <button
+                        onClick={() => handleEditMember(member)}
+                        className="text-[#4A6FA5] text-sm font-medium hover:underline"
+                        data-testid={`edit-member-${member.id}`}
+                      >
+                        Upravit
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* Roles Description */}
+        <Card className="p-4 md:p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-2">Role a oprávnění</h2>
+          <p className="text-sm text-gray-500 mb-4">Přehled dostupných rolí v systému</p>
+          
+          <div className="grid gap-4 md:grid-cols-2">
+            {ROLES.map(role => {
+              const Icon = role.icon;
+              return (
+                <div key={role.value} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                  <div className={`w-8 h-8 rounded-lg ${role.color} flex items-center justify-center flex-shrink-0`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-slate-900">{role.label}</h3>
+                    <p className="text-sm text-gray-500">{role.description}</p>
+                  </div>
                 </div>
               );
             })}
           </div>
-        )}
-      </Card>
+        </Card>
+      </div>
 
-      {/* Roles description */}
-      <Card className="p-4 md:p-6">
-        <h2 className="text-lg font-semibold text-slate-900 mb-2">Uživatelé a oprávnění</h2>
-        <p className="text-sm text-gray-500 mb-4">Můžete přidat nebo odebraz uživatele i jejich oprávnění.</p>
-        
-        <div className="space-y-4">
-          {ROLES.map(role => (
-            <div key={role.value}>
-              <h3 className="font-medium text-slate-900">{role.label}</h3>
-              <p className="text-sm text-gray-500">{role.description}</p>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
+      {/* Invite Dialog */}
+      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-[#4A6FA5]" />
+              Pozvat nového kolegu
+            </DialogTitle>
+          </DialogHeader>
+          
+          <form onSubmit={handleSendInvitation} className="space-y-6" data-testid="invite-form">
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="invite-name">Jméno a příjmení</Label>
+                <Input
+                  id="invite-name"
+                  value={inviteForm.name}
+                  onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })}
+                  placeholder="Jana Nováková"
+                  className="mt-1"
+                  data-testid="invite-name-input"
+                />
+              </div>
 
-  // Render add/edit user form
-  const renderUserForm = () => (
-    <Dialog open={showAddDialog} onOpenChange={(open) => { setShowAddDialog(open); if (!open) resetForm(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <div className="flex items-center gap-4">
-            <button onClick={() => setShowAddDialog(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <DialogTitle>{editingMember ? 'Upravit uživatele' : 'Nový uživatel'}</DialogTitle>
-          </div>
-        </DialogHeader>
-        
-        <form onSubmit={handleSubmit} className="space-y-6" data-testid="user-form">
-          {/* Základní informace */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-slate-900">Základní informace</h3>
-            
-            <div>
-              <Label htmlFor="name">Jméno a Příjmení</Label>
-              <Input
-                id="name"
-                data-testid="user-name-input"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Jana Nováková"
-                className="mt-2"
-              />
+              <div>
+                <Label htmlFor="invite-email">Email *</Label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  value={inviteForm.email}
+                  onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                  placeholder="jana.novakova@instituce.cz"
+                  required
+                  className="mt-1"
+                  data-testid="invite-email-input"
+                />
+              </div>
             </div>
 
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                data-testid="user-email-input"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                placeholder="jana.novakova@galerie.cz"
-                required
-                disabled={!!editingMember}
-                className="mt-2"
-              />
-            </div>
-          </div>
-
-          {/* Role a oprávnění */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-slate-900">Role a oprávnění</h3>
-            
             <div className="space-y-3">
+              <Label>Role</Label>
               {ROLES.map(role => {
                 const Icon = role.icon;
                 return (
                   <label 
                     key={role.value} 
                     className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                      formData.role === role.value 
+                      inviteForm.role === role.value 
                         ? 'border-[#4A6FA5] bg-[#4A6FA5]/5' 
                         : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
                     <input
                       type="radio"
-                      name="role"
+                      name="invite-role"
                       value={role.value}
-                      checked={formData.role === role.value}
-                      onChange={() => setFormData({ ...formData, role: role.value })}
+                      checked={inviteForm.role === role.value}
+                      onChange={() => setInviteForm({ ...inviteForm, role: role.value })}
                       className="mt-1"
-                      data-testid={`role-${role.value}`}
+                      data-testid={`invite-role-${role.value}`}
                     />
+                    <Icon className={`w-5 h-5 mt-0.5 ${inviteForm.role === role.value ? 'text-[#4A6FA5]' : 'text-gray-400'}`} />
                     <div>
                       <p className="font-medium text-slate-900">{role.label}</p>
                       <p className="text-sm text-gray-500">{role.description}</p>
@@ -310,38 +436,112 @@ export const TeamPage = () => {
                 );
               })}
             </div>
-          </div>
 
-          {/* Actions */}
-          <div className="flex gap-2">
-            <Button 
-              type="submit" 
-              className="flex-1 bg-[#2B3E50] text-white hover:bg-[#1e2d3a]"
-              data-testid="save-user-button"
-            >
-              Uložit
-            </Button>
-            {editingMember && (
-              <Button
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+              <p>Pozvánka bude odeslána na zadaný email. Příjemce bude mít 48 hodin na její přijetí.</p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
                 type="button"
                 variant="outline"
-                onClick={() => handleRemoveMember(editingMember.id)}
-                className="text-red-500 border-red-200 hover:bg-red-50"
-                data-testid="delete-user-button"
+                onClick={() => setShowInviteDialog(false)}
+                className="flex-1"
               >
-                <Trash2 className="w-5 h-5" />
+                Zrušit
               </Button>
-            )}
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
+              <Button 
+                type="submit" 
+                disabled={sending || !inviteForm.email}
+                className="flex-1 bg-[#2B3E50] text-white hover:bg-[#1e2d3a]"
+                data-testid="send-invite-button"
+              >
+                {sending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Odesílám...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" />
+                    Odeslat pozvánku
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-  return (
-    <AdminLayout>
-      {renderMemberList()}
-      {renderUserForm()}
+      {/* Edit Member Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={(open) => { setShowEditDialog(open); if (!open) setEditingMember(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upravit člena týmu</DialogTitle>
+          </DialogHeader>
+          
+          {editingMember && (
+            <form onSubmit={handleUpdateMember} className="space-y-6" data-testid="edit-form">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="font-medium text-slate-900">{editingMember.name || editingMember.email?.split('@')[0]}</p>
+                <p className="text-sm text-gray-500">{editingMember.email}</p>
+              </div>
+
+              <div className="space-y-3">
+                <Label>Změnit roli</Label>
+                {ROLES.map(role => {
+                  const Icon = role.icon;
+                  return (
+                    <label 
+                      key={role.value} 
+                      className={`flex items-start gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                        editForm.role === role.value 
+                          ? 'border-[#4A6FA5] bg-[#4A6FA5]/5' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="edit-role"
+                        value={role.value}
+                        checked={editForm.role === role.value}
+                        onChange={() => setEditForm({ ...editForm, role: role.value })}
+                        className="mt-1"
+                        data-testid={`edit-role-${role.value}`}
+                      />
+                      <Icon className={`w-5 h-5 mt-0.5 ${editForm.role === role.value ? 'text-[#4A6FA5]' : 'text-gray-400'}`} />
+                      <div>
+                        <p className="font-medium text-slate-900">{role.label}</p>
+                        <p className="text-sm text-gray-500">{role.description}</p>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleRemoveMember(editingMember.id)}
+                  className="text-red-500 border-red-200 hover:bg-red-50"
+                  data-testid="remove-member-button"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Odebrat
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="flex-1 bg-[#2B3E50] text-white hover:bg-[#1e2d3a]"
+                  data-testid="save-member-button"
+                >
+                  Uložit změny
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
   );
 };

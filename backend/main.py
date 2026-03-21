@@ -30,6 +30,7 @@ from routes import (
     account_router,
 )
 from routes.feedback import router as feedback_router
+from routes.invitations import router as invitations_router
 from models.schemas import ContactFormData, InstitutionSettings
 
 # Configure logging
@@ -65,6 +66,7 @@ api_router.include_router(public_router)
 api_router.include_router(emails_router)
 api_router.include_router(account_router)
 api_router.include_router(feedback_router)
+api_router.include_router(invitations_router)
 
 
 # ============ Additional Routes ============

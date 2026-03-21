@@ -493,3 +493,39 @@ class Feedback(Base):
         Index('idx_feedbacks_token', 'token'),
         Index('idx_feedbacks_status', 'status'),
     )
+
+
+class TeamInvitation(Base):
+    """Team invitation model for inviting users to institutions."""
+    __tablename__ = 'team_invitations'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(Text, nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    invited_by_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
+    
+    # Token for secure access
+    token = Column(Text, nullable=False, unique=True)
+    
+    # Role to assign on acceptance
+    role = Column(Text, nullable=False, default='viewer')
+    
+    # Name (optional, for display)
+    name = Column(Text)
+    
+    # Expiration (48 hours by default)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    
+    # Status
+    accepted = Column(Boolean, default=False)
+    accepted_at = Column(DateTime(timezone=True))
+    
+    # Metadata
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_team_invitations_email', 'email'),
+        Index('idx_team_invitations_token', 'token'),
+        Index('idx_team_invitations_institution', 'institution_id'),
+    )

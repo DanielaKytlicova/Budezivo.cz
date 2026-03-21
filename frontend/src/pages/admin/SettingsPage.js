@@ -21,8 +21,13 @@ import {
   LogOut,
   Upload,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Crown,
+  Loader2,
+  CheckCircle,
+  Lock
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { API } from '../../config/api';
 
 // Menu položky nastavení
@@ -168,14 +173,57 @@ export const SettingsPage = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // Plan upgrade state
+  const [planData, setPlanData] = useState({ plan: 'free', is_pro: false, plan_updated_at: null });
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
 
   useEffect(() => {
     if (activeSection === 'institution') {
       fetchInstitutionData();
     } else if (activeSection === 'pro') {
       fetchProSettings();
+      fetchPlanStatus();
     }
   }, [activeSection]);
+
+  const fetchPlanStatus = async () => {
+    try {
+      const response = await axios.get(`${API}/plan/status`);
+      setPlanData(response.data);
+      setIsPro(response.data.is_pro);
+    } catch (error) {
+      console.error('Error fetching plan status:', error);
+    }
+  };
+
+  const handleUpgradePlan = async () => {
+    setUpgrading(true);
+    try {
+      await axios.put(`${API}/plan/upgrade`, { confirm: true });
+      toast.success('PRO verze byla aktivována!');
+      setShowUpgradeModal(false);
+      fetchPlanStatus();
+      fetchProSettings();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Nepodařilo se aktivovat PRO verzi');
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
+  const handleDowngradePlan = async () => {
+    if (!window.confirm('Opravdu chcete přejít na FREE verzi? Ztratíte přístup k PRO funkcím.')) return;
+    try {
+      await axios.put(`${API}/plan/downgrade`, { confirm: true });
+      toast.success('Plán byl změněn na FREE');
+      fetchPlanStatus();
+      fetchProSettings();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Nepodařilo se změnit plán');
+    }
+  };
 
   const fetchInstitutionData = async () => {
     try {
@@ -762,10 +810,76 @@ export const SettingsPage = () => {
         <h1 className="text-xl font-semibold text-slate-900">PRO funkce</h1>
       </div>
 
+      {/* Plan Status Card */}
+      <Card className="p-6 border-2 border-[#2B3E50]/20" data-testid="plan-status-card">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className={`p-3 rounded-xl ${planData.is_pro ? 'bg-gradient-to-br from-yellow-400 to-amber-500' : 'bg-gray-100'}`}>
+              <Crown className={`w-6 h-6 ${planData.is_pro ? 'text-white' : 'text-gray-400'}`} />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Nastavení tarifu</h2>
+              <p className="text-sm text-gray-500">Váš aktuální plán a dostupné funkce</p>
+            </div>
+          </div>
+          <span className={`px-4 py-2 rounded-full text-sm font-bold ${
+            planData.is_pro 
+              ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white' 
+              : 'bg-gray-100 text-gray-600'
+          }`} data-testid="plan-badge">
+            {planData.is_pro ? 'PRO' : 'FREE'}
+          </span>
+        </div>
+        
+        {planData.plan_updated_at && (
+          <p className="text-xs text-gray-400 mb-4">
+            Aktivováno: {new Date(planData.plan_updated_at).toLocaleDateString('cs-CZ')}
+          </p>
+        )}
+
+        {!planData.is_pro ? (
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-blue-800 font-medium">Odemkněte plný potenciál</p>
+              <p className="text-blue-700 text-sm mt-1">
+                PRO verze zahrnuje CSV export, hromadné emaily, pokročilé statistiky a neomezený počet programů.
+              </p>
+            </div>
+            <Button
+              onClick={() => setShowUpgradeModal(true)}
+              className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white h-12 font-semibold"
+              data-testid="upgrade-button"
+            >
+              <Crown className="w-5 h-5 mr-2" />
+              Aktivovat PRO
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-green-600">
+              <CheckCircle className="w-5 h-5" />
+              <span className="font-medium">PRO verze je aktivní</span>
+            </div>
+            <p className="text-sm text-gray-500">
+              Máte přístup ke všem PRO funkcím včetně CSV exportu, hromadných emailů a pokročilých statistik.
+            </p>
+            {user?.role === 'spravce' || user?.role === 'admin' ? (
+              <button 
+                onClick={handleDowngradePlan}
+                className="text-xs text-gray-400 hover:text-red-500 underline"
+                data-testid="downgrade-link"
+              >
+                Přejít zpět na FREE verzi
+              </button>
+            ) : null}
+          </div>
+        )}
+      </Card>
+
       {!isPro && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <p className="text-yellow-800 font-medium">Tyto funkce jsou dostupné pouze v PRO verzi</p>
-          <p className="text-yellow-700 text-sm mt-1">Upgradujte na Standard nebo Premium plán pro přístup k PRO funkcím.</p>
+          <p className="text-yellow-700 text-sm mt-1">Aktivujte PRO plán výše pro přístup k PRO funkcím.</p>
         </div>
       )}
 
@@ -838,6 +952,63 @@ export const SettingsPage = () => {
       >
         {loading ? 'Ukládání...' : 'Uložit'}
       </Button>
+
+      {/* Upgrade Modal */}
+      <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Crown className="w-5 h-5 text-amber-500" />
+              Aktivovat PRO verzi
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="text-gray-700 mb-4">
+              Opravdu chcete aktivovat PRO verzi? Získáte přístup k:
+            </p>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                CSV export škol a rezervací
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                Hromadné emaily pro propagaci
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                Pokročilé statistiky a reporty
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                Neomezený počet programů
+              </li>
+            </ul>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowUpgradeModal(false)}>
+              Zrušit
+            </Button>
+            <Button
+              onClick={handleUpgradePlan}
+              disabled={upgrading}
+              className="bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white"
+              data-testid="confirm-upgrade-button"
+            >
+              {upgrading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Aktivuji...
+                </>
+              ) : (
+                'Aktivovat PRO'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 

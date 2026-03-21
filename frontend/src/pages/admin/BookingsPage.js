@@ -551,6 +551,38 @@ export const BookingsPage = () => {
               </Card>
             )}
 
+            {/* Souhlas s podmínkami */}
+            {selectedBooking.terms_accepted !== undefined && (
+              <Card className="p-4 bg-gray-50" data-testid="terms-acceptance-card">
+                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5" />
+                  Souhlas s podmínkami
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500">Souhlas udělen:</span>
+                    <span className={`font-medium ${selectedBooking.terms_accepted ? 'text-green-600' : 'text-red-600'}`}>
+                      {selectedBooking.terms_accepted ? 'Ano' : 'Ne'}
+                    </span>
+                  </div>
+                  {selectedBooking.terms_accepted_at && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">Datum a čas:</span>
+                      <span className="font-medium">
+                        {new Date(selectedBooking.terms_accepted_at).toLocaleString('cs-CZ')}
+                      </span>
+                    </div>
+                  )}
+                  {selectedBooking.terms_accepted_text_version && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500">Verze podmínek:</span>
+                      <span className="font-medium">{selectedBooking.terms_accepted_text_version}</span>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
             {/* Akce */}
             <div className="flex gap-2 pt-4 border-t">
               {selectedBooking.status === 'pending' && permissions.canEditAll && (

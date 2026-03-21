@@ -65,6 +65,8 @@ export const BookingPage = () => {
     contact_email: '',
     contact_phone: '',
     gdpr_consent: false,
+    terms_accepted: false,
+    terms_accepted_text_version: 'v1',
   });
 
   useEffect(() => {
@@ -165,6 +167,11 @@ export const BookingPage = () => {
     
     if (!formData.gdpr_consent) {
       toast.error('Musíte souhlasit se zpracováním osobních údajů');
+      return;
+    }
+    
+    if (!formData.terms_accepted) {
+      toast.error('Musíte souhlasit s podmínkami rezervace');
       return;
     }
 
@@ -692,6 +699,26 @@ export const BookingPage = () => {
                     />
                     <label htmlFor="gdpr" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
                       Souhlasím se zpracováním osobních údajů v souladu s GDPR
+                    </label>
+                  </div>
+                  
+                  <div className="flex items-start space-x-2 pt-2">
+                    <Checkbox
+                      id="terms"
+                      checked={formData.terms_accepted}
+                      onCheckedChange={(checked) => setFormData({ ...formData, terms_accepted: checked })}
+                      data-testid="booking-terms"
+                    />
+                    <label htmlFor="terms" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
+                      Odesláním rezervace beru na vědomí, že Budezivo.cz je pouze zprostředkovatelem rezervace a nenese odpovědnost za její realizaci.{' '}
+                      <a 
+                        href="/terms" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-[#5a7aae] hover:underline"
+                      >
+                        Více informací
+                      </a>
                     </label>
                   </div>
                 </div>

@@ -54,6 +54,13 @@ async def create_public_booking(
     db: AsyncSession = Depends(get_db)
 ):
     """Create public booking without authentication."""
+    # Validate terms acceptance
+    if not booking_data.terms_accepted:
+        raise HTTPException(
+            status_code=400, 
+            detail="Pro odeslání rezervace je nutné souhlasit s podmínkami"
+        )
+    
     booking_repo = BookingRepositorySupabase(db)
     school_repo = SchoolRepositorySupabase(db)
     program_repo = ProgramRepositorySupabase(db)
@@ -79,6 +86,9 @@ async def create_public_booking(
             "contact_email": booking_data.contact_email,
             "contact_phone": booking_data.contact_phone,
             "gdpr_consent": booking_data.gdpr_consent,
+            "terms_accepted": booking_data.terms_accepted,
+            "terms_accepted_at": datetime.now(timezone.utc).isoformat() if booking_data.terms_accepted else None,
+            "terms_accepted_text_version": booking_data.terms_accepted_text_version,
             "status": "pending",
             "actual_students": None,
             "actual_teachers": None,

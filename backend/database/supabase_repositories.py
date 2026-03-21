@@ -392,6 +392,10 @@ class BookingRepositorySupabase:
     
     async def create(self, booking_data: dict, institution_id: str) -> dict:
         """Create new booking."""
+        # Handle terms acceptance
+        terms_accepted = booking_data.get('terms_accepted', False)
+        terms_accepted_at = datetime.now(timezone.utc) if terms_accepted else None
+        
         booking = Reservation(
             id=uuid.uuid4(),
             institution_id=uuid.UUID(institution_id),
@@ -410,6 +414,9 @@ class BookingRepositorySupabase:
             status='pending',
             gdpr_consent=booking_data.get('gdpr_consent', False),
             gdpr_consent_date=datetime.now(timezone.utc) if booking_data.get('gdpr_consent') else None,
+            terms_accepted=terms_accepted,
+            terms_accepted_at=terms_accepted_at,
+            terms_accepted_text_version=booking_data.get('terms_accepted_text_version', 'v1'),
         )
         self.db.add(booking)
         await self.db.commit()

@@ -1,20 +1,23 @@
 <analysis>**original_problem_statement:**
-The user requested continuous development of the SaaS application (Budezivo.cz). In this session, the focus was on three main areas:
-1.  **Global UI Updates:** Replacing all logos/favicons with new SVGs, enlarging the header logo, and changing the global background color to .
-2.  **Teacher Feedback System:** Building an end-to-end automated feedback system (cron jobs, dynamic admin questions, public forms, rating systems).
-3.  **Dashboard UI Upgrade:** Adding a View Switcher (List vs Calendar) for upcoming reservations with advanced filtering and modal details.
-4.  **Team Invitation System (Newest Request):** Building a complete backend and frontend flow allowing admins to invite team members via Resend emails with secure, time-limited tokens.
+The user requested continued development of the Budezivo.cz SaaS application. Key requests included:
+1. Implementing a Team Invitation System with Resend emails.
+2. Adding Feedback Statistics and 7-day automated reminder emails for feedback.
+3. Adding Legal Terms tracking (Article 10, mandatory booking checkbox, DB tracking).
+4. Implementing a Manual PRO Plan upgrade system with feature gating.
+5. Debugging a public program calendar availability issue.
+6. Implementing an Excel/CSV School Import feature for the CRM.
+7. Adding tagging (e.g., ZŠ, SŠ) and source tracking (imported vs. organic) to the School CRM.
 
 **User's preferred language**: Czech (Čeština). The next agent **MUST** respond in the user's preferred language only.
 
 **what currently exists?**
-A robust, multi-tenant React/FastAPI/Supabase application. In this session, the agent successfully implemented the Feedback System (including  for 1-day delayed emails), fully updated the brand's visual identity (logos, favicons, background color), and overhauled the Admin Dashboard to support both List and interactive Calendar views for reservations. The agent just began working on the Team Invitation System requested by the user.
+A functional multi-tenant full-stack SaaS (FastAPI + React + Supabase). The application now supports team invitations, an automated feedback engine with reminders, legal terms tracking per booking, manual PRO plan feature gating, and Excel school importing.
 
 **Last working item**:
-- **Last item agent was working:** Implementing the Team Invitation Email system. The agent analyzed the architecture and just completed updating  with the new  SQLAlchemy model. 
+- **Last item agent was working:** Implementing UI for School Tagging and Source filtering in the CRM (). The backend routes and DB schema (,  columns) have already been successfully updated.
 - **Status:** IN PROGRESS
 - **Agent Testing Done:** N
-- **Which testing method agent to use?** both (Use testing_agent_v3_fork for comprehensive API/UI testing of the invitation flow, plus manual curl/screenshots for immediate feedback).
+- **Which testing method agent to use?** both (Use screenshot tool for UI validation of the tags/filters, followed by testing_agent_v3_fork for full frontend/backend regression of the Schools CRM).
 - **User Testing Done:** N
 
 **All Pending/In progress Issue list**:
@@ -27,105 +30,108 @@ Issue 1: Production DNS Fix (inherited from older forks)
 - Should Test frontend/backend/both after fix? Frontend
 
 **In progress Task List**:
-Task 1: Team Invitation System Implementation
-- Where to resume: 
-  1. Create the physical database table for  (similar to how feedback tables were created via an admin setup endpoint or manual script, as there is no Alembic).
-  2. Implement backend routes (, , ).
-  3. Create the  HTML email template in  (or template registry).
-  4. Build the React frontend page  () with a password setup form.
-  5. Update  with the new flow documentation.
-- What will be achieved with this? Allows admins to securely invite new colleagues to their institution.
+Task 1: School Tagging and Filter UI (CRM)
+- Where to resume: . The agent was in the middle of replacing/updating the UI to display the new tags, allow tag editing, and add filtering dropdowns (by Tag and by Source).
+- What will be achieved with this? Allows admins to categorize schools and filter imported vs. organically registered schools.
 - Status: IN PROGRESS
 - Should Test frontend/backend/both after fix? Both
 - Blocked on something: None.
 
 **Upcoming and Future Tasks**
-- (P1) Add Feedback Statistics to the existing stats page (Average ratings, recommendation %, charts).
-- (P2) Reminder Emails: Send reminders for unfilled feedback forms after 7 days.
 - (P2) Implement i18n Language Toggle (existing button, needs wiring).
 - (P3) Implement Bulk Actions for reservations (Confirm/Cancel).
 - (P3) Implement Full GDPR Data Management (Export/Delete personal data).
+- (P3) Payment integration (Stripe - currently PRO is manual).
+- (P4) Mobile app & Advanced analytics.
 
 **Completed work in this session**
-- SVG Logo and Favicon Update across all components & emails, including increasing header logo size to  (DONE)
-- Global Background Color Update to  (DONE)
-- Teacher Feedback System: DB tables, CRUD APIs, Admin UI, Public Form,  cron job (DONE)
-- Dashboard UI: Added List vs Calendar View Switcher with filters and interactive calendar UI (DONE)
+- Team Invitation System (DB, APIs, UI, Resend templates) (DONE)
+- Feedback Statistics UI & APScheduler 7-day Reminders (DONE)
+- Legal Terms system ( page, booking UI checkbox,  DB tracking) (DONE)
+- Manual PRO Plan Upgrade (Settings UI, Feature gating, DB plan tracking) (DONE)
+- Fixed bug with program availability calendar limits (DONE)
+- Excel/CSV School Import (Backend  parsing, Frontend upload modal) (DONE)
+- DB Migration for Schools  and  columns (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 None.
 
 **Known issue recurrence from previous fork**
-- None directly from the previous fork, but **NOTE**: When creating tables via SQLAlchemy  using Supabase/asyncpg, you *cannot* use multiple SQL statements separated by semicolons in a single  call. They must be split into separate  calls (encountered during Feedback table creation).
+- Alembic is not configured. When creating or altering tables (as done extensively in this session for invitations, plan upgrades, terms tracking, and school tags), you must execute raw SQL using  via temporary endpoints or scripts.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- Frontend: React, TailwindCSS,  /  (for Dashboard Calendar).
-- Backend: FastAPI, Supabase (SQLAlchemy Async with asyncpg), JWT (Note:  injected by dependencies is a Dictionary, not an object).
-- Background Tasks:  (runs internally within the FastAPI lifecycle).
-- Emails: Resend API.
+- Frontend: React, TailwindCSS.
+- Backend: FastAPI, Supabase (SQLAlchemy Async with asyncpg).
+- Background Tasks:  (running inside FastAPI).
+- File Processing: ,  (installed in this session for Excel import).
 
 **key DB schema**
-- : id, email, role, institution_id
-- : id, reservation_id, institution_id, answers (JSON), status
-- : id, institution_id, question_text, question_type, is_active
--  (Added to models, needs table creation): id, email, institution_id, invited_by_user_id, token, expires_at, accepted
+- : added  (string),  (timestamp).
+- : added  (bool),  (timestamp),  (string).
+- : added  (JSONB/Text array),  (string: organic/imported).
+- : uid=0(root) gid=0(root) groups=0(root), , , , , .
 
 **changes in tech stack**
-- Added  () and  to Python backend for scheduled cron tasks.
+- Installed , , , and  for Excel parsing on the backend.
 
 **All files of reference**
--  (Contains the new  model)
--  (Must add the new team invitation HTML template here)
--  (JWT and auth logic; token dict structure was recently modified)
--  (Needs to be updated with the new invitation sequence diagram)
+-  (Must finish implementing the tagging and filter UI here).
+-  (Contains the updated import and tagging API logic).
+-  (Update this after finishing the tags task).
 
 **Areas that need refactoring**:
-- Database migration strategy: Currently relying on manual  endpoints/scripts. Consider setting up a proper Alembic environment in the future to avoid manual table creation.
+- Proper DB migration setup (Alembic) is still missing.
 
 **key api endpoints**
-- (New) 
-- (Upcoming) 
-- (Upcoming) 
-- (Upcoming) 
+- 
+- 
+- 
+- 
 
 **Critical Info for New Agent**
--  retrieved via  dependency in FastAPI routes is returned as a **dictionary** (), NOT a SQLAlchemy object ().
-- When injecting new tables to Supabase, create a temporary backend setup endpoint or a Python script to execute  statements, because there is no automated Alembic migration flow configured yet.
-- JWT tokens generated in  now include  and .
-- Use the existing  method from  for the new invitation emails.
-- Respond in Czech.
+- The backend has already been fully updated to support school tags and source tracking. The DB columns exist.
+- The  was used extensively and caught bugs successfully (like datetime serialization and  nulls). Continue utilizing it after finishing the current UI task.
+- Ensure all responses are in Czech.
 
 **documents and test reports created in this job**
-- 
--  (100% passing tests for the Feedback system)
+-  (Updated constantly)
+-  (Team Invites - 100% Pass)
+-  (Feedback/Reminders - 100% Pass)
+-  (Terms/PRO Plan - 100% Pass)
+-  (School Import - 100% Pass)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1. User: Please use ask_human tool and confirm your plan now. (Answered)
-2. User: 1. Ano 2. Use APScheduler integrated in the backend for scheduling emails. Keep Resend as the email provider. (Done)
-3. User: Ještě zvětš logo nahoře v menu liště, takto je moc drobné (Done - scaled to )
-4. User: Improve the dashboard UI to support two different views for upcoming bookings: a list view and a calendar view... (Done)
-5. User: You are a senior backend engineer. Implement a Team Invitation Email system for the SaaS platform... (Pending - agent just started this).
+1. User: Ano přidej tagování a taky možnost filtrování škol, které jsou nahrané (importem) a které byly zapsány přes rezervační systém (organicky) (Agent was currently implementing this)
+2. User: Ano už to funguje děkuji (Confirmed program calendar bug fix)
+3. User: i po této změně nevidím v nabídce žádné volné bloky
+4. User: po push na git jsem spustila redeploy, vidím pouze jeden program a stále tam nevidím nabízené volné bloky
+5. User: 1.b 2.a i B 3. ano
+6. User: zkontroluj, proč se do nabídky programů nepropisuje vytvořená nabídka progamu
+7. User: 1️⃣ Úprava dokumentu: Podmínky... 2️⃣ Potvrzovací e-mail... 2.task Implement PRO plan upgrade functionality...
+8. User: P0 vyřešeno, pokračuj v P1
+9. User: Dokonči ukoli 1.-5.
+10. User: Please use ask_human tool and confirm your plan now.
 
 **Project Health Check:**
-- Frontend: Working
+- Frontend: Working (but  is mid-edit)
 - Backend: Working
 - DB: Connected
 
 **3rd Party Integrations**
-- Supabase (Database) — requires User credentials (already in )
-- Resend (Emails) — requires User API Key (already in )
+- Supabase (Database) — requires User credentials
+- Resend (Emails) — requires User API Key
 
 **Testing status**
-- Testing agent used after significant changes: YES ( for Feedback System).
+- Testing agent used after significant changes: YES (Iterations 10, 11, 12, 13)
 - Troubleshoot agent used after agent stuck in loop: NO
-- Test files created: None explicitly created by main agent, relies on .
+- Test files created: Handled dynamically by testing subagent
 - Known regressions: None currently.
 
 **Credentials to test flow:**
 -  / 
 
 **What agent forgot to execute**
-- The agent added the  model to  but has not yet executed the SQL command to actually create the table in the Supabase PostgreSQL database. This is a critical next step before testing the API.</analysis>
+- The agent was in the middle of executing a  on  to finish the UI for tags and source filtering, but the context window ended before it could be completed and tested. Focus strictly on finishing this UI implementation first.</analysis>

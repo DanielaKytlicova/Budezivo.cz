@@ -475,11 +475,16 @@ class SchoolRepositorySupabase:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def find_by_institution(self, institution_id: str) -> List[dict]:
-        """Find all schools for an institution."""
-        result = await self.db.execute(
-            select(School).where(School.institution_id == uuid.UUID(institution_id))
-        )
+    async def find_by_institution(
+        self, 
+        institution_id: str,
+        source_filter: str = None,
+        tag_filter: str = None
+    ) -> List[dict]:
+        """Find all schools for an institution with optional filters."""
+        query = select(School).where(School.institution_id == uuid.UUID(institution_id))
+        
+        result = await self.db.execute(query)
         schools = result.scalars().all()
         school_dicts = []
         for s in schools:
@@ -487,6 +492,21 @@ class SchoolRepositorySupabase:
             # Ensure booking_count is never None
             if d.get('booking_count') is None:
                 d['booking_count'] = 0
+            # Ensure tags is a list
+            if d.get('tags') is None:
+                d['tags'] = []
+            elif isinstance(d['tags'], str):
+                import json
+                try:
+                    d['tags'] = json.loads(d['tags'])
+                except:
+                    d['tags'] = []
+            # Apply source filter
+            if source_filter and d.get('source') != source_filter:
+                continue
+            # Apply tag filter
+            if tag_filter and tag_filter not in (d.get('tags') or []):
+                continue
             school_dicts.append(d)
         return school_dicts
     
@@ -499,7 +519,12 @@ class SchoolRepositorySupabase:
             ))
         )
         school = result.scalar_one_or_none()
-        return to_dict(school) if school else None
+        if school:
+            d = to_dict(school)
+            if d.get('tags') is None:
+                d['tags'] = []
+            return d
+        return None
     
     async def find_by_ids(self, institution_id: str, school_ids: List[str]) -> List[dict]:
         """Find schools by IDs."""

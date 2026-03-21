@@ -161,11 +161,12 @@ class BookingLectorAssign(BaseModel):
 
 class SchoolBase(BaseModel):
     name: str
-    contact_person: str
+    contact_person: Optional[str] = ""
     email: EmailStr
-    phone: str
+    phone: Optional[str] = ""
     ico: Optional[str] = None
     city: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class School(SchoolBase):
@@ -173,7 +174,20 @@ class School(SchoolBase):
     id: str
     institution_id: str
     booking_count: int = 0
+    tags: Optional[List[str]] = []
+    source: Optional[str] = "organic"  # organic, import, reservation
     created_at: datetime
+
+
+class SchoolUpdate(BaseModel):
+    name: Optional[str] = None
+    contact_person: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    ico: Optional[str] = None
+    city: Optional[str] = None
+    notes: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 # ============ Settings Models ============

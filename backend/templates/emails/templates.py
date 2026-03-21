@@ -348,6 +348,32 @@ def _reservation_details_box(data: Dict[str, Any]) -> str:
     """
 
 
+def _reservation_important_notice() -> str:
+    """Important notice/disclaimer for reservation emails."""
+    return f"""
+        <div style="margin-top: 32px; padding: 20px; background-color: #FEF3C7; border-left: 4px solid #F59E0B; border-radius: 0 8px 8px 0;">
+            <h3 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #92400E;">
+                Důležité informace
+            </h3>
+            <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.6; color: #78350F;">
+                Rezervace byla vytvořena prostřednictvím rezervačního systému Budezivo.cz, 
+                který slouží pouze jako technický nástroj pro zprostředkování rezervací mezi institucí a objednatelem.
+            </p>
+            <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.6; color: #78350F;">
+                Samotná realizace programu a podmínky účasti jsou plně v kompetenci dané instituce.
+            </p>
+            <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #78350F;">
+                Provozovatel systému Budezivo.cz nenese odpovědnost za:
+            </p>
+            <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #78350F;">
+                <li>změny nebo zrušení rezervace,</li>
+                <li>průběh programu,</li>
+                <li>ani za to, že se účastníci na rezervovaný program nedostaví.</li>
+            </ul>
+        </div>
+    """
+
+
 def reservation_created_teacher(data: Dict[str, Any]) -> Dict[str, str]:
     """Email sent to teacher after creating reservation."""
     content = f"""
@@ -373,6 +399,8 @@ def reservation_created_teacher(data: Dict[str, Any]) -> Dict[str, str]:
             V případě dotazů nás kontaktujte na {data.get('institution_email', '')} 
             nebo {data.get('institution_phone', '')}.
         </p>
+        
+        {_reservation_important_notice()}
     """
     
     plain = f"""
@@ -392,6 +420,13 @@ Detail rezervace:
 Vaše rezervace čeká na potvrzení. O dalším postupu vás budeme informovat.
 
 Kontakt: {data.get('institution_email', '')} / {data.get('institution_phone', '')}
+
+---
+DŮLEŽITÉ INFORMACE
+Rezervace byla vytvořena prostřednictvím rezervačního systému Budezivo.cz, 
+který slouží pouze jako technický nástroj pro zprostředkování rezervací.
+Provozovatel systému nenese odpovědnost za změny/zrušení rezervace, 
+průběh programu, ani za to, že se účastníci na program nedostaví.
 """
     
     return {

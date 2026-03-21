@@ -119,7 +119,8 @@ class BookingBase(BaseModel):
 
 
 class BookingCreate(BookingBase):
-    pass
+    terms_accepted: bool = False
+    terms_accepted_text_version: Optional[str] = "v1"
 
 
 class Booking(BookingBase):
@@ -133,6 +134,9 @@ class Booking(BookingBase):
     assigned_lecturer_name: Optional[str] = None
     assigned_lecturer_at: Optional[str] = None
     notes: Optional[str] = None
+    terms_accepted: Optional[bool] = None
+    terms_accepted_at: Optional[datetime] = None
+    terms_accepted_text_version: Optional[str] = None
     created_at: datetime
 
 

@@ -133,6 +133,35 @@ async def get_public_programs(institution_id: str, db: AsyncSession = Depends(ge
     return await program_repo.find_public(institution_id)
 
 
+@router.get("/debug/{institution_id}")
+async def debug_programs(institution_id: str, db: AsyncSession = Depends(get_db)):
+    """Debug endpoint to check all programs for an institution."""
+    from sqlalchemy import text
+    
+    result = await db.execute(text(f"""
+        SELECT id, name_cs, status, is_published, created_at
+        FROM programs 
+        WHERE institution_id = '{institution_id}'
+        ORDER BY created_at DESC
+    """))
+    rows = result.fetchall()
+    
+    return {
+        "institution_id": institution_id,
+        "total_programs": len(rows),
+        "programs": [
+            {
+                "id": str(row[0]),
+                "name_cs": row[1],
+                "status": row[2],
+                "is_published": row[3],
+                "created_at": str(row[4]) if row[4] else None
+            }
+            for row in rows
+        ]
+    }
+
+
 @router.get("/{program_id}", response_model=Program)
 async def get_program(
     program_id: str,

@@ -43,6 +43,7 @@ class Institution(Base):
     
     # Plan & Limits
     plan = Column(Text, nullable=False, default='free')
+    plan_updated_at = Column(DateTime(timezone=True))
     programs_limit = Column(Integer, nullable=False, default=3)
     bookings_monthly_limit = Column(Integer, nullable=False, default=50)
     
@@ -216,6 +217,11 @@ class Reservation(Base):
     # GDPR
     gdpr_consent = Column(Boolean, default=False)
     gdpr_consent_date = Column(DateTime(timezone=True))
+    
+    # Terms Acceptance (liability disclaimer)
+    terms_accepted = Column(Boolean, default=False)
+    terms_accepted_at = Column(DateTime(timezone=True))
+    terms_accepted_text_version = Column(Text, default='v1')
     
     # Metadata
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))

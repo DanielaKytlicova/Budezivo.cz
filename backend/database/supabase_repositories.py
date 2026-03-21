@@ -200,15 +200,24 @@ class ProgramRepositorySupabase:
         return [to_dict(p) for p in programs]
     
     async def find_public(self, institution_id: str) -> List[dict]:
-        """Find all active published programs."""
-        result = await self.db.execute(
-            select(Program).where(and_(
-                Program.institution_id == uuid.UUID(institution_id),
-                Program.status == 'active'
-            ))
-        )
-        programs = result.scalars().all()
-        return [to_dict(p) for p in programs]
+        """Find all active published programs for public booking page."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            result = await self.db.execute(
+                select(Program).where(and_(
+                    Program.institution_id == uuid.UUID(institution_id),
+                    Program.status == 'active',
+                    Program.is_published == True
+                ))
+            )
+            programs = result.scalars().all()
+            logger.info(f"find_public for institution {institution_id}: found {len(programs)} programs")
+            return [to_dict(p) for p in programs]
+        except Exception as e:
+            logger.error(f"find_public error for institution {institution_id}: {str(e)}")
+            raise
     
     async def create(self, program_data: dict, institution_id: str) -> dict:
         """Create new program."""
@@ -392,6 +401,10 @@ class BookingRepositorySupabase:
     
     async def create(self, booking_data: dict, institution_id: str) -> dict:
         """Create new booking."""
+        # Handle terms acceptance
+        terms_accepted = booking_data.get('terms_accepted', False)
+        terms_accepted_at = datetime.now(timezone.utc) if terms_accepted else None
+        
         booking = Reservation(
             id=uuid.uuid4(),
             institution_id=uuid.UUID(institution_id),
@@ -410,6 +423,9 @@ class BookingRepositorySupabase:
             status='pending',
             gdpr_consent=booking_data.get('gdpr_consent', False),
             gdpr_consent_date=datetime.now(timezone.utc) if booking_data.get('gdpr_consent') else None,
+            terms_accepted=terms_accepted,
+            terms_accepted_at=terms_accepted_at,
+            terms_accepted_text_version=booking_data.get('terms_accepted_text_version', 'v1'),
         )
         self.db.add(booking)
         await self.db.commit()

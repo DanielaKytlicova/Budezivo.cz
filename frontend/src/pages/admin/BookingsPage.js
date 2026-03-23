@@ -9,6 +9,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { 
@@ -51,10 +52,13 @@ export const BookingsPage = () => {
   const [currentUserRole, setCurrentUserRole] = useState('viewer');
   const [editMode, setEditMode] = useState(null); // 'attendance' | 'datetime' | 'contact' | null
   const [editData, setEditData] = useState({});
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [selectedLecturer, setSelectedLecturer] = useState('');
 
   useEffect(() => {
     fetchBookings();
     fetchCurrentUserRole();
+    fetchTeamMembers();
   }, []);
 
   const fetchBookings = async () => {
@@ -75,6 +79,19 @@ export const BookingsPage = () => {
       setCurrentUserRole(response.data.role || 'viewer');
     } catch (error) {
       console.error('Failed to fetch user role');
+    }
+  };
+
+  const fetchTeamMembers = async () => {
+    try {
+      const response = await axios.get(`${API}/team`);
+      // Filter only lecturers and educators (any status - active or null)
+      const lecturers = (response.data || []).filter(
+        m => ['lektor', 'edukator', 'admin', 'spravce'].includes(m.role)
+      );
+      setTeamMembers(lecturers);
+    } catch (error) {
+      console.error('Failed to fetch team members');
     }
   };
 
@@ -118,6 +135,23 @@ export const BookingsPage = () => {
       fetchBookings();
       const updatedBooking = await axios.get(`${API}/bookings/${selectedBooking.id}`);
       setSelectedBooking(updatedBooking.data);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Chyba při přiřazení lektora');
+    }
+  };
+
+  const assignLecturerByAdmin = async (lecturerId) => {
+    if (!selectedBooking || !lecturerId) return;
+    
+    try {
+      const response = await axios.post(`${API}/bookings/${selectedBooking.id}/assign-lecturer-admin`, {
+        lecturer_id: lecturerId
+      });
+      toast.success(`Lektor ${response.data.lecturer_name} byl přiřazen`);
+      fetchBookings();
+      const updatedBooking = await axios.get(`${API}/bookings/${selectedBooking.id}`);
+      setSelectedBooking(updatedBooking.data);
+      setSelectedLecturer('');
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Chyba při přiřazení lektora');
     }
@@ -205,7 +239,7 @@ export const BookingsPage = () => {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="booking-detail-description">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
-              <span>Detail rezervace</span>
+              <span>{selectedBooking.program_name || 'Detail rezervace'}</span>
               {getStatusBadge(selectedBooking.status)}
             </DialogTitle>
             <p id="booking-detail-description" className="sr-only">
@@ -494,9 +528,42 @@ export const BookingsPage = () => {
                   )}
                 </div>
               ) : (
-                <div className="flex items-center justify-between">
+                <div className="space-y-3">
                   <p className="text-gray-500 text-sm">Žádný lektor není přiřazen</p>
-                  {(canAssign || currentUserRole === 'lektor') && (
+                  
+                  {/* Admin can assign specific lecturer from dropdown */}
+                  {permissions.canEditAll && teamMembers.length > 0 && (
+                    <div className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        <Label className="text-xs text-gray-500 mb-1 block">Vybrat lektora</Label>
+                        <Select value={selectedLecturer} onValueChange={setSelectedLecturer}>
+                          <SelectTrigger data-testid="select-lecturer-dropdown">
+                            <SelectValue placeholder="Vyberte lektora..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {teamMembers.map(member => (
+                              <SelectItem key={member.id} value={member.id}>
+                                {member.name || member.email}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => assignLecturerByAdmin(selectedLecturer)}
+                        disabled={!selectedLecturer}
+                        className="bg-slate-800 text-white"
+                        data-testid="assign-selected-lecturer-btn"
+                      >
+                        <UserPlus className="w-4 h-4 mr-1" />
+                        Přiřadit
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* Self-assign button for lecturers */}
+                  {(currentUserRole === 'lektor' || currentUserRole === 'edukator') && !permissions.canEditAll && (
                     <Button
                       size="sm"
                       onClick={assignLecturer}
@@ -653,7 +720,7 @@ export const BookingsPage = () => {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-slate-900">{booking.school_name}</h3>
+                      <h3 className="text-lg font-semibold text-slate-900">{booking.program_name || 'Program'}</h3>
                       {getStatusBadge(booking.status)}
                       {booking.assigned_lecturer_name && (
                         <Badge variant="outline" className="text-xs">
@@ -662,7 +729,11 @@ export const BookingsPage = () => {
                         </Badge>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500 block">Škola:</span>
+                        <span className="font-medium">{booking.school_name}</span>
+                      </div>
                       <div>
                         <span className="text-gray-500 block">Datum:</span>
                         <span className="font-medium">{booking.date}</span>

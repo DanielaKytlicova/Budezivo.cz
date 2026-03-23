@@ -389,6 +389,7 @@ async def trigger_reservation_created_emails(
         "institution_email": institution_data.get("email", ""),
         "institution_phone": institution_data.get("phone", ""),
         "institution_address": institution_data.get("address", ""),
+        "institution_logo_url": institution_data.get("logo_url"),
         "special_requirements": booking_data.get("special_requirements", ""),
         "dashboard_url": "https://budezivo.cz/admin",
     }
@@ -432,6 +433,7 @@ async def trigger_reservation_confirmed_email(
         "institution_email": institution_data.get("email", ""),
         "institution_phone": institution_data.get("phone", ""),
         "institution_address": institution_data.get("address", ""),
+        "institution_logo_url": institution_data.get("logo_url"),
     }
     
     return await EmailService.send_transactional_email(

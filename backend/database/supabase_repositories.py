@@ -7,7 +7,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional, Dict, Any
 
-from sqlalchemy import select, update, delete, func, and_, or_
+from sqlalchemy import select, update, delete, func, and_, or_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -330,14 +330,31 @@ class BookingRepositorySupabase:
         return to_dict(booking) if booking else None
     
     async def find_by_institution(self, institution_id: str) -> List[dict]:
-        """Find all bookings for an institution, sorted by created_at desc."""
+        """Find all bookings for an institution with program names, sorted by created_at desc."""
+        # First get all bookings
         result = await self.db.execute(
             select(Reservation)
             .where(Reservation.institution_id == uuid.UUID(institution_id))
             .order_by(Reservation.created_at.desc())
         )
         bookings = result.scalars().all()
-        return [to_dict(b) for b in bookings]
+        
+        # Get all programs for this institution to create lookup
+        programs_result = await self.db.execute(
+            select(Program.id, Program.name_cs)
+            .where(Program.institution_id == uuid.UUID(institution_id))
+        )
+        program_lookup = {str(p[0]): p[1] for p in programs_result.fetchall()}
+        
+        # Build response with program names
+        booking_list = []
+        for b in bookings:
+            booking_dict = to_dict(b)
+            program_id = booking_dict.get('program_id')
+            booking_dict['program_name'] = program_lookup.get(program_id, 'Neznámý program')
+            booking_list.append(booking_dict)
+        
+        return booking_list
     
     async def find_by_date(self, institution_id: str, date: str) -> List[dict]:
         """Find bookings for specific date."""
@@ -511,7 +528,40 @@ class SchoolRepositorySupabase:
         return school_dicts
     
     async def find_by_email(self, institution_id: str, email: str) -> Optional[dict]:
-        """Find school by email in institution."""
+        """Find school by email in institution (checks both legacy and school_contacts)."""
+        # First check school_contacts table
+        try:
+            contact_result = await self.db.execute(
+                text("""
+                    SELECT s.id, s.name, s.city, s.address, s.notes, s.tags, s.source, 
+                           s.booking_count, s.created_at, s.email, s.contact_person, s.phone
+                    FROM schools s
+                    JOIN school_contacts sc ON sc.school_id = s.id
+                    WHERE sc.institution_id = :inst_id AND sc.email = :email
+                    LIMIT 1
+                """),
+                {"inst_id": institution_id, "email": email.lower()}
+            )
+            row = contact_result.fetchone()
+            if row:
+                return {
+                    "id": str(row[0]),
+                    "name": row[1],
+                    "city": row[2],
+                    "address": row[3],
+                    "notes": row[4],
+                    "tags": row[5] if row[5] else [],
+                    "source": row[6] or "reservation",
+                    "booking_count": row[7] or 0,
+                    "created_at": row[8].isoformat() if row[8] else None,
+                    "email": row[9],
+                    "contact_person": row[10],
+                    "phone": row[11],
+                }
+        except Exception:
+            pass  # Table might not exist yet
+        
+        # Fallback to legacy email field in schools table
         result = await self.db.execute(
             select(School).where(and_(
                 School.institution_id == uuid.UUID(institution_id),
@@ -539,21 +589,48 @@ class SchoolRepositorySupabase:
         return [to_dict(s) for s in schools]
     
     async def create(self, school_data: dict, institution_id: str) -> dict:
-        """Create new school."""
+        """Create new school with contact."""
+        school_id = uuid.uuid4()
         school = School(
-            id=uuid.uuid4(),
+            id=school_id,
             institution_id=uuid.UUID(institution_id),
             name=school_data['name'],
             contact_person=school_data.get('contact_person'),
             email=school_data.get('email'),
             phone=school_data.get('phone'),
             city=school_data.get('city'),
-            ico=school_data.get('ico'),
+            source='reservation',  # Mark as created from reservation
             booking_count=school_data.get('booking_count', 1),
         )
         self.db.add(school)
         await self.db.commit()
         await self.db.refresh(school)
+        
+        # Also create contact in school_contacts table
+        email = school_data.get('email')
+        if email:
+            try:
+                await self.db.execute(
+                    text("""
+                        INSERT INTO school_contacts (id, school_id, institution_id, email, name, phone, is_primary, status)
+                        VALUES (:id, :school_id, :inst_id, :email, :name, :phone, TRUE, 'active')
+                        ON CONFLICT DO NOTHING
+                    """),
+                    {
+                        "id": str(uuid.uuid4()),
+                        "school_id": str(school_id),
+                        "inst_id": institution_id,
+                        "email": email.lower(),
+                        "name": school_data.get('contact_person', ''),
+                        "phone": school_data.get('phone', '')
+                    }
+                )
+                await self.db.commit()
+            except Exception as e:
+                # Log but don't fail - school_contacts table might not exist
+                import logging
+                logging.getLogger(__name__).warning(f"Could not create school contact: {e}")
+        
         return to_dict(school)
     
     async def increment_booking_count(self, school_id: str) -> None:

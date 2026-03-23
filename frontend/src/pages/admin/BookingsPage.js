@@ -205,7 +205,7 @@ export const BookingsPage = () => {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="booking-detail-description">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
-              <span>Detail rezervace</span>
+              <span>{selectedBooking.program_name || 'Detail rezervace'}</span>
               {getStatusBadge(selectedBooking.status)}
             </DialogTitle>
             <p id="booking-detail-description" className="sr-only">
@@ -653,7 +653,7 @@ export const BookingsPage = () => {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-slate-900">{booking.school_name}</h3>
+                      <h3 className="text-lg font-semibold text-slate-900">{booking.program_name || 'Program'}</h3>
                       {getStatusBadge(booking.status)}
                       {booking.assigned_lecturer_name && (
                         <Badge variant="outline" className="text-xs">
@@ -662,7 +662,11 @@ export const BookingsPage = () => {
                         </Badge>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500 block">Škola:</span>
+                        <span className="font-medium">{booking.school_name}</span>
+                      </div>
                       <div>
                         <span className="text-gray-500 block">Datum:</span>
                         <span className="font-medium">{booking.date}</span>

@@ -330,14 +330,31 @@ class BookingRepositorySupabase:
         return to_dict(booking) if booking else None
     
     async def find_by_institution(self, institution_id: str) -> List[dict]:
-        """Find all bookings for an institution, sorted by created_at desc."""
+        """Find all bookings for an institution with program names, sorted by created_at desc."""
+        # First get all bookings
         result = await self.db.execute(
             select(Reservation)
             .where(Reservation.institution_id == uuid.UUID(institution_id))
             .order_by(Reservation.created_at.desc())
         )
         bookings = result.scalars().all()
-        return [to_dict(b) for b in bookings]
+        
+        # Get all programs for this institution to create lookup
+        programs_result = await self.db.execute(
+            select(Program.id, Program.name_cs)
+            .where(Program.institution_id == uuid.UUID(institution_id))
+        )
+        program_lookup = {str(p[0]): p[1] for p in programs_result.fetchall()}
+        
+        # Build response with program names
+        booking_list = []
+        for b in bookings:
+            booking_dict = to_dict(b)
+            program_id = booking_dict.get('program_id')
+            booking_dict['program_name'] = program_lookup.get(program_id, 'Neznámý program')
+            booking_list.append(booking_dict)
+        
+        return booking_list
     
     async def find_by_date(self, institution_id: str, date: str) -> List[dict]:
         """Find bookings for specific date."""

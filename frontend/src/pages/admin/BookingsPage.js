@@ -543,7 +543,7 @@ export const BookingsPage = () => {
                           <SelectContent>
                             {teamMembers.map(member => (
                               <SelectItem key={member.id} value={member.id}>
-                                {member.name || member.email} ({member.role})
+                                {member.name || member.email}
                               </SelectItem>
                             ))}
                           </SelectContent>

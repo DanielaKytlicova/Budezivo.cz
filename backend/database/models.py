@@ -146,8 +146,8 @@ class Program(Base):
     end_date = Column(DateTime(timezone=True))
     
     # Booking Parameters
-    min_days_before_booking = Column(Integer, default=14)
-    max_days_before_booking = Column(Integer, default=90)
+    min_days_before_booking = Column(Integer, default=7)
+    max_days_before_booking = Column(Integer, default=180)
     preparation_time = Column(Integer, default=10)
     cleanup_time = Column(Integer, default=30)
     

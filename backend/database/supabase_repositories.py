@@ -100,6 +100,19 @@ class UserRepositorySupabase:
         await self.db.commit()
         return result.rowcount
     
+    async def update_name(self, user_id: str, institution_id: str, name: str) -> int:
+        """Update user name."""
+        result = await self.db.execute(
+            update(User)
+            .where(and_(
+                User.id == uuid.UUID(user_id),
+                User.institution_id == uuid.UUID(institution_id)
+            ))
+            .values(name=name)
+        )
+        await self.db.commit()
+        return result.rowcount
+    
     async def update(self, user_id: str, update_data: dict) -> int:
         """Update user by ID."""
         result = await self.db.execute(

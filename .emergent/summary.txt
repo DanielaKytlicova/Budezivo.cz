@@ -1,137 +1,143 @@
-<analysis>**original_problem_statement:**
-The user requested continued development of the Budezivo.cz SaaS application. Key requests included:
-1. Implementing a Team Invitation System with Resend emails.
-2. Adding Feedback Statistics and 7-day automated reminder emails for feedback.
-3. Adding Legal Terms tracking (Article 10, mandatory booking checkbox, DB tracking).
-4. Implementing a Manual PRO Plan upgrade system with feature gating.
-5. Debugging a public program calendar availability issue.
-6. Implementing an Excel/CSV School Import feature for the CRM.
-7. Adding tagging (e.g., ZŠ, SŠ) and source tracking (imported vs. organic) to the School CRM.
+<analysis>**original_problem_statement**: The user requested several updates for the Budezivo.cz CRM and booking system:
+1. Finish the School Tags and Filter UI and implement a 1:N multi-contact architecture for schools (multiple educators per school, deduplicated by School Name + City).
+2. Fix DNS settings evaluation (User confirmed it was fixed).
+3. Change default booking limits (min 7 days, max 180 days).
+4. Ensure new reservations automatically create a contact in the new  table.
+5. Display the Program Name in the Admin Dashboard and Booking List overview.
+6. Allow admins to assign specific lecturers/educators to a booking via a dropdown.
+7. Add the institution's logo to booking confirmation emails and shorten the footer disclaimer.
+8. Show the lecturer's full name instead of their email in the assignment dropdown (Requires fixing team member names).
 
-**User's preferred language**: Czech (Čeština). The next agent **MUST** respond in the user's preferred language only.
+**User's preferred language**: Czech (Čeština). **INSTRUCT NEXT AGENT TO RESPOND IN THE USER'S PREFERRED LANGUAGE ONLY.**
 
-**what currently exists?**
-A functional multi-tenant full-stack SaaS (FastAPI + React + Supabase). The application now supports team invitations, an automated feedback engine with reminders, legal terms tracking per booking, manual PRO plan feature gating, and Excel school importing.
+**what currently exists?**: A fully functional multi-tenant SaaS application (React + FastAPI + Supabase PostgreSQL). It features a multi-contact School CRM, an automated feedback engine, legal terms tracking, team invitations, and a booking management system with manual lecturer assignments and customizable email notifications.
 
 **Last working item**:
-- **Last item agent was working:** Implementing UI for School Tagging and Source filtering in the CRM (). The backend routes and DB schema (,  columns) have already been successfully updated.
-- **Status:** IN PROGRESS
-- **Agent Testing Done:** N
-- **Which testing method agent to use?** both (Use screenshot tool for UI validation of the tags/filters, followed by testing_agent_v3_fork for full frontend/backend regression of the Schools CRM).
-- **User Testing Done:** N
+- **Last item agent was working**: Fixing the display of team member names in the lecturer assignment dropdown. The agent added a  backend endpoint and added a name input field to the team member edit dialog in . The agent just took a screenshot to verify the UI but ran out of context before testing the submission flow.
+- **Status**: TESTING PENDING
+- **Agent Testing Done**: N (Only UI screenshot taken, submission flow not tested).
+- **Which testing method agent to use?**: Frontend testing agent or manual screenshot/curl to verify that editing a user's name successfully updates the DB and immediately reflects in the  lecturer dropdown.
+- **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
-Issue 1: Production DNS Fix (inherited from older forks)
-- Attempted fixes: Agent previously provided instructions, waiting on user.
-- Next debug checklist: User needs to add an  record for  (apex domain ) pointing to Vercel's IP in their Wedos control panel.
-- Why fix this issue and what will be achieved with the fix? Makes the main domain accessible.
-- Status: BLOCKED (on user action)
-- Is recurring issue? N
-- Should Test frontend/backend/both after fix? Frontend
+- **Issue 1: Team Member Name Edit Flow Verification** (P0)
+   - Attempted fixes: Added backend route to update names and UI in  to edit names.
+   - Next debug checklist: Check if submitting the edit dialog actually updates the user's name in the DB and if the  lecturer dropdown instantly displays the updated name instead of the email.
+   - Why fix this issue and what will be achieved with the fix?: Allows admins to fix blank names so the lecturer dropdown is readable.
+   - Status: TESTING PENDING
+   - Is recurring issue?: N
+   - Should Test frontend/backend/both after fix?: Both
+- **Issue 2: Production Redeployment & Migrations** (P1)
+   - Attempted fixes: Agent informed user that production is missing features (Mailing tab, new DB schema) because the latest code hasn't been deployed.
+   - Next debug checklist: Wait for the user to push to GitHub (triggering Vercel/production deployment) and then the user must execute  on their live site.
+   - Why fix this issue and what will be achieved with the fix?: Aligns production with the preview environment.
+   - Status: BLOCKED (on user action)
+   - Is recurring issue?: N
+   - Should Test frontend/backend/both after fix?: NA
+   - Blocked on other issue: User action required.
 
 **In progress Task List**:
-Task 1: School Tagging and Filter UI (CRM)
-- Where to resume: . The agent was in the middle of replacing/updating the UI to display the new tags, allow tag editing, and add filtering dropdowns (by Tag and by Source).
-- What will be achieved with this? Allows admins to categorize schools and filter imported vs. organically registered schools.
-- Status: IN PROGRESS
-- Should Test frontend/backend/both after fix? Both
-- Blocked on something: None.
+- **Task 1: Team Member Name UI implementation**
+   - Where to resume: . Verify  function correctly processes the name payload.
+   - What will be achieved with this?: Proper name display across the app.
+   - Status: IN PROGRESS
+   - Should Test frontend/backend/both after fix?: Both
+   - Blocked on something: None
 
-**Upcoming and Future Tasks**
+**Upcoming and Future Tasks**:
+- (P1) Fix Name propagation on Invitation Accept: When a user accepts an invite (), their  from  is not being reliably ported over to the  table via . 
 - (P2) Implement i18n Language Toggle (existing button, needs wiring).
 - (P3) Implement Bulk Actions for reservations (Confirm/Cancel).
 - (P3) Implement Full GDPR Data Management (Export/Delete personal data).
 - (P3) Payment integration (Stripe - currently PRO is manual).
 - (P4) Mobile app & Advanced analytics.
 
-**Completed work in this session**
-- Team Invitation System (DB, APIs, UI, Resend templates) (DONE)
-- Feedback Statistics UI & APScheduler 7-day Reminders (DONE)
-- Legal Terms system ( page, booking UI checkbox,  DB tracking) (DONE)
-- Manual PRO Plan Upgrade (Settings UI, Feature gating, DB plan tracking) (DONE)
-- Fixed bug with program availability calendar limits (DONE)
-- Excel/CSV School Import (Backend  parsing, Frontend upload modal) (DONE)
-- DB Migration for Schools  and  columns (DONE)
+**Completed work in this session**:
+- UI for School Tagging and Filter  (DONE)
+- Multi-contact architecture for Schools (1:N relation), deleted  field  (DONE)
+- Booking default limits changed to min 7, max 180 days  (DONE)
+- Booking creation automatically adds contact to   (DONE)
+- Program name displayed in Booking list and Dashboard  (DONE)
+- Admin lecturer assignment dropdown in Booking detail  (DONE)
+- Added Institution Logo to email headers & shortened footer disclaimers  (DONE)
 
-**Earlier issues found/mentioned but not fixed**
-None.
+**Earlier issues found/mentioned but not fixed**:
+- **Issue 1: Invitation name not migrating to user profile upon acceptance.**
+   - Debug checklist: Check  around . Ensure the  from the  table is passed to  and saved in the  table.
+   - Why to solve this issue and what will be achieved with this?: Prevents the need for admins to manually edit the names of newly joined team members just so they show up correctly in the lecturer dropdown.
+   - Should Test frontend/backend/both after fix: Backend
+   - Is recurring issue?: N
 
-**Known issue recurrence from previous fork**
-- Alembic is not configured. When creating or altering tables (as done extensively in this session for invitations, plan upgrades, terms tracking, and school tags), you must execute raw SQL using  via temporary endpoints or scripts.
+**Known issue recurrence from previous fork**:
+- Alembic is not configured. Schema changes must be done via raw SQL or temporary setup endpoints. (Recurrence count: 2)
+- Status: RESOLVED (Agent used raw SQL to create  and update logic).
 
-**Code Architecture**
+**Code Architecture**:
 
 
-**Key Technical Concepts**
+**Key Technical Concepts**:
 - Frontend: React, TailwindCSS.
 - Backend: FastAPI, Supabase (SQLAlchemy Async with asyncpg).
-- Background Tasks:  (running inside FastAPI).
-- File Processing: ,  (installed in this session for Excel import).
+- Emails: HTML generated via Python strings mimicking React Email structures.
 
-**key DB schema**
-- : added  (string),  (timestamp).
-- : added  (bool),  (timestamp),  (string).
-- : added  (JSONB/Text array),  (string: organic/imported).
-- : uid=0(root) gid=0(root) groups=0(root), , , , , .
+**key DB schema**:
+- : uid=0(root) gid=0(root) groups=0(root), , , , , , .
+- : Enforced usage of the  column to populate UI elements.
+- : , , .
 
-**changes in tech stack**
-- Installed , , , and  for Excel parsing on the backend.
+**changes in tech stack**:
+- None.
 
-**All files of reference**
--  (Must finish implementing the tagging and filter UI here).
--  (Contains the updated import and tagging API logic).
--  (Update this after finishing the tags task).
+**All files of reference**:
+-  (Updated to handle Name patching).
+-  (Updated to handle Name UI).
+-  (Updated to fetch and store , , and multi-contacts).
+-  (Updated for Logos).
+-  (Needs review for name persistence).
 
 **Areas that need refactoring**:
 - Proper DB migration setup (Alembic) is still missing.
 
-**key api endpoints**
+**key api endpoints**:
 - 
 - 
 - 
-- 
+-  (NEW)
 
-**Critical Info for New Agent**
-- The backend has already been fully updated to support school tags and source tracking. The DB columns exist.
-- The  was used extensively and caught bugs successfully (like datetime serialization and  nulls). Continue utilizing it after finishing the current UI task.
-- Ensure all responses are in Czech.
+**Critical Info for New Agent**:
+- All responses **MUST** be in Czech.
+- The  was used early in the session and found critical asyncpg JSON parsing bugs (fixed). It hasn't been run for the latest team/booking changes. Run it after verifying the team name edit feature.
+- Production requires the user to push code to GitHub and manually trigger the  endpoint. Avoid debugging production directly if the code hasn't been deployed yet.
 
-**documents and test reports created in this job**
+**documents and test reports created in this job**:
 -  (Updated constantly)
--  (Team Invites - 100% Pass)
--  (Feedback/Reminders - 100% Pass)
--  (Terms/PRO Plan - 100% Pass)
--  (School Import - 100% Pass)
+-  (CRM Multi-contacts - 100% Pass)
 
-**Last 10 User Messages and any pending HUMAN messages**
-1. User: Ano přidej tagování a taky možnost filtrování škol, které jsou nahrané (importem) a které byly zapsány přes rezervační systém (organicky) (Agent was currently implementing this)
-2. User: Ano už to funguje děkuji (Confirmed program calendar bug fix)
-3. User: i po této změně nevidím v nabídce žádné volné bloky
-4. User: po push na git jsem spustila redeploy, vidím pouze jeden program a stále tam nevidím nabízené volné bloky
-5. User: 1.b 2.a i B 3. ano
-6. User: zkontroluj, proč se do nabídky programů nepropisuje vytvořená nabídka progamu
-7. User: 1️⃣ Úprava dokumentu: Podmínky... 2️⃣ Potvrzovací e-mail... 2.task Implement PRO plan upgrade functionality...
-8. User: P0 vyřešeno, pokračuj v P1
-9. User: Dokonči ukoli 1.-5.
-10. User: Please use ask_human tool and confirm your plan now.
+**Last 10 User Messages and any pending HUMAN messages**:
+1. User: jak v admin sekci přehledu tak i výčtu rezervací přidej náhled názvu doprovodného programu, který je rezervován. (DONE)
+2. User: 1. přidej v editaci rezervace adminovi možnost přiřadit lektora... 2. v potvrzovacíh mailech rezervací přidej do záhlaví mailu logo... (DONE)
+3. User: V nabídce přiřazení lektorů dej místo mailu jméno a příjmení lektora. (IN PROGRESS - required fetching name)
+4. User: pokracuj
+5. User: Ale přece při pozvánce do týmu, uživatel zadává i jméno, proč to není propsáno do záložky týmu (potažmo do nabídky přidělení lektora?) (IN PROGRESS - Agent added manual edit, but needs to test and fix the invite acceptance logic).
 
 **Project Health Check:**
-- Frontend: Working (but  is mid-edit)
+- Frontend: Working (Team edit UI pending validation)
 - Backend: Working
 - DB: Connected
 
-**3rd Party Integrations**
+**3rd Party Integrations**:
 - Supabase (Database) — requires User credentials
 - Resend (Emails) — requires User API Key
 
-**Testing status**
-- Testing agent used after significant changes: YES (Iterations 10, 11, 12, 13)
+**Testing status**:
+- Testing agent used after significant changes: YES (Iteration 14 for CRM)
 - Troubleshoot agent used after agent stuck in loop: NO
 - Test files created: Handled dynamically by testing subagent
 - Known regressions: None currently.
 
-**Credentials to test flow:**
+**Credentials to test flow**:
 -  / 
 
-**What agent forgot to execute**
-- The agent was in the middle of executing a  on  to finish the UI for tags and source filtering, but the context window ended before it could be completed and tested. Focus strictly on finishing this UI implementation first.</analysis>
+**What agent forgot to execute**:
+- The agent added the input field to  and the backend route , but the context ended before they could verify if submitting the form works and correctly updates the  dropdown.
+- The agent identified that  is lost when an invitation is accepted but hasn't yet fixed the logic in  to port the  into . Fix this after testing the manual edit flow.</analysis>

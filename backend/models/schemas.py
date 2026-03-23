@@ -262,7 +262,9 @@ class TeamMember(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     email: str
+    name: Optional[str] = None
     role: str
+    status: Optional[str] = None
     institution_id: str
     created_at: str
 

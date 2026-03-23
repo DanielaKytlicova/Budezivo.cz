@@ -6,7 +6,7 @@ import uuid
 import time
 
 class CulturalBookingAPITester:
-    def __init__(self, base_url="https://crm-tags-filter.preview.emergentagent.com"):
+    def __init__(self, base_url="https://budezivo-team-names.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.token = None

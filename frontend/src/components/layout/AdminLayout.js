@@ -177,25 +177,36 @@ export const AdminLayout = ({ children }) => {
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border z-50">
-        <div className="grid grid-cols-4 gap-1 p-2">
-          {navItems.slice(0, 4).map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                data-testid={`mobile-${item.testId}`}
-                className={`flex flex-col items-center py-2 px-1 rounded-md ${
-                  isActive ? 'bg-slate-800 text-white' : 'text-slate-700'
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="text-xs mt-1">{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
+        {(() => {
+          const userRole = user?.role || 'viewer';
+          const isAdmin = ['admin', 'spravce'].includes(userRole);
+          const settingsItem = navItems.find(item => item.path === '/admin/settings');
+          const mobileItems = isAdmin && settingsItem
+            ? [...navItems.slice(0, 4), settingsItem]
+            : navItems.slice(0, 4);
+          return (
+            <div className={`grid gap-1 p-2 ${mobileItems.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+              {mobileItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path || 
+                  (item.path === '/admin/settings' && location.pathname.startsWith('/admin/settings'));
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    data-testid={`mobile-${item.testId}`}
+                    className={`flex flex-col items-center py-2 px-1 rounded-md ${
+                      isActive ? 'bg-slate-800 text-white' : 'text-slate-700'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="text-xs mt-1">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })()}
       </nav>
 
       {/* Main Content */}

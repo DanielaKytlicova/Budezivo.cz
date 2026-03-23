@@ -61,8 +61,8 @@ const getDefaultFormData = () => ({
   time_blocks: ['09:00'],
   start_date: '',
   end_date: '',
-  min_days_before_booking: 14,
-  max_days_before_booking: 14,
+  min_days_before_booking: 7,
+  max_days_before_booking: 180,
   preparation_time: 10,
   cleanup_time: 30,
   age_group: 'zs1_7_12',
@@ -890,7 +890,7 @@ export const ProgramsPage = () => {
           <Input
             type="number"
             value={formData.min_days_before_booking}
-            onChange={(e) => setFormData({ ...formData, min_days_before_booking: parseInt(e.target.value) || 14 })}
+            onChange={(e) => setFormData({ ...formData, min_days_before_booking: parseInt(e.target.value) || 7 })}
             className="mt-1 bg-white"
             data-testid="program-min-days-before"
           />
@@ -901,7 +901,7 @@ export const ProgramsPage = () => {
           <Input
             type="number"
             value={formData.max_days_before_booking}
-            onChange={(e) => setFormData({ ...formData, max_days_before_booking: parseInt(e.target.value) || 14 })}
+            onChange={(e) => setFormData({ ...formData, max_days_before_booking: parseInt(e.target.value) || 180 })}
             className="mt-1 bg-white"
             data-testid="program-max-days-before"
           />

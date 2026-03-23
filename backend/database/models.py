@@ -146,8 +146,8 @@ class Program(Base):
     end_date = Column(DateTime(timezone=True))
     
     # Booking Parameters
-    min_days_before_booking = Column(Integer, default=14)
-    max_days_before_booking = Column(Integer, default=90)
+    min_days_before_booking = Column(Integer, default=7)
+    max_days_before_booking = Column(Integer, default=180)
     preparation_time = Column(Integer, default=10)
     cleanup_time = Column(Integer, default=30)
     
@@ -248,13 +248,13 @@ class School(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
     
-    # School Info
+    # School Info (unique by name + city within institution)
     name = Column(Text, nullable=False)
     address = Column(Text)
     city = Column(Text)
     ico = Column(Text)
     
-    # Contact
+    # Legacy Contact (deprecated - use school_contacts)
     contact_person = Column(Text)
     email = Column(Text)
     phone = Column(Text)
@@ -262,6 +262,10 @@ class School(Base):
     # Statistics
     booking_count = Column(Integer, default=0)
     last_booking_date = Column(DateTime(timezone=True))
+    
+    # Tags & Source
+    tags = Column(JSON, default=[])
+    source = Column(Text, default='organic')  # organic, import, reservation
     
     # Notes
     notes = Column(Text)
@@ -273,11 +277,57 @@ class School(Base):
     
     # Relationships
     institution = relationship("Institution", back_populates="schools")
+    contacts = relationship("SchoolContact", back_populates="school", cascade="all, delete-orphan")
     
     # Indexes
     __table_args__ = (
         Index('idx_schools_institution', 'institution_id'),
         Index('idx_schools_email', 'email'),
+        Index('idx_schools_name_city', 'institution_id', 'name', 'city'),
+    )
+
+
+class SchoolContact(Base):
+    """Contact person for a school (1:N relationship)."""
+    __tablename__ = 'school_contacts'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    school_id = Column(UUID(as_uuid=True), ForeignKey('schools.id', ondelete='CASCADE'), nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    
+    # Contact Info
+    email = Column(Text, nullable=False)
+    name = Column(Text)  # e.g. "Pedagog 1", "Ředitel"
+    phone = Column(Text)
+    
+    # Status
+    status = Column(Text, nullable=False, default='active')  # active, invalid, pending_verification
+    
+    # Email Validation
+    email_validated = Column(Boolean, default=False)
+    email_validation_error = Column(Text)
+    last_email_sent_at = Column(DateTime(timezone=True))
+    last_email_bounced = Column(Boolean, default=False)
+    
+    # Primary contact flag
+    is_primary = Column(Boolean, default=False)
+    
+    # Notes
+    notes = Column(Text)
+    
+    # Metadata
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    school = relationship("School", back_populates="contacts")
+    
+    # Indexes
+    __table_args__ = (
+        Index('idx_school_contacts_school', 'school_id'),
+        Index('idx_school_contacts_email', 'email'),
+        Index('idx_school_contacts_institution', 'institution_id'),
+        Index('idx_school_contacts_status', 'status'),
     )
 
 

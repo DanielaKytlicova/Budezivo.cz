@@ -13,7 +13,7 @@ import { Checkbox } from '../../components/ui/checkbox';
 import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { ProgramMailingTab } from '../../components/admin/ProgramMailingTab';
+import { ProgramMailingTab } from '../../components/admin/ProgramMailingTab.jsx';
 import { API } from '../../config/api';
 
 const DAYS = [

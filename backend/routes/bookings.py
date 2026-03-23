@@ -432,3 +432,52 @@ async def unassign_lecturer_from_booking(
     
     await booking_repo.unassign_lecturer(booking_id, current_user["institution_id"])
     return {"message": "Lecturer unassigned"}
+
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class AssignLecturerRequest(PydanticBaseModel):
+    lecturer_id: str
+
+
+@router.post("/{booking_id}/assign-lecturer-admin")
+async def admin_assign_lecturer_to_booking(
+    booking_id: str,
+    request: AssignLecturerRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Admin assigns a specific lecturer to a booking."""
+    user_repo = UserRepositorySupabase(db)
+    booking_repo = BookingRepositorySupabase(db)
+    
+    # Check current user is admin
+    admin_user = await user_repo.find_by_id(current_user["user_id"])
+    if not admin_user or admin_user.get("role") not in ["admin", "spravce"]:
+        raise HTTPException(status_code=403, detail="Pouze admin může přiřadit lektora")
+    
+    # Check booking exists
+    booking = await booking_repo.find_by_id(booking_id, current_user["institution_id"])
+    if not booking:
+        raise HTTPException(status_code=404, detail="Rezervace nenalezena")
+    
+    # Get lecturer details
+    lecturer = await user_repo.find_by_id(request.lecturer_id)
+    if not lecturer:
+        raise HTTPException(status_code=404, detail="Lektor nenalezen")
+    
+    if lecturer.get("institution_id") != current_user["institution_id"]:
+        raise HTTPException(status_code=403, detail="Lektor nepatří do vaší instituce")
+    
+    lecturer_name = lecturer.get("name") or lecturer.get("email", "Unknown")
+    
+    # Assign lecturer
+    await booking_repo.assign_lecturer(
+        booking_id,
+        current_user["institution_id"],
+        request.lecturer_id,
+        lecturer_name
+    )
+    
+    logger.info(f"Admin assigned lecturer {lecturer_name} to booking {booking_id}")
+    return {"message": "Lektor přiřazen", "lecturer_name": lecturer_name}

@@ -29,10 +29,10 @@ BASE_STYLES = {
 }
 
 
-def _base_template(content: str, footer_extra: str = "") -> str:
-    """Wrap content in base email template."""
-    # SVG logo pro emaily - inline base64
-    logo_svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 265.42 73.09" width="180" height="50">
+def _base_template(content: str, footer_extra: str = "", institution_logo_url: str = None) -> str:
+    """Wrap content in base email template. Optionally shows institution logo in header."""
+    # SVG logo pro Budezivo.cz
+    budezivo_logo = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 265.42 73.09" width="180" height="50">
         <style>.e-blue{fill:#5a7aae;}.e-gold{fill:#c5ac87;}</style>
         <path class="e-blue" d="M41.23,40.83a5.17,5.17,0,0,0-2.42-.69V39.9a5.64,5.64,0,0,0,2.1-.88,4.54,4.54,0,0,0,1.43-1.62,4.61,4.61,0,0,0,.52-2.22A5,5,0,0,0,42,32.29a5.43,5.43,0,0,0-2.48-1.94,10.42,10.42,0,0,0-4.09-.7h-9V51.48h9.73a9.64,9.64,0,0,0,4.12-.8,6,6,0,0,0,2.57-2.16,5.69,5.69,0,0,0,.88-3.14A5.26,5.26,0,0,0,43,42.64,5,5,0,0,0,41.23,40.83Zm-9.65-7h3.09a3.28,3.28,0,0,1,2.13.64,2.13,2.13,0,0,1,.79,1.75,2.28,2.28,0,0,1-.39,1.34,2.58,2.58,0,0,1-1.07.84,4,4,0,0,1-1.54.29h-3Zm5.91,12.85a4,4,0,0,1-2.57.67H31.58V42H35a4.12,4.12,0,0,1,1.76.34,2.67,2.67,0,0,1,1.14,1,2.75,2.75,0,0,1,.39,1.48A2.22,2.22,0,0,1,37.49,46.63Z"/>
         <path class="e-blue" d="M56.91,44.44a3.48,3.48,0,0,1-.35,1.64,2.5,2.5,0,0,1-1,1,2.91,2.91,0,0,1-1.47.36,2.51,2.51,0,0,1-2-.79,3.06,3.06,0,0,1-.71-2.16V35.1H46.34V45.53a7.09,7.09,0,0,0,.7,3.24,5.21,5.21,0,0,0,2,2.15,5.77,5.77,0,0,0,3,.76,4.82,4.82,0,0,0,3.43-1.19,6.67,6.67,0,0,0,1.69-2.59l.08,3.58H62V35.1H56.91Z"/>
@@ -50,6 +50,19 @@ def _base_template(content: str, footer_extra: str = "") -> str:
         <polygon class="e-gold" points="126.8 30.85 124.7 28.39 120.38 28.39 120.38 28.39 120.38 28.48 120.38 28.48 124.94 32.99 128.64 32.99 133.2 28.48 136.69 24.53 141.12 19.53 148.87 10.78 141.58 10.78 135.27 19.53 131.66 24.53 128.88 28.39 126.8 30.85"/>
     </svg>'''
     
+    # Build header with optional institution logo
+    if institution_logo_url:
+        header_content = f'''
+            <div style="text-align: center; margin-bottom: 16px;">
+                <img src="{institution_logo_url}" alt="Logo instituce" style="max-height: 60px; max-width: 200px; object-fit: contain;" />
+            </div>
+            <div style="text-align: center; opacity: 0.7;">
+                {budezivo_logo}
+            </div>
+        '''
+    else:
+        header_content = budezivo_logo
+    
     return f"""
 <!DOCTYPE html>
 <html lang="cs">
@@ -65,7 +78,7 @@ def _base_template(content: str, footer_extra: str = "") -> str:
                 <div style="{BASE_STYLES['container']}">
                     <!-- Header -->
                     <div style="{BASE_STYLES['header']}">
-                        {logo_svg}
+                        {header_content}
                     </div>
                     
                     <!-- Content -->
@@ -349,33 +362,21 @@ def _reservation_details_box(data: Dict[str, Any]) -> str:
 
 
 def _reservation_important_notice() -> str:
-    """Important notice/disclaimer for reservation emails."""
+    """Important notice/disclaimer for reservation emails - shortened version."""
     return f"""
-        <div style="margin-top: 32px; padding: 20px; background-color: #FEF3C7; border-left: 4px solid #F59E0B; border-radius: 0 8px 8px 0;">
-            <h3 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600; color: #92400E;">
-                Důležité informace
-            </h3>
-            <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.6; color: #78350F;">
-                Rezervace byla vytvořena prostřednictvím rezervačního systému Budezivo.cz, 
-                který slouží pouze jako technický nástroj pro zprostředkování rezervací mezi institucí a objednatelem.
+        <div style="margin-top: 32px; padding: 16px; background-color: #F3F4F6; border-radius: 8px; text-align: center;">
+            <p style="margin: 0; font-size: 12px; line-height: 1.5; color: #6B7280;">
+                Budezivo.cz je pouze zprostředkovatelem rezervace a nenese odpovědnost za její realizaci. 
+                <a href="https://www.budezivo.cz/terms" style="color: #3B82F6; text-decoration: underline;">Více informací</a>
             </p>
-            <p style="margin: 0 0 12px 0; font-size: 13px; line-height: 1.6; color: #78350F;">
-                Samotná realizace programu a podmínky účasti jsou plně v kompetenci dané instituce.
-            </p>
-            <p style="margin: 0; font-size: 13px; line-height: 1.6; color: #78350F;">
-                Provozovatel systému Budezivo.cz nenese odpovědnost za:
-            </p>
-            <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 13px; line-height: 1.6; color: #78350F;">
-                <li>změny nebo zrušení rezervace,</li>
-                <li>průběh programu,</li>
-                <li>ani za to, že se účastníci na rezervovaný program nedostaví.</li>
-            </ul>
         </div>
     """
 
 
 def reservation_created_teacher(data: Dict[str, Any]) -> Dict[str, str]:
     """Email sent to teacher after creating reservation."""
+    institution_logo = data.get('institution_logo_url')
+    
     content = f"""
         <h1 style="{BASE_STYLES['h1']}">Rezervace byla přijata</h1>
         
@@ -417,21 +418,17 @@ Detail rezervace:
 - Škola: {data.get('school_name', '')}
 - Počet dětí: {data.get('children_count', 0)}
 
-Vaše rezervace čeká na potvrzení. O dalším postupu vás budeme informovat.
+Vaše rezervace čeká na potvrzení.
 
 Kontakt: {data.get('institution_email', '')} / {data.get('institution_phone', '')}
 
 ---
-DŮLEŽITÉ INFORMACE
-Rezervace byla vytvořena prostřednictvím rezervačního systému Budezivo.cz, 
-který slouží pouze jako technický nástroj pro zprostředkování rezervací.
-Provozovatel systému nenese odpovědnost za změny/zrušení rezervace, 
-průběh programu, ani za to, že se účastníci na program nedostaví.
+Budezivo.cz je pouze zprostředkovatelem rezervace. Více: https://www.budezivo.cz/terms
 """
     
     return {
         "subject": f"Rezervace přijata - {data.get('program_name', '')}",
-        "html": _base_template(content),
+        "html": _base_template(content, institution_logo_url=institution_logo),
         "text": _plain_text_base(plain)
     }
 
@@ -480,6 +477,8 @@ Přejděte do administrace pro potvrzení: {data.get('dashboard_url', 'https://w
 
 def reservation_confirmed(data: Dict[str, Any]) -> Dict[str, str]:
     """Email sent to teacher when reservation is confirmed."""
+    institution_logo = data.get('institution_logo_url')
+    
     content = f"""
         <h1 style="{BASE_STYLES['h1']}">Rezervace potvrzena!</h1>
         
@@ -494,11 +493,9 @@ def reservation_confirmed(data: Dict[str, Any]) -> Dict[str, str]:
         
         {_reservation_details_box(data)}
         
-        <h2 style="{BASE_STYLES['h2']}">Důležité informace</h2>
-        <ul style="color: #475569; padding-left: 20px;">
-            <li style="margin-bottom: 8px;">Dostavte se prosím 10 minut před začátkem programu</li>
-            <li style="margin-bottom: 8px;">V případě nemoci nebo neúčasti nás kontaktujte nejpozději 2 dny předem</li>
-        </ul>
+        <p style="{BASE_STYLES['text']}">
+            Dostavte se prosím 10 minut před začátkem. V případě nemoci nás kontaktujte 2 dny předem.
+        </p>
         
         <p style="{BASE_STYLES['text']}">
             Těšíme se na vaši návštěvu!
@@ -509,6 +506,8 @@ def reservation_confirmed(data: Dict[str, Any]) -> Dict[str, str]:
             {data.get('institution_address', '')}<br>
             {data.get('institution_email', '')} | {data.get('institution_phone', '')}
         </p>
+        
+        {_reservation_important_notice()}
     """
     
     plain = f"""
@@ -523,19 +522,20 @@ Detail:
 - Datum: {data.get('reservation_date', '')}
 - Čas: {data.get('reservation_time', '')}
 
-Důležité informace:
-- Dostavte se prosím 10 minut před začátkem
-- V případě nemoci nás kontaktujte nejpozději 2 dny předem
+Dostavte se prosím 10 minut před začátkem. V případě nemoci nás kontaktujte 2 dny předem.
 
 Těšíme se na vaši návštěvu!
 
 {data.get('institution_name', '')}
 {data.get('institution_email', '')} | {data.get('institution_phone', '')}
+
+---
+Budezivo.cz je pouze zprostředkovatelem rezervace. Více: https://www.budezivo.cz/terms
 """
     
     return {
         "subject": f"✓ Rezervace potvrzena - {data.get('program_name', '')} ({data.get('reservation_date', '')})",
-        "html": _base_template(content),
+        "html": _base_template(content, institution_logo_url=institution_logo),
         "text": _plain_text_base(plain)
     }
 

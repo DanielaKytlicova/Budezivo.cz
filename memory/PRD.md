@@ -77,6 +77,17 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 - [x] **Frontend: Záložka "Kolize"** v editaci programu s toggle, checkboxy zdrojů (Lektor/Místnost), multi-select blokovaných programů, tooltipy a summary kartou
 - [x] **Edge cases:** plně paralelní program (bez omezení), oboustranná kontrola blokovaných programů
 
+### Fáze 9 - Dostupnost lektora (25. března 2026)
+- [x] **Nové DB tabulky:** `lecturer_availability` (pravidelná dostupnost) a `lecturer_time_off` (blokace/výjimky)
+- [x] **Backend API:** Kompletní CRUD pro pravidelnou dostupnost a blokace, week-view endpoint, availability check endpoint
+- [x] **Frontend stránka:** `/admin/availability` s týdenním kalendářem (Po-Ne, 7-18h)
+- [x] **Kalendářové barvy:** zelená (dostupný), červená (blokace), šedá (nedostupný)
+- [x] **Formuláře:** Přidání pravidelného času (multi-day), přidání blokace (datum, čas, důvod), editace, mazání
+- [x] **Admin selector:** Dropdown pro výběr lektora (admin/správce vidí celý tým)
+- [x] **Navigace:** Záložka "Dostupnost" v sidebaru pro role edukator, lektor, admin, spravce
+- [x] **Logika validace:** Check endpoint pro ověření dostupnosti lektora při vytváření rezervací
+- [x] **Edge cases:** Lektor bez nastavení = nedostupný, celodenní blokace, blokace mimo dostupnost
+
 ---
 
 ## Architektura
@@ -112,6 +123,8 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 │       │   ├── TeamPage.js (Name editing dialog)
 │       │   ├── SchoolsPage.js (Multi-contact CRM UI)
 │       │   ├── DashboardPage.js
+│       │   ├── LecturerAvailabilityPage.js (Weekly calendar, CRUD)
+│       │   ├── ProgramsPage.js (Collision tab)
 │       │   └── SettingsPage.js
 │       └── pages/public/
 │           ├── TermsPage.js

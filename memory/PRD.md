@@ -69,6 +69,14 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 - [x] **Fix: TeamMember schema** — chybělo `name` pole v Pydantic modelu
 - [x] **Mobilní navigace** — přidána záložka Nastavení pro adminy do spodní lišty
 
+### Fáze 8 - Kolize a paralelní běh (25. března 2026)
+- [x] **Nové sloupce v tabulce `programs`:** `allow_parallel` (BOOLEAN), `collision_resources` (JSONB), `blocked_program_ids` (JSONB)
+- [x] **Backend: Collision service** (`/app/backend/services/collision_service.py`) — parsování time bloků (HH:MM i HH:MM-HH:MM), detekce překryvů, kontrola zdrojů (lektor/místnost) a ručně blokovaných programů
+- [x] **Backend: Validace při rezervaci** — `POST /api/bookings/public/{id}` i admin `POST /api/bookings` vrací 409 při kolizi
+- [x] **Backend: Availability endpoint** — zohledňuje cross-program kolize při zobrazení dostupných slotů
+- [x] **Frontend: Záložka "Kolize"** v editaci programu s toggle, checkboxy zdrojů (Lektor/Místnost), multi-select blokovaných programů, tooltipy a summary kartou
+- [x] **Edge cases:** plně paralelní program (bez omezení), oboustranná kontrola blokovaných programů
+
 ---
 
 ## Architektura
@@ -85,12 +93,15 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 │   │   └── supabase_repositories.py
 │   ├── routes/
 │   │   ├── schools.py (Multi-contact CRM)
-│   │   ├── bookings.py (Booking + lecturer assignment)
+│   │   ├── bookings.py (Booking + lecturer assignment + collision check)
+│   │   ├── availability.py (Availability + collision awareness)
 │   │   ├── team.py (Team member mgmt + name editing)
 │   │   ├── invitations.py (Team invitations)
 │   │   ├── feedback.py
 │   │   ├── plan.py
 │   │   └── legal.py
+│   ├── services/
+│   │   └── collision_service.py (Collision detection & time block parsing)
 │   ├── models/schemas.py (Pydantic schemas)
 │   └── templates/emails/templates.py
 ├── frontend/

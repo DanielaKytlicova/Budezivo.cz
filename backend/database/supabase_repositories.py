@@ -274,6 +274,9 @@ class ProgramRepositorySupabase:
             max_days_before_booking=program_data.get('max_days_before_booking', 90),
             preparation_time=program_data.get('preparation_time', 10),
             cleanup_time=program_data.get('cleanup_time', 30),
+            allow_parallel=program_data.get('allow_parallel', False),
+            collision_resources=program_data.get('collision_resources', []),
+            blocked_program_ids=program_data.get('blocked_program_ids', []),
         )
         self.db.add(prog)
         await self.db.commit()

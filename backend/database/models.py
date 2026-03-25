@@ -151,6 +151,11 @@ class Program(Base):
     preparation_time = Column(Integer, default=10)
     cleanup_time = Column(Integer, default=30)
     
+    # Collision & Parallel Settings
+    allow_parallel = Column(Boolean, default=False)  # If True, program can run in parallel with others
+    collision_resources = Column(JSON, default=[])  # ["lecturer", "room"] - resources to check for conflicts
+    blocked_program_ids = Column(JSON, default=[])  # List of program IDs that cannot overlap with this one
+    
     # Assigned Lecturer
     assigned_lecturer_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     

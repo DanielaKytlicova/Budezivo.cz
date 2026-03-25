@@ -10,6 +10,7 @@ from typing import Optional
 
 from database.supabase import get_db
 from database.supabase_repositories import BookingRepositorySupabase, ProgramRepositorySupabase
+from services.collision_service import get_collision_info_for_availability
 
 router = APIRouter(tags=["Availability"])
 
@@ -65,6 +66,13 @@ async def get_program_availability(
     for block in time_blocks:
         if block["time"] in booked_times:
             block["status"] = "booked"
+        elif block["status"] == "available":
+            # Check cross-program collisions
+            is_blocked = await get_collision_info_for_availability(
+                db, institution_id, program_id, date, block["time"]
+            )
+            if is_blocked:
+                block["status"] = "booked"
     
     return {"date": date, "time_blocks": time_blocks}
 

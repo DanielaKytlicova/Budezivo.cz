@@ -87,6 +87,10 @@ class ProgramBase(BaseModel):
     max_days_before_booking: int = 90
     preparation_time: int = 10
     cleanup_time: int = 30
+    # Collision & Parallel Settings
+    allow_parallel: bool = False
+    collision_resources: List[str] = []
+    blocked_program_ids: List[str] = []
 
 
 class ProgramCreate(ProgramBase):

@@ -26,6 +26,7 @@ from services.email_service import (
     trigger_reservation_confirmed_email,
     trigger_reservation_cancelled_email,
 )
+from services.collision_service import check_booking_collision
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 logger = logging.getLogger(__name__)
@@ -38,6 +39,14 @@ async def create_booking(
     db: AsyncSession = Depends(get_db)
 ):
     """Create booking for authenticated user."""
+    # Check for collisions
+    collision_error = await check_booking_collision(
+        db, current_user["institution_id"], booking_data.program_id,
+        booking_data.date, booking_data.time_block
+    )
+    if collision_error:
+        raise HTTPException(status_code=409, detail=collision_error)
+    
     booking_repo = BookingRepositorySupabase(db)
     booking = await booking_repo.create(
         booking_data.model_dump(),
@@ -102,6 +111,13 @@ async def create_public_booking(
         return demo_booking
     
     # Create booking
+    # First check for collisions
+    collision_error = await check_booking_collision(
+        db, institution_id, booking_data.program_id, booking_data.date, booking_data.time_block
+    )
+    if collision_error:
+        raise HTTPException(status_code=409, detail=collision_error)
+    
     booking = await booking_repo.create(booking_data.model_dump(), institution_id)
     
     # Create or update school record

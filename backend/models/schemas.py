@@ -91,6 +91,8 @@ class ProgramBase(BaseModel):
     allow_parallel: bool = False
     collision_resources: List[str] = []
     blocked_program_ids: List[str] = []
+    # Assigned Lecturer
+    assigned_lecturer_id: Optional[str] = None
 
 
 class ProgramCreate(ProgramBase):
@@ -101,6 +103,7 @@ class Program(ProgramBase):
     model_config = ConfigDict(extra="ignore")
     id: str
     institution_id: str
+    assigned_lecturer_id: Optional[str] = None
     created_at: datetime
 
 

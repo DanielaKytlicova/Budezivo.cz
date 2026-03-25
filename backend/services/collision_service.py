@@ -189,3 +189,86 @@ async def get_collision_info_for_availability(
         db, institution_id, program_id, date, time_block
     )
     return error is not None
+
+
+
+async def check_lecturer_available_for_block(
+    db: AsyncSession,
+    lecturer_id: str,
+    institution_id: str,
+    date_str: str,
+    time_block: str,
+    program_duration: int,
+) -> bool:
+    """
+    Check if a lecturer is available for a specific time block on a date.
+    Returns True if available, False if not.
+    Uses lecturer_availability (recurring) and lecturer_time_off (blockages).
+    """
+    from database.models import LecturerAvailability, LecturerTimeOff
+    from datetime import date as date_type
+
+    lect_uuid = uuid.UUID(lecturer_id)
+    inst_uuid = uuid.UUID(institution_id)
+
+    d = date_type.fromisoformat(date_str)
+    day_of_week = d.weekday()  # 0=Monday
+
+    # Parse the time block to get start/end minutes
+    block_start, block_end = parse_time_block(time_block)
+    if block_start is None:
+        return True  # Can't parse, allow it
+
+    if block_end is None:
+        block_end = block_start + program_duration
+
+    def time_str_to_min(t):
+        h, m = map(int, t.split(':'))
+        return h * 60 + m
+
+    # 1. Check recurring availability — must fit inside at least one block
+    result = await db.execute(
+        select(LecturerAvailability).where(and_(
+            LecturerAvailability.lecturer_id == lect_uuid,
+            LecturerAvailability.institution_id == inst_uuid,
+            LecturerAvailability.day_of_week == day_of_week
+        ))
+    )
+    avail_blocks = result.scalars().all()
+
+    if not avail_blocks:
+        return False  # No availability set = not available
+
+    in_availability = False
+    for ab in avail_blocks:
+        ab_start = time_str_to_min(ab.start_time)
+        ab_end = time_str_to_min(ab.end_time)
+        if block_start >= ab_start and block_end <= ab_end:
+            in_availability = True
+            break
+
+    if not in_availability:
+        return False
+
+    # 2. Check time-off / blockages
+    result = await db.execute(
+        select(LecturerTimeOff).where(and_(
+            LecturerTimeOff.lecturer_id == lect_uuid,
+            LecturerTimeOff.institution_id == inst_uuid,
+            LecturerTimeOff.start_date <= date_str,
+            LecturerTimeOff.end_date >= date_str
+        ))
+    )
+    blockages = result.scalars().all()
+
+    for b in blockages:
+        if b.start_time is None or b.end_time is None:
+            return False  # All-day blockage
+
+        b_start = time_str_to_min(b.start_time)
+        b_end = time_str_to_min(b.end_time)
+        # Overlap check
+        if block_start < b_end and block_end > b_start:
+            return False
+
+    return True

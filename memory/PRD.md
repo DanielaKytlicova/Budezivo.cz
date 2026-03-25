@@ -88,6 +88,9 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 - [x] **Logika validace:** Check endpoint pro ověření dostupnosti lektora při vytváření rezervací
 - [x] **Edge cases:** Lektor bez nastavení = nedostupný, celodenní blokace, blokace mimo dostupnost
 
+- [x] **Frontend: BookingPage** — veřejný booking formulář zobrazuje "Lektor nedostupný" pro bloky kde lektor není k dispozici, "Volný" pro dostupné, "Obsazeno" pro zarezervované
+- [x] **Klíčový princip:** Zobrazují se POUZE bloky definované v programu (time_blocks), žádné nové se nevytvářejí
+
 ---
 
 ## Architektura

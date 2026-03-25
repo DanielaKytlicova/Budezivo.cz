@@ -277,6 +277,7 @@ class ProgramRepositorySupabase:
             allow_parallel=program_data.get('allow_parallel', False),
             collision_resources=program_data.get('collision_resources', []),
             blocked_program_ids=program_data.get('blocked_program_ids', []),
+            assigned_lecturer_id=uuid.UUID(program_data['assigned_lecturer_id']) if program_data.get('assigned_lecturer_id') else None,
         )
         self.db.add(prog)
         await self.db.commit()
@@ -303,6 +304,16 @@ class ProgramRepositorySupabase:
                     processed_data['end_date'] = None
             else:
                 processed_data['end_date'] = None
+        
+        # Convert assigned_lecturer_id to UUID
+        if 'assigned_lecturer_id' in processed_data:
+            if processed_data['assigned_lecturer_id']:
+                try:
+                    processed_data['assigned_lecturer_id'] = uuid.UUID(processed_data['assigned_lecturer_id'])
+                except (ValueError, TypeError):
+                    processed_data['assigned_lecturer_id'] = None
+            else:
+                processed_data['assigned_lecturer_id'] = None
         
         result = await self.db.execute(
             update(Program)

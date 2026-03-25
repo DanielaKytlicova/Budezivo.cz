@@ -29,6 +29,7 @@ import { SettingsPage } from './pages/admin/SettingsPage';
 import { PlanPage } from './pages/admin/PlanPage';
 import { TeamPage } from './pages/admin/TeamPage';
 import FeedbackAdminPage from './pages/admin/FeedbackAdminPage';
+import { LecturerAvailabilityPage } from './pages/admin/LecturerAvailabilityPage';
 
 import './App.css';
 
@@ -135,6 +136,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <FeedbackAdminPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/availability"
+                element={
+                  <ProtectedRoute>
+                    <LecturerAvailabilityPage />
                   </ProtectedRoute>
                 }
               />

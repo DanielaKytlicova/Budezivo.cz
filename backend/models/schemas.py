@@ -329,3 +329,50 @@ class ContactFormData(BaseModel):
 class PropagationRequest(BaseModel):
     school_ids: List[str]
     program_id: str
+
+
+
+# ============ Lecturer Availability Models ============
+
+class LecturerAvailabilityCreate(BaseModel):
+    days_of_week: List[int]  # 0=Monday, 6=Sunday, allows multi-select
+    start_time: str  # "08:00"
+    end_time: str    # "12:00"
+
+class LecturerAvailabilityUpdate(BaseModel):
+    day_of_week: int
+    start_time: str
+    end_time: str
+
+class LecturerAvailabilityResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    lecturer_id: str
+    day_of_week: int
+    start_time: str
+    end_time: str
+    is_recurring: bool = True
+
+class LecturerTimeOffCreate(BaseModel):
+    start_date: str  # "2026-03-25"
+    end_date: str    # "2026-03-25"
+    start_time: Optional[str] = None  # "08:00" (null = all day)
+    end_time: Optional[str] = None    # "16:00"
+    reason: Optional[str] = None
+
+class LecturerTimeOffUpdate(BaseModel):
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    reason: Optional[str] = None
+
+class LecturerTimeOffResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    lecturer_id: str
+    start_date: str
+    end_date: str
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    reason: Optional[str] = None

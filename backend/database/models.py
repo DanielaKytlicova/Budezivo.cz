@@ -590,3 +590,44 @@ class TeamInvitation(Base):
         Index('idx_team_invitations_token', 'token'),
         Index('idx_team_invitations_institution', 'institution_id'),
     )
+
+
+class LecturerAvailability(Base):
+    """Recurring weekly availability for lecturers."""
+    __tablename__ = 'lecturer_availability'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lecturer_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    day_of_week = Column(Integer, nullable=False)  # 0=Monday, 6=Sunday
+    start_time = Column(Text, nullable=False)  # "08:00"
+    end_time = Column(Text, nullable=False)    # "12:00"
+    is_recurring = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    __table_args__ = (
+        Index('idx_lecturer_avail_lecturer', 'lecturer_id'),
+        Index('idx_lecturer_avail_institution', 'institution_id'),
+    )
+
+
+class LecturerTimeOff(Base):
+    """Specific time-off / blockages for lecturers."""
+    __tablename__ = 'lecturer_time_off'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lecturer_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    start_date = Column(Text, nullable=False)      # "2026-03-25"
+    end_date = Column(Text, nullable=False)         # "2026-03-25" (same for single day)
+    start_time = Column(Text)                        # "08:00" (null = all day)
+    end_time = Column(Text)                          # "16:00" (null = all day)
+    reason = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    __table_args__ = (
+        Index('idx_lecturer_timeoff_lecturer', 'lecturer_id'),
+        Index('idx_lecturer_timeoff_institution', 'institution_id'),
+    )

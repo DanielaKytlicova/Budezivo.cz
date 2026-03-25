@@ -33,6 +33,7 @@ from routes.feedback import router as feedback_router
 from routes.invitations import router as invitations_router
 from routes.legal import router as legal_router
 from routes.plan import router as plan_router
+from routes.lecturer_availability import router as lecturer_availability_router
 from models.schemas import ContactFormData, InstitutionSettings
 
 # Configure logging
@@ -71,6 +72,7 @@ api_router.include_router(feedback_router)
 api_router.include_router(invitations_router)
 api_router.include_router(legal_router)
 api_router.include_router(plan_router)
+api_router.include_router(lecturer_availability_router)
 
 
 # ============ Additional Routes ============

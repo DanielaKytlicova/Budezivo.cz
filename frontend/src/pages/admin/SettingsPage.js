@@ -25,7 +25,8 @@ import {
   Crown,
   Loader2,
   CheckCircle,
-  Lock
+  Lock,
+  FileText
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { API } from '../../config/api';
@@ -69,6 +70,12 @@ const SETTINGS_MENU = [
     icon: Shield,
     title: 'GDPR a správa dat',
     description: 'Export dat, anonymizace, nastavení soukromí',
+  },
+  {
+    id: 'vop',
+    icon: FileText,
+    title: 'Obchodní podmínky (VOP)',
+    description: 'Všeobecné obchodní podmínky platformy',
   },
 ];
 
@@ -162,6 +169,9 @@ export const SettingsPage = () => {
   const [anonymizeDialog, setAnonymizeDialog] = useState(false);
   const [anonymizeConfirm, setAnonymizeConfirm] = useState('');
   const [anonymizeLoading, setAnonymizeLoading] = useState(false);
+  // VOP state
+  const [vopData, setVopData] = useState(null);
+  const [vopLoading, setVopLoading] = useState(false);
 
   // PRO settings
   const [proSettings, setProSettings] = useState({
@@ -188,6 +198,19 @@ export const SettingsPage = () => {
     } else if (activeSection === 'pro') {
       fetchProSettings();
       fetchPlanStatus();
+    } else if (activeSection === 'vop' && !vopData) {
+      const fetchVop = async () => {
+        setVopLoading(true);
+        try {
+          const response = await axios.get(`${API}/legal/vop`);
+          setVopData(response.data);
+        } catch (error) {
+          toast.error('Nepodařilo se načíst obchodní podmínky');
+        } finally {
+          setVopLoading(false);
+        }
+      };
+      fetchVop();
     }
   }, [activeSection]);
 
@@ -1283,6 +1306,49 @@ export const SettingsPage = () => {
   );
 
   // Render based on active section
+  // Render VOP (Obchodní podmínky)
+  const renderVopSection = () => {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4 mb-6">
+          <button onClick={() => setActiveSection(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-xl font-semibold text-slate-900">Obchodní podmínky (VOP)</h1>
+        </div>
+
+        {vopLoading ? (
+          <div className="text-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto text-slate-400" />
+          </div>
+        ) : vopData ? (
+          <Card className="p-6 space-y-6" data-testid="vop-admin-section">
+            <h2 className="text-lg font-bold text-slate-900">{vopData.title}</h2>
+            <p className="text-xs text-gray-400">Verze: {vopData.version}</p>
+            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2">
+              {vopData.sections?.map((section) => (
+                <div key={section.number} className="space-y-2">
+                  <h3 className="text-sm font-semibold text-slate-800">
+                    {section.number}. {section.title}
+                  </h3>
+                  {section.content.map((paragraph, idx) => (
+                    <p key={idx} className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">
+                      {paragraph}
+                    </p>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </Card>
+        ) : (
+          <Card className="p-6 text-center text-gray-500">
+            Obchodní podmínky nebyly nalezeny.
+          </Card>
+        )}
+      </div>
+    );
+  };
+
   const renderContent = () => {
     switch (activeSection) {
       case 'institution':
@@ -1295,6 +1361,8 @@ export const SettingsPage = () => {
         return renderProSettings();
       case 'gdpr':
         return renderGdprSettings();
+      case 'vop':
+        return renderVopSection();
       case 'delete-account':
         return renderDeleteAccountSection();
       default:

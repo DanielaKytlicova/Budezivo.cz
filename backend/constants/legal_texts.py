@@ -184,3 +184,156 @@ def get_email_disclaimer(version: str = None) -> str:
     """Get email disclaimer text for specified version."""
     ver = version or CURRENT_TERMS_VERSION
     return RESERVATION_EMAIL_DISCLAIMER.get(ver, RESERVATION_EMAIL_DISCLAIMER["v1"])
+
+
+
+# ============ Všeobecné obchodní podmínky (VOP) ============
+
+CURRENT_VOP_VERSION = "v1"
+
+VOP_SECTIONS = {
+    "v1": [
+        {
+            "number": 1,
+            "title": "Úvodní ustanovení",
+            "content": [
+                "1.1 Tyto obchodní podmínky upravují vztah mezi:\n- Provozovatelem: [doplnit]\n- Institucí: uživatelem platformy",
+                "1.2 Registrací vzniká smluvní vztah dle § 1724 a násl. zákona č. 89/2012 Sb."
+            ]
+        },
+        {
+            "number": 2,
+            "title": "Předmět služby (SaaS)",
+            "content": [
+                "2.1 Platforma Budeživo.cz je online rezervační systém poskytovaný jako SaaS.",
+                "2.2 Provozovatel poskytuje:\n- správu rezervací\n- správu klientů\n- komunikační nástroje\n- přístup do administrace",
+                "2.3 Instituce získává nevýhradní licenci k užívání."
+            ]
+        },
+        {
+            "number": 3,
+            "title": "Uživatelský účet",
+            "content": [
+                "3.1 Instituce odpovídá za správnost údajů.",
+                "3.2 Instituce odpovídá za zabezpečení přístupů.",
+                "3.3 Provozovatel může účet omezit při porušení podmínek."
+            ]
+        },
+        {
+            "number": 4,
+            "title": "Role platformy (zásadní ustanovení)",
+            "content": [
+                "4.1 Platforma je pouze zprostředkovatel (technický nástroj).",
+                "4.2 Provozovatel:\n- nevstupuje do smluv mezi Institucí a zákazníkem\n- nenese odpovědnost za realizaci služeb",
+                "4.3 Provozovatel nenese odpovědnost za:\n- neuskutečněné rezervace\n- storna\n- kvalitu služeb\n- škody mezi stranami"
+            ]
+        },
+        {
+            "number": 5,
+            "title": "Povinnosti Instituce",
+            "content": [
+                "Instituce se zavazuje:\n- poskytovat pravdivé informace\n- realizovat potvrzené rezervace\n- dodržovat právní předpisy",
+                "Zakazuje se:\n- zneužití systému\n- obcházení platformy\n- porušování práv třetích stran"
+            ]
+        },
+        {
+            "number": 6,
+            "title": "Povinnosti Provozovatele",
+            "content": [
+                "Provozovatel:\n- zajišťuje provoz systému\n- může provádět údržbu\n- může upravovat funkce",
+                "Nezaručuje:\n- nepřetržitý provoz\n- bezchybnost"
+            ]
+        },
+        {
+            "number": 7,
+            "title": "Platební podmínky",
+            "content": [
+                "7.1 Platforma nabízí bezplatné i placené tarify.",
+                "7.2 Placené funkce jsou aktivovány:\n- na základě zálohové faktury\n- po připsání platby",
+                "7.3 Aktivace probíhá automaticky.",
+                "7.4 Provozovatel není plátcem DPH.",
+                "7.5 Ceny uvedené na webu jsou konečné.",
+                "7.6 Platby jsou nevratné, pokud není uvedeno jinak.",
+                "7.7 Při prodlení:\n- může být služba omezena"
+            ]
+        },
+        {
+            "number": 8,
+            "title": "SLA (dostupnost služby)",
+            "content": [
+                "8.1 Provozovatel se zavazuje k maximální možné dostupnosti.",
+                "8.2 Plánované odstávky mohou probíhat:\n- mimo špičku\n- s oznámením předem",
+                "8.3 Provozovatel nenese odpovědnost za výpadky způsobené:\n- třetími stranami\n- vyšší mocí"
+            ]
+        },
+        {
+            "number": 9,
+            "title": "Reklamace služby",
+            "content": [
+                "9.1 Instituce může reklamovat funkčnost systému.",
+                "9.2 Reklamace musí být podána:\n- e-mailem\n- bez zbytečného odkladu",
+                "9.3 Provozovatel:\n- posoudí reklamaci\n- navrhne řešení"
+            ]
+        },
+        {
+            "number": 10,
+            "title": "Ochrana osobních údajů (GDPR + DPA logika)",
+            "content": [
+                "10.1 Provozovatel zpracovává osobní údaje dle GDPR.",
+                "10.2 Role:\n- Instituce = správce dat\n- Provozovatel = zpracovatel",
+                "10.3 Provozovatel zpracovává data pouze:\n- dle pokynů Instituce\n- za účelem provozu služby",
+                "10.4 Zabezpečení:\n- technická a organizační opatření\n- ochrana proti zneužití",
+                "10.5 Subdodavatelé (např. hosting) mohou být zapojeni."
+            ]
+        },
+        {
+            "number": 11,
+            "title": "Cookies a technická data",
+            "content": [
+                "11.1 Platforma používá cookies pro:\n- funkčnost\n- analytiku",
+                "11.2 Používáním služby uživatel souhlasí s jejich použitím."
+            ]
+        },
+        {
+            "number": 12,
+            "title": "Odpovědnost",
+            "content": [
+                "12.1 Provozovatel odpovídá pouze za škody způsobené úmyslně nebo hrubou nedbalostí.",
+                "12.2 Neodpovídá za:\n- ušlý zisk\n- nepřímé škody\n- ztrátu dat způsobenou uživatelem",
+                "12.3 Maximální odpovědnost je omezena výší plateb za posledních 12 měsíců."
+            ]
+        },
+        {
+            "number": 13,
+            "title": "Doba trvání a ukončení",
+            "content": [
+                "13.1 Smlouva vzniká registrací.",
+                "13.2 Ukončení:\n- kdykoliv uživatelem\n- při porušení podmínek",
+                "13.3 Data mohou být po ukončení smazána."
+            ]
+        },
+        {
+            "number": 14,
+            "title": "Změny podmínek",
+            "content": [
+                "14.1 Provozovatel může podmínky měnit.",
+                "14.2 Změny budou oznámeny:\n- e-mailem\n- v systému"
+            ]
+        },
+        {
+            "number": 15,
+            "title": "Závěrečná ustanovení",
+            "content": [
+                "15.1 Neplatnost části neovlivňuje celek.",
+                "15.2 Řídí se právem ČR.",
+                "15.3 Spory řeší soudy ČR."
+            ]
+        }
+    ]
+}
+
+
+def get_vop_sections(version: str = None) -> list:
+    """Get VOP sections for specified version."""
+    ver = version or CURRENT_VOP_VERSION
+    return VOP_SECTIONS.get(ver, VOP_SECTIONS["v1"])

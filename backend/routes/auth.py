@@ -67,6 +67,7 @@ async def register(
         "role": "admin",
         "name": user_data.name,
         "gdpr_consent": user_data.gdpr_consent,
+        "terms_accepted": user_data.terms_accepted,
     })
     
     # Create default theme settings

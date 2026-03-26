@@ -430,6 +430,72 @@ Tým {institution_name}
         return False
 
 
+RETENTION_DAYS = {
+    "1year": 365,
+    "2years": 730,
+    "3years": 1095,
+    "5years": 1825,
+}
+
+
+async def process_gdpr_auto_cleanup():
+    """
+    GDPR auto-cleanup job: Anonymize PII in old reservations
+    based on each institution's data_retention setting.
+    Runs daily. Skips institutions with retention='never'.
+    """
+    logger.info("Running GDPR auto-cleanup job...")
+
+    async with AsyncSessionLocal() as db:
+        try:
+            today = datetime.now(timezone.utc)
+
+            # Get all institutions with gdpr_settings
+            result = await db.execute(select(Institution))
+            institutions = result.scalars().all()
+
+            total_anonymized = 0
+            for inst in institutions:
+                gdpr = inst.gdpr_settings or {}
+                retention = gdpr.get("data_retention", "never")
+                should_anonymize = gdpr.get("anonymize", False)
+
+                if retention == "never" or not should_anonymize:
+                    continue
+
+                max_days = RETENTION_DAYS.get(retention)
+                if not max_days:
+                    continue
+
+                cutoff_date = (today - timedelta(days=max_days)).strftime("%Y-%m-%d")
+
+                # Anonymize old reservations for this institution
+                result = await db.execute(
+                    select(Reservation).where(
+                        and_(
+                            Reservation.institution_id == inst.id,
+                            Reservation.date < cutoff_date,
+                            Reservation.contact_email != "anonymized@deleted.local",
+                        )
+                    )
+                )
+                old_reservations = result.scalars().all()
+
+                for res in old_reservations:
+                    res.contact_name = "Anonymizováno"
+                    res.contact_email = "anonymized@deleted.local"
+                    res.contact_phone = None
+                    res.notes = None
+                    total_anonymized += 1
+
+            await db.commit()
+            logger.info(f"GDPR auto-cleanup completed. Anonymized {total_anonymized} reservations.")
+
+        except Exception as e:
+            logger.error(f"GDPR auto-cleanup job failed: {e}")
+            await db.rollback()
+
+
 def start_scheduler():
     """Start the APScheduler with feedback job."""
     if scheduler.running:
@@ -455,8 +521,17 @@ def start_scheduler():
         misfire_grace_time=3600
     )
     
+    # GDPR auto-cleanup: run daily at 3:00 AM UTC
+    scheduler.add_job(
+        process_gdpr_auto_cleanup,
+        CronTrigger(hour=3, minute=0),
+        id='gdpr_auto_cleanup',
+        replace_existing=True,
+        misfire_grace_time=3600
+    )
+    
     scheduler.start()
-    logger.info("Feedback scheduler started - runs daily at 8:00 AM CET, reminders at 9:00 AM CET")
+    logger.info("Feedback scheduler started - runs daily at 8:00 AM CET, reminders at 9:00 AM CET, GDPR cleanup at 4:00 AM CET")
 
 
 def stop_scheduler():

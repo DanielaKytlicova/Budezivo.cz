@@ -60,6 +60,7 @@ export const RegisterPage = () => {
     email: '',
     password: '',
     gdpr_consent: false,
+    terms_accepted: false,
     // Step 2 - Institution Info
     address: '',
     city: '',
@@ -163,6 +164,10 @@ export const RegisterPage = () => {
         }
         if (!formData.gdpr_consent) {
           toast.error('Pro pokračování musíte souhlasit se zpracováním osobních údajů');
+          return false;
+        }
+        if (!formData.terms_accepted) {
+          toast.error('Pro pokračování musíte souhlasit s obchodními podmínkami');
           return false;
         }
         return true;
@@ -321,6 +326,23 @@ export const RegisterPage = () => {
           <Link to="/gdpr" className="underline hover:text-slate-800">
             Souhlasím se zpracováním osobních údajů
           </Link>
+        </label>
+      </div>
+
+      <div className="flex items-start space-x-2">
+        <Checkbox
+          id="terms_accepted"
+          data-testid="register-terms-accepted"
+          checked={formData.terms_accepted}
+          onCheckedChange={(checked) => updateField('terms_accepted', checked)}
+          className="mt-0.5"
+        />
+        <label htmlFor="terms_accepted" className="text-sm text-gray-600 cursor-pointer">
+          Souhlasím s{' '}
+          <Link to="/obchodni-podminky" target="_blank" className="underline font-medium text-slate-800 hover:text-slate-600">
+            obchodními podmínkami
+          </Link>
+          {' '}níže
         </label>
       </div>
 

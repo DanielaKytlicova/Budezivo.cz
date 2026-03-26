@@ -37,6 +37,7 @@ class UserCreate(UserBase):
     default_target_group: Optional[str] = "schools"
     # GDPR
     gdpr_consent: bool = True
+    terms_accepted: bool = False
 
 
 class UserLogin(BaseModel):

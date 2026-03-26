@@ -53,6 +53,7 @@ export const RegisterPage = () => {
   
   const [formData, setFormData] = useState({
     // Step 1 - Account
+    name: '',
     institution_name: '',
     institution_type: '',
     country: 'Česká republika',
@@ -156,7 +157,7 @@ export const RegisterPage = () => {
   const validateStep = (step) => {
     switch (step) {
       case 0:
-        if (!formData.institution_name || !formData.institution_type || !formData.email || !formData.password) {
+        if (!formData.name || !formData.institution_name || !formData.institution_type || !formData.email || !formData.password) {
           toast.error('Vyplňte prosím všechna povinná pole');
           return false;
         }
@@ -217,6 +218,19 @@ export const RegisterPage = () => {
       {/* Budeživo logo */}
       <div className="flex justify-center mb-6">
         <BudezivoLogo />
+      </div>
+
+      <div>
+        <Label htmlFor="name">Jméno a příjmení</Label>
+        <Input
+          id="name"
+          data-testid="register-name"
+          value={formData.name}
+          onChange={(e) => updateField('name', e.target.value)}
+          placeholder="Jan Novák"
+          required
+          className="mt-2"
+        />
       </div>
 
       <div>

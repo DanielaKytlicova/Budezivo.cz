@@ -141,7 +141,7 @@ export const AdminLayout = ({ children }) => {
           <div className="p-4 border-t border-border">
             <div className="px-4 py-3 bg-muted rounded-md mb-3">
               <p className="text-sm font-medium text-foreground">{user?.institution_name}</p>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
+              <p className="text-xs text-muted-foreground">{user?.name || user?.email}</p>
               <span className={`inline-block mt-2 px-2 py-0.5 text-xs rounded-full ${getRoleBadgeColor(user?.role)}`}>
                 {getRoleLabel(user?.role)}
               </span>

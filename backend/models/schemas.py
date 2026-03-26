@@ -17,6 +17,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    name: Optional[str] = None  # Personal name (first + last)
     # Step 2 - Additional institution info
     address: Optional[str] = None
     city: Optional[str] = None

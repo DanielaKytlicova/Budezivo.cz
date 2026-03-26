@@ -320,7 +320,6 @@ export const TeamPage = () => {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500">{member.email}</p>
                         <div className="flex items-center gap-2 mt-1">
                           <span className={`px-2 py-0.5 text-xs rounded-full ${roleInfo.color}`}>
                             {roleInfo.label}

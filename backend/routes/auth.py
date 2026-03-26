@@ -65,6 +65,7 @@ async def register(
         "password_hash": hash_password(user_data.password),
         "institution_id": institution["id"],
         "role": "admin",
+        "name": user_data.name,
         "gdpr_consent": user_data.gdpr_consent,
     })
     
@@ -84,7 +85,7 @@ async def register(
             # Send welcome email to the new user
             await trigger_user_registration_email(
                 user_email=user_data.email,
-                user_name=user_data.email.split('@')[0],  # Use email prefix as name
+                user_name=user_data.name or user_data.email.split('@')[0],
                 institution_name=user_data.institution_name,
             )
             logger.info(f"Registration confirmation email sent to {user_data.email}")
@@ -117,6 +118,7 @@ async def register(
         "user": {
             "id": user["id"],
             "email": user_data.email,
+            "name": user_data.name,
             "institution_id": institution["id"],
             "institution_name": user_data.institution_name,
             "role": "admin"
@@ -151,6 +153,7 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
         "user": {
             "id": user["id"],
             "email": user["email"],
+            "name": user.get("name"),
             "institution_id": user["institution_id"],
             "institution_name": institution["name"] if institution else "",
             "role": user["role"]

@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../i18n/useTranslation';
 import { AuthContext } from '../../context/AuthContext';
-import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, Clock } from 'lucide-react';
 
 // Logo Budeživo.cz - oficiální SVG
 const BudezivoLogo = ({ showText = true }) => (
@@ -61,6 +61,7 @@ export const AdminLayout = ({ children }) => {
       { path: '/admin/bookings', icon: BookOpen, label: 'Rezervace', testId: 'nav-bookings', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'staff', 'viewer'] },
       { path: '/admin/schools', icon: School, label: 'Školy', testId: 'nav-schools', roles: ['admin', 'spravce', 'edukator', 'staff'] },
       { path: '/admin/feedback', icon: MessageSquare, label: 'Zpětná vazba', testId: 'nav-feedback', roles: ['admin', 'spravce', 'edukator', 'staff'] },
+      { path: '/admin/availability', icon: Clock, label: 'Dostupnost', testId: 'nav-availability', roles: ['admin', 'spravce', 'edukator', 'lektor'] },
       { path: '/admin/statistics', icon: BarChart3, label: 'Statistiky', testId: 'nav-statistics', roles: ['admin', 'spravce', 'edukator', 'staff'] },
       { path: '/admin/team', icon: Users, label: 'Tým', testId: 'nav-team', roles: ['admin', 'spravce'] },
       { path: '/admin/settings', icon: Settings, label: 'Nastavení', testId: 'nav-settings', roles: ['admin', 'spravce'] },
@@ -177,25 +178,36 @@ export const AdminLayout = ({ children }) => {
 
       {/* Mobile Bottom Navigation */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border z-50">
-        <div className="grid grid-cols-4 gap-1 p-2">
-          {navItems.slice(0, 4).map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                data-testid={`mobile-${item.testId}`}
-                className={`flex flex-col items-center py-2 px-1 rounded-md ${
-                  isActive ? 'bg-slate-800 text-white' : 'text-slate-700'
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="text-xs mt-1">{item.label}</span>
-              </Link>
-            );
-          })}
-        </div>
+        {(() => {
+          const userRole = user?.role || 'viewer';
+          const isAdmin = ['admin', 'spravce'].includes(userRole);
+          const settingsItem = navItems.find(item => item.path === '/admin/settings');
+          const mobileItems = isAdmin && settingsItem
+            ? [...navItems.slice(0, 4), settingsItem]
+            : navItems.slice(0, 4);
+          return (
+            <div className={`grid gap-1 p-2 ${mobileItems.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+              {mobileItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path || 
+                  (item.path === '/admin/settings' && location.pathname.startsWith('/admin/settings'));
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    data-testid={`mobile-${item.testId}`}
+                    className={`flex flex-col items-center py-2 px-1 rounded-md ${
+                      isActive ? 'bg-slate-800 text-white' : 'text-slate-700'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span className="text-xs mt-1">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })()}
       </nav>
 
       {/* Main Content */}

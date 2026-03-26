@@ -100,6 +100,19 @@ class UserRepositorySupabase:
         await self.db.commit()
         return result.rowcount
     
+    async def update_name(self, user_id: str, institution_id: str, name: str) -> int:
+        """Update user name."""
+        result = await self.db.execute(
+            update(User)
+            .where(and_(
+                User.id == uuid.UUID(user_id),
+                User.institution_id == uuid.UUID(institution_id)
+            ))
+            .values(name=name)
+        )
+        await self.db.commit()
+        return result.rowcount
+    
     async def update(self, user_id: str, update_data: dict) -> int:
         """Update user by ID."""
         result = await self.db.execute(
@@ -261,6 +274,10 @@ class ProgramRepositorySupabase:
             max_days_before_booking=program_data.get('max_days_before_booking', 90),
             preparation_time=program_data.get('preparation_time', 10),
             cleanup_time=program_data.get('cleanup_time', 30),
+            allow_parallel=program_data.get('allow_parallel', False),
+            collision_resources=program_data.get('collision_resources', []),
+            blocked_program_ids=program_data.get('blocked_program_ids', []),
+            assigned_lecturer_id=uuid.UUID(program_data['assigned_lecturer_id']) if program_data.get('assigned_lecturer_id') else None,
         )
         self.db.add(prog)
         await self.db.commit()
@@ -287,6 +304,16 @@ class ProgramRepositorySupabase:
                     processed_data['end_date'] = None
             else:
                 processed_data['end_date'] = None
+        
+        # Convert assigned_lecturer_id to UUID
+        if 'assigned_lecturer_id' in processed_data:
+            if processed_data['assigned_lecturer_id']:
+                try:
+                    processed_data['assigned_lecturer_id'] = uuid.UUID(processed_data['assigned_lecturer_id'])
+                except (ValueError, TypeError):
+                    processed_data['assigned_lecturer_id'] = None
+            else:
+                processed_data['assigned_lecturer_id'] = None
         
         result = await self.db.execute(
             update(Program)

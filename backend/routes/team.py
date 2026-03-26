@@ -128,3 +128,39 @@ async def remove_team_member(
         raise HTTPException(status_code=404, detail="Team member not found")
     
     return {"message": "Team member removed"}
+
+
+from pydantic import BaseModel
+
+class NameUpdate(BaseModel):
+    name: str
+
+
+@router.patch("/{member_id}/name")
+async def update_member_name(
+    member_id: str,
+    name_data: NameUpdate,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a team member's name (admin or self)."""
+    user_repo = UserRepositorySupabase(db)
+    
+    # Check if current user is admin or updating self
+    user = await user_repo.find_by_id(current_user["user_id"])
+    is_admin = user.get("role") in ["admin", "spravce"]
+    is_self = member_id == current_user["user_id"]
+    
+    if not is_admin and not is_self:
+        raise HTTPException(status_code=403, detail="Nemáte oprávnění měnit jméno tohoto uživatele")
+    
+    result = await user_repo.update_name(
+        member_id,
+        current_user["institution_id"],
+        name_data.name
+    )
+    
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Člen týmu nenalezen")
+    
+    return {"message": "Jméno aktualizováno"}

@@ -147,8 +147,15 @@ export const TeamPage = () => {
   const handleUpdateMember = async (e) => {
     e.preventDefault();
     try {
-      await axios.patch(`${API}/team/${editingMember.id}/role`, { role: editForm.role });
-      toast.success('Role byla aktualizována');
+      // Update name if changed
+      if (editForm.name && editForm.name !== editingMember.name) {
+        await axios.patch(`${API}/team/${editingMember.id}/name`, { name: editForm.name });
+      }
+      // Update role if changed
+      if (editForm.role !== editingMember.role) {
+        await axios.patch(`${API}/team/${editingMember.id}/role`, { role: editForm.role });
+      }
+      toast.success('Údaje byly aktualizovány');
       setShowEditDialog(false);
       setEditingMember(null);
       fetchTeamMembers();
@@ -483,8 +490,18 @@ export const TeamPage = () => {
           {editingMember && (
             <form onSubmit={handleUpdateMember} className="space-y-6" data-testid="edit-form">
               <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="font-medium text-slate-900">{editingMember.name || editingMember.email?.split('@')[0]}</p>
                 <p className="text-sm text-gray-500">{editingMember.email}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Jméno a příjmení</Label>
+                <Input
+                  id="edit-name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  placeholder="Jan Novák"
+                  data-testid="edit-name-input"
+                />
               </div>
 
               <div className="space-y-3">

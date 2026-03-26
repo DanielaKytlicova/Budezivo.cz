@@ -1,0 +1,140 @@
+{
+  "summary": "Completed comprehensive testing of Lecturer Availability feature (Dostupnost lektora). All 25 backend API tests pass (100%). Frontend UI fully functional with weekly calendar, recurring availability CRUD, time-off CRUD, lecturer selector, and week navigation.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_lecturer_availability.py",
+    "/app/test_reports/pytest/pytest_lecturer_availability.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Backend routes properly implement all CRUD operations for recurring availability and time-off",
+    "Week-view endpoint correctly returns combined recurring + time-off data for calendar display",
+    "Availability check endpoint properly validates: 1) recurring availability exists, 2) no overlapping blockages",
+    "Frontend calendar correctly shows green (available), red (blocked), gray (unavailable) cells",
+    "Lecturer selector properly filters team members by eligible roles ['edukator', 'lektor', 'admin', 'spravce']",
+    "All UI text in Czech as required (Dostupnost lektora, Pravidelná dostupnost, Blokace/výjimky, etc.)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_lecturer_availability.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_user": "demo@budezivo.cz",
+    "admin_password": "Demo2026!"
+  },
+  "seed_data_creation": "None - used existing test data (5 recurring blocks Mon-Fri 08:00-12:00, 1 time-off 2026-03-27 09:00-11:00)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Lecturer Availability feature fully tested. Backend: 25 tests covering recurring CRUD, time-off CRUD, week-view, availability check, lecturer selector, and error handling. Frontend: /admin/availability page works correctly with weekly calendar (Po-Ne, 7-18h), color coding (green=available, red=blocked, gray=unavailable), add/edit/delete dialogs for recurring and time-off blocks, lecturer selector dropdown for admins, week navigation. All Czech language UI verified.",
+  "features_tested": {
+    "backend_api": {
+      "GET /api/lecturer-availability/recurring": "PASS - Returns list of recurring availability blocks",
+      "POST /api/lecturer-availability/recurring": "PASS - Creates blocks for single or multiple days",
+      "PUT /api/lecturer-availability/recurring/{id}": "PASS - Updates day_of_week, start_time, end_time",
+      "DELETE /api/lecturer-availability/recurring/{id}": "PASS - Deletes block, returns 404 for nonexistent",
+      "GET /api/lecturer-availability/time-off": "PASS - Returns list of time-off blocks",
+      "POST /api/lecturer-availability/time-off": "PASS - Creates time-off with/without specific times",
+      "PUT /api/lecturer-availability/time-off/{id}": "PASS - Updates time-off fields",
+      "DELETE /api/lecturer-availability/time-off/{id}": "PASS - Deletes block, returns 404 for nonexistent",
+      "GET /api/lecturer-availability/week-view": "PASS - Returns recurring + time_offs for week",
+      "GET /api/lecturer-availability/check": "PASS - Returns available=true/false with reason"
+    },
+    "frontend_ui": {
+      "Navigation": "PASS - 'Dostupnost' tab visible in sidebar with Clock icon",
+      "Page load": "PASS - /admin/availability loads with weekly calendar",
+      "Calendar colors": "PASS - Green (19 cells), Red (3 cells), Gray (66 cells) displayed correctly",
+      "Add recurring dialog": "PASS - Day checkboxes (Po-Ne), time inputs, save button work",
+      "Add time-off dialog": "PASS - Date inputs, optional time inputs, reason field work",
+      "Edit/Delete recurring": "PASS - Edit and trash icons functional",
+      "Edit/Delete time-off": "PASS - Edit and trash icons functional",
+      "Lecturer selector": "PASS - Dropdown shows 5 team members with roles",
+      "Week navigation": "PASS - Prev/Next buttons change week display"
+    },
+    "availability_check_logic": {
+      "In recurring block": "PASS - Returns available=true",
+      "No recurring set": "PASS - Returns available=false with reason",
+      "Blockage overlaps": "PASS - Returns available=false with blockage reason"
+    }
+  },
+  "verified_features": [
+    {
+      "feature": "GET /api/lecturer-availability/week-view returns recurring blocks and time-offs",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "POST /api/lecturer-availability/recurring creates recurring availability for multiple days",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "PUT /api/lecturer-availability/recurring/{id} updates a block",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "DELETE /api/lecturer-availability/recurring/{id} deletes a block",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "POST /api/lecturer-availability/time-off creates a time-off blockage",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "PUT /api/lecturer-availability/time-off/{id} updates a blockage",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "DELETE /api/lecturer-availability/time-off/{id} deletes a blockage",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "GET /api/lecturer-availability/check returns available=true when in recurring block and no blockage",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "GET /api/lecturer-availability/check returns available=false when blockage overlaps",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "GET /api/lecturer-availability/check returns available=false when no recurring availability set",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: /admin/availability page loads with weekly calendar",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Calendar shows green for available, red for blocked, gray for unavailable",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Add recurring dialog with day checkboxes and time inputs",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Add time-off dialog with date, time, and reason fields",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Edit and delete recurring/time-off blocks work",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Lecturer selector dropdown for admins",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Navigation shows 'Dostupnost' tab in sidebar",
+      "status": "VERIFIED"
+    }
+  ]
+}

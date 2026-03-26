@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
 import { Checkbox } from '../../components/ui/checkbox';
-import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail, ShieldAlert, Info, User } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { ProgramMailingTab } from '../../components/admin/ProgramMailingTab.jsx';
@@ -66,6 +66,9 @@ const getDefaultFormData = () => ({
   preparation_time: 10,
   cleanup_time: 30,
   age_group: 'zs1_7_12',
+  allow_parallel: false,
+  collision_resources: [],
+  blocked_program_ids: [],
 });
 
 export const ProgramsPage = () => {
@@ -248,6 +251,9 @@ export const ProgramsPage = () => {
       target_group: program.target_group || program.age_group || 'schools',
       start_date: formatDateForInput(program.start_date),
       end_date: formatDateForInput(program.end_date),
+      allow_parallel: program.allow_parallel || false,
+      collision_resources: program.collision_resources || [],
+      blocked_program_ids: program.blocked_program_ids || [],
     });
     setActiveTab('detail');
     setShowDialog(true);
@@ -932,6 +938,258 @@ export const ProgramsPage = () => {
     </div>
   );
 
+
+  const toggleCollisionResource = (resource) => {
+    setFormData(prev => ({
+      ...prev,
+      collision_resources: prev.collision_resources.includes(resource)
+        ? prev.collision_resources.filter(r => r !== resource)
+        : [...prev.collision_resources, resource]
+    }));
+  };
+
+  const toggleBlockedProgram = (programId) => {
+    setFormData(prev => ({
+      ...prev,
+      blocked_program_ids: prev.blocked_program_ids.includes(programId)
+        ? prev.blocked_program_ids.filter(id => id !== programId)
+        : [...prev.blocked_program_ids, programId]
+    }));
+  };
+
+  const renderCollisionTab = () => {
+    const otherPrograms = programs.filter(p => 
+      p.id !== editingProgram?.id && p.status !== 'archived'
+    );
+
+    return (
+      <div className="space-y-6">
+        {/* Section 1: Basic toggle */}
+        <Card className="p-4 md:p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <h3 className="font-semibold text-slate-900">Paralelní provoz</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Určuje, zda se tento program může časově překrývat s jinými programy.
+              </p>
+            </div>
+            <div className="relative group ml-4">
+              <Info className="w-4 h-4 text-gray-400 cursor-help" />
+              <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                Pokud je paralelní provoz zakázán, program blokuje celý svůj časový slot a žádný jiný program se nemůže v tomto čase rezervovat.
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+            <div>
+              <p className="font-medium text-slate-900 text-sm">
+                {!formData.allow_parallel 
+                  ? 'Nelze paralelně provozovat (překryv zakázán)' 
+                  : 'Paralelní provoz povolen'
+                }
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {!formData.allow_parallel
+                  ? 'Program blokuje svůj časový slot globálně'
+                  : 'Program se může překrývat s jinými programy (s omezením)'
+                }
+              </p>
+            </div>
+            <Switch
+              checked={formData.allow_parallel}
+              onCheckedChange={(checked) => setFormData({ ...formData, allow_parallel: checked })}
+              data-testid="collision-allow-parallel-toggle"
+            />
+          </div>
+        </Card>
+
+        {/* Sections 2 & 3: Only visible when parallel is allowed */}
+        {formData.allow_parallel && (
+          <>
+            {/* Section 2: Affected resources */}
+            <Card className="p-4 md:p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-slate-900">Ovlivněné zdroje</h3>
+                <div className="relative group">
+                  <Info className="w-4 h-4 text-gray-400 cursor-help" />
+                  <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                    Zaškrtněte zdroje, u kterých chcete kontrolovat kolize. Pokud nezaškrtnete nic, program nemá žádná omezení.
+                  </div>
+                </div>
+              </div>
+              <p className="text-sm text-gray-500">
+                Vyberte, které zdroje chcete kontrolovat při překryvu s jinými programy.
+              </p>
+
+              <div className="space-y-3">
+                <label 
+                  className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${
+                    formData.collision_resources.includes('lecturer')
+                      ? 'border-[#4A6FA5] bg-[#4A6FA5]/5'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  data-testid="collision-resource-lecturer"
+                >
+                  <Checkbox
+                    checked={formData.collision_resources.includes('lecturer')}
+                    onCheckedChange={() => toggleCollisionResource('lecturer')}
+                  />
+                  <User className="w-5 h-5 text-[#4A6FA5]" />
+                  <div className="flex-1">
+                    <p className="font-medium text-slate-900 text-sm">Lektor</p>
+                    <p className="text-xs text-gray-500">
+                      Kontrola, zda stejný lektor není přiřazen k překrývající se rezervaci
+                    </p>
+                  </div>
+                  <div className="relative group">
+                    <Info className="w-4 h-4 text-gray-400 cursor-help" />
+                    <div className="absolute right-0 bottom-full mb-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                      Pokud je lektor přiřazen k jinému programu ve stejném čase, nová rezervace bude odmítnuta.
+                    </div>
+                  </div>
+                </label>
+
+                <label 
+                  className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${
+                    formData.collision_resources.includes('room')
+                      ? 'border-[#4A6FA5] bg-[#4A6FA5]/5'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  data-testid="collision-resource-room"
+                >
+                  <Checkbox
+                    checked={formData.collision_resources.includes('room')}
+                    onCheckedChange={() => toggleCollisionResource('room')}
+                  />
+                  <ShieldAlert className="w-5 h-5 text-[#C4AB86]" />
+                  <div className="flex-1">
+                    <p className="font-medium text-slate-900 text-sm">Místnost</p>
+                    <p className="text-xs text-gray-500">
+                      Kontrola, zda není překryv s jinou rezervací ve stejné místnosti
+                    </p>
+                  </div>
+                  <div className="relative group">
+                    <Info className="w-4 h-4 text-gray-400 cursor-help" />
+                    <div className="absolute right-0 bottom-full mb-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                      Pokud je místnost rezervována pro jiný program ve stejném čase, nová rezervace nebude povolena.
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              {formData.collision_resources.length === 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-700">
+                    Žádný zdroj není vybrán — program se může překrývat se vším bez omezení.
+                  </p>
+                </div>
+              )}
+            </Card>
+
+            {/* Section 3: Manual program exclusions */}
+            <Card className="p-4 md:p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-slate-900">Ruční omezení mezi programy</h3>
+                <div className="relative group">
+                  <Info className="w-4 h-4 text-gray-400 cursor-help" />
+                  <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                    Vyberte programy, které se nesmí časově překrývat s tímto programem, bez ohledu na zdroje.
+                  </div>
+                </div>
+              </div>
+              <p className="text-sm text-gray-500">
+                Nesmí se překrývat s těmito programy:
+              </p>
+
+              {otherPrograms.length > 0 ? (
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {otherPrograms.map(prog => {
+                    const isBlocked = formData.blocked_program_ids.includes(prog.id);
+                    return (
+                      <label
+                        key={prog.id}
+                        className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                          isBlocked
+                            ? 'border-red-300 bg-red-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        data-testid={`collision-block-program-${prog.id}`}
+                      >
+                        <Checkbox
+                          checked={isBlocked}
+                          onCheckedChange={() => toggleBlockedProgram(prog.id)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-slate-900 text-sm truncate">{prog.name_cs}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`px-1.5 py-0.5 text-xs rounded ${
+                              prog.status === 'active' ? 'bg-slate-800 text-white' : 'bg-gray-200 text-gray-600'
+                            }`}>
+                              {prog.status === 'active' ? 'aktivní' : 'koncept'}
+                            </span>
+                            <span className="text-xs text-gray-400">{prog.duration} min</span>
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <p className="text-sm text-gray-500">Žádné další programy k dispozici.</p>
+                </div>
+              )}
+
+              {formData.blocked_program_ids.length > 0 && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-700">
+                    <strong>{formData.blocked_program_ids.length}</strong> {formData.blocked_program_ids.length === 1 ? 'program' : 'programů'} nesmí běžet současně s tímto programem.
+                  </p>
+                </div>
+              )}
+            </Card>
+          </>
+        )}
+
+        {/* Summary card */}
+        <Card className="p-4 md:p-6 bg-slate-50 border-slate-200">
+          <h3 className="font-semibold text-slate-900 mb-3">Shrnutí nastavení</h3>
+          <div className="space-y-2 text-sm">
+            {!formData.allow_parallel ? (
+              <p className="text-slate-700">
+                Program <strong>blokuje</strong> svůj časový slot globálně. Žádný jiný program se nemůže časově překrývat.
+              </p>
+            ) : (
+              <>
+                <p className="text-slate-700">
+                  Program <strong>umožňuje</strong> paralelní provoz.
+                </p>
+                {formData.collision_resources.length > 0 && (
+                  <p className="text-slate-600">
+                    Kontrola kolizí: {formData.collision_resources.map(r => 
+                      r === 'lecturer' ? 'Lektor' : 'Místnost'
+                    ).join(', ')}
+                  </p>
+                )}
+                {formData.blocked_program_ids.length > 0 && (
+                  <p className="text-slate-600">
+                    Ručně blokované programy: {formData.blocked_program_ids.length}
+                  </p>
+                )}
+                {formData.collision_resources.length === 0 && formData.blocked_program_ids.length === 0 && (
+                  <p className="text-amber-600">
+                    Bez omezení — program se může překrývat se vším.
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </Card>
+      </div>
+    );
+  };
+
   const renderProgramForm = () => (
     <div className="space-y-4">
       {/* Header with back button */}
@@ -972,6 +1230,19 @@ export const ProgramsPage = () => {
         >
           Nastavení
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('collision')}
+          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+            activeTab === 'collision'
+              ? 'border-slate-800 text-slate-900'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+          data-testid="program-tab-collision"
+        >
+          <ShieldAlert className="w-4 h-4" />
+          Kolize
+        </button>
         {editingProgram && (
           <button
             type="button"
@@ -993,6 +1264,7 @@ export const ProgramsPage = () => {
       <div className="max-h-[60vh] overflow-y-auto pb-20">
         {activeTab === 'detail' && renderDetailTab()}
         {activeTab === 'settings' && renderSettingsTab()}
+        {activeTab === 'collision' && renderCollisionTab()}
         {activeTab === 'mailing' && editingProgram && (
           <ProgramMailingTab 
             programId={editingProgram.id} 
@@ -1001,7 +1273,7 @@ export const ProgramsPage = () => {
         )}
       </div>
 
-      {/* Fixed footer - only show for detail/settings tabs */}
+      {/* Fixed footer - only show for detail/settings/collision tabs */}
       {activeTab !== 'mailing' && (
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex gap-2 md:relative md:border-0 md:p-0 md:mt-4">
           <Button

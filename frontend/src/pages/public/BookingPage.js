@@ -506,7 +506,9 @@ export const BookingPage = () => {
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-lg font-semibold text-[#2B3E50]">{block.time}</p>
-                      <p className="text-sm text-gray-500">{isAvailable ? 'Volný' : 'Obsazeno'}</p>
+                      <p className="text-sm text-gray-500">
+                        {block.status === 'available' ? 'Volný' : block.status === 'unavailable' ? 'Lektor nedostupný' : 'Obsazeno'}
+                      </p>
                     </div>
                   </div>
                 </button>

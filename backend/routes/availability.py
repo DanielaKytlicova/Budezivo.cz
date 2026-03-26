@@ -10,6 +10,7 @@ from typing import Optional
 
 from database.supabase import get_db
 from database.supabase_repositories import BookingRepositorySupabase, ProgramRepositorySupabase
+from services.collision_service import get_collision_info_for_availability, check_lecturer_available_for_block
 
 router = APIRouter(tags=["Availability"])
 
@@ -62,9 +63,29 @@ async def get_program_availability(
     
     # Mark booked time blocks as unavailable
     booked_times = {b.get("time_block") for b in bookings if b.get("status") != "cancelled"}
+    
+    # Get program's assigned lecturer for availability check
+    assigned_lecturer_id = program.get("assigned_lecturer_id")
+    program_duration = program.get("duration") or 60
+    
     for block in time_blocks:
         if block["time"] in booked_times:
             block["status"] = "booked"
+        elif block["status"] == "available":
+            # Check cross-program collisions
+            is_blocked = await get_collision_info_for_availability(
+                db, institution_id, program_id, date, block["time"]
+            )
+            if is_blocked:
+                block["status"] = "booked"
+            # Check lecturer availability (only if lecturer is assigned to program)
+            elif assigned_lecturer_id:
+                lecturer_available = await check_lecturer_available_for_block(
+                    db, str(assigned_lecturer_id), institution_id,
+                    date, block["time"], program_duration
+                )
+                if not lecturer_available:
+                    block["status"] = "unavailable"
     
     return {"date": date, "time_blocks": time_blocks}
 

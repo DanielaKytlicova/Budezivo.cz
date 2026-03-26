@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://crm-tags-filter.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://budezivo-team-names.preview.emergentagent.com')
 
 # Test credentials
 ADMIN_EMAIL = "demo@budezivo.cz"

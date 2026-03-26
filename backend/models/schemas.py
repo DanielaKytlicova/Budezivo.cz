@@ -87,6 +87,12 @@ class ProgramBase(BaseModel):
     max_days_before_booking: int = 90
     preparation_time: int = 10
     cleanup_time: int = 30
+    # Collision & Parallel Settings
+    allow_parallel: bool = False
+    collision_resources: List[str] = []
+    blocked_program_ids: List[str] = []
+    # Assigned Lecturer
+    assigned_lecturer_id: Optional[str] = None
 
 
 class ProgramCreate(ProgramBase):
@@ -97,6 +103,7 @@ class Program(ProgramBase):
     model_config = ConfigDict(extra="ignore")
     id: str
     institution_id: str
+    assigned_lecturer_id: Optional[str] = None
     created_at: datetime
 
 
@@ -262,7 +269,9 @@ class TeamMember(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
     email: str
+    name: Optional[str] = None
     role: str
+    status: Optional[str] = None
     institution_id: str
     created_at: str
 
@@ -323,3 +332,50 @@ class ContactFormData(BaseModel):
 class PropagationRequest(BaseModel):
     school_ids: List[str]
     program_id: str
+
+
+
+# ============ Lecturer Availability Models ============
+
+class LecturerAvailabilityCreate(BaseModel):
+    days_of_week: List[int]  # 0=Monday, 6=Sunday, allows multi-select
+    start_time: str  # "08:00"
+    end_time: str    # "12:00"
+
+class LecturerAvailabilityUpdate(BaseModel):
+    day_of_week: int
+    start_time: str
+    end_time: str
+
+class LecturerAvailabilityResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    lecturer_id: str
+    day_of_week: int
+    start_time: str
+    end_time: str
+    is_recurring: bool = True
+
+class LecturerTimeOffCreate(BaseModel):
+    start_date: str  # "2026-03-25"
+    end_date: str    # "2026-03-25"
+    start_time: Optional[str] = None  # "08:00" (null = all day)
+    end_time: Optional[str] = None    # "16:00"
+    reason: Optional[str] = None
+
+class LecturerTimeOffUpdate(BaseModel):
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    reason: Optional[str] = None
+
+class LecturerTimeOffResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    lecturer_id: str
+    start_date: str
+    end_date: str
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    reason: Optional[str] = None

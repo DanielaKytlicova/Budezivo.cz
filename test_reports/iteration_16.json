@@ -1,0 +1,101 @@
+{
+  "summary": "Completed comprehensive testing of Collision & Parallel Run feature (Kolize a paralelní běh). All backend APIs and frontend UI working correctly. 15/15 backend tests pass. Frontend Kolize tab fully functional with toggle, resources checkboxes, and blocked programs selection.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Program edit dialog",
+        "issues": ["Console warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent} - minor accessibility issue"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_collision_feature.py",
+    "/app/test_reports/pytest/pytest_collision.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "collision_service.py correctly implements time block parsing for both 'HH:MM' and 'HH:MM-HH:MM' formats",
+    "Booking collision check properly returns 409 status with Czech error message when collision detected",
+    "Program model includes allow_parallel (BOOLEAN), collision_resources (JSONB), blocked_program_ids (JSONB) fields",
+    "Frontend Kolize tab correctly shows/hides resources and blocked programs sections based on toggle state",
+    "ProgramsPage.js renderCollisionTab() function properly handles all collision settings UI"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_collision_feature.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_user": "demo@budezivo.cz",
+    "admin_password": "Demo2026!"
+  },
+  "seed_data_creation": "None - used existing test data",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Collision feature fully tested. Backend: 15 tests pass covering time block parsing, program collision fields, collision updates, booking collision detection (409), and availability endpoint. Frontend: Kolize tab in program edit dialog works correctly - toggle shows/hides resources (Lektor, Místnost) and blocked programs sections. Settings persist correctly via PUT /api/programs/{id}. All UI text in Czech as required.",
+  "features_tested": {
+    "backend_api": {
+      "GET /api/programs": "PASS - Returns allow_parallel, collision_resources, blocked_program_ids fields",
+      "GET /api/programs/{id}": "PASS - Returns collision fields for single program",
+      "PUT /api/programs/{id}": "PASS - Saves collision settings (allow_parallel, collision_resources, blocked_program_ids)",
+      "POST /api/bookings/public/{institution_id}": "PASS - Returns 409 when collision detected for non-parallel program",
+      "GET /api/availability/{institution_id}/{program_id}/{date}": "PASS - Returns time blocks with booked status for collisions",
+      "GET /api/programs/public/{institution_id}": "PASS - Returns collision fields in public programs"
+    },
+    "frontend_ui": {
+      "Programs list page": "PASS - Shows 3 programs with cards",
+      "Program edit dialog tabs": "PASS - Shows Detail, Nastavení, Kolize, Mailing tabs",
+      "Kolize tab - toggle OFF": "PASS - Shows 'Nelze paralelně provozovat (překryv zakázán)' with summary",
+      "Kolize tab - toggle ON": "PASS - Shows 'Paralelní provoz povolen' with resources and blocked programs sections",
+      "Kolize tab - resources checkboxes": "PASS - Lektor and Místnost checkboxes visible and clickable",
+      "Kolize tab - blocked programs": "PASS - Shows other programs with checkboxes to block",
+      "Save collision settings": "PASS - Toast 'Program byl úspěšně aktualizován' shown, settings persist"
+    },
+    "time_block_parser": {
+      "HH:MM format": "PASS - Correctly parses '09:00' to (540, None)",
+      "HH:MM-HH:MM format": "PASS - Correctly parses '09:00-10:30' to (540, 630)",
+      "Invalid format": "PASS - Returns (None, None) for invalid input",
+      "Overlap detection": "PASS - Correctly detects overlapping time blocks"
+    }
+  },
+  "verified_features": [
+    {
+      "feature": "GET /api/programs returns collision fields",
+      "status": "VERIFIED",
+      "details": "allow_parallel (boolean), collision_resources (list), blocked_program_ids (list) all present"
+    },
+    {
+      "feature": "PUT /api/programs/{id} saves collision settings",
+      "status": "VERIFIED",
+      "details": "Settings persist correctly after save and page reload"
+    },
+    {
+      "feature": "POST /api/bookings/public returns 409 on collision",
+      "status": "VERIFIED",
+      "details": "Returns 409 with Czech error message when collision detected"
+    },
+    {
+      "feature": "Frontend Kolize tab toggle behavior",
+      "status": "VERIFIED",
+      "details": "Toggle OFF hides resources/blocked programs, Toggle ON shows them"
+    },
+    {
+      "feature": "Frontend collision settings save",
+      "status": "VERIFIED",
+      "details": "Save button works, toast shown, settings persist"
+    },
+    {
+      "feature": "Time block parser handles both formats",
+      "status": "VERIFIED",
+      "details": "Both 'HH:MM' and 'HH:MM-HH:MM' formats correctly parsed"
+    }
+  ]
+}

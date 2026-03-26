@@ -7,7 +7,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://crm-tags-filter.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://budezivo-team-names.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = "test@budezivo.cz"

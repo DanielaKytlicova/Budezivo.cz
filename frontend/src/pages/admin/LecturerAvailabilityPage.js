@@ -1,0 +1,750 @@
+import React, { useState, useEffect, useContext, useCallback } from 'react';
+import { AdminLayout } from '../../components/layout/AdminLayout';
+import { AuthContext } from '../../context/AuthContext';
+import { Card } from '../../components/ui/card';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Switch } from '../../components/ui/switch';
+import { Checkbox } from '../../components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
+import { toast } from 'sonner';
+import { Plus, Trash2, ChevronLeft, ChevronRight, Clock, Ban, Edit2, Info, CalendarDays } from 'lucide-react';
+import axios from 'axios';
+
+const API = process.env.REACT_APP_BACKEND_URL;
+
+const DAY_NAMES = ['Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek', 'Sobota', 'Neděle'];
+const DAY_SHORT = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 7); // 7:00 - 18:00
+
+function getMonday(d) {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(date.setDate(diff));
+}
+
+function formatDate(d) {
+  return d.toISOString().split('T')[0];
+}
+
+function timeToMinutes(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+export const LecturerAvailabilityPage = () => {
+  const { user, token } = useContext(AuthContext);
+  const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
+  const [recurring, setRecurring] = useState([]);
+  const [timeOffs, setTimeOffs] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [selectedLecturer, setSelectedLecturer] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Dialogs
+  const [showAddRecurring, setShowAddRecurring] = useState(false);
+  const [showAddTimeOff, setShowAddTimeOff] = useState(false);
+  const [editingRecurring, setEditingRecurring] = useState(null);
+  const [editingTimeOff, setEditingTimeOff] = useState(null);
+
+  // Forms
+  const [recurringForm, setRecurringForm] = useState({
+    days_of_week: [],
+    start_time: '08:00',
+    end_time: '12:00',
+  });
+  const [timeOffForm, setTimeOffForm] = useState({
+    start_date: '',
+    end_date: '',
+    start_time: '',
+    end_time: '',
+    reason: '',
+  });
+
+  const isAdmin = ['admin', 'spravce'].includes(user?.role);
+  const lecturerId = selectedLecturer || user?.id;
+
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const weekStr = formatDate(weekStart);
+      const params = selectedLecturer ? `?lecturer_id=${selectedLecturer}&week_start=${weekStr}` : `?week_start=${weekStr}`;
+      const res = await axios.get(`${API}/api/lecturer-availability/week-view${params}`, { headers });
+      setRecurring(res.data.recurring || []);
+      setTimeOffs(res.data.time_offs || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [weekStart, selectedLecturer, token]);
+
+  const fetchTeam = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await axios.get(`${API}/api/team`, { headers });
+      setTeamMembers(res.data.filter(m => ['edukator', 'lektor', 'admin', 'spravce'].includes(m.role)));
+    } catch (err) {
+      console.error(err);
+    }
+  }, [isAdmin, token]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchTeam(); }, [fetchTeam]);
+
+  const navigateWeek = (dir) => {
+    const newDate = new Date(weekStart);
+    newDate.setDate(newDate.getDate() + dir * 7);
+    setWeekStart(newDate);
+  };
+
+  const goToCurrentWeek = () => {
+    setWeekStart(getMonday(new Date()));
+  };
+
+  // CRUD handlers
+  const handleAddRecurring = async () => {
+    if (recurringForm.days_of_week.length === 0) {
+      toast.error('Vyberte alespoň jeden den.');
+      return;
+    }
+    try {
+      const params = selectedLecturer ? `?lecturer_id=${selectedLecturer}` : '';
+      await axios.post(`${API}/api/lecturer-availability/recurring${params}`, recurringForm, { headers });
+      toast.success('Pravidelná dostupnost přidána.');
+      setShowAddRecurring(false);
+      setRecurringForm({ days_of_week: [], start_time: '08:00', end_time: '12:00' });
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Chyba při ukládání.');
+    }
+  };
+
+  const handleUpdateRecurring = async () => {
+    try {
+      await axios.put(`${API}/api/lecturer-availability/recurring/${editingRecurring.id}`, {
+        day_of_week: editingRecurring.day_of_week,
+        start_time: editingRecurring.start_time,
+        end_time: editingRecurring.end_time,
+      }, { headers });
+      toast.success('Dostupnost aktualizována.');
+      setEditingRecurring(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Chyba při aktualizaci.');
+    }
+  };
+
+  const handleDeleteRecurring = async (id) => {
+    try {
+      await axios.delete(`${API}/api/lecturer-availability/recurring/${id}`, { headers });
+      toast.success('Blok smazán.');
+      fetchData();
+    } catch (err) {
+      toast.error('Chyba při mazání.');
+    }
+  };
+
+  const handleAddTimeOff = async () => {
+    if (!timeOffForm.start_date) {
+      toast.error('Zadejte datum.');
+      return;
+    }
+    try {
+      const params = selectedLecturer ? `?lecturer_id=${selectedLecturer}` : '';
+      const payload = {
+        ...timeOffForm,
+        end_date: timeOffForm.end_date || timeOffForm.start_date,
+        start_time: timeOffForm.start_time || null,
+        end_time: timeOffForm.end_time || null,
+        reason: timeOffForm.reason || null,
+      };
+      await axios.post(`${API}/api/lecturer-availability/time-off${params}`, payload, { headers });
+      toast.success('Blokace přidána.');
+      setShowAddTimeOff(false);
+      setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' });
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Chyba při ukládání.');
+    }
+  };
+
+  const handleUpdateTimeOff = async () => {
+    try {
+      await axios.put(`${API}/api/lecturer-availability/time-off/${editingTimeOff.id}`, {
+        start_date: editingTimeOff.start_date,
+        end_date: editingTimeOff.end_date,
+        start_time: editingTimeOff.start_time || null,
+        end_time: editingTimeOff.end_time || null,
+        reason: editingTimeOff.reason || null,
+      }, { headers });
+      toast.success('Blokace aktualizována.');
+      setEditingTimeOff(null);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Chyba při aktualizaci.');
+    }
+  };
+
+  const handleDeleteTimeOff = async (id) => {
+    try {
+      await axios.delete(`${API}/api/lecturer-availability/time-off/${id}`, { headers });
+      toast.success('Blokace smazána.');
+      fetchData();
+    } catch (err) {
+      toast.error('Chyba při mazání.');
+    }
+  };
+
+  const toggleDay = (day) => {
+    setRecurringForm(prev => ({
+      ...prev,
+      days_of_week: prev.days_of_week.includes(day)
+        ? prev.days_of_week.filter(d => d !== day)
+        : [...prev.days_of_week, day].sort()
+    }));
+  };
+
+  // Calendar rendering
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+
+  const getBlocksForDay = (dayIndex) => {
+    const avail = recurring.filter(r => r.day_of_week === dayIndex);
+    const dateStr = formatDate(weekDays[dayIndex]);
+    const offs = timeOffs.filter(t => t.start_date <= dateStr && t.end_date >= dateStr);
+    return { avail, offs };
+  };
+
+  const renderCalendarCell = (dayIndex, hour) => {
+    const { avail, offs } = getBlocksForDay(dayIndex);
+    const cellStart = hour * 60;
+    const cellEnd = (hour + 1) * 60;
+
+    let isAvailable = false;
+    let isBlocked = false;
+    let blockReason = '';
+
+    for (const a of avail) {
+      const aStart = timeToMinutes(a.start_time);
+      const aEnd = timeToMinutes(a.end_time);
+      if (cellStart < aEnd && cellEnd > aStart) {
+        isAvailable = true;
+        break;
+      }
+    }
+
+    for (const o of offs) {
+      if (!o.start_time || !o.end_time) {
+        isBlocked = true;
+        blockReason = o.reason || 'Celodenní blokace';
+        break;
+      }
+      const oStart = timeToMinutes(o.start_time);
+      const oEnd = timeToMinutes(o.end_time);
+      if (cellStart < oEnd && cellEnd > oStart) {
+        isBlocked = true;
+        blockReason = o.reason || 'Blokace';
+        break;
+      }
+    }
+
+    let bg = 'bg-gray-50';
+    let textColor = 'text-gray-300';
+    let title = 'Nedostupný';
+
+    if (isBlocked && isAvailable) {
+      bg = 'bg-red-100 border-red-200';
+      textColor = 'text-red-600';
+      title = blockReason;
+    } else if (isAvailable) {
+      bg = 'bg-emerald-100 border-emerald-200';
+      textColor = 'text-emerald-700';
+      title = 'Dostupný';
+    } else if (isBlocked) {
+      bg = 'bg-red-50 border-red-100';
+      textColor = 'text-red-400';
+      title = blockReason;
+    }
+
+    return (
+      <div
+        key={`${dayIndex}-${hour}`}
+        className={`h-8 border border-gray-100 ${bg} relative group cursor-default transition-colors`}
+        title={title}
+        data-testid={`cal-cell-${dayIndex}-${hour}`}
+      >
+        {(isAvailable || isBlocked) && (
+          <div className={`absolute inset-0 flex items-center justify-center ${textColor} text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity`}>
+            {isBlocked ? 'Blokace' : 'Volný'}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <AdminLayout>
+      <div className="space-y-6" data-testid="lecturer-availability-page">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Dostupnost lektora</h1>
+            <p className="text-sm text-gray-500 mt-1">Správa pravidelných časů a blokací</p>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              onClick={() => { setShowAddRecurring(true); setRecurringForm({ days_of_week: [], start_time: '08:00', end_time: '12:00' }); }}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              data-testid="add-recurring-btn"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Pravidelný čas
+            </Button>
+            <Button
+              onClick={() => { setShowAddTimeOff(true); setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' }); }}
+              variant="outline"
+              className="border-red-300 text-red-600 hover:bg-red-50"
+              data-testid="add-timeoff-btn"
+            >
+              <Ban className="w-4 h-4 mr-1" />
+              Přidat blokaci
+            </Button>
+          </div>
+        </div>
+
+        {/* Lecturer selector for admins */}
+        {isAdmin && teamMembers.length > 0 && (
+          <Card className="p-4">
+            <div className="flex items-center gap-4">
+              <Label className="text-sm font-medium whitespace-nowrap">Lektor:</Label>
+              <Select
+                value={selectedLecturer || 'self'}
+                onValueChange={(val) => setSelectedLecturer(val === 'self' ? null : val)}
+              >
+                <SelectTrigger className="w-64" data-testid="lecturer-selector">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="self">Můj kalendář</SelectItem>
+                  {teamMembers.map(m => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name || m.email} ({m.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </Card>
+        )}
+
+        {/* Legend */}
+        <div className="flex items-center gap-6 text-xs">
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-4 rounded bg-emerald-100 border border-emerald-200" />
+            <span className="text-gray-600">Dostupný</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-4 rounded bg-red-100 border border-red-200" />
+            <span className="text-gray-600">Blokace</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-4 rounded bg-gray-50 border border-gray-100" />
+            <span className="text-gray-600">Nedostupný</span>
+          </div>
+        </div>
+
+        {/* Week Calendar */}
+        <Card className="p-0 overflow-hidden" data-testid="week-calendar">
+          {/* Week navigation */}
+          <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
+            <Button variant="ghost" size="sm" onClick={() => navigateWeek(-1)} data-testid="prev-week-btn">
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-semibold text-slate-900">
+                {weekDays[0].toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long' })} – {weekDays[6].toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </h3>
+              <Button variant="outline" size="sm" onClick={goToCurrentWeek} className="text-xs h-7">
+                <CalendarDays className="w-3 h-3 mr-1" />
+                Dnes
+              </Button>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => navigateWeek(1)} data-testid="next-week-btn">
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {/* Calendar grid */}
+          <div className="overflow-x-auto">
+            <div className="min-w-[640px]">
+              {/* Day headers */}
+              <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b">
+                <div className="p-2 text-xs text-gray-400 text-center" />
+                {weekDays.map((d, i) => {
+                  const isToday = formatDate(d) === formatDate(new Date());
+                  return (
+                    <div key={i} className={`p-2 text-center border-l ${isToday ? 'bg-slate-800 text-white' : ''}`}>
+                      <div className="text-xs font-medium">{DAY_SHORT[i]}</div>
+                      <div className={`text-lg font-bold ${isToday ? 'text-white' : 'text-slate-900'}`}>{d.getDate()}</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Hour rows */}
+              {HOURS.map(hour => (
+                <div key={hour} className="grid grid-cols-[60px_repeat(7,1fr)]">
+                  <div className="p-1 text-xs text-gray-400 text-right pr-2 flex items-center justify-end">
+                    {hour}:00
+                  </div>
+                  {Array.from({ length: 7 }, (_, i) => (
+                    <div key={i} className="border-l">
+                      {renderCalendarCell(i, hour)}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+
+        {/* Recurring blocks list */}
+        <Card className="p-4 md:p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-emerald-600" />
+              <h2 className="font-semibold text-slate-900">Pravidelná dostupnost</h2>
+            </div>
+            <div className="relative group">
+              <Info className="w-4 h-4 text-gray-400 cursor-help" />
+              <div className="absolute right-0 bottom-full mb-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                Pravidelné bloky se opakují každý týden. Můžete je kdykoli upravit nebo smazat.
+              </div>
+            </div>
+          </div>
+
+          {recurring.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Žádná pravidelná dostupnost není nastavena.</p>
+              <p className="text-xs mt-1">Lektor není defaultně dostupný.</p>
+            </div>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {recurring.map(r => (
+                <div key={r.id} className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg" data-testid={`recurring-${r.id}`}>
+                  <div>
+                    <p className="font-medium text-sm text-slate-900">{DAY_NAMES[r.day_of_week]}</p>
+                    <p className="text-xs text-emerald-700">{r.start_time} – {r.end_time}</p>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setEditingRecurring({ ...r })}>
+                      <Edit2 className="w-3.5 h-3.5 text-gray-500" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:text-red-600" onClick={() => handleDeleteRecurring(r.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Time-off list */}
+        <Card className="p-4 md:p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Ban className="w-5 h-5 text-red-500" />
+              <h2 className="font-semibold text-slate-900">Blokace / výjimky</h2>
+            </div>
+            <div className="relative group">
+              <Info className="w-4 h-4 text-gray-400 cursor-help" />
+              <div className="absolute right-0 bottom-full mb-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                Blokace má vyšší prioritu než pravidelná dostupnost. Překrývá a odečítá čas.
+              </div>
+            </div>
+          </div>
+
+          {timeOffs.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              <Ban className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Žádné blokace.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {timeOffs.map(t => (
+                <div key={t.id} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-lg" data-testid={`timeoff-${t.id}`}>
+                  <div>
+                    <p className="font-medium text-sm text-slate-900">
+                      {t.start_date === t.end_date ? t.start_date : `${t.start_date} – ${t.end_date}`}
+                      {t.start_time && t.end_time ? ` (${t.start_time} – ${t.end_time})` : ' (celý den)'}
+                    </p>
+                    {t.reason && <p className="text-xs text-red-600">{t.reason}</p>}
+                  </div>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setEditingTimeOff({ ...t })}>
+                      <Edit2 className="w-3.5 h-3.5 text-gray-500" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:text-red-600" onClick={() => handleDeleteTimeOff(t.id)}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* ====== DIALOG: Add Recurring ====== */}
+      <Dialog open={showAddRecurring} onOpenChange={setShowAddRecurring}>
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Přidat pravidelný čas</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-sm font-medium">Dny v týdnu</Label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {DAY_NAMES.map((name, i) => (
+                  <label
+                    key={i}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-lg cursor-pointer text-sm transition-colors ${
+                      recurringForm.days_of_week.includes(i) ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    data-testid={`recurring-day-${i}`}
+                  >
+                    <Checkbox
+                      checked={recurringForm.days_of_week.includes(i)}
+                      onCheckedChange={() => toggleDay(i)}
+                      className="hidden"
+                    />
+                    {DAY_SHORT[i]}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm">Čas od</Label>
+                <Input
+                  type="time"
+                  value={recurringForm.start_time}
+                  onChange={e => setRecurringForm({ ...recurringForm, start_time: e.target.value })}
+                  data-testid="recurring-start-time"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Čas do</Label>
+                <Input
+                  type="time"
+                  value={recurringForm.end_time}
+                  onChange={e => setRecurringForm({ ...recurringForm, end_time: e.target.value })}
+                  data-testid="recurring-end-time"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">Opakuje se každý týden.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddRecurring(false)}>Zrušit</Button>
+            <Button onClick={handleAddRecurring} className="bg-emerald-600 hover:bg-emerald-700 text-white" data-testid="save-recurring-btn">
+              Přidat
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ====== DIALOG: Edit Recurring ====== */}
+      <Dialog open={!!editingRecurring} onOpenChange={() => setEditingRecurring(null)}>
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Upravit pravidelný čas</DialogTitle>
+          </DialogHeader>
+          {editingRecurring && (
+            <div className="space-y-4 py-2">
+              <div>
+                <Label className="text-sm">Den</Label>
+                <Select
+                  value={String(editingRecurring.day_of_week)}
+                  onValueChange={(val) => setEditingRecurring({ ...editingRecurring, day_of_week: parseInt(val) })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {DAY_NAMES.map((name, i) => (
+                      <SelectItem key={i} value={String(i)}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm">Čas od</Label>
+                  <Input
+                    type="time"
+                    value={editingRecurring.start_time}
+                    onChange={e => setEditingRecurring({ ...editingRecurring, start_time: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm">Čas do</Label>
+                  <Input
+                    type="time"
+                    value={editingRecurring.end_time}
+                    onChange={e => setEditingRecurring({ ...editingRecurring, end_time: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingRecurring(null)}>Zrušit</Button>
+            <Button onClick={handleUpdateRecurring} className="bg-slate-800 hover:bg-slate-900 text-white">
+              Uložit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ====== DIALOG: Add Time Off ====== */}
+      <Dialog open={showAddTimeOff} onOpenChange={setShowAddTimeOff}>
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Přidat blokaci</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm">Datum od</Label>
+                <Input
+                  type="date"
+                  value={timeOffForm.start_date}
+                  onChange={e => setTimeOffForm({ ...timeOffForm, start_date: e.target.value })}
+                  data-testid="timeoff-start-date"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Datum do</Label>
+                <Input
+                  type="date"
+                  value={timeOffForm.end_date}
+                  onChange={e => setTimeOffForm({ ...timeOffForm, end_date: e.target.value })}
+                  placeholder="Stejný den"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm">Čas od <span className="text-gray-400">(volitelné)</span></Label>
+                <Input
+                  type="time"
+                  value={timeOffForm.start_time}
+                  onChange={e => setTimeOffForm({ ...timeOffForm, start_time: e.target.value })}
+                  data-testid="timeoff-start-time"
+                />
+              </div>
+              <div>
+                <Label className="text-sm">Čas do <span className="text-gray-400">(volitelné)</span></Label>
+                <Input
+                  type="time"
+                  value={timeOffForm.end_time}
+                  onChange={e => setTimeOffForm({ ...timeOffForm, end_time: e.target.value })}
+                  data-testid="timeoff-end-time"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">Ponechte čas prázdný pro celodenní blokaci.</p>
+            <div>
+              <Label className="text-sm">Důvod <span className="text-gray-400">(volitelný)</span></Label>
+              <Input
+                value={timeOffForm.reason}
+                onChange={e => setTimeOffForm({ ...timeOffForm, reason: e.target.value })}
+                placeholder="Např. Porada, Dovolená, Nemoc..."
+                data-testid="timeoff-reason"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddTimeOff(false)}>Zrušit</Button>
+            <Button onClick={handleAddTimeOff} className="bg-red-600 hover:bg-red-700 text-white" data-testid="save-timeoff-btn">
+              Přidat blokaci
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ====== DIALOG: Edit Time Off ====== */}
+      <Dialog open={!!editingTimeOff} onOpenChange={() => setEditingTimeOff(null)}>
+        <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Upravit blokaci</DialogTitle>
+          </DialogHeader>
+          {editingTimeOff && (
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm">Datum od</Label>
+                  <Input
+                    type="date"
+                    value={editingTimeOff.start_date}
+                    onChange={e => setEditingTimeOff({ ...editingTimeOff, start_date: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm">Datum do</Label>
+                  <Input
+                    type="date"
+                    value={editingTimeOff.end_date}
+                    onChange={e => setEditingTimeOff({ ...editingTimeOff, end_date: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm">Čas od</Label>
+                  <Input
+                    type="time"
+                    value={editingTimeOff.start_time || ''}
+                    onChange={e => setEditingTimeOff({ ...editingTimeOff, start_time: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label className="text-sm">Čas do</Label>
+                  <Input
+                    type="time"
+                    value={editingTimeOff.end_time || ''}
+                    onChange={e => setEditingTimeOff({ ...editingTimeOff, end_time: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm">Důvod</Label>
+                <Input
+                  value={editingTimeOff.reason || ''}
+                  onChange={e => setEditingTimeOff({ ...editingTimeOff, reason: e.target.value })}
+                  placeholder="Důvod blokace"
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingTimeOff(null)}>Zrušit</Button>
+            <Button onClick={handleUpdateTimeOff} className="bg-slate-800 hover:bg-slate-900 text-white">
+              Uložit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </AdminLayout>
+  );
+};

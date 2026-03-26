@@ -2,10 +2,11 @@
 
 ## Přehled projektu
 Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů, rezervací a institucí v České republice.
+Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538 (není plátce DPH)
 
 ## Technologický stack
 - **Frontend:** React 18, TailwindCSS, Shadcn/UI, Axios
-- **Backend:** FastAPI, SQLAlchemy Async, Pydantic
+- **Backend:** FastAPI, SQLAlchemy Async, Pydantic, slowapi (rate limiting)
 - **Databáze:** Supabase (PostgreSQL)
 - **Emaily:** Resend API
 - **Scheduler:** APScheduler (feedback emaily, GDPR auto-cleanup)
@@ -15,95 +16,61 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 ## Implementované funkce
 
 ### Fáze 1-9 (předchozí)
-- Core MVP (registrace, přihlášení, programy, rezervace, dashboard, emaily)
-- Feedback System s APScheduler
-- Team Invitation System
-- Legal & PRO Plan
-- School Import + Multi-Contact CRM
-- Booking & Team Improvements (limity, lektor dropdown, editace jmen)
-- Kolize a paralelní běh programů
-- Dostupnost lektora (kalendář + integrace do bookingu)
+- Core MVP, Feedback System, Team Invitations, Legal & PRO Plan
+- School Import + Multi-Contact CRM, Booking & Team Improvements
+- Kolize a paralelní běh programů, Dostupnost lektora
 
-### Fáze 10 - Hromadné akce a GDPR (26. března 2026)
-- [x] `POST /api/bookings/bulk-status` — hromadná změna stavu
-- [x] `GET /api/gdpr/export` — export osobních dat (GDPR čl. 20)
-- [x] `POST /api/gdpr/anonymize` — anonymizace (GDPR čl. 17)
-- [x] Frontend: checkboxy, bulk panel, filtry stavu, vyhledávání
-- [x] GDPR sekce v Nastavení (export, anonymizace, data retention)
+### Fáze 10 - Hromadné akce a GDPR (26.3.2026)
+- [x] Hromadná změna stavu rezervací (bulk-status)
+- [x] GDPR export + anonymizace osobních údajů
+- [x] Filtry stavu, checkboxy, vyhledávání v rezervacích
 
-### Fáze 11 - VOP + GDPR Auto-cleanup (26. března 2026)
-- [x] **VOP (Všeobecné obchodní podmínky)** — 15 článků dle českého práva
-- [x] **Public stránka `/obchodni-podminky`** — plný text VOP
-- [x] **API `GET /api/legal/vop`** — strukturovaná VOP data
-- [x] **Registrační checkbox** — "Souhlasím s obchodními podmínkami" + link na VOP
-- [x] **Backend validace** — `terms_accepted` field v UserCreate + DB sloupec
-- [x] **Admin Nastavení > VOP** — sekce pro opětovné přečtení podmínek
-- [x] **GDPR auto-cleanup scheduler** — denní job (3:00 UTC), anonymizace starých rezervací dle data_retention nastavení instituce
-- [x] **Automatická anonymizace** — toggle v GDPR nastavení s popisem
+### Fáze 11 - VOP + GDPR Auto-cleanup (26.3.2026)
+- [x] VOP 15 článků, public stránka /obchodni-podminky, admin sekce
+- [x] Registrační checkbox souhlasu s VOP
+- [x] GDPR auto-cleanup scheduler (denní, 3:00 UTC)
 
----
-
-## Architektura
-
-```
-/app
-├── backend/
-│   ├── main.py
-│   ├── scheduler.py (feedback + GDPR auto-cleanup)
-│   ├── core/security.py
-│   ├── database/
-│   │   ├── models.py
-│   │   ├── supabase.py
-│   │   └── supabase_repositories.py
-│   ├── routes/
-│   │   ├── auth.py (register s terms_accepted)
-│   │   ├── bookings.py (+ bulk-status)
-│   │   ├── gdpr.py (export + anonymize)
-│   │   ├── legal.py (terms + VOP)
-│   │   ├── availability.py
-│   │   ├── lecturer_availability.py
-│   │   └── settings.py
-│   ├── services/
-│   │   ├── collision_service.py
-│   │   └── email_service.py
-│   ├── models/schemas.py
-│   └── constants/legal_texts.py (VOP_SECTIONS)
-├── frontend/
-│   └── src/
-│       ├── App.js (+ /obchodni-podminky route)
-│       ├── pages/admin/
-│       │   ├── BookingsPage.js (bulk actions)
-│       │   ├── SettingsPage.js (GDPR + VOP sekce)
-│       │   └── ...
-│       └── pages/public/
-│           ├── VopPage.js (NEW)
-│           ├── RegisterPage.js (terms checkbox)
-│           └── ...
-```
+### Fáze 12 - Security Hardening + Pre-pilot (26.3.2026)
+- [x] **CORS** omezeny na budezivo.cz domény (+ preview v dev)
+- [x] **JWT expirace** snížena na 7 dní (z 30)
+- [x] **JWT_SECRET** fail-fast (žádný fallback)
+- [x] **Rate limiting**: 5/min registrace, 10/min login, 3/min reset hesla
+- [x] **Validace hesla** na backendu: min 8 znaků, velké+malé+číslo
+- [x] **Security headers**: X-Frame-Options=DENY, X-Content-Type-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy
+- [x] **Reset hesla** dynamická URL z FRONTEND_URL env
+- [x] **OG meta tagy** pro sociální sdílení + lang="cs"
+- [x] **robots.txt** + **sitemap.xml**
+- [x] **Indikátor síly hesla** v registraci (4 kritéria, barevné pruhy)
+- [x] **VOP placeholder** vyplněn: Daniela Kytlicová, IČO 07407971, Mlýnská 538
+- [x] **GDPR placeholder** vyplněn: datová schránka e2u63pp
+- [x] **Email šablona** reservation_rescheduled (přesunutí termínu)
 
 ---
 
 ## Testovací přístupy
 - **Demo účet:** demo@budezivo.cz / Demo2026!
-- **Test reports:** /app/test_reports/iteration_18.json (bulk+GDPR), iteration_19.json (VOP+scheduler)
+- **Test reports:** iteration_18 (bulk), 19 (VOP), 20 (security)
 
 ---
 
 ## Backlog
 
-### P1 - Vysoká priorita
-- [ ] Production deployment — uživatel musí pushnout na GitHub
-
 ### P2 - Střední priorita
-- [ ] Analýza zabezpečení webu (kyber bezpečnost, úniky dat)
+- [ ] Analýza zabezpečení webu (penetrační testy, audit)
 - [ ] i18n přepínač jazyků
+- [ ] Smazat testovací data z DB (TEST_CSV_Škola atd.)
 
 ### P3 - Backlog
-- [ ] Platební integrace Fakturoid (zálohové faktury, aktivace PRO po připsání platby)
+- [ ] Platební integrace Fakturoid (zálohové faktury → aktivace PRO)
+- [ ] Onboarding wizard po registraci
 
 ### P4 - Budoucnost
-- [ ] PWA, push notifikace, offline režim, QR check-in
-- [ ] Heatmapa, trendy, finanční přehledy, exporty reportů
+- [ ] PWA, push notifikace, QR check-in
+- [ ] Audit log (kdo, co, kdy změnil)
+- [ ] Heatmapa, trendy, finanční přehledy
+- [ ] 2FA pro admin účty
+- [ ] Alembic migrace
+- [ ] Social proof na landing page
 
 ---
 

@@ -71,25 +71,27 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 
 ### Fáze 8 - Kolize a paralelní běh (25. března 2026)
 - [x] **Nové sloupce v tabulce `programs`:** `allow_parallel` (BOOLEAN), `collision_resources` (JSONB), `blocked_program_ids` (JSONB)
-- [x] **Backend: Collision service** (`/app/backend/services/collision_service.py`) — parsování time bloků (HH:MM i HH:MM-HH:MM), detekce překryvů, kontrola zdrojů (lektor/místnost) a ručně blokovaných programů
-- [x] **Backend: Validace při rezervaci** — `POST /api/bookings/public/{id}` i admin `POST /api/bookings` vrací 409 při kolizi
-- [x] **Backend: Availability endpoint** — zohledňuje cross-program kolize při zobrazení dostupných slotů
-- [x] **Frontend: Záložka "Kolize"** v editaci programu s toggle, checkboxy zdrojů (Lektor/Místnost), multi-select blokovaných programů, tooltipy a summary kartou
-- [x] **Edge cases:** plně paralelní program (bez omezení), oboustranná kontrola blokovaných programů
+- [x] **Backend: Collision service** — parsování time bloků, detekce překryvů, kontrola zdrojů
+- [x] **Backend: Validace při rezervaci** — 409 při kolizi
+- [x] **Backend: Availability endpoint** — zohledňuje cross-program kolize
+- [x] **Frontend: Záložka "Kolize"** v editaci programu
 
 ### Fáze 9 - Dostupnost lektora (25. března 2026)
-- [x] **Nové DB tabulky:** `lecturer_availability` (pravidelná dostupnost) a `lecturer_time_off` (blokace/výjimky)
-- [x] **Backend API:** Kompletní CRUD pro pravidelnou dostupnost a blokace, week-view endpoint, availability check endpoint
-- [x] **Frontend stránka:** `/admin/availability` s týdenním kalendářem (Po-Ne, 7-18h)
-- [x] **Kalendářové barvy:** zelená (dostupný), červená (blokace), šedá (nedostupný)
-- [x] **Formuláře:** Přidání pravidelného času (multi-day), přidání blokace (datum, čas, důvod), editace, mazání
-- [x] **Admin selector:** Dropdown pro výběr lektora (admin/správce vidí celý tým)
-- [x] **Navigace:** Záložka "Dostupnost" v sidebaru pro role edukator, lektor, admin, spravce
-- [x] **Logika validace:** Check endpoint pro ověření dostupnosti lektora při vytváření rezervací
-- [x] **Edge cases:** Lektor bez nastavení = nedostupný, celodenní blokace, blokace mimo dostupnost
+- [x] **Nové DB tabulky:** `lecturer_availability` a `lecturer_time_off`
+- [x] **Backend API:** CRUD pro pravidelnou dostupnost a blokace
+- [x] **Frontend stránka:** `/admin/availability` s týdenním kalendářem
+- [x] **Integrace do BookingPage** — "Lektor nedostupný" pro blokované časy
 
-- [x] **Frontend: BookingPage** — veřejný booking formulář zobrazuje "Lektor nedostupný" pro bloky kde lektor není k dispozici, "Volný" pro dostupné, "Obsazeno" pro zarezervované
-- [x] **Klíčový princip:** Zobrazují se POUZE bloky definované v programu (time_blocks), žádné nové se nevytvářejí
+### Fáze 10 - Hromadné akce a GDPR (26. března 2026)
+- [x] **Backend: `POST /api/bookings/bulk-status`** — hromadná změna stavu (potvrdit/zrušit/dokončit)
+- [x] **Backend: `GET /api/gdpr/export`** — export osobních dat (GDPR čl. 20)
+- [x] **Backend: `POST /api/gdpr/anonymize`** — anonymizace osobních údajů (GDPR čl. 17)
+- [x] **Frontend: Checkboxy** u každé rezervace, "Vybrat vše"
+- [x] **Frontend: Hromadný panel** (Potvrdit/Zrušit/Dokončit vybrané)
+- [x] **Frontend: Filtry stavu** (Vše, Čekající, Potvrzené, Zrušené, Dokončené) s počty
+- [x] **Frontend: Vyhledávání** v rezervacích (škola, kontakt, program)
+- [x] **Frontend: GDPR sekce** v Nastavení — export dat (JSON stažení), anonymizace s potvrzovacím dialogem
+- [x] **Právní článek 10** — odpovědnost za realizaci rezervací (platforma = prostředník, již existoval)
 
 ---
 
@@ -102,65 +104,54 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 │   ├── scheduler.py
 │   ├── core/security.py
 │   ├── database/
-│   │   ├── models.py (User, School, SchoolContact, ...)
+│   │   ├── models.py
 │   │   ├── supabase.py
 │   │   └── supabase_repositories.py
 │   ├── routes/
-│   │   ├── schools.py (Multi-contact CRM)
-│   │   ├── bookings.py (Booking + lecturer assignment + collision check)
-│   │   ├── availability.py (Availability + collision awareness)
-│   │   ├── team.py (Team member mgmt + name editing)
-│   │   ├── invitations.py (Team invitations)
-│   │   ├── feedback.py
-│   │   ├── plan.py
-│   │   └── legal.py
+│   │   ├── auth.py
+│   │   ├── bookings.py (+ bulk-status)
+│   │   ├── gdpr.py (NEW)
+│   │   ├── availability.py
+│   │   ├── lecturer_availability.py
+│   │   └── ...
 │   ├── services/
-│   │   └── collision_service.py (Collision detection & time block parsing)
-│   ├── models/schemas.py (Pydantic schemas)
-│   └── templates/emails/templates.py
+│   │   ├── collision_service.py
+│   │   └── email_service.py
+│   ├── models/schemas.py
+│   └── constants/legal_texts.py
 ├── frontend/
 │   └── src/
-│       ├── components/layout/AdminLayout.js (desktop sidebar + mobile bottom nav)
+│       ├── components/layout/AdminLayout.js
 │       ├── pages/admin/
-│       │   ├── BookingsPage.js (Lecturer dropdown with names)
-│       │   ├── TeamPage.js (Name editing dialog)
-│       │   ├── SchoolsPage.js (Multi-contact CRM UI)
-│       │   ├── DashboardPage.js
-│       │   ├── LecturerAvailabilityPage.js (Weekly calendar, CRUD)
-│       │   ├── ProgramsPage.js (Collision tab)
-│       │   └── SettingsPage.js
+│       │   ├── BookingsPage.js (bulk actions, filters, search)
+│       │   ├── SettingsPage.js (GDPR section)
+│       │   └── ...
 │       └── pages/public/
+│           ├── GDPRPage.js
 │           ├── TermsPage.js
-│           └── AcceptInvitePage.js
+│           └── ...
 ```
 
 ---
 
 ## Key API Endpoints
 
+### Bulk Actions
+| Metoda | Endpoint | Popis |
+|--------|----------|-------|
+| POST | /api/bookings/bulk-status | Hromadná změna stavu (confirmed/cancelled/completed) |
+
+### GDPR
+| Metoda | Endpoint | Popis |
+|--------|----------|-------|
+| GET | /api/gdpr/export | Export osobních dat (JSON) |
+| POST | /api/gdpr/anonymize | Anonymizace osobních údajů (potvrzení: SMAZAT) |
+
 ### Team Management
 | Metoda | Endpoint | Popis |
 |--------|----------|-------|
-| GET | /api/team | Seznam členů týmu (včetně name, status) |
+| GET | /api/team | Seznam členů týmu |
 | PATCH | /api/team/{id}/name | Aktualizace jména člena |
-| PATCH | /api/team/{id}/role | Aktualizace role |
-| DELETE | /api/team/{id} | Odebrání člena |
-
-### Bookings
-| Metoda | Endpoint | Popis |
-|--------|----------|-------|
-| POST | /api/bookings/{id}/assign-lecturer | Self-přiřazení lektora |
-| POST | /api/bookings/{id}/assign-lecturer-admin | Admin přiřazení lektora |
-| DELETE | /api/bookings/{id}/unassign-lecturer | Odhlášení lektora |
-
-### Schools Multi-Contact CRM
-| Metoda | Endpoint | Popis |
-|--------|----------|-------|
-| GET | /api/schools | Seznam škol s kontakty |
-| POST | /api/schools/{id}/contacts | Přidání kontaktu |
-| PUT | /api/schools/{id}/contacts/{id} | Úprava kontaktu |
-| POST | /api/schools/setup-contacts-table | Vytvoření tabulky |
-| POST | /api/schools/migrate-contacts | Migrace kontaktů |
 
 ---
 
@@ -174,36 +165,19 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 ## Backlog
 
 ### P1 - Vysoká priorita
-- [ ] Propagace jména při přijetí pozvánky — kód je funkční (accept_invitation přenáší name), potřeba ověřit na produkci po deploymentu
 - [ ] Production deployment — uživatel musí pushnout na GitHub a spustit migrace
 
 ### P2 - Střední priorita
+- [ ] Analýza zabezpečení webu (kyber bezpečnost, úniky dat)
 - [ ] i18n přepínač jazyků (existující tlačítko, potřebuje napojení)
-- [ ] Hromadné akce pro rezervace (Confirm/Cancel multiple)
-- [ ] GDPR správa dat (Export/Delete personal data)
 
 ### P3 - Backlog
-- [ ] Platební integrace (Stripe - aktuálně PRO je manuální)
+- [ ] Platební integrace (Fakturoid — zálohové faktury, aktivace PRO po připsání platby)
 
 ### P4 - Mobilní aplikace & Pokročilá analytika
-Podrobný rozsah:
-- **Mobilní aplikace (PWA/React Native)**
-  - Push notifikace pro nové rezervace a potvrzení
-  - Offline režim pro prohlížení programů a rezervací
-  - QR kód skenování pro check-in skupin
-  - Fotogalerie z proběhlých programů
-- **Pokročilá analytika**
-  - Heatmapa vytíženosti (denní/týdenní/měsíční)
-  - Trendy rezervací (rok-over-rok, měsíc-over-měsíc)
-  - Konverzní poměry (návštěvy booking stránky vs. dokončené rezervace)
-  - Finanční přehledy (příjmy, průměrná cena za žáka)
-  - Exporty reportů (PDF, Excel)
-  - Dashboard widgety přizpůsobitelné uživatelem
-- **Mobilní admin navigace**
-  - [x] Záložka Nastavení v mobilní spodní liště (pro adminy)
-  - Swipe gesta pro rychlé akce (potvrdit/zrušit rezervaci)
-  - Pull-to-refresh pro aktualizaci dat
+- [ ] PWA, push notifikace, offline režim, QR check-in
+- [ ] Heatmapa vytíženosti, trendy, finanční přehledy, exporty reportů
 
 ---
 
-*Poslední aktualizace: 23. března 2026*
+*Poslední aktualizace: 26. března 2026*

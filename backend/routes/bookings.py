@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import BookingCreate, Booking, BookingUpdate
 from core.security import get_current_user
-from database.supabase import get_db
+from database.supabase import get_db, AsyncSessionLocal
 from database.supabase_repositories import (
     BookingRepositorySupabase, 
     UserRepositorySupabase, 
@@ -25,6 +25,7 @@ from services.email_service import (
     trigger_reservation_created_emails,
     trigger_reservation_confirmed_email,
     trigger_reservation_cancelled_email,
+    trigger_reservation_rescheduled_email,
 )
 from services.collision_service import check_booking_collision
 
@@ -315,10 +316,11 @@ async def update_booking_status(
 async def update_booking(
     booking_id: str,
     update_data: BookingUpdate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update booking - role-based access."""
+    """Update booking - role-based access. Sends reschedule email when date/time changes."""
     user_repo = UserRepositorySupabase(db)
     booking_repo = BookingRepositorySupabase(db)
     
@@ -330,6 +332,10 @@ async def update_booking(
     booking = await booking_repo.find_by_id(booking_id, current_user["institution_id"])
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Save original date/time before update
+    original_date = booking.get("date", "")
+    original_time = booking.get("time_block", "")
     
     # Role-based field access
     update_fields = {}
@@ -387,6 +393,42 @@ async def update_booking(
         return {"message": "No fields to update"}
     
     await booking_repo.update(booking_id, current_user["institution_id"], update_fields)
+    
+    # Check if date or time changed — send reschedule email
+    new_date = update_fields.get("date", original_date)
+    new_time = update_fields.get("time_block", original_time)
+    date_changed = "date" in update_fields and update_fields["date"] != original_date
+    time_changed = "time_block" in update_fields and update_fields["time_block"] != original_time
+    
+    if date_changed or time_changed:
+        # Capture values for background task (avoid using request-scoped db)
+        program_id = booking.get("program_id")
+        institution_id = current_user["institution_id"]
+        updated_booking = {**booking, "date": new_date, "time_block": new_time}
+        
+        async def send_reschedule_email():
+            try:
+                async with AsyncSessionLocal() as bg_db:
+                    program_repo = ProgramRepositorySupabase(bg_db)
+                    institution_repo = InstitutionRepositorySupabase(bg_db)
+                    
+                    program = await program_repo.find_by_id(program_id, institution_id)
+                    institution = await institution_repo.find_by_id(institution_id)
+                    
+                    if program and institution:
+                        await trigger_reservation_rescheduled_email(
+                            booking_data=updated_booking,
+                            program_data=program,
+                            institution_data=institution,
+                            original_date=original_date,
+                            original_time=original_time,
+                        )
+                        logger.info(f"Reschedule email sent for booking {booking_id}")
+            except Exception as e:
+                logger.error(f"Failed to send reschedule email for booking {booking_id}: {e}")
+        
+        background_tasks.add_task(send_reschedule_email)
+    
     return {"message": "Booking updated", "updated_fields": list(update_fields.keys())}
 
 

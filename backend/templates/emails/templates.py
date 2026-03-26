@@ -977,6 +977,72 @@ Pokud jste tuto pozvánku neočekávali, můžete tento email ignorovat.
 
 # ============ TEMPLATE REGISTRY ============
 
+def reservation_rescheduled(data: Dict[str, Any]) -> Dict[str, str]:
+    """Email sent to teacher when admin changes reservation date or time."""
+    content = f"""
+        <h1 style="{BASE_STYLES['h1']}">Termín rezervace byl změněn</h1>
+        
+        <p style="{BASE_STYLES['text']}">
+            Dobrý den, {data.get('teacher_name', '')},
+        </p>
+        
+        <p style="{BASE_STYLES['text']}">
+            Vaše rezervace programu <strong>{data.get('program_name', '')}</strong> v instituci 
+            <strong>{data.get('institution_name', '')}</strong> byla přesunuta na nový termín.
+        </p>
+        
+        <div style="margin: 24px 0; padding: 16px; background-color: #FEF3C7; border-radius: 8px; border-left: 4px solid #F59E0B;">
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: #92400E; font-weight: 600;">Původní termín:</p>
+            <p style="margin: 0 0 4px 0; font-size: 14px; color: #78350F; text-decoration: line-through;">
+                {data.get('original_date', '')} &nbsp; {data.get('original_time', '')}
+            </p>
+        </div>
+        
+        <div style="margin: 24px 0; padding: 16px; background-color: #D1FAE5; border-radius: 8px; border-left: 4px solid #10B981;">
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: #065F46; font-weight: 600;">Nový termín:</p>
+            <p style="margin: 0 0 4px 0; font-size: 16px; color: #064E3B; font-weight: 700;">
+                {data.get('reservation_date', '')} &nbsp; {data.get('reservation_time', '')}
+            </p>
+        </div>
+        
+        {_reservation_details_box(data)}
+        
+        <p style="{BASE_STYLES['text']}">
+            V případě, že vám nový termín nevyhovuje, kontaktujte nás prosím na 
+            {data.get('institution_email', '')} nebo {data.get('institution_phone', '')}.
+        </p>
+        
+        {_reservation_important_notice()}
+    """
+    
+    plain = f"""
+Termín rezervace byl změněn
+
+Dobrý den, {data.get('teacher_name', '')},
+
+vaše rezervace programu {data.get('program_name', '')} v instituci {data.get('institution_name', '')} byla přesunuta.
+
+Původní termín: {data.get('original_date', '')} {data.get('original_time', '')}
+Nový termín: {data.get('reservation_date', '')} {data.get('reservation_time', '')}
+
+Detail:
+- Program: {data.get('program_name', '')}
+- Škola: {data.get('school_name', '')}
+- Počet dětí: {data.get('children_count', 0)}
+
+Pokud vám nový termín nevyhovuje, kontaktujte nás: {data.get('institution_email', '')} / {data.get('institution_phone', '')}
+
+---
+Budezivo.cz je pouze zprostředkovatelem rezervace. Více: https://www.budezivo.cz/terms
+"""
+    
+    return {
+        "subject": f"Změna termínu - {data.get('program_name', '')} ({data.get('reservation_date', '')})",
+        "html": _base_template(content),
+        "text": _plain_text_base(plain)
+    }
+
+
 TEMPLATE_REGISTRY = {
     "user_registration_confirmation": user_registration_confirmation,
     "account_activation": account_activation,
@@ -988,6 +1054,7 @@ TEMPLATE_REGISTRY = {
     "reservation_rejected": reservation_rejected,
     "reservation_updated": reservation_updated,
     "reservation_cancelled": reservation_cancelled,
+    "reservation_rescheduled": reservation_rescheduled,
     "reservation_reminder_teacher": reservation_reminder_teacher,
     "reservation_reminder_institution": reservation_reminder_institution,
     "new_institution_registration": new_institution_registration,

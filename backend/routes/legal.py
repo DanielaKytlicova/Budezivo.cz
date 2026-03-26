@@ -11,7 +11,9 @@ from constants.legal_texts import (
     get_current_terms_text,
     get_reservation_checkbox_text,
     get_email_disclaimer,
-    CURRENT_TERMS_VERSION
+    CURRENT_TERMS_VERSION,
+    get_vop_sections,
+    CURRENT_VOP_VERSION
 )
 
 router = APIRouter(prefix="/legal", tags=["Legal"])
@@ -37,6 +39,18 @@ class ReservationTermsResponse(BaseModel):
     version: str
     checkbox_text: str
     email_disclaimer: str
+
+
+class VopSection(BaseModel):
+    number: int
+    title: str
+    content: List[str]
+
+
+class VopResponse(BaseModel):
+    title: str
+    version: str
+    sections: List[VopSection]
 
 
 # ============ Public Routes ============
@@ -83,3 +97,24 @@ async def get_current_version():
     Get just the current version identifier.
     """
     return {"version": CURRENT_TERMS_VERSION}
+
+
+@router.get("/vop", response_model=VopResponse)
+async def get_vop():
+    """
+    Get the full Všeobecné obchodní podmínky (VOP).
+    Public endpoint - no auth required.
+    """
+    sections = get_vop_sections()
+    return VopResponse(
+        title="Všeobecné obchodní podmínky platformy Budeživo.cz",
+        version=CURRENT_VOP_VERSION,
+        sections=[
+            VopSection(
+                number=s["number"],
+                title=s["title"],
+                content=s["content"]
+            )
+            for s in sections
+        ]
+    )

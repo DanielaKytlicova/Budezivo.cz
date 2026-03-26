@@ -3,12 +3,16 @@ Authentication routes: register, login, verify, forgot password.
 Uses Supabase (PostgreSQL) for database operations.
 """
 import logging
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+import re
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from models.schemas import UserCreate, UserLogin, TokenResponse, ForgotPasswordRequest
 from pydantic import BaseModel, EmailStr
 from core.security import hash_password, verify_password, create_jwt_token, get_current_user
+from core.config import FRONTEND_URL
 from database.supabase import get_db
 from database.supabase_repositories import (
     UserRepositorySupabase, 
@@ -23,15 +27,28 @@ from services.email_service import (
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("/register", response_model=TokenResponse)
+@limiter.limit("5/minute")
 async def register(
+    request: Request,
     user_data: UserCreate, 
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
 ):
     """Register new user and institution."""
+    # Password strength validation
+    if len(user_data.password) < 8:
+        raise HTTPException(status_code=400, detail="Heslo musí mít alespoň 8 znaků")
+    if not re.search(r'[A-Z]', user_data.password):
+        raise HTTPException(status_code=400, detail="Heslo musí obsahovat alespoň jedno velké písmeno")
+    if not re.search(r'[a-z]', user_data.password):
+        raise HTTPException(status_code=400, detail="Heslo musí obsahovat alespoň jedno malé písmeno")
+    if not re.search(r'[0-9]', user_data.password):
+        raise HTTPException(status_code=400, detail="Heslo musí obsahovat alespoň jednu číslici")
+    
     user_repo = UserRepositorySupabase(db)
     institution_repo = InstitutionRepositorySupabase(db)
     theme_repo = ThemeRepositorySupabase(db)
@@ -65,7 +82,9 @@ async def register(
         "password_hash": hash_password(user_data.password),
         "institution_id": institution["id"],
         "role": "admin",
+        "name": user_data.name,
         "gdpr_consent": user_data.gdpr_consent,
+        "terms_accepted": user_data.terms_accepted,
     })
     
     # Create default theme settings
@@ -84,7 +103,7 @@ async def register(
             # Send welcome email to the new user
             await trigger_user_registration_email(
                 user_email=user_data.email,
-                user_name=user_data.email.split('@')[0],  # Use email prefix as name
+                user_name=user_data.name or user_data.email.split('@')[0],
                 institution_name=user_data.institution_name,
             )
             logger.info(f"Registration confirmation email sent to {user_data.email}")
@@ -117,6 +136,7 @@ async def register(
         "user": {
             "id": user["id"],
             "email": user_data.email,
+            "name": user_data.name,
             "institution_id": institution["id"],
             "institution_name": user_data.institution_name,
             "role": "admin"
@@ -125,7 +145,8 @@ async def register(
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/minute")
+async def login(request: Request, credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     """Login existing user."""
     user_repo = UserRepositorySupabase(db)
     institution_repo = InstitutionRepositorySupabase(db)
@@ -151,6 +172,7 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
         "user": {
             "id": user["id"],
             "email": user["email"],
+            "name": user.get("name"),
             "institution_id": user["institution_id"],
             "institution_name": institution["name"] if institution else "",
             "role": user["role"]
@@ -159,7 +181,9 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/forgot-password")
+@limiter.limit("3/minute")
 async def forgot_password(
+    request: Request,
     data: ForgotPasswordRequest, 
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db)
@@ -167,7 +191,7 @@ async def forgot_password(
     """Request password reset using JWT token."""
     from datetime import datetime, timezone, timedelta
     import jwt
-    import os
+    from core.config import JWT_SECRET
     
     user_repo = UserRepositorySupabase(db)
     user = await user_repo.find_by_email(data.email)
@@ -177,7 +201,6 @@ async def forgot_password(
         return {"message": "If email exists, password reset link has been sent"}
     
     # Generate JWT reset token with 1 hour expiration
-    secret_key = os.environ.get("JWT_SECRET", "fallback-secret-key-change-in-production")
     token_payload = {
         "user_id": str(user["id"]),
         "email": data.email,
@@ -185,9 +208,9 @@ async def forgot_password(
         "exp": datetime.now(timezone.utc) + timedelta(hours=1),
         "iat": datetime.now(timezone.utc),
     }
-    reset_token = jwt.encode(token_payload, secret_key, algorithm="HS256")
+    reset_token = jwt.encode(token_payload, JWT_SECRET, algorithm="HS256")
     
-    reset_link = f"https://www.budezivo.cz/reset-password?token={reset_token}&email={data.email}"
+    reset_link = f"{FRONTEND_URL}/reset-password?token={reset_token}&email={data.email}"
     
     # Send password reset email in background
     async def send_reset_email():

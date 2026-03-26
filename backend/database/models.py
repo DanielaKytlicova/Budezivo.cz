@@ -93,6 +93,7 @@ class User(Base):
     # GDPR
     gdpr_consent = Column(Boolean, default=False)
     gdpr_consent_date = Column(DateTime(timezone=True))
+    terms_accepted = Column(Boolean, default=False)
     
     # Metadata
     last_login_at = Column(DateTime(timezone=True))

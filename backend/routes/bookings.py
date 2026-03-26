@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import BookingCreate, Booking, BookingUpdate
 from core.security import get_current_user
-from database.supabase import get_db
+from database.supabase import get_db, AsyncSessionLocal
 from database.supabase_repositories import (
     BookingRepositorySupabase, 
     UserRepositorySupabase, 
@@ -25,8 +25,18 @@ from services.email_service import (
     trigger_reservation_created_emails,
     trigger_reservation_confirmed_email,
     trigger_reservation_cancelled_email,
+    trigger_reservation_rescheduled_email,
 )
 from services.collision_service import check_booking_collision
+
+from pydantic import BaseModel as PydanticBaseModel
+
+class BulkStatusRequest(PydanticBaseModel):
+    booking_ids: List[str]
+    status: str  # confirmed, cancelled, completed
+
+class AssignLecturerRequest(PydanticBaseModel):
+    lecturer_id: str
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 logger = logging.getLogger(__name__)
@@ -306,10 +316,11 @@ async def update_booking_status(
 async def update_booking(
     booking_id: str,
     update_data: BookingUpdate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Update booking - role-based access."""
+    """Update booking - role-based access. Sends reschedule email when date/time changes."""
     user_repo = UserRepositorySupabase(db)
     booking_repo = BookingRepositorySupabase(db)
     
@@ -321,6 +332,10 @@ async def update_booking(
     booking = await booking_repo.find_by_id(booking_id, current_user["institution_id"])
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
+    
+    # Save original date/time before update
+    original_date = booking.get("date", "")
+    original_time = booking.get("time_block", "")
     
     # Role-based field access
     update_fields = {}
@@ -378,7 +393,136 @@ async def update_booking(
         return {"message": "No fields to update"}
     
     await booking_repo.update(booking_id, current_user["institution_id"], update_fields)
+    
+    # Check if date or time changed — send reschedule email
+    new_date = update_fields.get("date", original_date)
+    new_time = update_fields.get("time_block", original_time)
+    date_changed = "date" in update_fields and update_fields["date"] != original_date
+    time_changed = "time_block" in update_fields and update_fields["time_block"] != original_time
+    
+    if date_changed or time_changed:
+        # Capture values for background task (avoid using request-scoped db)
+        program_id = booking.get("program_id")
+        institution_id = current_user["institution_id"]
+        updated_booking = {**booking, "date": new_date, "time_block": new_time}
+        
+        async def send_reschedule_email():
+            try:
+                async with AsyncSessionLocal() as bg_db:
+                    program_repo = ProgramRepositorySupabase(bg_db)
+                    institution_repo = InstitutionRepositorySupabase(bg_db)
+                    
+                    program = await program_repo.find_by_id(program_id, institution_id)
+                    institution = await institution_repo.find_by_id(institution_id)
+                    
+                    if program and institution:
+                        await trigger_reservation_rescheduled_email(
+                            booking_data=updated_booking,
+                            program_data=program,
+                            institution_data=institution,
+                            original_date=original_date,
+                            original_time=original_time,
+                        )
+                        logger.info(f"Reschedule email sent for booking {booking_id}")
+            except Exception as e:
+                logger.error(f"Failed to send reschedule email for booking {booking_id}: {e}")
+        
+        background_tasks.add_task(send_reschedule_email)
+    
     return {"message": "Booking updated", "updated_fields": list(update_fields.keys())}
+
+
+@router.post("/bulk-status")
+async def bulk_update_booking_status(
+    request: BulkStatusRequest,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Bulk update status for multiple bookings. Triggers emails for each."""
+    if request.status not in ["confirmed", "cancelled", "completed"]:
+        raise HTTPException(status_code=400, detail="Neplatný stav. Povolené: confirmed, cancelled, completed")
+    
+    if not request.booking_ids:
+        raise HTTPException(status_code=400, detail="Žádné rezervace nebyly vybrány")
+    
+    user_repo = UserRepositorySupabase(db)
+    booking_repo = BookingRepositorySupabase(db)
+    program_repo = ProgramRepositorySupabase(db)
+    institution_repo = InstitutionRepositorySupabase(db)
+    log_repo = EmailLogRepositorySupabase(db)
+    
+    # Check permissions
+    admin_user = await user_repo.find_by_id(current_user["user_id"])
+    if not admin_user or admin_user.get("role") not in ["admin", "spravce", "edukator"]:
+        raise HTTPException(status_code=403, detail="Nemáte oprávnění pro hromadné akce")
+    
+    # Get bookings before update (for email sending)
+    bookings_before = await booking_repo.find_by_ids(request.booking_ids, current_user["institution_id"])
+    
+    if not bookings_before:
+        raise HTTPException(status_code=404, detail="Žádné rezervace nenalezeny")
+    
+    # Perform bulk update
+    updated_count = await booking_repo.bulk_update_status(
+        request.booking_ids, current_user["institution_id"], request.status
+    )
+    
+    # Trigger emails in background for each booking
+    async def send_bulk_emails():
+        try:
+            institution = await institution_repo.find_by_id(current_user["institution_id"])
+            for booking in bookings_before:
+                old_status = booking.get("status")
+                if old_status == request.status:
+                    continue
+                try:
+                    program = await program_repo.find_by_id(
+                        booking.get("program_id"), current_user["institution_id"]
+                    )
+                    if not program or not institution:
+                        continue
+                    
+                    email_result = None
+                    template_name = None
+                    
+                    if request.status == "confirmed" and old_status != "confirmed":
+                        email_result = await trigger_reservation_confirmed_email(
+                            booking_data=booking, program_data=program,
+                            institution_data=institution,
+                        )
+                        template_name = "reservation_confirmed"
+                    elif request.status == "cancelled" and old_status != "cancelled":
+                        email_result = await trigger_reservation_cancelled_email(
+                            booking_data=booking, program_data=program,
+                            institution_data=institution, cancellation_reason="",
+                        )
+                        template_name = "reservation_cancelled"
+                    
+                    if email_result and template_name:
+                        await log_repo.create({
+                            "institution_id": current_user["institution_id"],
+                            "program_id": booking.get("program_id"),
+                            "reservation_id": booking.get("id"),
+                            "recipient_email": booking.get("contact_email", ""),
+                            "subject": f"bulk_{template_name}",
+                            "status": email_result.get("status", "sent"),
+                            "error_message": email_result.get("error"),
+                            "email_id": email_result.get("email_id"),
+                        })
+                except Exception as e:
+                    logger.error(f"Bulk email error for booking {booking.get('id')}: {str(e)}")
+        except Exception as e:
+            logger.error(f"Bulk email send failed: {str(e)}")
+    
+    background_tasks.add_task(send_bulk_emails)
+    
+    logger.info(f"Bulk status update: {updated_count} bookings -> {request.status}")
+    return {
+        "message": f"Stav {updated_count} rezervací byl změněn na '{request.status}'",
+        "updated_count": updated_count,
+        "status": request.status
+    }
 
 
 @router.post("/{booking_id}/assign-lecturer")
@@ -448,12 +592,6 @@ async def unassign_lecturer_from_booking(
     
     await booking_repo.unassign_lecturer(booking_id, current_user["institution_id"])
     return {"message": "Lecturer unassigned"}
-
-
-from pydantic import BaseModel as PydanticBaseModel
-
-class AssignLecturerRequest(PydanticBaseModel):
-    lecturer_id: str
 
 
 @router.post("/{booking_id}/assign-lecturer-admin")

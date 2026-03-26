@@ -512,6 +512,42 @@ class BookingRepositorySupabase:
             "assigned_lecturer_at": None
         })
 
+    async def bulk_update_status(self, booking_ids: List[str], institution_id: str, status: str) -> int:
+        """Bulk update booking status. Returns number of updated rows."""
+        uuid_ids = [uuid.UUID(bid) for bid in booking_ids]
+        result = await self.db.execute(
+            update(Reservation)
+            .where(and_(
+                Reservation.id.in_(uuid_ids),
+                Reservation.institution_id == uuid.UUID(institution_id)
+            ))
+            .values(status=status)
+        )
+        await self.db.commit()
+        return result.rowcount
+
+    async def find_by_ids(self, booking_ids: List[str], institution_id: str) -> List[dict]:
+        """Find multiple bookings by IDs."""
+        uuid_ids = [uuid.UUID(bid) for bid in booking_ids]
+        result = await self.db.execute(
+            select(Reservation).where(and_(
+                Reservation.id.in_(uuid_ids),
+                Reservation.institution_id == uuid.UUID(institution_id)
+            ))
+        )
+        bookings = result.scalars().all()
+        return [to_dict(b) for b in bookings]
+
+    async def find_all_by_institution_for_export(self, institution_id: str) -> List[dict]:
+        """Find all bookings for GDPR export (no program name lookup)."""
+        result = await self.db.execute(
+            select(Reservation)
+            .where(Reservation.institution_id == uuid.UUID(institution_id))
+            .order_by(Reservation.created_at.desc())
+        )
+        bookings = result.scalars().all()
+        return [to_dict(b) for b in bookings]
+
 
 class SchoolRepositorySupabase:
     """Repository for school/CRM operations with Supabase."""

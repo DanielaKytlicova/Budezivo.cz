@@ -18,6 +18,7 @@ import { ContactPage } from './pages/public/ContactPage';
 import FeedbackPage from './pages/public/FeedbackPage';
 import AcceptInvitePage from './pages/public/AcceptInvitePage';
 import TermsPage from './pages/public/TermsPage';
+import { VopPage } from './pages/public/VopPage';
 
 // Admin pages
 import { DashboardPage } from './pages/admin/DashboardPage';
@@ -65,6 +66,7 @@ function App() {
               <Route path="/feedback/:token" element={<FeedbackPage />} />
               <Route path="/accept-invite" element={<AcceptInvitePage />} />
               <Route path="/terms" element={<TermsPage />} />
+              <Route path="/obchodni-podminky" element={<VopPage />} />
 
               {/* Admin routes */}
               <Route

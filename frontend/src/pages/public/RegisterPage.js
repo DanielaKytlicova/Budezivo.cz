@@ -15,6 +15,34 @@ import { Plus, Trash2, Upload, Clock, Search, CheckCircle, XCircle, Loader2 } fr
 import axios from 'axios';
 import { API } from '../../config/api';
 
+const PasswordStrength = ({ password }) => {
+  if (!password) return null;
+  const checks = [
+    { ok: password.length >= 8, label: 'Alespoň 8 znaků' },
+    { ok: /[A-Z]/.test(password), label: 'Velké písmeno' },
+    { ok: /[a-z]/.test(password), label: 'Malé písmeno' },
+    { ok: /[0-9]/.test(password), label: 'Číslice' },
+  ];
+  const passed = checks.filter(c => c.ok).length;
+  const colors = ['bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-green-400'];
+  return (
+    <div className="mt-2 space-y-1" data-testid="password-strength">
+      <div className="flex gap-1">
+        {[0,1,2,3].map(i => (
+          <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i < passed ? colors[passed - 1] : 'bg-gray-200'}`} />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+        {checks.map((c, i) => (
+          <span key={i} className={`text-xs ${c.ok ? 'text-green-600' : 'text-gray-400'}`}>
+            {c.ok ? '\u2713' : '\u2022'} {c.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const STEPS = ['account', 'info', 'schedule', 'programs'];
 
 const CZECH_CITIES = [
@@ -53,12 +81,14 @@ export const RegisterPage = () => {
   
   const [formData, setFormData] = useState({
     // Step 1 - Account
+    name: '',
     institution_name: '',
     institution_type: '',
     country: 'Česká republika',
     email: '',
     password: '',
     gdpr_consent: false,
+    terms_accepted: false,
     // Step 2 - Institution Info
     address: '',
     city: '',
@@ -156,12 +186,16 @@ export const RegisterPage = () => {
   const validateStep = (step) => {
     switch (step) {
       case 0:
-        if (!formData.institution_name || !formData.institution_type || !formData.email || !formData.password) {
+        if (!formData.name || !formData.institution_name || !formData.institution_type || !formData.email || !formData.password) {
           toast.error('Vyplňte prosím všechna povinná pole');
           return false;
         }
         if (!formData.gdpr_consent) {
           toast.error('Pro pokračování musíte souhlasit se zpracováním osobních údajů');
+          return false;
+        }
+        if (!formData.terms_accepted) {
+          toast.error('Pro pokračování musíte souhlasit s obchodními podmínkami');
           return false;
         }
         return true;
@@ -217,6 +251,19 @@ export const RegisterPage = () => {
       {/* Budeživo logo */}
       <div className="flex justify-center mb-6">
         <BudezivoLogo />
+      </div>
+
+      <div>
+        <Label htmlFor="name">Jméno a příjmení</Label>
+        <Input
+          id="name"
+          data-testid="register-name"
+          value={formData.name}
+          onChange={(e) => updateField('name', e.target.value)}
+          placeholder="Jan Novák"
+          required
+          className="mt-2"
+        />
       </div>
 
       <div>
@@ -290,10 +337,11 @@ export const RegisterPage = () => {
           data-testid="register-password"
           value={formData.password}
           onChange={(e) => updateField('password', e.target.value)}
-          placeholder="••••••"
+          placeholder="Min. 8 znaků, velké+malé+číslo"
           required
           className="mt-2"
         />
+        <PasswordStrength password={formData.password} />
       </div>
 
       <div className="flex items-center space-x-2">
@@ -306,6 +354,22 @@ export const RegisterPage = () => {
         <label htmlFor="gdpr_consent" className="text-sm text-gray-600 cursor-pointer">
           <Link to="/gdpr" className="underline hover:text-slate-800">
             Souhlasím se zpracováním osobních údajů
+          </Link>
+        </label>
+      </div>
+
+      <div className="flex items-start space-x-2">
+        <Checkbox
+          id="terms_accepted"
+          data-testid="register-terms-accepted"
+          checked={formData.terms_accepted}
+          onCheckedChange={(checked) => updateField('terms_accepted', checked)}
+          className="mt-0.5"
+        />
+        <label htmlFor="terms_accepted" className="text-sm text-gray-600 cursor-pointer">
+          Souhlasím s{' '}
+          <Link to="/obchodni-podminky" target="_blank" className="underline font-medium text-slate-800 hover:text-slate-600">
+            obchodními podmínkami
           </Link>
         </label>
       </div>

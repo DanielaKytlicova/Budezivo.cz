@@ -5,8 +5,13 @@ Modular FastAPI Application with Supabase (PostgreSQL)
 Main entry point that initializes the application and registers all routes.
 """
 import logging
-from fastapi import FastAPI, APIRouter, Depends, HTTPException
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import CORS_ORIGINS
@@ -34,6 +39,7 @@ from routes.invitations import router as invitations_router
 from routes.legal import router as legal_router
 from routes.plan import router as plan_router
 from routes.lecturer_availability import router as lecturer_availability_router
+from routes.gdpr import router as gdpr_router
 from models.schemas import ContactFormData, InstitutionSettings
 
 # Configure logging
@@ -43,12 +49,40 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        return response
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Budeživo.cz API",
     description="Multi-tenant SaaS booking system for cultural institutions - Powered by Supabase",
     version="2.0.0"
 )
+
+# Attach rate limiter state and exception handler
+app.state.limiter = limiter
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return Response(
+        content='{"detail":"Příliš mnoho požadavků. Zkuste to prosím za chvíli."}',
+        status_code=429,
+        media_type="application/json",
+    )
 
 # Create API router with /api prefix
 api_router = APIRouter(prefix="/api")
@@ -73,6 +107,7 @@ api_router.include_router(invitations_router)
 api_router.include_router(legal_router)
 api_router.include_router(plan_router)
 api_router.include_router(lecturer_availability_router)
+api_router.include_router(gdpr_router)
 
 
 # ============ Additional Routes ============
@@ -161,9 +196,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=CORS_ORIGINS,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 # ============ Event Handlers ============

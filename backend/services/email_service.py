@@ -503,3 +503,37 @@ async def trigger_user_registration_email(
             "dashboard_url": "https://budezivo.cz/admin",
         },
     )
+
+
+async def trigger_reservation_rescheduled_email(
+    booking_data: Dict[str, Any],
+    program_data: Dict[str, Any],
+    institution_data: Dict[str, Any],
+    original_date: str,
+    original_time: str,
+) -> Dict[str, Any]:
+    """Trigger email when admin changes reservation date or time."""
+    context = {
+        "school_name": booking_data.get("school_name", ""),
+        "teacher_name": booking_data.get("contact_name", ""),
+        "teacher_email": booking_data.get("contact_email", ""),
+        "teacher_phone": booking_data.get("contact_phone", ""),
+        "reservation_date": booking_data.get("date", ""),
+        "reservation_time": booking_data.get("time_block", ""),
+        "original_date": original_date,
+        "original_time": original_time,
+        "children_count": booking_data.get("num_students", 0),
+        "teachers_count": booking_data.get("num_teachers", 0),
+        "program_name": program_data.get("name_cs", ""),
+        "institution_name": institution_data.get("name", ""),
+        "institution_email": institution_data.get("email", ""),
+        "institution_phone": institution_data.get("phone", ""),
+        "institution_logo_url": institution_data.get("logo_url"),
+    }
+
+    return await EmailService.send_transactional_email(
+        template_name="reservation_rescheduled",
+        to_email=booking_data.get("contact_email", ""),
+        data=context,
+        reply_to=institution_data.get("email"),
+    )

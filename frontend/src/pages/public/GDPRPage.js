@@ -38,7 +38,7 @@ export const GDPRPage = () => {
                   <p className="text-sm text-gray-600">
                     <strong>Kontakt na správce:</strong><br />
                     E-mail: gdpr@budezivo.cz<br />
-                    Datová schránka: [ID datové schránky]
+                    Datová schránka: e2u63pp
                   </p>
                 </div>
               </div>

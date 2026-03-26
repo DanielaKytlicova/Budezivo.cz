@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useMemo } from 'react';
 import { useTranslation } from '../../i18n/useTranslation';
 import { AdminLayout } from '../../components/layout/AdminLayout';
 import { AuthContext } from '../../context/AuthContext';
@@ -28,7 +28,10 @@ import {
   Eye,
   AlertCircle,
   Link as LinkIcon,
-  Copy
+  Copy,
+  CheckSquare,
+  Square,
+  Filter
 } from 'lucide-react';
 import { API } from '../../config/api';
 
@@ -50,10 +53,15 @@ export const BookingsPage = () => {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState('viewer');
-  const [editMode, setEditMode] = useState(null); // 'attendance' | 'datetime' | 'contact' | null
+  const [editMode, setEditMode] = useState(null);
   const [editData, setEditData] = useState({});
   const [teamMembers, setTeamMembers] = useState([]);
   const [selectedLecturer, setSelectedLecturer] = useState('');
+  // Bulk actions state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchBookings();
@@ -98,6 +106,68 @@ export const BookingsPage = () => {
   const getPermissions = () => {
     return PERMISSIONS[currentUserRole] || PERMISSIONS.viewer;
   };
+
+  // Filtered bookings based on status filter and search
+  const filteredBookings = useMemo(() => {
+    let filtered = bookings;
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(b => b.status === statusFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(b =>
+        (b.school_name || '').toLowerCase().includes(q) ||
+        (b.contact_name || '').toLowerCase().includes(q) ||
+        (b.contact_email || '').toLowerCase().includes(q) ||
+        (b.program_name || '').toLowerCase().includes(q)
+      );
+    }
+    return filtered;
+  }, [bookings, statusFilter, searchQuery]);
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredBookings.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredBookings.map(b => b.id)));
+    }
+  };
+
+  const bulkUpdateStatus = async (status) => {
+    if (selectedIds.size === 0) return;
+    const labels = { confirmed: 'potvrzení', cancelled: 'zrušení', completed: 'dokončení' };
+    setBulkLoading(true);
+    try {
+      const response = await axios.post(`${API}/bookings/bulk-status`, {
+        booking_ids: Array.from(selectedIds),
+        status
+      });
+      toast.success(response.data.message);
+      setSelectedIds(new Set());
+      fetchBookings();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || `Chyba při hromadném ${labels[status]}`);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const statusCounts = useMemo(() => {
+    const counts = { all: bookings.length, pending: 0, confirmed: 0, cancelled: 0, completed: 0 };
+    bookings.forEach(b => {
+      if (counts[b.status] !== undefined) counts[b.status]++;
+    });
+    return counts;
+  }, [bookings]);
 
   const updateStatus = async (id, status) => {
     try {
@@ -700,6 +770,94 @@ export const BookingsPage = () => {
           </Badge>
         </div>
 
+        {/* Filters & Search */}
+        {!loading && bookings.length > 0 && (
+          <div className="space-y-3">
+            {/* Status filter tabs */}
+            <div className="flex flex-wrap gap-2" data-testid="status-filter-bar">
+              {[
+                { key: 'all', label: 'Vše' },
+                { key: 'pending', label: 'Čekající' },
+                { key: 'confirmed', label: 'Potvrzené' },
+                { key: 'cancelled', label: 'Zrušené' },
+                { key: 'completed', label: 'Dokončené' },
+              ].map(f => (
+                <Button
+                  key={f.key}
+                  size="sm"
+                  variant={statusFilter === f.key ? 'default' : 'outline'}
+                  onClick={() => { setStatusFilter(f.key); setSelectedIds(new Set()); }}
+                  className={statusFilter === f.key ? 'bg-slate-800 text-white' : ''}
+                  data-testid={`filter-${f.key}`}
+                >
+                  {f.label}
+                  <span className="ml-1.5 text-xs opacity-70">({statusCounts[f.key]})</span>
+                </Button>
+              ))}
+            </div>
+            {/* Search */}
+            <Input
+              placeholder="Hledat podle školy, kontaktu, programu..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="max-w-md"
+              data-testid="booking-search-input"
+            />
+          </div>
+        )}
+
+        {/* Bulk action bar */}
+        {selectedIds.size > 0 && permissions.canEditAll && (
+          <Card className="p-3 bg-slate-50 border-slate-300 sticky top-0 z-10" data-testid="bulk-action-bar">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium text-slate-700" data-testid="selected-count">
+                Vybráno: {selectedIds.size}
+              </span>
+              <div className="h-5 w-px bg-slate-300" />
+              <Button
+                size="sm"
+                onClick={() => bulkUpdateStatus('confirmed')}
+                disabled={bulkLoading}
+                className="bg-green-600 hover:bg-green-700 text-white"
+                data-testid="bulk-confirm-btn"
+              >
+                <Check className="w-4 h-4 mr-1" />
+                Potvrdit vybrané
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => bulkUpdateStatus('cancelled')}
+                disabled={bulkLoading}
+                className="text-red-600 hover:bg-red-50 border-red-200"
+                data-testid="bulk-cancel-btn"
+              >
+                <X className="w-4 h-4 mr-1" />
+                Zrušit vybrané
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => bulkUpdateStatus('completed')}
+                disabled={bulkLoading}
+                className="text-blue-600 hover:bg-blue-50 border-blue-200"
+                data-testid="bulk-complete-btn"
+              >
+                <Check className="w-4 h-4 mr-1" />
+                Dokončit vybrané
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedIds(new Set())}
+                data-testid="bulk-clear-btn"
+              >
+                Zrušit výběr
+              </Button>
+            </div>
+          </Card>
+        )}
+
         {loading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-800 mx-auto"></div>
@@ -708,54 +866,93 @@ export const BookingsPage = () => {
           <Card className="p-12 text-center">
             <p className="text-gray-500">Zatím nemáte žádné rezervace</p>
           </Card>
+        ) : filteredBookings.length === 0 ? (
+          <Card className="p-12 text-center">
+            <p className="text-gray-500">Žádné rezervace neodpovídají filtru</p>
+          </Card>
         ) : (
           <div className="space-y-4">
-            {Array.isArray(bookings) && bookings.map((booking) => (
+            {/* Select all row */}
+            {permissions.canEditAll && filteredBookings.length > 1 && (
+              <div className="flex items-center gap-3 px-2">
+                <button
+                  onClick={toggleSelectAll}
+                  className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-900 transition-colors"
+                  data-testid="select-all-btn"
+                >
+                  {selectedIds.size === filteredBookings.length ? (
+                    <CheckSquare className="w-5 h-5 text-slate-800" />
+                  ) : (
+                    <Square className="w-5 h-5" />
+                  )}
+                  {selectedIds.size === filteredBookings.length ? 'Odznačit vše' : 'Vybrat vše'}
+                </button>
+                <span className="text-xs text-slate-400">({filteredBookings.length} rezervací)</span>
+              </div>
+            )}
+
+            {filteredBookings.map((booking) => (
               <Card 
                 key={booking.id} 
-                className="p-4 md:p-6 cursor-pointer hover:shadow-md transition-shadow" 
+                className={`p-4 md:p-6 cursor-pointer hover:shadow-md transition-shadow ${selectedIds.has(booking.id) ? 'ring-2 ring-slate-400 bg-slate-50' : ''}`}
                 data-testid={`booking-card-${booking.id}`}
                 onClick={() => openDetail(booking)}
               >
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-slate-900">{booking.program_name || 'Program'}</h3>
-                      {getStatusBadge(booking.status)}
-                      {booking.assigned_lecturer_name && (
-                        <Badge variant="outline" className="text-xs">
-                          <User className="w-3 h-3 mr-1" />
-                          {booking.assigned_lecturer_name}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                      <div>
-                        <span className="text-gray-500 block">Škola:</span>
-                        <span className="font-medium">{booking.school_name}</span>
+                  <div className="flex items-start gap-3 flex-1">
+                    {/* Checkbox */}
+                    {permissions.canEditAll && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleSelect(booking.id); }}
+                        className="mt-1 flex-shrink-0"
+                        data-testid={`select-booking-${booking.id}`}
+                      >
+                        {selectedIds.has(booking.id) ? (
+                          <CheckSquare className="w-5 h-5 text-slate-800" />
+                        ) : (
+                          <Square className="w-5 h-5 text-slate-400" />
+                        )}
+                      </button>
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-lg font-semibold text-slate-900">{booking.program_name || 'Program'}</h3>
+                        {getStatusBadge(booking.status)}
+                        {booking.assigned_lecturer_name && (
+                          <Badge variant="outline" className="text-xs">
+                            <User className="w-3 h-3 mr-1" />
+                            {booking.assigned_lecturer_name}
+                          </Badge>
+                        )}
                       </div>
-                      <div>
-                        <span className="text-gray-500 block">Datum:</span>
-                        <span className="font-medium">{booking.date}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block">Čas:</span>
-                        <span className="font-medium">{booking.time_block}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block">Studentů:</span>
-                        <span className="font-medium">
-                          {booking.actual_students ?? booking.num_students}
-                          {booking.actual_students !== null && booking.actual_students !== undefined && (
-                            <span className="text-xs text-gray-400 ml-1">
-                              (z {booking.num_students})
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block">Kontakt:</span>
-                        <span className="font-medium">{booking.contact_name}</span>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500 block">Škola:</span>
+                          <span className="font-medium">{booking.school_name}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 block">Datum:</span>
+                          <span className="font-medium">{booking.date}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 block">Čas:</span>
+                          <span className="font-medium">{booking.time_block}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 block">Studentů:</span>
+                          <span className="font-medium">
+                            {booking.actual_students ?? booking.num_students}
+                            {booking.actual_students !== null && booking.actual_students !== undefined && (
+                              <span className="text-xs text-gray-400 ml-1">
+                                (z {booking.num_students})
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 block">Kontakt:</span>
+                          <span className="font-medium">{booking.contact_name}</span>
+                        </div>
                       </div>
                     </div>
                   </div>

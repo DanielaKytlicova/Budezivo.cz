@@ -67,9 +67,8 @@ const SETTINGS_MENU = [
   {
     id: 'gdpr',
     icon: Shield,
-    title: 'GDPR a reporting dat',
-    description: 'Nastavení soukromí a export dat pro výroční zprávy',
-    isPro: true,
+    title: 'GDPR a správa dat',
+    description: 'Export dat, anonymizace, nastavení soukromí',
   },
 ];
 
@@ -159,6 +158,10 @@ export const SettingsPage = () => {
     data_retention: 'never',
     anonymize: false,
   });
+  const [exportLoading, setExportLoading] = useState(false);
+  const [anonymizeDialog, setAnonymizeDialog] = useState(false);
+  const [anonymizeConfirm, setAnonymizeConfirm] = useState('');
+  const [anonymizeLoading, setAnonymizeLoading] = useState(false);
 
   // PRO settings
   const [proSettings, setProSettings] = useState({
@@ -1013,89 +1016,181 @@ export const SettingsPage = () => {
   );
 
   // Render GDPR a export dat
-  const renderGdprSettings = () => (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4 mb-6">
-        <button onClick={() => setActiveSection(null)} className="p-2 hover:bg-gray-100 rounded-lg">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h1 className="text-xl font-semibold text-slate-900">GDPR a export dat</h1>
-      </div>
+  const renderGdprSettings = () => {
+    const handleExportData = async () => {
+      setExportLoading(true);
+      try {
+        const response = await axios.get(`${API}/gdpr/export`);
+        const dataStr = JSON.stringify(response.data, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `budezivo_export_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        toast.success('Data byla exportována');
+      } catch (error) {
+        toast.error('Chyba při exportu dat');
+      } finally {
+        setExportLoading(false);
+      }
+    };
 
-      {/* Upgrade banner */}
-      <div className="bg-gray-100 rounded-lg p-4 flex items-center gap-3">
-        <Shield className="w-6 h-6 text-gray-600" />
-        <p className="text-sm">
-          <span className="underline font-medium">Vylepši svůj plán</span> a získej více funkcí, které ti ušetří čas.
-        </p>
-      </div>
+    const handleAnonymize = async () => {
+      if (anonymizeConfirm !== 'SMAZAT') {
+        toast.error('Pro anonymizaci napište SMAZAT');
+        return;
+      }
+      setAnonymizeLoading(true);
+      try {
+        await axios.post(`${API}/gdpr/anonymize`, { confirmation: 'SMAZAT' });
+        toast.success('Vaše osobní údaje byly anonymizovány');
+        setAnonymizeDialog(false);
+        logout();
+      } catch (error) {
+        toast.error(error.response?.data?.detail || 'Chyba při anonymizaci');
+      } finally {
+        setAnonymizeLoading(false);
+      }
+    };
 
-      {/* Export dat a report */}
-      <Card className="p-4 space-y-4">
-        <h2 className="font-semibold text-slate-900">Export dat a report</h2>
-        <p className="text-sm text-gray-500">
-          Nastavení exportu dat například pro výroční zprávy nebo grafy obsazenosti jednotlivých doprovodných programů
-        </p>
-        
-        <Button
-          variant="outline"
-          className="w-full border-gray-300"
-          data-testid="export-data-button"
-        >
-          Získat funkci exportu dat
-        </Button>
-      </Card>
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4 mb-6">
+          <button onClick={() => setActiveSection(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-xl font-semibold text-slate-900">GDPR a export dat</h1>
+        </div>
 
-      {/* Ukládání dat */}
-      <Card className="p-4 space-y-4">
-        <h2 className="font-semibold text-slate-900">Ukládání dat</h2>
-        
-        <div>
-          <Label className="text-gray-600 text-sm">Smaž rezervace po uplynutí</Label>
-          <Select
-            value={gdprSettings.data_retention}
-            onValueChange={(value) => setGdprSettings({ ...gdprSettings, data_retention: value })}
+        {/* Export osobních dat (GDPR čl. 20) */}
+        <Card className="p-4 space-y-4">
+          <h2 className="font-semibold text-slate-900">Export osobních dat</h2>
+          <p className="text-sm text-gray-500">
+            Stáhněte si všechna svá osobní data ve strojově čitelném formátu (JSON).
+            Zahrnuje údaje o uživateli, instituci, rezervacích a školách.
+          </p>
+          <p className="text-xs text-gray-400">
+            Na základě článku 20 GDPR — právo na přenositelnost údajů.
+          </p>
+          <Button
+            variant="outline"
+            className="w-full border-gray-300"
+            onClick={handleExportData}
+            disabled={exportLoading}
+            data-testid="export-data-button"
           >
-            <SelectTrigger className="mt-1" data-testid="gdpr-retention">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DATA_RETENTION.map(opt => (
-                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </Card>
+            {exportLoading ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Exportuji...</>
+            ) : (
+              'Stáhnout export dat (JSON)'
+            )}
+          </Button>
+        </Card>
 
-      {/* Nastavení soukromí */}
-      <Card className="p-4 space-y-4">
-        <h2 className="font-semibold text-slate-900">Nastavení soukromí</h2>
-        
-        <div className="flex items-start gap-3">
-          <Switch
-            checked={gdprSettings.anonymize}
-            onCheckedChange={(checked) => setGdprSettings({ ...gdprSettings, anonymize: checked })}
-            data-testid="gdpr-anonymize"
-          />
+        {/* Ukládání dat */}
+        <Card className="p-4 space-y-4">
+          <h2 className="font-semibold text-slate-900">Ukládání dat</h2>
           <div>
-            <p className="font-medium text-slate-900">Netuším</p>
-            <p className="text-sm text-gray-500">Automaticky odešle mailem upozornění 2 pracovní dny před návštěvou.</p>
+            <Label className="text-gray-600 text-sm">Smaž rezervace po uplynutí</Label>
+            <Select
+              value={gdprSettings.data_retention}
+              onValueChange={(value) => setGdprSettings({ ...gdprSettings, data_retention: value })}
+            >
+              <SelectTrigger className="mt-1" data-testid="gdpr-retention">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DATA_RETENTION.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </div>
-      </Card>
+        </Card>
 
-      {/* Save button */}
-      <Button
-        onClick={handleSaveGdpr}
-        disabled={loading}
-        className="w-full bg-[#2B3E50] text-white hover:bg-[#1e2d3a] h-12"
-        data-testid="save-gdpr"
-      >
-        {loading ? 'Ukládání...' : 'Uložit'}
-      </Button>
-    </div>
-  );
+        {/* Nastavení soukromí */}
+        <Card className="p-4 space-y-4">
+          <h2 className="font-semibold text-slate-900">Nastavení soukromí</h2>
+          <div className="flex items-start gap-3">
+            <Switch
+              checked={gdprSettings.anonymize}
+              onCheckedChange={(checked) => setGdprSettings({ ...gdprSettings, anonymize: checked })}
+              data-testid="gdpr-anonymize"
+            />
+            <div>
+              <p className="font-medium text-slate-900">Automatická anonymizace</p>
+              <p className="text-sm text-gray-500">Automaticky anonymizovat osobní údaje v rezervacích po skončení doby uchování.</p>
+            </div>
+          </div>
+        </Card>
+
+        {/* Anonymizace účtu */}
+        <Card className="p-4 space-y-4 border-red-200">
+          <h2 className="font-semibold text-red-700">Anonymizace osobních údajů</h2>
+          <p className="text-sm text-gray-500">
+            Tato akce odstraní všechny vaše osobní údaje (jméno, email) a nahradí je anonymní hodnotou.
+            Záznamy o rezervacích zůstanou zachovány pro auditní účely. Tato akce je nevratná.
+          </p>
+          <p className="text-xs text-gray-400">
+            Na základě článku 17 GDPR — právo na výmaz ("právo být zapomenut").
+          </p>
+          <Button
+            variant="outline"
+            className="w-full border-red-300 text-red-600 hover:bg-red-50"
+            onClick={() => setAnonymizeDialog(true)}
+            data-testid="anonymize-account-button"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Anonymizovat mé údaje
+          </Button>
+        </Card>
+
+        {/* Save button for retention settings */}
+        <Button
+          onClick={handleSaveGdpr}
+          disabled={loading}
+          className="w-full bg-[#2B3E50] text-white hover:bg-[#1e2d3a] h-12"
+          data-testid="save-gdpr"
+        >
+          {loading ? 'Ukládání...' : 'Uložit nastavení'}
+        </Button>
+
+        {/* Anonymize confirmation dialog */}
+        <Dialog open={anonymizeDialog} onOpenChange={setAnonymizeDialog}>
+          <DialogContent aria-describedby="anonymize-desc">
+            <DialogHeader>
+              <DialogTitle className="text-red-700">Anonymizace osobních údajů</DialogTitle>
+            </DialogHeader>
+            <p id="anonymize-desc" className="text-sm text-gray-600 mb-4">
+              Tato akce je nevratná. Pro potvrzení napište <strong>SMAZAT</strong>.
+            </p>
+            <Input
+              value={anonymizeConfirm}
+              onChange={(e) => setAnonymizeConfirm(e.target.value)}
+              placeholder="Napište SMAZAT"
+              className="border-red-200"
+              data-testid="anonymize-confirm-input"
+            />
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setAnonymizeDialog(false)}>Zrušit</Button>
+              <Button
+                onClick={handleAnonymize}
+                disabled={anonymizeConfirm !== 'SMAZAT' || anonymizeLoading}
+                className="bg-red-600 hover:bg-red-700 text-white"
+                data-testid="anonymize-confirm-button"
+              >
+                {anonymizeLoading ? 'Anonymizuji...' : 'Potvrdit anonymizaci'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  };
 
   // Handle account deletion
   const handleDeleteAccount = async () => {

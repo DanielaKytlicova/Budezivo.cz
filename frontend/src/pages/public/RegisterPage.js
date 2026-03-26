@@ -15,6 +15,34 @@ import { Plus, Trash2, Upload, Clock, Search, CheckCircle, XCircle, Loader2 } fr
 import axios from 'axios';
 import { API } from '../../config/api';
 
+const PasswordStrength = ({ password }) => {
+  if (!password) return null;
+  const checks = [
+    { ok: password.length >= 8, label: 'Alespoň 8 znaků' },
+    { ok: /[A-Z]/.test(password), label: 'Velké písmeno' },
+    { ok: /[a-z]/.test(password), label: 'Malé písmeno' },
+    { ok: /[0-9]/.test(password), label: 'Číslice' },
+  ];
+  const passed = checks.filter(c => c.ok).length;
+  const colors = ['bg-red-400', 'bg-orange-400', 'bg-yellow-400', 'bg-green-400'];
+  return (
+    <div className="mt-2 space-y-1" data-testid="password-strength">
+      <div className="flex gap-1">
+        {[0,1,2,3].map(i => (
+          <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${i < passed ? colors[passed - 1] : 'bg-gray-200'}`} />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+        {checks.map((c, i) => (
+          <span key={i} className={`text-xs ${c.ok ? 'text-green-600' : 'text-gray-400'}`}>
+            {c.ok ? '\u2713' : '\u2022'} {c.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const STEPS = ['account', 'info', 'schedule', 'programs'];
 
 const CZECH_CITIES = [
@@ -309,10 +337,11 @@ export const RegisterPage = () => {
           data-testid="register-password"
           value={formData.password}
           onChange={(e) => updateField('password', e.target.value)}
-          placeholder="••••••"
+          placeholder="Min. 8 znaků, velké+malé+číslo"
           required
           className="mt-2"
         />
+        <PasswordStrength password={formData.password} />
       </div>
 
       <div className="flex items-center space-x-2">

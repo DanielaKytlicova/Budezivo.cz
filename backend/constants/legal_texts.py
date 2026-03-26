@@ -197,7 +197,7 @@ VOP_SECTIONS = {
             "number": 1,
             "title": "Úvodní ustanovení",
             "content": [
-                "1.1 Tyto obchodní podmínky upravují vztah mezi:\n- Provozovatelem: [doplnit]\n- Institucí: uživatelem platformy",
+                "1.1 Tyto obchodní podmínky upravují vztah mezi:\n- Provozovatelem: Daniela Kytlicová, IČO 07407971, se sídlem Mlýnská 538 (není plátce DPH)\n- Institucí: uživatelem platformy",
                 "1.2 Registrací vzniká smluvní vztah dle § 1724 a násl. zákona č. 89/2012 Sb."
             ]
         },

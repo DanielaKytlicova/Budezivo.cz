@@ -14,15 +14,29 @@ MONGO_URL = os.environ.get('MONGO_URL')
 DB_NAME = os.environ.get('DB_NAME')
 
 # JWT Configuration
-JWT_SECRET = os.environ.get('JWT_SECRET', 'change_this_secret_key')
+JWT_SECRET = os.environ.get('JWT_SECRET')
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable is required")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 24 * 30  # 30 days
+JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 
 # Stripe
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY')
 
 # CORS
-CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '*').split(',')
+_cors_env = os.environ.get('CORS_ORIGINS', '')
+CORS_ORIGINS = [
+    "https://www.budezivo.cz",
+    "https://budezivo.cz",
+] + ([o.strip() for o in _cors_env.split(',') if o.strip()] if _cors_env else [])
+
+# In preview/dev, allow the preview domain
+_react_url = os.environ.get('REACT_APP_BACKEND_URL', '')
+if _react_url and _react_url not in CORS_ORIGINS:
+    CORS_ORIGINS.append(_react_url)
+
+# Frontend URL (for password reset links etc.)
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://www.budezivo.cz')
 
 # Package prices
 PACKAGE_PRICES = {

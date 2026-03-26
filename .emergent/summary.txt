@@ -1,35 +1,25 @@
-<analysis>**original_problem_statement**: The user requested several updates for the Budezivo.cz CRM and booking system:
-1. Finish the School Tags and Filter UI and implement a 1:N multi-contact architecture for schools (multiple educators per school, deduplicated by School Name + City).
-2. Fix DNS settings evaluation (User confirmed it was fixed).
-3. Change default booking limits (min 7 days, max 180 days).
-4. Ensure new reservations automatically create a contact in the new  table.
-5. Display the Program Name in the Admin Dashboard and Booking List overview.
-6. Allow admins to assign specific lecturers/educators to a booking via a dropdown.
-7. Add the institution's logo to booking confirmation emails and shorten the footer disclaimer.
-8. Show the lecturer's full name instead of their email in the assignment dropdown (Requires fixing team member names).
+<analysis>**original_problem_statement**: The user requested several core feature additions and bug fixes for the Budezivo.cz CRM and booking system:
+1. Fix the Pydantic schema bug preventing team member names from displaying, and add a Settings tab to the mobile bottom navigation.
+2. Implement a new Kolize a paralelní běh (Collisions and parallel run) tab in the program settings to prevent overlapping reservations based on lecturers, rooms, or manually blocked programs.
+3. Implement a new Dostupnost lektora (Lecturer Availability) tab with a calendar view to manage recurring available hours and specific time-offs/exceptions. 
+4. Integrate lecturer availability into the public booking flow so that only the program's default time blocks are shown, but they are disabled (marked Lektor nedostupný) if the assigned lecturer is unavailable.
+5. Enforce displaying the user's Name and Surname instead of email across the app (Sidebar, Team list, dropdowns) and add the Name field to the public registration flow.
 
 **User's preferred language**: Czech (Čeština). **INSTRUCT NEXT AGENT TO RESPOND IN THE USER'S PREFERRED LANGUAGE ONLY.**
 
-**what currently exists?**: A fully functional multi-tenant SaaS application (React + FastAPI + Supabase PostgreSQL). It features a multi-contact School CRM, an automated feedback engine, legal terms tracking, team invitations, and a booking management system with manual lecturer assignments and customizable email notifications.
+**what currently exists?**: A fully functional multi-tenant SaaS application (React + FastAPI + Supabase PostgreSQL). Features include a multi-contact School CRM, an automated feedback engine, legal terms tracking, team invitations, a booking management system with manual lecturer assignments, program collision management, a lecturer availability calendar scheduling system, and customizable email notifications.
 
 **Last working item**:
-- **Last item agent was working**: Fixing the display of team member names in the lecturer assignment dropdown. The agent added a  backend endpoint and added a name input field to the team member edit dialog in . The agent just took a screenshot to verify the UI but ran out of context before testing the submission flow.
-- **Status**: TESTING PENDING
-- **Agent Testing Done**: N (Only UI screenshot taken, submission flow not tested).
-- **Which testing method agent to use?**: Frontend testing agent or manual screenshot/curl to verify that editing a user's name successfully updates the DB and immediately reflects in the  lecturer dropdown.
+- **Last item agent was working**: Enforcing the preference of Name and Surname over email across the entire platform. The agent added the Name field to the registration form (), updated login/register backend responses to include  (), and updated the UI (Sidebar in , Team list in ) to display names instead of emails.
+- **Status**: COMPLETED
+- **Agent Testing Done**: Y
+- **Which testing method agent to use?**: Manual testing by curl and screenshot tool.
 - **User Testing Done**: N
 
 **All Pending/In progress Issue list**:
-- **Issue 1: Team Member Name Edit Flow Verification** (P0)
-   - Attempted fixes: Added backend route to update names and UI in  to edit names.
-   - Next debug checklist: Check if submitting the edit dialog actually updates the user's name in the DB and if the  lecturer dropdown instantly displays the updated name instead of the email.
-   - Why fix this issue and what will be achieved with the fix?: Allows admins to fix blank names so the lecturer dropdown is readable.
-   - Status: TESTING PENDING
-   - Is recurring issue?: N
-   - Should Test frontend/backend/both after fix?: Both
-- **Issue 2: Production Redeployment & Migrations** (P1)
-   - Attempted fixes: Agent informed user that production is missing features (Mailing tab, new DB schema) because the latest code hasn't been deployed.
-   - Next debug checklist: Wait for the user to push to GitHub (triggering Vercel/production deployment) and then the user must execute  on their live site.
+- **Issue 1: Production Redeployment & Migrations** (P1)
+   - Attempted fixes: Agent informed user in a previous session that production is missing features because the latest code hasn't been deployed.
+   - Next debug checklist: Wait for the user to push to GitHub (triggering Vercel/production deployment) and then the user must execute pending database migration endpoints on their live site.
    - Why fix this issue and what will be achieved with the fix?: Aligns production with the preview environment.
    - Status: BLOCKED (on user action)
    - Is recurring issue?: N
@@ -37,40 +27,32 @@
    - Blocked on other issue: User action required.
 
 **In progress Task List**:
-- **Task 1: Team Member Name UI implementation**
-   - Where to resume: . Verify  function correctly processes the name payload.
-   - What will be achieved with this?: Proper name display across the app.
-   - Status: IN PROGRESS
-   - Should Test frontend/backend/both after fix?: Both
-   - Blocked on something: None
+*None. The agent successfully finished the last assigned task.*
 
 **Upcoming and Future Tasks**:
-- (P1) Fix Name propagation on Invitation Accept: When a user accepts an invite (), their  from  is not being reliably ported over to the  table via . 
 - (P2) Implement i18n Language Toggle (existing button, needs wiring).
 - (P3) Implement Bulk Actions for reservations (Confirm/Cancel).
 - (P3) Implement Full GDPR Data Management (Export/Delete personal data).
 - (P3) Payment integration (Stripe - currently PRO is manual).
-- (P4) Mobile app & Advanced analytics.
+- (P4) Mobile app (PWA) & Advanced analytics (heatmap, trends, financial overviews).
+- (P4) Import capabilities from Google Calendar to sync Lecturer Availability automatically.
 
 **Completed work in this session**:
-- UI for School Tagging and Filter  (DONE)
-- Multi-contact architecture for Schools (1:N relation), deleted  field  (DONE)
-- Booking default limits changed to min 7, max 180 days  (DONE)
-- Booking creation automatically adds contact to   (DONE)
-- Program name displayed in Booking list and Dashboard  (DONE)
-- Admin lecturer assignment dropdown in Booking detail  (DONE)
-- Added Institution Logo to email headers & shortened footer disclaimers  (DONE)
+- Fixed  Pydantic schema missing  field to restore name visibility (DONE)
+- Added Nastavení (Settings) to mobile bottom navigation in  (DONE)
+- Created DB tables and UI for Kolize a paralelní běh (Collisions & Parallel runs)  and  (DONE)
+- Implemented Dostupnost lektora (Lecturer Availability) with calendar UI, recurring blocks, and exceptions  and  (DONE)
+- Integrated Lecturer Availability into Public Booking flow, disabling time blocks with Lektor nedostupný if blocked  (DONE)
+- Enforced Name preference over email system-wide, including adding Name field to  and updating Sidebar/Team listings (DONE)
 
 **Earlier issues found/mentioned but not fixed**:
-- **Issue 1: Invitation name not migrating to user profile upon acceptance.**
-   - Debug checklist: Check  around . Ensure the  from the  table is passed to  and saved in the  table.
-   - Why to solve this issue and what will be achieved with this?: Prevents the need for admins to manually edit the names of newly joined team members just so they show up correctly in the lecturer dropdown.
-   - Should Test frontend/backend/both after fix: Backend
-   - Is recurring issue?: N
+*None discovered.*
 
 **Known issue recurrence from previous fork**:
-- Alembic is not configured. Schema changes must be done via raw SQL or temporary setup endpoints. (Recurrence count: 2)
-- Status: RESOLVED (Agent used raw SQL to create  and update logic).
+- Alembic is not configured. Schema changes must be done via raw SQL or temporary setup endpoints.
+- Recurrence count: 3
+- Status: RESOLVED manually via execute_bash raw SQL queries by the agent during this session.
+- Note: If adding new DB tables, continue using  with raw PostgreSQL schema execution strings directly into Supabase until Alembic is set up. Also,  dictionary from JWT uses  key, not uid=0(root) gid=0(root) groups=0(root).
 
 **Code Architecture**:
 
@@ -79,49 +61,57 @@
 - Frontend: React, TailwindCSS.
 - Backend: FastAPI, Supabase (SQLAlchemy Async with asyncpg).
 - Emails: HTML generated via Python strings mimicking React Email structures.
+- Validation: Pydantic schemas strict parsing ( means missing fields are silently dropped).
 
 **key DB schema**:
-- : uid=0(root) gid=0(root) groups=0(root), , , , , , .
-- : Enforced usage of the  column to populate UI elements.
-- : , , .
+- :  (bool),  (json array),  (json array).
+- : uid=0(root) gid=0(root) groups=0(root), ,  (0-6), , , .
+- : uid=0(root) gid=0(root) groups=0(root), , , , .
+- : , , , .
 
 **changes in tech stack**:
 - None.
 
 **All files of reference**:
--  (Updated to handle Name patching).
--  (Updated to handle Name UI).
--  (Updated to fetch and store , , and multi-contacts).
--  (Updated for Logos).
--  (Needs review for name persistence).
+-  (Fixed missing Name fields, updated UserCreate)
+-  (NEW - Core validation logic for collisions and lecturer availability checks)
+-  (Added Collisions settings tab)
+-  (NEW - API routes)
+-  (NEW - Week-view calendar UI for admins/lecturers)
+-  (Integrated collision service validations)
+-  (Displays Lektor nedostupný for disabled blocks)
+-  (Added Name collection)
+-  (Login/Register updated to return )
 
 **Areas that need refactoring**:
-- Proper DB migration setup (Alembic) is still missing.
+- Proper DB migration setup (Alembic) is heavily needed to avoid relying on manual bash SQL execution scripts.
 
 **key api endpoints**:
-- 
-- 
-- 
--  (NEW)
+-  (Public check)
+-  (Manage standard schedules)
+-  (Manage exceptions)
+-  &  
 
 **Critical Info for New Agent**:
 - All responses **MUST** be in Czech.
-- The  was used early in the session and found critical asyncpg JSON parsing bugs (fixed). It hasn't been run for the latest team/booking changes. Run it after verifying the team name edit feature.
-- Production requires the user to push code to GitHub and manually trigger the  endpoint. Avoid debugging production directly if the code hasn't been deployed yet.
+- Always use  from the JWT token (not ).
+- Be careful with Pydantic models.  is used, so if you add a field to the DB/Repository but forget to add it to the Pydantic schema, it will silently drop the data.
 
 **documents and test reports created in this job**:
--  (Updated constantly)
--  (CRM Multi-contacts - 100% Pass)
+-  (Updated continuously)
+-  (Team Names fixes test)
+-  (Program Collisions test)
+-  (Lecturer Availability test)
 
 **Last 10 User Messages and any pending HUMAN messages**:
-1. User: jak v admin sekci přehledu tak i výčtu rezervací přidej náhled názvu doprovodného programu, který je rezervován. (DONE)
-2. User: 1. přidej v editaci rezervace adminovi možnost přiřadit lektora... 2. v potvrzovacíh mailech rezervací přidej do záhlaví mailu logo... (DONE)
-3. User: V nabídce přiřazení lektorů dej místo mailu jméno a příjmení lektora. (IN PROGRESS - required fetching name)
-4. User: pokracuj
-5. User: Ale přece při pozvánce do týmu, uživatel zadává i jméno, proč to není propsáno do záložky týmu (potažmo do nabídky přidělení lektora?) (IN PROGRESS - Agent added manual edit, but needs to test and fix the invite acceptance logic).
+1. User: Continue with P0 and P1 tasks, add settings tab to mobile view admin bottom bar. (DONE)
+2. User: Implement Kolize a paralelní běh tab for programs to manage overlapping resources and bookings. (DONE)
+3. User: Implement Dostupnost lektora (Lecturer availability) with a weekly calendar view, recurring hours, and specific blocking exceptions. Connect this to booking validations. (DONE)
+4. User: Ensure the public booking form *only* shows time blocks predefined by the program itself. Do not generate *extra* time blocks even if the lecturer is available all day. If the lecturer is blocked during a program block, disable it. (DONE)
+5. User: Prefer Name and Surname over emails in dropdowns and the Team page. Ask for Name during team invitation acceptance and initial registration. (DONE)
 
 **Project Health Check:**
-- Frontend: Working (Team edit UI pending validation)
+- Frontend: Working
 - Backend: Working
 - DB: Connected
 
@@ -130,7 +120,7 @@
 - Resend (Emails) — requires User API Key
 
 **Testing status**:
-- Testing agent used after significant changes: YES (Iteration 14 for CRM)
+- Testing agent used after significant changes: YES (Iterations 15, 16, 17 all returned 100% backend/frontend pass rates)
 - Troubleshoot agent used after agent stuck in loop: NO
 - Test files created: Handled dynamically by testing subagent
 - Known regressions: None currently.
@@ -139,5 +129,4 @@
 -  / 
 
 **What agent forgot to execute**:
-- The agent added the input field to  and the backend route , but the context ended before they could verify if submitting the form works and correctly updates the  dropdown.
-- The agent identified that  is lost when an invitation is accepted but hasn't yet fixed the logic in  to port the  into . Fix this after testing the manual edit flow.</analysis>
+- Nothing. The agent successfully addressed and tested all tasks detailed in the conversation.</analysis>

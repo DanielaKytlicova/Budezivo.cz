@@ -1,0 +1,154 @@
+{
+  "load_test": {
+    "GET /bookings (list)": {
+      "requests": 50,
+      "errors": 0,
+      "avg_ms": 2084.7,
+      "p50_ms": 2063.4,
+      "p95_ms": 2990.8,
+      "max_ms": 2998.0,
+      "min_ms": 898.1
+    },
+    "GET /programs (list)": {
+      "requests": 50,
+      "errors": 0,
+      "avg_ms": 3234.8,
+      "p50_ms": 3312.3,
+      "p95_ms": 3849.8,
+      "max_ms": 3937.1,
+      "min_ms": 2519.6
+    },
+    "GET /schools (list)": {
+      "requests": 50,
+      "errors": 0,
+      "avg_ms": 1457.2,
+      "p50_ms": 1602.3,
+      "p95_ms": 2172.0,
+      "max_ms": 2179.0,
+      "min_ms": 717.9
+    },
+    "GET /statistics": {
+      "requests": 50,
+      "errors": 50,
+      "avg_ms": 89.4,
+      "p50_ms": 87.7,
+      "p95_ms": 130.6,
+      "max_ms": 149.4,
+      "min_ms": 51.6
+    },
+    "GET /legal/vop (public)": {
+      "requests": 50,
+      "errors": 0,
+      "avg_ms": 72.9,
+      "p50_ms": 76.7,
+      "p95_ms": 89.0,
+      "max_ms": 100.6,
+      "min_ms": 46.0
+    },
+    "GET /availability": {
+      "requests": 50,
+      "errors": 50,
+      "avg_ms": 83.8,
+      "p50_ms": 83.0,
+      "p95_ms": 125.7,
+      "max_ms": 140.7,
+      "min_ms": 47.1
+    },
+    "500_sequential_reads": {
+      "total_seconds": 258.4,
+      "avg_ms": 517.0
+    }
+  },
+  "security_audit": {
+    "total_tests": 14,
+    "passed": 14,
+    "failed": 0,
+    "pass_rate": "100%",
+    "tests": [
+      {
+        "test": "IDOR: Access fake booking ID",
+        "status": 404,
+        "pass": true,
+        "detail": "Returns 404 (not 500/data leak)"
+      },
+      {
+        "test": "IDOR: Update fake booking ID",
+        "status": 404,
+        "pass": true,
+        "detail": "Returns 404"
+      },
+      {
+        "test": "Auth bypass: Bookings without token",
+        "status": 403,
+        "pass": true,
+        "detail": "Returns 403 (blocked)"
+      },
+      {
+        "test": "Auth bypass: Invalid JWT token",
+        "status": 401,
+        "pass": true,
+        "detail": "Returns 401"
+      },
+      {
+        "test": "Auth bypass: Malformed JWT",
+        "status": 401,
+        "pass": true,
+        "detail": "Returns 401"
+      },
+      {
+        "test": "SQLi: '; DROP TABLE reservations; --...",
+        "status": 200,
+        "pass": true,
+        "detail": "No 500 error (ORM protected)"
+      },
+      {
+        "test": "SQLi: 1 OR 1=1...",
+        "status": 200,
+        "pass": true,
+        "detail": "No 500 error (ORM protected)"
+      },
+      {
+        "test": "SQLi: ' UNION SELECT * FROM users --...",
+        "status": 200,
+        "pass": true,
+        "detail": "No 500 error (ORM protected)"
+      },
+      {
+        "test": "XSS: Script tag in booking fields",
+        "status": 422,
+        "pass": true,
+        "detail": "Input sanitized or rejected"
+      },
+      {
+        "test": "Data exposure: Password hash in profile",
+        "status": 404,
+        "pass": true,
+        "detail": "No password hash in response"
+      },
+      {
+        "test": "Data exposure: Password hash in team list",
+        "status": 200,
+        "pass": true,
+        "detail": "No password hash in response"
+      },
+      {
+        "test": "Data exposure: Password in GDPR export",
+        "status": 200,
+        "pass": true,
+        "detail": "No password in export"
+      },
+      {
+        "test": "Data exposure: JWT secret in settings",
+        "status": 404,
+        "pass": true,
+        "detail": "No secrets in response"
+      },
+      {
+        "test": "Privilege escalation: Change role to superadmin",
+        "status": 404,
+        "pass": true,
+        "detail": "Blocked with status 404"
+      }
+    ]
+  }
+}

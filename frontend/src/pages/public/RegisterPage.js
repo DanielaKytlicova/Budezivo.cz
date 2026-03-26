@@ -342,7 +342,6 @@ export const RegisterPage = () => {
           <Link to="/obchodni-podminky" target="_blank" className="underline font-medium text-slate-800 hover:text-slate-600">
             obchodními podmínkami
           </Link>
-          {' '}níže
         </label>
       </div>
 

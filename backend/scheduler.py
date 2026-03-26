@@ -482,6 +482,9 @@ async def process_gdpr_auto_cleanup():
                 old_reservations = result.scalars().all()
 
                 for res in old_reservations:
+                    # Only anonymize reservation-level PII.
+                    # School contacts (schools, school_contacts tables) are NOT touched
+                    # — they must persist for future program promotion campaigns.
                     res.contact_name = "Anonymizováno"
                     res.contact_email = "anonymized@deleted.local"
                     res.contact_phone = None

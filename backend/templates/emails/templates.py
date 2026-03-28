@@ -106,25 +106,20 @@ def _base_template(content: str, data: Optional[Dict[str, Any]] = None, footer_e
     if has_branding:
         header_bg = theme["secondary_color"]
         header_html = f'''
-            <div style="background-color: {header_bg}; padding: 28px 24px; text-align: center;">
+            <div style="background-color: {header_bg}; padding: 32px 24px; text-align: center;">
                 <img src="{theme['logo_url']}" alt="Logo instituce"
-                     style="max-height: 64px; max-width: 220px; object-fit: contain;" />
-            </div>
-            <div style="background-color: #1E293B; padding: 8px 24px; text-align: center;">
-                <table role="presentation" style="margin: 0 auto;"><tr>
-                    <td style="color: #94a3b8; font-size: 11px; vertical-align: middle; padding-right: 6px;">
-                        rezervace&nbsp;pres
-                    </td>
-                    <td style="vertical-align: middle;">
-                        {BUDEZIVO_LOGO_SVG.replace('width="180"', 'width="90"').replace('height="50"', 'height="25"')}
-                    </td>
-                </tr></table>
+                     style="max-height: 72px; max-width: 240px; object-fit: contain;" />
             </div>'''
     else:
         header_html = f'''
             <div style="background-color: #1E293B; padding: 24px; text-align: center;">
                 {BUDEZIVO_LOGO_SVG}
             </div>'''
+
+    # Footer: mention Budezivo as platform in branded emails
+    footer_platform = ""
+    if has_branding:
+        footer_platform = '<br><span style="color: #94A3B8;">Rezervace přes Budezivo.cz</span>'
 
     return f"""<!DOCTYPE html>
 <html lang="cs">
@@ -147,6 +142,7 @@ def _base_template(content: str, data: Optional[Dict[str, Any]] = None, footer_e
                             Tento email byl odeslán automaticky systémem Budezivo.cz<br>
                             Pokud máte dotazy, kontaktujte nás na info@budezivo.cz
                             {footer_extra}
+                            {footer_platform}
                         </p>
                     </div>
                 </div>

@@ -64,6 +64,8 @@ Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538 (není plátce DP
 - [x] **DRY context**: `_build_email_context()` helper pro trigger funkce
 - [x] **Theme data flow**: `find_by_id_with_theme()` → trigger funkce → šablony
 - [x] **Kompatibilita**: Inline styly, tabulkový layout, fallback fonty
+- [x] **Oprava dual-logo**: V hlavičce vždy jen JEDNO logo (instituce NEBO Budezivo, nikdy obě)
+- [x] **Footer platform**: U brandovaných emailů "Rezervace přes Budezivo.cz" v patičce
 
 ---
 

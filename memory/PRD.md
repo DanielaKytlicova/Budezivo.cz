@@ -55,11 +55,21 @@ Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538 (není plátce DP
   - Backend: GET/POST /api/onboarding (status + complete)
   - DB: institutions.onboarding_completed boolean
 
+### Fáze 15 - Email Template Theming (28.3.2026)
+- [x] **Theme systém**: `_build_theme(data)` + `_button_style(theme)` helpery
+- [x] **Branded hlavička**: Logo instituce + secondary_color pozadí + "powered by Budezivo" bar
+- [x] **Fallback**: Bez loga = výchozí Budezivo hlavička, bez změn barevnosti
+- [x] **Konzistence**: Všech 18 šablon používá centrální `_base_template(content, data)`
+- [x] **Feedback šablony**: `feedback_request` a `feedback_reminder` přesunuty do template systému
+- [x] **DRY context**: `_build_email_context()` helper pro trigger funkce
+- [x] **Theme data flow**: `find_by_id_with_theme()` → trigger funkce → šablony
+- [x] **Kompatibilita**: Inline styly, tabulkový layout, fallback fonty
+
 ---
 
 ## Testovací přístupy
 - **Demo účet:** demo@budezivo.cz / Demo2026!
-- **Test reports:** iteration_21 (archive), iteration_22 (onboarding)
+- **Test reports:** iteration_21 (archive), iteration_22 (onboarding), iteration_23 (email theming)
 
 ---
 

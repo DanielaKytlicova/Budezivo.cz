@@ -2,17 +2,29 @@
 Program management routes.
 Uses Supabase (PostgreSQL) for database operations.
 """
+import logging
 from datetime import datetime, timezone
-from typing import List
-from fastapi import APIRouter, HTTPException, Depends
+from typing import List, Optional
+from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import ProgramCreate, Program
 from core.security import get_current_user
 from database.supabase import get_db
-from database.supabase_repositories import ProgramRepositorySupabase, InstitutionRepositorySupabase
+from database.supabase_repositories import (
+    ProgramRepositorySupabase, 
+    InstitutionRepositorySupabase,
+    BookingRepositorySupabase,
+)
 
 router = APIRouter(prefix="/programs", tags=["Programs"])
+logger = logging.getLogger(__name__)
+
+
+class ArchiveRequest(BaseModel):
+    reason: Optional[str] = None
 
 
 @router.post("", response_model=Program)
@@ -162,6 +174,16 @@ async def debug_programs(institution_id: str, db: AsyncSession = Depends(get_db)
     }
 
 
+@router.get("/archived")
+async def get_archived_programs(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get archived programs."""
+    program_repo = ProgramRepositorySupabase(db)
+    return await program_repo.find_archived(current_user["institution_id"])
+
+
 @router.get("/{program_id}", response_model=Program)
 async def get_program(
     program_id: str,
@@ -194,6 +216,157 @@ async def update_program(
         raise HTTPException(status_code=404, detail="Program not found")
     
     return await program_repo.find_by_id(program_id, current_user["institution_id"])
+
+
+@router.post("/{program_id}/archive")
+async def archive_program(
+    program_id: str,
+    data: ArchiveRequest = ArchiveRequest(),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Move program to archive."""
+    program_repo = ProgramRepositorySupabase(db)
+    program = await program_repo.find_by_id(program_id, current_user["institution_id"])
+    if not program:
+        raise HTTPException(status_code=404, detail="Program nenalezen")
+    if program.get("status") == "archived":
+        raise HTTPException(status_code=400, detail="Program je již archivován")
+    
+    await program_repo.update(program_id, current_user["institution_id"], {
+        "status": "archived",
+        "archived_at": datetime.now(timezone.utc),
+        "archived_by": current_user["user_id"],
+        "archive_reason": data.reason,
+        "is_published": False,
+    })
+    return {"message": "Program přesunut do archivu"}
+
+
+@router.post("/{program_id}/unarchive")
+async def unarchive_program(
+    program_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Restore program from archive."""
+    program_repo = ProgramRepositorySupabase(db)
+    program = await program_repo.find_by_id(program_id, current_user["institution_id"])
+    if not program:
+        raise HTTPException(status_code=404, detail="Program nenalezen")
+    if program.get("status") != "archived":
+        raise HTTPException(status_code=400, detail="Program není archivován")
+    
+    await program_repo.update(program_id, current_user["institution_id"], {
+        "status": "active",
+        "archived_at": None,
+        "archived_by": None,
+        "archive_reason": None,
+    })
+    return {"message": "Program obnoven"}
+
+
+@router.get("/{program_id}/archive-report")
+async def get_archive_report(
+    program_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate structured archive report with all program data, stats, and feedback."""
+    program_repo = ProgramRepositorySupabase(db)
+    booking_repo = BookingRepositorySupabase(db)
+    institution_repo = InstitutionRepositorySupabase(db)
+    
+    program = await program_repo.find_by_id(program_id, current_user["institution_id"])
+    if not program:
+        raise HTTPException(status_code=404, detail="Program nenalezen")
+    
+    institution = await institution_repo.find_by_id(current_user["institution_id"])
+    
+    # Get all bookings for this program
+    all_bookings = await booking_repo.find_all_by_institution_for_export(current_user["institution_id"])
+    program_bookings = [b for b in all_bookings if b.get("program_id") == program_id]
+    
+    # Compute stats
+    total_reservations = len(program_bookings)
+    confirmed = sum(1 for b in program_bookings if b.get("status") == "confirmed")
+    completed = sum(1 for b in program_bookings if b.get("status") == "completed")
+    cancelled = sum(1 for b in program_bookings if b.get("status") == "cancelled")
+    total_students = sum(b.get("actual_students") or b.get("num_students", 0) for b in program_bookings)
+    total_teachers = sum(b.get("actual_teachers") or b.get("num_teachers", 0) for b in program_bookings)
+    unique_schools = len(set(b.get("school_name", "") for b in program_bookings if b.get("school_name")))
+    
+    # Get feedback (if exists)
+    from database.models import Feedback
+    from sqlalchemy import select
+    try:
+        fb_result = await db.execute(
+            select(Feedback).where(Feedback.program_id == program_id)
+        )
+        from database.supabase_repositories import to_dict
+        feedbacks = [to_dict(f) for f in fb_result.scalars().all()]
+    except Exception:
+        feedbacks = []
+    
+    # Get dates range
+    dates = [b.get("date") for b in program_bookings if b.get("date")]
+    date_range = {"from": min(dates) if dates else None, "to": max(dates) if dates else None}
+    
+    # Build school list with details
+    schools_summary = {}
+    for b in program_bookings:
+        sn = b.get("school_name", "Neznámá")
+        if sn not in schools_summary:
+            schools_summary[sn] = {"visits": 0, "students": 0, "last_visit": None}
+        schools_summary[sn]["visits"] += 1
+        schools_summary[sn]["students"] += b.get("actual_students") or b.get("num_students", 0)
+        bdate = b.get("date")
+        if bdate and (not schools_summary[sn]["last_visit"] or bdate > schools_summary[sn]["last_visit"]):
+            schools_summary[sn]["last_visit"] = bdate
+    
+    return {
+        "report_generated_at": datetime.now(timezone.utc).isoformat(),
+        "institution": {
+            "name": institution.get("name") if institution else "",
+        },
+        "program": {
+            "name": program.get("name_cs", ""),
+            "description": program.get("description_cs", ""),
+            "age_group": program.get("age_group", ""),
+            "duration": program.get("duration"),
+            "price": program.get("price"),
+            "capacity": f"{program.get('min_capacity')}-{program.get('max_capacity')}",
+            "status": program.get("status"),
+            "start_date": program.get("start_date"),
+            "end_date": program.get("end_date"),
+            "archived_at": program.get("archived_at"),
+            "archive_reason": program.get("archive_reason"),
+        },
+        "statistics": {
+            "total_reservations": total_reservations,
+            "confirmed": confirmed,
+            "completed": completed,
+            "cancelled": cancelled,
+            "total_students": total_students,
+            "total_teachers": total_teachers,
+            "unique_schools": unique_schools,
+            "date_range": date_range,
+        },
+        "schools": schools_summary,
+        "feedback_count": len(feedbacks),
+        "feedbacks": feedbacks[:50],
+        "bookings": [
+            {
+                "date": b.get("date"),
+                "time_block": b.get("time_block"),
+                "school_name": b.get("school_name"),
+                "status": b.get("status"),
+                "num_students": b.get("actual_students") or b.get("num_students"),
+                "contact_name": b.get("contact_name"),
+            }
+            for b in program_bookings
+        ],
+    }
 
 
 @router.delete("/{program_id}")

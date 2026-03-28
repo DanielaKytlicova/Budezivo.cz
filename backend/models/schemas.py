@@ -340,14 +340,16 @@ class PropagationRequest(BaseModel):
 # ============ Lecturer Availability Models ============
 
 class LecturerAvailabilityCreate(BaseModel):
-    days_of_week: List[int]  # 0=Monday, 6=Sunday, allows multi-select
+    days_of_week: List[int] = []  # 0=Monday, 6=Sunday, allows multi-select (for recurring)
     start_time: str  # "08:00"
     end_time: str    # "12:00"
+    specific_date: Optional[str] = None  # "2026-04-15" for one-off blocks
 
 class LecturerAvailabilityUpdate(BaseModel):
-    day_of_week: int
+    day_of_week: Optional[int] = None
     start_time: str
     end_time: str
+    specific_date: Optional[str] = None
 
 class LecturerAvailabilityResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -357,6 +359,7 @@ class LecturerAvailabilityResponse(BaseModel):
     start_time: str
     end_time: str
     is_recurring: bool = True
+    specific_date: Optional[str] = None
 
 class LecturerTimeOffCreate(BaseModel):
     start_date: str  # "2026-03-25"

@@ -34,6 +34,7 @@ import {
   Eye
 } from 'lucide-react';
 import { API } from '../../config/api';
+import { OnboardingWizard } from '../../components/admin/OnboardingWizard';
 import {
   Select,
   SelectContent,
@@ -525,9 +526,26 @@ export const DashboardPage = () => {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
 
+  // Onboarding state
+  const [onboardingData, setOnboardingData] = useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   useEffect(() => {
     fetchData();
+    fetchOnboardingStatus();
   }, []);
+
+  const fetchOnboardingStatus = async () => {
+    try {
+      const res = await axios.get(`${API}/onboarding/status`);
+      if (!res.data.completed) {
+        setOnboardingData(res.data);
+        setShowOnboarding(true);
+      }
+    } catch {
+      // silently ignore - don't block dashboard
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -573,6 +591,16 @@ export const DashboardPage = () => {
   return (
     <AdminLayout>
       <div className="space-y-6" data-testid="dashboard-page">
+        {/* Onboarding Wizard */}
+        {showOnboarding && (
+          <Card className="p-6 md:p-8 border-2 border-[#5a7aae]/20 bg-white" data-testid="onboarding-card">
+            <OnboardingWizard
+              onboardingData={onboardingData}
+              onComplete={() => setShowOnboarding(false)}
+            />
+          </Card>
+        )}
+
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold text-slate-900">{t('dashboard.welcome')}</h1>

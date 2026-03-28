@@ -1,0 +1,122 @@
+{
+  "summary": "Completed testing of Onboarding Wizard feature. All 6 backend tests pass (100%). All frontend UI flows verified working correctly including 4-step wizard navigation, skip button, and completion flow.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_onboarding.py",
+    "/app/test_reports/pytest/pytest_onboarding.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Onboarding wizard properly integrated with DashboardPage - shows only when onboarding_completed=false",
+    "All 4 steps have proper data-testid attributes for testing",
+    "Progress indicator correctly highlights current step with checkmarks for completed steps",
+    "Green banner 'Máte vytvořené programy' correctly shows when user has programs",
+    "Skip button (X) properly dismisses wizard and marks onboarding as complete",
+    "Czech language UI throughout the wizard"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_onboarding.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_user": "demo@budezivo.cz",
+    "admin_password": "Demo2026!"
+  },
+  "seed_data_creation": "None - used existing demo institution",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Onboarding wizard fully tested. Backend: GET /api/onboarding/status returns {completed, steps} with has_programs and program_count. POST /api/onboarding/complete marks onboarding as done. Both endpoints require authentication (return 403 without token). Frontend: Wizard appears on dashboard when onboarding_completed=false. 4 steps: Welcome, Create Program, Availability, Done. Skip button (X) dismisses wizard. Progress indicator shows step numbers with checkmarks. Demo institution ID: 669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5. To reset onboarding for testing: UPDATE institutions SET onboarding_completed = false WHERE id = '669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5'",
+  "features_tested": {
+    "backend_api": {
+      "GET /api/onboarding/status requires authentication": "PASS",
+      "GET /api/onboarding/status returns onboarding status with completed flag and steps": "PASS",
+      "POST /api/onboarding/complete requires authentication": "PASS",
+      "POST /api/onboarding/complete marks onboarding as done": "PASS",
+      "After completing, GET /api/onboarding/status returns completed=True": "PASS"
+    },
+    "frontend_ui": {
+      "Dashboard shows onboarding wizard card when onboarding is not completed": "PASS",
+      "Wizard step 1 (Welcome) shows greeting with user name": "PASS",
+      "Wizard step 1 shows 'Začít nastavení' button": "PASS",
+      "Click 'Začít nastavení' advances to step 2 (Create Program)": "PASS",
+      "Step 2 shows green banner 'Máte vytvořené programy' when user has programs": "PASS",
+      "Click 'Pokračovat' advances to step 3 (Availability)": "PASS",
+      "Step 3 shows availability setup info and link to availability page": "PASS",
+      "Click 'Pokračovat' advances to step 4 (Done)": "PASS",
+      "Step 4 shows 'Přejít na dashboard' button": "PASS",
+      "Click 'Přejít na dashboard' completes onboarding": "PASS",
+      "X button (skip) dismisses onboarding and marks as complete": "PASS",
+      "After completing onboarding, wizard card disappears from dashboard": "PASS",
+      "Progress indicator shows correct step highlighted": "PASS"
+    }
+  },
+  "verified_features": [
+    {
+      "feature": "Backend: GET /api/onboarding/status returns onboarding status with completed flag and steps",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Backend: POST /api/onboarding/complete marks onboarding as done",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Backend: Both endpoints require authentication",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Dashboard shows onboarding wizard card when onboarding is not completed",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Wizard step 1 (Welcome) shows greeting with user name and 'Začít nastavení' button",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Click 'Začít nastavení' advances to step 2 (Create Program)",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Step 2 shows green banner 'Máte vytvořené programy' when user has programs",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Click 'Pokračovat' advances to step 3 (Availability)",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Step 3 shows availability setup info and link to availability page",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Click 'Pokračovat' advances to step 4 (Done)",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Step 4 shows 'Přejít na dashboard' button which completes onboarding",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: X button (skip) dismisses onboarding and marks as complete",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: After completing onboarding, wizard card disappears from dashboard",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Progress indicator shows correct step highlighted",
+      "status": "VERIFIED"
+    }
+  ]
+}

@@ -1,132 +1,148 @@
-<analysis>**original_problem_statement**: The user requested several core feature additions and bug fixes for the Budezivo.cz CRM and booking system:
-1. Fix the Pydantic schema bug preventing team member names from displaying, and add a Settings tab to the mobile bottom navigation.
-2. Implement a new Kolize a paralelní běh (Collisions and parallel run) tab in the program settings to prevent overlapping reservations based on lecturers, rooms, or manually blocked programs.
-3. Implement a new Dostupnost lektora (Lecturer Availability) tab with a calendar view to manage recurring available hours and specific time-offs/exceptions. 
-4. Integrate lecturer availability into the public booking flow so that only the program's default time blocks are shown, but they are disabled (marked Lektor nedostupný) if the assigned lecturer is unavailable.
-5. Enforce displaying the user's Name and Surname instead of email across the app (Sidebar, Team list, dropdowns) and add the Name field to the public registration flow.
+<analysis>**original_problem_statement**: The user requested implementation of bulk actions for booking management, GDPR data management (export/anonymization), integration of Terms of Service (VOP) during registration, an automated GDPR cleanup system, and a security hardening audit. Following this, the user requested one-off time blocks for external lecturers (P0) and a Program Archive system with manual/auto archiving and data export capabilities (P1). PRODUCT REQUIREMENTS: A multi-tenant SaaS application providing School CRM, booking management with collision validation, GDPR compliance, program lifecycle management, and robust role-based security.
 
 **User's preferred language**: Czech (Čeština). **INSTRUCT NEXT AGENT TO RESPOND IN THE USER'S PREFERRED LANGUAGE ONLY.**
 
-**what currently exists?**: A fully functional multi-tenant SaaS application (React + FastAPI + Supabase PostgreSQL). Features include a multi-contact School CRM, an automated feedback engine, legal terms tracking, team invitations, a booking management system with manual lecturer assignments, program collision management, a lecturer availability calendar scheduling system, and customizable email notifications.
+**what currently exists?**: A fully functional multi-tenant SaaS application (React + FastAPI + Supabase PostgreSQL). Features include School CRM, booking management with bulk actions, GDPR data export/anonymization, auto-cleanup schedulers, secure rate-limited authentication, Terms of Service tracking, lecturer availability management (recurring and one-off blocks), and an active program management system.
 
 **Last working item**:
-- **Last item agent was working**: Enforcing the preference of Name and Surname over email across the entire platform. The agent added the Name field to the registration form (), updated login/register backend responses to include  (), and updated the UI (Sidebar in , Team list in ) to display names instead of emails.
-- **Status**: COMPLETED
-- **Agent Testing Done**: Y
-- **Which testing method agent to use?**: Manual testing by curl and screenshot tool.
-- **User Testing Done**: N
+    - Last item agent was working: Implementing the P1 Program Archive frontend. The backend endpoints and DB models are ready, and  was created. The agent formulated a plan to link this page in  and add routing in , and used  to get user approval on the plan. 
+    - Status: IN PROGRESS (Waiting for user response)
+    - Agent Testing Done: N
+    - Which testing method agent to use?: Frontend testing agent (after completing the UI integration).
+    - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-- **Issue 1: Production Redeployment & Migrations** (P1)
-   - Attempted fixes: Agent informed user in a previous session that production is missing features because the latest code hasn't been deployed.
-   - Next debug checklist: Wait for the user to push to GitHub (triggering Vercel/production deployment) and then the user must execute pending database migration endpoints on their live site.
-   - Why fix this issue and what will be achieved with the fix?: Aligns production with the preview environment.
-   - Status: BLOCKED (on user action)
-   - Is recurring issue?: N
-   - Should Test frontend/backend/both after fix?: NA
-   - Blocked on other issue: User action required.
+  Issue 1: Finish Program Archive UI integration (P0 - Highest Priority)
+     - Attempted fixes:  was created in a previous session but is currently disconnected from the app.
+     - Next debug checklist: 
+        1. Open  and add a button linking to . 
+        2. Ensure  is registered in  routes.
+        3. Finish the layout of  so admins can view archived programs and restore them ().
+     - Why fix this issue and what will be achieved with the fix?: Completes the user's P1 request for program lifecycle management.
+     - Status: IN PROGRESS
+     - Is recurring issue?: N
+     - Should Test frontend/backend/both after fix?: Both
+     - Blocked on other issue: Waiting on user response to  plan.
+
+  Issue 2: Implement Program Archive Export functionality (PDF/Word/Structured data) (P1)
+     - Attempted fixes: The backend endpoint  was created previously, but the frontend UI to download/generate this report is missing.
+     - Next debug checklist: Add a Generate Report button inside  that calls the report endpoint and formats the data for the user.
+     - Why fix this issue and what will be achieved with the fix?: User explicitly requested the ability to export archive data as a report/presentation.
+     - Status: NOT STARTED
+     - Is recurring issue?: N
+     - Should Test frontend/backend/both after fix?: Frontend
+     - Blocked on other issue: Blocked on Issue 1 (ArchivePage.js must be integrated first).
 
 **In progress Task List**:
-*None. The agent successfully finished the last assigned task.*
+  Task 1: Program Archive System (Frontend Integration)
+     - Where to resume: Read the pending user message. If the user approves, modify  to link to , set up  routing, and finalize the  UI.
+     - What will be achieved with this?: Allows admins to cleanly separate active and expired programs.
+     - Status: IN PROGRESS
+     - Should Test frontend/backend/both after fix?: Both
+     - Blocked on something: Waiting for user response to the proposed plan.
 
-**Upcoming and Future Tasks**:
-- (P2) Implement i18n Language Toggle (existing button, needs wiring).
-- (P3) Implement Bulk Actions for reservations (Confirm/Cancel).
-- (P3) Implement Full GDPR Data Management (Export/Delete personal data).
-- (P3) Payment integration (Stripe - currently PRO is manual).
-- (P4) Mobile app (PWA) & Advanced analytics (heatmap, trends, financial overviews).
-- (P4) Import capabilities from Google Calendar to sync Lecturer Availability automatically.
+**Upcoming and Future Tasks**
+    Upcoming Tasks:
+    - (P2) Onboarding wizard (Guide for new users creating their first program/reservation). P0 priority for retention.
+    - (P2) i18n Language Toggle (CZ/EN) using existing placeholder buttons.
+    
+    Future Tasks:
+    - (P3) Audit log (logging all admin actions for transparency).
+    - (P3) Social proof on landing page (logos, references, numbers).
+    - (P4) Advanced analytics (heatmap of utilization, trends, financial overviews).
+    - (P4) Payment integration (Stripe for PRO accounts/invoicing via Fakturoid).
+    - (P4) Mobile app (PWA).
 
-**Completed work in this session**:
-- Fixed  Pydantic schema missing  field to restore name visibility (DONE)
-- Added Nastavení (Settings) to mobile bottom navigation in  (DONE)
-- Created DB tables and UI for Kolize a paralelní běh (Collisions & Parallel runs)  and  (DONE)
-- Implemented Dostupnost lektora (Lecturer Availability) with calendar UI, recurring blocks, and exceptions  and  (DONE)
-- Integrated Lecturer Availability into Public Booking flow, disabling time blocks with Lektor nedostupný if blocked  (DONE)
-- Enforced Name preference over email system-wide, including adding Name field to  and updating Sidebar/Team listings (DONE)
+**Completed work in this session**
+*(Note: The current session consisted only of analyzing the previous context and asking the user for plan approval. The below lists recently completed items from the immediate predecessor)*:
+- Bulk actions for reservations (Confirm/Cancel/Complete) (DONE)
+- GDPR data export, anonymization, and automated cleanup scheduler (DONE)
+- Terms of Service (VOP) public page, admin settings, and required checkbox (DONE)
+- Email template and automated trigger for rescheduled bookings (DONE)
+- Pre-pilot Security Hardening (CORS domain restrictions, SlowAPI Rate limiting, Security Headers, shortened JWT) (DONE)
+- Load & Security audit execution (DONE)
+- Backend & Frontend implementation of One-off time blocks for lecturers (DONE)
 
-**Earlier issues found/mentioned but not fixed**:
-*None discovered.*
+**Earlier issues found/mentioned but not fixed**
+- None found in this session.
 
-**Known issue recurrence from previous fork**:
-- Alembic is not configured. Schema changes must be done via raw SQL or temporary setup endpoints.
-- Recurrence count: 3
-- Status: RESOLVED manually via execute_bash raw SQL queries by the agent during this session.
-- Note: If adding new DB tables, continue using  with raw PostgreSQL schema execution strings directly into Supabase until Alembic is set up. Also,  dictionary from JWT uses  key, not uid=0(root) gid=0(root) groups=0(root).
+**Known issue recurrence from previous fork**
+  - Alembic migrations are not configured. DB schema changes must be executed manually via raw SQL in .
+  - Recurrence count: 4
+  - Status: IN PROGRESS
+  - Note: Continue using raw SQL via  for Supabase schema modifications until Alembic is officially implemented.
 
-**Code Architecture**:
+**Code Architecture**
 
 
-**Key Technical Concepts**:
+**Key Technical Concepts**
 - Frontend: React, TailwindCSS.
-- Backend: FastAPI, Supabase (SQLAlchemy Async with asyncpg).
-- Emails: HTML generated via Python strings mimicking React Email structures.
-- Validation: Pydantic schemas strict parsing ( means missing fields are silently dropped).
+- Backend: FastAPI, Supabase (SQLAlchemy Async).
+- Security:  for rate limiting,  for hashing, custom security headers middleware.
+- Background Tasks:  for automated GDPR anonymization and Program auto-archiving.
 
-**key DB schema**:
-- :  (bool),  (json array),  (json array).
-- : uid=0(root) gid=0(root) groups=0(root), ,  (0-6), , , .
-- : uid=0(root) gid=0(root) groups=0(root), , , , .
-- : , , , .
+**key DB schema**
+  - : , 
+  - :  (boolean),  (Date - for one-off blocks)
+  - :  (string: 'active', 'archived', 'draft')
 
-**changes in tech stack**:
-- None.
+**changes in tech stack**
+  - Added  dependency to the backend for endpoint rate-limiting.
 
-**All files of reference**:
--  (Fixed missing Name fields, updated UserCreate)
--  (NEW - Core validation logic for collisions and lecturer availability checks)
--  (Added Collisions settings tab)
--  (NEW - API routes)
--  (NEW - Week-view calendar UI for admins/lecturers)
--  (Integrated collision service validations)
--  (Displays Lektor nedostupný for disabled blocks)
--  (Added Name collection)
--  (Login/Register updated to return )
+**All files of reference** 
+  -  (Newly created, needs UI refinement)
+  -  (Needs edit to link to Archive)
+  -  (Needs routing for )
+  -  (Contains newly added  and  endpoints)
+  -  (Contains auto-archive logic)
 
-**Areas that need refactoring**:
-- Proper DB migration setup (Alembic) is heavily needed to avoid relying on manual bash SQL execution scripts.
+**Areas that need refactoring**: 
+  - Alembic migrations need to be set up to replace manual bash SQL commands.
+  -  contains raw  SQL queries that should be refactored to SQLAlchemy ORM.
 
-**key api endpoints**:
--  (Public check)
--  (Manage standard schedules)
--  (Manage exceptions)
--  &  
+**key api endpoints**
+  - 
+  - 
+  - 
+  - 
 
-**Critical Info for New Agent**:
-- All responses **MUST** be in Czech.
-- Always use  from the JWT token (not ).
-- Be careful with Pydantic models.  is used, so if you add a field to the DB/Repository but forget to add it to the Pydantic schema, it will silently drop the data.
+**Critical Info for New Agent** 
+  - **LANGUAGE**: Always respond in Czech.
+  - **ROUTING**: Backend endpoints must be prefixed with .
+  - **ORM LIMITATIONS**: Always use  from JWT. Pydantic models are set to .
+  - **PENDING HUMAN ACTION**: The session ended while waiting for the user to respond to the  tool regarding the implementation plan for the Archive UI. 
 
-**documents and test reports created in this job**:
--  (Updated continuously)
--  (Team Names fixes test)
--  (Program Collisions test)
--  (Lecturer Availability test)
+**documents and test reports created in this job** 
+  - 
+  - 
 
-**Last 10 User Messages and any pending HUMAN messages**:
-1. User: Continue with P0 and P1 tasks, add settings tab to mobile view admin bottom bar. (DONE)
-2. User: Implement Kolize a paralelní běh tab for programs to manage overlapping resources and bookings. (DONE)
-3. User: Implement Dostupnost lektora (Lecturer availability) with a weekly calendar view, recurring hours, and specific blocking exceptions. Connect this to booking validations. (DONE)
-4. User: Ensure the public booking form *only* shows time blocks predefined by the program itself. Do not generate *extra* time blocks even if the lecturer is available all day. If the lecturer is blocked during a program block, disable it. (DONE)
-5. User: Prefer Name and Surname over emails in dropdowns and the Team page. Ask for Name during team invitation acceptance and initial registration. (DONE)
+**Last 10 User Messages and any pending HUMAN messages** 
+ 1. User: Clarified GDPR auto-cleanup logic.
+ 2. User: Requested automated email template for rescheduled bookings.
+ 3. User: Requested pre-pilot security and UX audit.
+ 4. User: Asked agent to separate audit tasks into AI vs human.
+ 5. User: Provided legal details (ICO) for Terms of Service.
+ 6. User: Requested a simulated load test and security penetration test.
+ 7. User: Requested P0 (One-off specific date blocks) and P1 (Program Archive system). 
+ 8. **PENDING HUMAN MESSAGE**: The AI Agent submitted a plan using  to finish the  routing and UI, and is currently waiting for the user's approval. You will receive the user's response immediately upon starting.
 
 **Project Health Check:**
-- Frontend: Working
-- Backend: Working
-- DB: Connected
+- Frontend: Working 
+- Backend: Working (Rate-limited, secured)
+- Database: Connected 
 
-**3rd Party Integrations**:
-- Supabase (Database) — requires User credentials
-- Resend (Emails) — requires User API Key
+**3rd Party Integrations** 
+  - Supabase (Database) — requires User credentials
+  - Resend (Emails) — requires User API Key
 
-**Testing status**:
-- Testing agent used after significant changes: YES (Iterations 15, 16, 17 all returned 100% backend/frontend pass rates)
-- Troubleshoot agent used after agent stuck in loop: NO
-- Test files created: Handled dynamically by testing subagent
-- Known regressions: None currently.
+**Testing status**
+  - Testing agent used after significant changes: NO (No new changes made in this exact run; waiting on user).
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created:  (from previous fork)
+  - Known regressions: None
 
-**Credentials to test flow**:
--  / 
+**Credentials to test flow:**
+  -  / 
 
-**What agent forgot to execute**:
-- Nothing. The agent successfully addressed and tested all tasks detailed in the conversation.</analysis>
+**What agent forgot to execute**
+  - Nothing was forgotten; the agent correctly stopped to ask for human approval before diving into writing the code to wire  into  and . Proceed once the user replies.</analysis>

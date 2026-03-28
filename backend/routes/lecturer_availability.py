@@ -72,18 +72,20 @@ async def create_recurring_availability(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Create recurring availability for one or more days."""
+    """Create recurring or one-off availability blocks."""
     target_id = lecturer_id or current_user["user_id"]
     institution_id = current_user["institution_id"]
 
-    # Validate role - admins can set for anyone, lecturers only for themselves
     if target_id != current_user["user_id"] and current_user["role"] not in ["admin", "spravce"]:
         raise HTTPException(status_code=403, detail="Nemáte oprávnění upravovat dostupnost jiného lektora.")
 
     created = []
-    for dow in data.days_of_week:
-        if dow < 0 or dow > 6:
-            continue
+
+    if data.specific_date:
+        # One-off block for a specific date
+        from datetime import date as date_type
+        d = date_type.fromisoformat(data.specific_date)
+        dow = d.weekday()
         avail = LecturerAvailability(
             id=uuid.uuid4(),
             lecturer_id=uuid.UUID(target_id),
@@ -91,10 +93,28 @@ async def create_recurring_availability(
             day_of_week=dow,
             start_time=data.start_time,
             end_time=data.end_time,
-            is_recurring=True,
+            is_recurring=False,
+            specific_date=data.specific_date,
         )
         db.add(avail)
         created.append(avail)
+    else:
+        # Recurring blocks
+        for dow in data.days_of_week:
+            if dow < 0 or dow > 6:
+                continue
+            avail = LecturerAvailability(
+                id=uuid.uuid4(),
+                lecturer_id=uuid.UUID(target_id),
+                institution_id=uuid.UUID(institution_id),
+                day_of_week=dow,
+                start_time=data.start_time,
+                end_time=data.end_time,
+                is_recurring=True,
+                specific_date=None,
+            )
+            db.add(avail)
+            created.append(avail)
 
     await db.commit()
     for a in created:
@@ -384,10 +404,23 @@ async def get_week_view(
     result = await db.execute(
         select(LecturerAvailability).where(and_(
             LecturerAvailability.lecturer_id == uuid.UUID(target_id),
-            LecturerAvailability.institution_id == uuid.UUID(institution_id)
+            LecturerAvailability.institution_id == uuid.UUID(institution_id),
+            LecturerAvailability.is_recurring == True
         )).order_by(LecturerAvailability.day_of_week, LecturerAvailability.start_time)
     )
     recurring = [to_dict(r) for r in result.scalars().all()]
+
+    # Get one-off availability blocks for this week
+    result = await db.execute(
+        select(LecturerAvailability).where(and_(
+            LecturerAvailability.lecturer_id == uuid.UUID(target_id),
+            LecturerAvailability.institution_id == uuid.UUID(institution_id),
+            LecturerAvailability.is_recurring == False,
+            LecturerAvailability.specific_date >= str(start_date),
+            LecturerAvailability.specific_date <= str(end_date)
+        )).order_by(LecturerAvailability.specific_date, LecturerAvailability.start_time)
+    )
+    one_offs = [to_dict(r) for r in result.scalars().all()]
 
     # Get time-offs that overlap this week
     result = await db.execute(
@@ -404,5 +437,6 @@ async def get_week_view(
         "week_start": str(start_date),
         "week_end": str(end_date),
         "recurring": recurring,
+        "one_offs": one_offs,
         "time_offs": time_offs,
     }

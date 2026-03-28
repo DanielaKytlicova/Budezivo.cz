@@ -40,6 +40,7 @@ from routes.legal import router as legal_router
 from routes.plan import router as plan_router
 from routes.lecturer_availability import router as lecturer_availability_router
 from routes.gdpr import router as gdpr_router
+from routes.onboarding import router as onboarding_router
 from models.schemas import ContactFormData, InstitutionSettings
 
 # Configure logging
@@ -108,6 +109,7 @@ api_router.include_router(legal_router)
 api_router.include_router(plan_router)
 api_router.include_router(lecturer_availability_router)
 api_router.include_router(gdpr_router)
+api_router.include_router(onboarding_router)
 
 
 # ============ Additional Routes ============

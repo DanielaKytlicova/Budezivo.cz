@@ -64,6 +64,9 @@ class Institution(Base):
     gdpr_settings = Column(JSON, default={"data_retention": "never", "anonymize": False})
     pro_settings = Column(JSON, default={})
     
+    # Onboarding
+    onboarding_completed = Column(Boolean, default=False)
+    
     # Metadata
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

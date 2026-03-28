@@ -31,6 +31,7 @@ import { PlanPage } from './pages/admin/PlanPage';
 import { TeamPage } from './pages/admin/TeamPage';
 import FeedbackAdminPage from './pages/admin/FeedbackAdminPage';
 import { LecturerAvailabilityPage } from './pages/admin/LecturerAvailabilityPage';
+import { ArchivePage } from './pages/admin/ArchivePage';
 
 import './App.css';
 
@@ -146,6 +147,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <LecturerAvailabilityPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/archive"
+                element={
+                  <ProtectedRoute>
+                    <ArchivePage />
                   </ProtectedRoute>
                 }
               />

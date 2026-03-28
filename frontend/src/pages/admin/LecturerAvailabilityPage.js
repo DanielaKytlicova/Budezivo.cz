@@ -10,7 +10,7 @@ import { Checkbox } from '../../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, ChevronLeft, ChevronRight, Clock, Ban, Edit2, Info, CalendarDays } from 'lucide-react';
+import { Plus, Trash2, ChevronLeft, ChevronRight, Clock, Ban, Edit2, Info, CalendarDays, CalendarPlus } from 'lucide-react';
 import axios from 'axios';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -39,6 +39,7 @@ export const LecturerAvailabilityPage = () => {
   const { user, token } = useContext(AuthContext);
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const [recurring, setRecurring] = useState([]);
+  const [oneOffs, setOneOffs] = useState([]);
   const [timeOffs, setTimeOffs] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [selectedLecturer, setSelectedLecturer] = useState(null);
@@ -46,6 +47,7 @@ export const LecturerAvailabilityPage = () => {
 
   // Dialogs
   const [showAddRecurring, setShowAddRecurring] = useState(false);
+  const [showAddOneOff, setShowAddOneOff] = useState(false);
   const [showAddTimeOff, setShowAddTimeOff] = useState(false);
   const [editingRecurring, setEditingRecurring] = useState(null);
   const [editingTimeOff, setEditingTimeOff] = useState(null);
@@ -54,6 +56,11 @@ export const LecturerAvailabilityPage = () => {
   const [recurringForm, setRecurringForm] = useState({
     days_of_week: [],
     start_time: '08:00',
+    end_time: '12:00',
+  });
+  const [oneOffForm, setOneOffForm] = useState({
+    specific_date: '',
+    start_time: '09:00',
     end_time: '12:00',
   });
   const [timeOffForm, setTimeOffForm] = useState({
@@ -76,6 +83,7 @@ export const LecturerAvailabilityPage = () => {
       const params = selectedLecturer ? `?lecturer_id=${selectedLecturer}&week_start=${weekStr}` : `?week_start=${weekStr}`;
       const res = await axios.get(`${API}/api/lecturer-availability/week-view${params}`, { headers });
       setRecurring(res.data.recurring || []);
+      setOneOffs(res.data.one_offs || []);
       setTimeOffs(res.data.time_offs || []);
     } catch (err) {
       console.error(err);
@@ -137,6 +145,28 @@ export const LecturerAvailabilityPage = () => {
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Chyba při aktualizaci.');
+    }
+  };
+
+  const handleAddOneOff = async () => {
+    if (!oneOffForm.specific_date) {
+      toast.error('Vyberte datum.');
+      return;
+    }
+    try {
+      const params = selectedLecturer ? `?lecturer_id=${selectedLecturer}` : '';
+      await axios.post(`${API}/api/lecturer-availability/recurring${params}`, {
+        days_of_week: [],
+        start_time: oneOffForm.start_time,
+        end_time: oneOffForm.end_time,
+        specific_date: oneOffForm.specific_date,
+      }, { headers });
+      toast.success('Příležitostná dostupnost přidána.');
+      setShowAddOneOff(false);
+      setOneOffForm({ specific_date: '', start_time: '09:00', end_time: '12:00' });
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Chyba při ukládání.');
     }
   };
 
@@ -220,8 +250,11 @@ export const LecturerAvailabilityPage = () => {
   const getBlocksForDay = (dayIndex) => {
     const avail = recurring.filter(r => r.day_of_week === dayIndex);
     const dateStr = formatDate(weekDays[dayIndex]);
+    // Include one-off blocks for this specific date
+    const dayOneOffs = oneOffs.filter(o => o.specific_date === dateStr);
+    const allAvail = [...avail, ...dayOneOffs];
     const offs = timeOffs.filter(t => t.start_date <= dateStr && t.end_date >= dateStr);
-    return { avail, offs };
+    return { avail: allAvail, offs };
   };
 
   const renderCalendarCell = (dayIndex, hour) => {
@@ -308,6 +341,15 @@ export const LecturerAvailabilityPage = () => {
             >
               <Plus className="w-4 h-4 mr-1" />
               Pravidelný čas
+            </Button>
+            <Button
+              onClick={() => { setShowAddOneOff(true); setOneOffForm({ specific_date: '', start_time: '09:00', end_time: '12:00' }); }}
+              variant="outline"
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+              data-testid="add-oneoff-btn"
+            >
+              <CalendarPlus className="w-4 h-4 mr-1" />
+              Jednorázový čas
             </Button>
             <Button
               onClick={() => { setShowAddTimeOff(true); setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' }); }}
@@ -459,6 +501,29 @@ export const LecturerAvailabilityPage = () => {
             </div>
           )}
         </Card>
+
+        {/* One-off blocks list */}
+        {oneOffs.length > 0 && (
+          <Card className="p-4 md:p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <CalendarPlus className="w-5 h-5 text-amber-600" />
+              <h2 className="font-semibold text-slate-900">Jednorázové bloky</h2>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {oneOffs.map(o => (
+                <div key={o.id} className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg" data-testid={`oneoff-${o.id}`}>
+                  <div>
+                    <p className="font-medium text-sm text-slate-900">{o.specific_date}</p>
+                    <p className="text-xs text-amber-700">{o.start_time} – {o.end_time}</p>
+                  </div>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 hover:text-red-600" onClick={() => handleDeleteRecurring(o.id)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {/* Time-off list */}
         <Card className="p-4 md:p-6 space-y-4">
@@ -617,6 +682,60 @@ export const LecturerAvailabilityPage = () => {
       </Dialog>
 
       {/* ====== DIALOG: Add Time Off ====== */}
+      {/* One-off availability dialog */}
+      <Dialog open={showAddOneOff} onOpenChange={setShowAddOneOff}>
+        <DialogContent aria-describedby="oneoff-desc">
+          <DialogHeader>
+            <DialogTitle>Přidat jednorázovou dostupnost</DialogTitle>
+          </DialogHeader>
+          <p id="oneoff-desc" className="text-sm text-gray-500 mb-4">
+            Příležitostný čas — platí pouze pro jedno konkrétní datum.
+          </p>
+          <div className="space-y-4">
+            <div>
+              <Label>Datum</Label>
+              <Input
+                type="date"
+                value={oneOffForm.specific_date}
+                onChange={(e) => setOneOffForm({ ...oneOffForm, specific_date: e.target.value })}
+                data-testid="oneoff-date"
+                className="mt-1"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Od</Label>
+                <Input
+                  type="time"
+                  value={oneOffForm.start_time}
+                  onChange={(e) => setOneOffForm({ ...oneOffForm, start_time: e.target.value })}
+                  data-testid="oneoff-start"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label>Do</Label>
+                <Input
+                  type="time"
+                  value={oneOffForm.end_time}
+                  onChange={(e) => setOneOffForm({ ...oneOffForm, end_time: e.target.value })}
+                  data-testid="oneoff-end"
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <Button
+              onClick={handleAddOneOff}
+              className="w-full bg-amber-600 hover:bg-amber-700 text-white"
+              data-testid="oneoff-submit"
+            >
+              Přidat jednorázový čas
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Time-off dialog */}
       <Dialog open={showAddTimeOff} onOpenChange={setShowAddTimeOff}>
         <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
           <DialogHeader>

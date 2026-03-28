@@ -204,10 +204,22 @@ class ProgramRepositorySupabase:
         prog = result.scalar_one_or_none()
         return to_dict(prog) if prog else None
     
-    async def find_by_institution(self, institution_id: str) -> List[dict]:
-        """Find all programs for an institution."""
+    async def find_by_institution(self, institution_id: str, include_archived: bool = False) -> List[dict]:
+        """Find all programs for an institution. By default excludes archived."""
+        query = select(Program).where(Program.institution_id == uuid.UUID(institution_id))
+        if not include_archived:
+            query = query.where(Program.status != 'archived')
+        result = await self.db.execute(query)
+        programs = result.scalars().all()
+        return [to_dict(p) for p in programs]
+    
+    async def find_archived(self, institution_id: str) -> List[dict]:
+        """Find archived programs for an institution."""
         result = await self.db.execute(
-            select(Program).where(Program.institution_id == uuid.UUID(institution_id))
+            select(Program).where(and_(
+                Program.institution_id == uuid.UUID(institution_id),
+                Program.status == 'archived'
+            )).order_by(Program.archived_at.desc())
         )
         programs = result.scalars().all()
         return [to_dict(p) for p in programs]
@@ -314,6 +326,16 @@ class ProgramRepositorySupabase:
                     processed_data['assigned_lecturer_id'] = None
             else:
                 processed_data['assigned_lecturer_id'] = None
+        
+        # Convert archived_by to UUID
+        if 'archived_by' in processed_data:
+            if processed_data['archived_by']:
+                try:
+                    processed_data['archived_by'] = uuid.UUID(processed_data['archived_by'])
+                except (ValueError, TypeError):
+                    processed_data['archived_by'] = None
+            else:
+                processed_data['archived_by'] = None
         
         result = await self.db.execute(
             update(Program)

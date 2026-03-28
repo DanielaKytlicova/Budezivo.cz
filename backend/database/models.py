@@ -160,6 +160,11 @@ class Program(Base):
     # Assigned Lecturer
     assigned_lecturer_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     
+    # Archive
+    archived_at = Column(DateTime(timezone=True))
+    archived_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+    archive_reason = Column(Text)
+    
     # Metadata
     created_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
@@ -604,6 +609,7 @@ class LecturerAvailability(Base):
     start_time = Column(Text, nullable=False)  # "08:00"
     end_time = Column(Text, nullable=False)    # "12:00"
     is_recurring = Column(Boolean, default=True)
+    specific_date = Column(Text)  # "2026-04-15" for one-off blocks (null = recurring)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     

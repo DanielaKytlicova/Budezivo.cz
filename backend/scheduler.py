@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.supabase import AsyncSessionLocal
@@ -499,6 +499,42 @@ async def process_gdpr_auto_cleanup():
             await db.rollback()
 
 
+async def process_auto_archive_programs():
+    """
+    Auto-archive programs whose end_date has passed.
+    Runs daily. Only archives active/draft programs with expired end_date.
+    """
+    logger.info("Running auto-archive programs job...")
+
+    async with AsyncSessionLocal() as db:
+        try:
+            today = datetime.now(timezone.utc)
+            
+            # Find active programs with end_date in the past
+            result = await db.execute(
+                select(Program).where(and_(
+                    Program.status.in_(['active', 'draft']),
+                    Program.end_date != None,
+                    Program.end_date < today,
+                ))
+            )
+            expired_programs = result.scalars().all()
+            
+            count = 0
+            for prog in expired_programs:
+                prog.status = 'archived'
+                prog.archived_at = today
+                prog.archive_reason = 'Automaticky archivováno po ukončení platnosti'
+                prog.is_published = False
+                count += 1
+            
+            await db.commit()
+            logger.info(f"Auto-archive: {count} programs archived.")
+        except Exception as e:
+            logger.error(f"Auto-archive job failed: {e}")
+            await db.rollback()
+
+
 def start_scheduler():
     """Start the APScheduler with feedback job."""
     if scheduler.running:
@@ -529,6 +565,15 @@ def start_scheduler():
         process_gdpr_auto_cleanup,
         CronTrigger(hour=3, minute=0),
         id='gdpr_auto_cleanup',
+        replace_existing=True,
+        misfire_grace_time=3600
+    )
+    
+    # Auto-archive expired programs: run daily at 4:00 AM UTC
+    scheduler.add_job(
+        process_auto_archive_programs,
+        CronTrigger(hour=4, minute=0),
+        id='auto_archive_programs',
         replace_existing=True,
         misfire_grace_time=3600
     )

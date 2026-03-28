@@ -13,6 +13,7 @@ import { Checkbox } from '../../components/ui/checkbox';
 import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail, ShieldAlert, Info, User } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import { ProgramMailingTab } from '../../components/admin/ProgramMailingTab.jsx';
 import { API } from '../../config/api';
 
@@ -73,6 +74,7 @@ const getDefaultFormData = () => ({
 
 export const ProgramsPage = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [programs, setPrograms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
@@ -189,14 +191,13 @@ export const ProgramsPage = () => {
 
   const handleArchive = async (program) => {
     try {
-      await axios.put(`${API}/programs/${program.id}`, {
-        ...program,
-        status: 'archived'
+      await axios.post(`${API}/programs/${program.id}/archive`, {
+        reason: 'Ruční archivace'
       });
       toast.success('Program byl archivován');
       fetchPrograms();
     } catch (error) {
-      toast.error(t('common.error'));
+      toast.error(error.response?.data?.detail || t('common.error'));
     }
     setOpenMenu(null);
   };
@@ -374,15 +375,26 @@ export const ProgramsPage = () => {
               Navýšit tarif
             </button>
           </div>
-          <Button
-            variant="outline"
-            onClick={openUrlGenerator}
-            className="shrink-0"
-            data-testid="generate-url-btn"
-          >
-            <LinkIcon className="w-4 h-4 mr-2" />
-            Generovat URL pro web
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/admin/archive')}
+              className="shrink-0"
+              data-testid="archive-link-btn"
+            >
+              <Archive className="w-4 h-4 mr-2" />
+              Archiv
+            </Button>
+            <Button
+              variant="outline"
+              onClick={openUrlGenerator}
+              className="shrink-0"
+              data-testid="generate-url-btn"
+            >
+              <LinkIcon className="w-4 h-4 mr-2" />
+              Generovat URL pro web
+            </Button>
+          </div>
         </div>
       </Card>
 

@@ -1,0 +1,155 @@
+{
+  "summary": "Completed testing of Program Archive feature (P0 + P1). Fixed backend bug with archived_at datetime serialization. All 12 backend tests pass (100%). All frontend UI flows verified working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [],
+    "fixed": [
+      {
+        "endpoint": "POST /api/programs/{id}/archive",
+        "issue": "500 Internal Server Error - archived_at was passed as ISO string instead of datetime object",
+        "fix": "Changed datetime.now(timezone.utc).isoformat() to datetime.now(timezone.utc) in routes/programs.py line 238",
+        "status": "FIXED"
+      },
+      {
+        "endpoint": "POST /api/programs/{id}/archive",
+        "issue": "archived_by UUID not being converted properly",
+        "fix": "Added UUID conversion for archived_by in supabase_repositories.py",
+        "status": "FIXED"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_archive_feature.py",
+    "/app/test_reports/pytest/pytest_archive.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Archive feature fully implemented with proper route ordering (GET /archived before GET /{id})",
+    "Report dialog shows comprehensive statistics: reservations, students, teachers, unique schools",
+    "JSON export functionality working correctly",
+    "Toast notifications in Czech language for archive/unarchive actions",
+    "Proper error handling for edge cases (already archived, not archived, nonexistent)"
+  ],
+  "updated_files": [
+    "/app/backend/routes/programs.py",
+    "/app/backend/database/supabase_repositories.py",
+    "/app/backend/tests/test_archive_feature.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_user": "demo@budezivo.cz",
+    "admin_password": "Demo2026!"
+  },
+  "seed_data_creation": "None - used existing test data",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Archive feature fully tested. Backend: 12 tests covering GET /archived, POST /{id}/archive, POST /{id}/unarchive, GET /{id}/archive-report, auth requirements, and edge cases. Frontend: Archive button on ProgramsPage navigates to /admin/archive, archived programs list shows with Report and Obnovit buttons, Report dialog shows statistics and JSON export button, archive/unarchive flow works with toast notifications.",
+  "features_tested": {
+    "backend_api": {
+      "GET /api/programs/archived returns list of archived programs": "PASS",
+      "GET /api/programs returns only active programs (excludes archived)": "PASS",
+      "POST /api/programs/{id}/archive moves program to archive": "PASS",
+      "POST /api/programs/{id}/unarchive restores program to active": "PASS",
+      "GET /api/programs/{id}/archive-report returns structured report": "PASS",
+      "Archive already archived program returns 400": "PASS",
+      "Unarchive active program returns 400": "PASS",
+      "Archive nonexistent program returns 404": "PASS",
+      "Archive report for nonexistent program returns 404": "PASS",
+      "GET /archived requires authentication": "PASS",
+      "POST /archive requires authentication": "PASS",
+      "POST /unarchive requires authentication": "PASS",
+      "GET /archive-report requires authentication": "PASS"
+    },
+    "frontend_ui": {
+      "Archive button (Archiv) visible on /admin/programs": "PASS",
+      "Click Archive button navigates to /admin/archive": "PASS",
+      "/admin/archive shows 'Archiv programů' title": "PASS",
+      "Archived programs list displays correctly": "PASS",
+      "Report button opens report dialog": "PASS",
+      "Report dialog shows program statistics": "PASS",
+      "Report dialog shows 'Exportovat report (JSON)' button": "PASS",
+      "JSON export button triggers download": "PASS",
+      "Obnovit (unarchive) button restores program": "PASS",
+      "Toast notification shows after archive": "PASS",
+      "Toast notification shows after unarchive": "PASS",
+      "Archivovat button on program cards works": "PASS"
+    }
+  },
+  "verified_features": [
+    {
+      "feature": "Navigate to /admin/programs and verify 'Archiv' button is visible and clickable",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Click 'Archiv' button navigates to /admin/archive page",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "/admin/archive page shows list of archived programs",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Click 'Obnovit' (unarchive) button on an archived program restores it to active",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "After unarchiving, program appears back in /admin/programs list",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Archive a program from /admin/programs using 'Archivovat' button",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Archived program appears in /admin/archive",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Click 'Report' button on archived program opens report dialog with program stats",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Click 'Exportovat report (JSON)' button in report dialog downloads JSON",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Backend API: GET /api/programs/archived returns list of archived programs",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Backend API: POST /api/programs/{id}/archive moves program to archive",
+      "status": "VERIFIED (after fix)"
+    },
+    {
+      "feature": "Backend API: POST /api/programs/{id}/unarchive restores program",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Backend API: GET /api/programs/{id}/archive-report returns structured report data",
+      "status": "VERIFIED"
+    }
+  ],
+  "rca_of_the_issue": {
+    "issue": "POST /api/programs/{id}/archive returning 500 Internal Server Error",
+    "root_cause": "In routes/programs.py line 238, archived_at was being set to datetime.now(timezone.utc).isoformat() which returns a string. However, the SQLAlchemy model expects a datetime object for the TIMESTAMP WITH TIME ZONE column. The asyncpg driver threw DataError: invalid input for query argument.",
+    "reproduction_steps": [
+      "1. Login as admin",
+      "2. Navigate to /admin/programs",
+      "3. Click 'Archivovat' on any program",
+      "4. Backend returns 500 error"
+    ],
+    "fix_applied": [
+      "Changed archived_at value from datetime.now(timezone.utc).isoformat() to datetime.now(timezone.utc)",
+      "Added UUID conversion for archived_by field in supabase_repositories.py"
+    ],
+    "verification": "All 12 backend tests pass after fix"
+  }
+}

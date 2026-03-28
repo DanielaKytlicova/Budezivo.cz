@@ -188,6 +188,27 @@ class InstitutionRepositorySupabase:
         """Update PRO settings."""
         return await self.update(institution_id, {"pro_settings": pro_settings})
 
+    async def find_by_id_with_theme(self, institution_id: str) -> Optional[dict]:
+        """Find institution by ID and merge theme_settings into the result dict."""
+        result = await self.db.execute(
+            select(Institution).where(Institution.id == uuid.UUID(institution_id))
+        )
+        inst = result.scalar_one_or_none()
+        if not inst:
+            return None
+        data = to_dict(inst)
+        # Eagerly load theme
+        theme_result = await self.db.execute(
+            select(ThemeSetting).where(ThemeSetting.institution_id == uuid.UUID(institution_id))
+        )
+        theme = theme_result.scalar_one_or_none()
+        if theme:
+            data["theme_primary_color"] = theme.primary_color
+            data["theme_secondary_color"] = theme.secondary_color
+            data["theme_accent_color"] = theme.accent_color
+            data["theme_logo_url"] = theme.logo_url or data.get("logo_url")
+        return data
+
 
 class ProgramRepositorySupabase:
     """Repository for program operations with Supabase."""

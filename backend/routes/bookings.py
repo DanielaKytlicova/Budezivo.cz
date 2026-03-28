@@ -147,7 +147,7 @@ async def create_public_booking(
     # Send confirmation emails in background (if program has email enabled)
     try:
         program = await program_repo.find_by_id(booking_data.program_id, institution_id)
-        institution = await institution_repo.find_by_id(institution_id)
+        institution = await institution_repo.find_by_id_with_theme(institution_id)
         
         if program and program.get("send_email_notification", False):
             email_template = await template_repo.find_by_program(booking_data.program_id)
@@ -266,7 +266,7 @@ async def update_booking_status(
     async def send_status_email():
         try:
             program = await program_repo.find_by_id(booking.get("program_id"), current_user["institution_id"])
-            institution = await institution_repo.find_by_id(current_user["institution_id"])
+            institution = await institution_repo.find_by_id_with_theme(current_user["institution_id"])
             
             if not program or not institution:
                 return
@@ -413,7 +413,7 @@ async def update_booking(
                     institution_repo = InstitutionRepositorySupabase(bg_db)
                     
                     program = await program_repo.find_by_id(program_id, institution_id)
-                    institution = await institution_repo.find_by_id(institution_id)
+                    institution = await institution_repo.find_by_id_with_theme(institution_id)
                     
                     if program and institution:
                         await trigger_reservation_rescheduled_email(
@@ -471,7 +471,7 @@ async def bulk_update_booking_status(
     # Trigger emails in background for each booking
     async def send_bulk_emails():
         try:
-            institution = await institution_repo.find_by_id(current_user["institution_id"])
+            institution = await institution_repo.find_by_id_with_theme(current_user["institution_id"])
             for booking in bookings_before:
                 old_status = booking.get("status")
                 if old_status == request.status:

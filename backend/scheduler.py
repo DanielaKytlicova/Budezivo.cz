@@ -150,103 +150,32 @@ async def send_feedback_request_email(
     reservation_date: str,
     feedback_url: str
 ) -> bool:
-    """Send feedback request email using Resend."""
+    """Send feedback request email using the centralised template system."""
     try:
-        # Format date for display
         try:
             date_obj = datetime.strptime(reservation_date, "%Y-%m-%d")
             formatted_date = date_obj.strftime("%d. %m. %Y")
-        except:
+        except Exception:
             formatted_date = reservation_date
-        
-        subject = f"Jak se vám líbil program {program_name}?"
-        
-        html_content = f"""
-<!DOCTYPE html>
-<html lang="cs">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: 'Segoe UI', Arial, sans-serif;">
-    <table role="presentation" style="width: 100%; border-collapse: collapse;">
-        <tr>
-            <td style="padding: 40px 20px;">
-                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-                    <!-- Header -->
-                    <div style="background-color: #5a7aae; padding: 32px; text-align: center;">
-                        <h1 style="color: #ffffff; font-size: 24px; margin: 0;">Zpětná vazba</h1>
-                    </div>
-                    
-                    <!-- Content -->
-                    <div style="padding: 32px;">
-                        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
-                            Dobrý den, {recipient_name},
-                        </p>
-                        
-                        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
-                            děkujeme za návštěvu programu <strong>{program_name}</strong> v instituci 
-                            <strong>{institution_name}</strong> dne {formatted_date}.
-                        </p>
-                        
-                        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
-                            Budeme rádi, pokud si najdete chvilku na vyplnění krátkého dotazníku. 
-                            Vaše zpětná vazba nám pomáhá zlepšovat naše programy.
-                        </p>
-                        
-                        <div style="text-align: center; margin: 32px 0;">
-                            <a href="{feedback_url}" 
-                               style="display: inline-block; background-color: #5a7aae; color: #ffffff; 
-                                      padding: 14px 32px; text-decoration: none; border-radius: 6px; 
-                                      font-weight: 500; font-size: 16px;">
-                                Vyplnit dotazník
-                            </a>
-                        </div>
-                        
-                        <p style="color: #64748B; font-size: 14px; line-height: 1.6; margin: 24px 0 0 0;">
-                            Dotazník zabere pouze 2 minuty a je zcela anonymní.
-                        </p>
-                    </div>
-                    
-                    <!-- Footer -->
-                    <div style="background-color: #F8FAFC; padding: 24px; text-align: center; border-top: 1px solid #E2E8F0;">
-                        <p style="color: #64748B; font-size: 12px; line-height: 1.5; margin: 0;">
-                            Tento email byl odeslán automaticky systémem Budeživo.cz<br>
-                            Pokud si nepřejete dostávat tyto emaily, můžete je ignorovat.
-                        </p>
-                    </div>
-                </div>
-            </td>
-        </tr>
-    </table>
-</body>
-</html>
-"""
-        
-        plain_text = f"""
-Dobrý den, {recipient_name},
 
-děkujeme za návštěvu programu {program_name} v instituci {institution_name} dne {formatted_date}.
+        from templates.emails import get_template
+        template_result = get_template("feedback_request", {
+            "recipient_name": recipient_name,
+            "institution_name": institution_name,
+            "program_name": program_name,
+            "formatted_date": formatted_date,
+            "feedback_url": feedback_url,
+        })
 
-Budeme rádi, pokud si najdete chvilku na vyplnění krátkého dotazníku:
-{feedback_url}
-
-Vaše zpětná vazba nám pomáhá zlepšovat naše programy.
-Dotazník zabere pouze 2 minuty a je zcela anonymní.
-
-S pozdravem,
-Tým {institution_name}
-"""
-        
         result = await EmailService.send_email(
             to_email=recipient_email,
-            subject=subject,
-            html_content=html_content,
-            text_content=plain_text
+            subject=template_result["subject"],
+            html_content=template_result["html"],
+            text_content=template_result.get("text"),
+            add_gdpr_footer=False,
         )
-        
         return result.get("status") == "sent"
-        
+
     except Exception as e:
         logger.error(f"Failed to send feedback email: {e}")
         return False
@@ -327,104 +256,32 @@ async def send_feedback_reminder_email(
     reservation_date: str,
     feedback_url: str
 ) -> bool:
-    """Send feedback reminder email using Resend."""
+    """Send feedback reminder email using the centralised template system."""
     try:
-        # Format date for display
         try:
             date_obj = datetime.strptime(reservation_date, "%Y-%m-%d")
             formatted_date = date_obj.strftime("%d. %m. %Y")
-        except:
+        except Exception:
             formatted_date = reservation_date
-        
-        subject = f"Připomínka: Vaše zpětná vazba na program {program_name}"
-        
-        html_content = f"""
-<!DOCTYPE html>
-<html lang="cs">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body style="margin: 0; padding: 0; background-color: #F1F5F9; font-family: 'Segoe UI', Arial, sans-serif;">
-    <table role="presentation" style="width: 100%; border-collapse: collapse;">
-        <tr>
-            <td style="padding: 40px 20px;">
-                <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-                    <!-- Header -->
-                    <div style="background-color: #c5ac87; padding: 32px; text-align: center;">
-                        <h1 style="color: #ffffff; font-size: 24px; margin: 0;">Připomínka</h1>
-                    </div>
-                    
-                    <!-- Content -->
-                    <div style="padding: 32px;">
-                        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
-                            Dobrý den, {recipient_name},
-                        </p>
-                        
-                        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 16px 0;">
-                            před týdnem jsme vám poslali žádost o zpětnou vazbu na program 
-                            <strong>{program_name}</strong>, který jste navštívili dne {formatted_date} 
-                            v instituci <strong>{institution_name}</strong>.
-                        </p>
-                        
-                        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 24px 0;">
-                            Pokud jste dotazník ještě nevyplnili, budeme velmi rádi za vaši zpětnou vazbu. 
-                            Zabere vám to pouze 2 minuty.
-                        </p>
-                        
-                        <div style="text-align: center; margin: 32px 0;">
-                            <a href="{feedback_url}" 
-                               style="display: inline-block; background-color: #c5ac87; color: #ffffff; 
-                                      padding: 14px 32px; text-decoration: none; border-radius: 6px; 
-                                      font-weight: 500; font-size: 16px;">
-                                Vyplnit dotazník
-                            </a>
-                        </div>
-                        
-                        <p style="color: #64748B; font-size: 14px; line-height: 1.6; margin: 24px 0 0 0;">
-                            Toto je poslední připomínka. Děkujeme za váš čas!
-                        </p>
-                    </div>
-                    
-                    <!-- Footer -->
-                    <div style="background-color: #F8FAFC; padding: 24px; text-align: center; border-top: 1px solid #E2E8F0;">
-                        <p style="color: #64748B; font-size: 12px; line-height: 1.5; margin: 0;">
-                            Tento email byl odeslán automaticky systémem Budeživo.cz<br>
-                            Pokud jste již dotazník vyplnili, můžete tento email ignorovat.
-                        </p>
-                    </div>
-                </div>
-            </td>
-        </tr>
-    </table>
-</body>
-</html>
-"""
-        
-        plain_text = f"""
-Dobrý den, {recipient_name},
 
-před týdnem jsme vám poslali žádost o zpětnou vazbu na program {program_name}, 
-který jste navštívili dne {formatted_date} v instituci {institution_name}.
+        from templates.emails import get_template
+        template_result = get_template("feedback_reminder", {
+            "recipient_name": recipient_name,
+            "institution_name": institution_name,
+            "program_name": program_name,
+            "formatted_date": formatted_date,
+            "feedback_url": feedback_url,
+        })
 
-Pokud jste dotazník ještě nevyplnili, budeme velmi rádi za vaši zpětnou vazbu:
-{feedback_url}
-
-Toto je poslední připomínka. Děkujeme za váš čas!
-
-S pozdravem,
-Tým {institution_name}
-"""
-        
         result = await EmailService.send_email(
             to_email=recipient_email,
-            subject=subject,
-            html_content=html_content,
-            text_content=plain_text
+            subject=template_result["subject"],
+            html_content=template_result["html"],
+            text_content=template_result.get("text"),
+            add_gdpr_footer=False,
         )
-        
         return result.get("status") == "sent"
-        
+
     except Exception as e:
         logger.error(f"Failed to send feedback reminder email: {e}")
         return False

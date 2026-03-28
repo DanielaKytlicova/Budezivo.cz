@@ -372,27 +372,8 @@ async def trigger_reservation_created_emails(
 ) -> Dict[str, Any]:
     """Trigger emails after reservation is created."""
     results = {}
-    
-    # Prepare context
-    context = {
-        "school_name": booking_data.get("school_name", ""),
-        "teacher_name": booking_data.get("contact_name", ""),
-        "teacher_email": booking_data.get("contact_email", ""),
-        "teacher_phone": booking_data.get("contact_phone", ""),
-        "reservation_date": booking_data.get("date", ""),
-        "reservation_time": booking_data.get("time_block", ""),
-        "children_count": booking_data.get("num_students", 0),
-        "teachers_count": booking_data.get("num_teachers", 0),
-        "program_name": program_data.get("name_cs", ""),
-        "program_duration": program_data.get("duration", 60),
-        "institution_name": institution_data.get("name", ""),
-        "institution_email": institution_data.get("email", ""),
-        "institution_phone": institution_data.get("phone", ""),
-        "institution_address": institution_data.get("address", ""),
-        "institution_logo_url": institution_data.get("logo_url"),
-        "special_requirements": booking_data.get("special_requirements", ""),
-        "dashboard_url": "https://budezivo.cz/admin",
-    }
+
+    context = _build_email_context(booking_data, program_data, institution_data)
     
     # Send to teacher
     results["teacher"] = await EmailService.send_transactional_email(
@@ -413,13 +394,14 @@ async def trigger_reservation_created_emails(
     return results
 
 
-async def trigger_reservation_confirmed_email(
+def _build_email_context(
     booking_data: Dict[str, Any],
     program_data: Dict[str, Any],
     institution_data: Dict[str, Any],
+    **extra
 ) -> Dict[str, Any]:
-    """Trigger email when reservation is confirmed."""
-    context = {
+    """Build shared context dict for email templates including theme data."""
+    ctx = {
         "school_name": booking_data.get("school_name", ""),
         "teacher_name": booking_data.get("contact_name", ""),
         "teacher_email": booking_data.get("contact_email", ""),
@@ -429,13 +411,31 @@ async def trigger_reservation_confirmed_email(
         "children_count": booking_data.get("num_students", 0),
         "teachers_count": booking_data.get("num_teachers", 0),
         "program_name": program_data.get("name_cs", ""),
+        "program_duration": program_data.get("duration", 60),
         "institution_name": institution_data.get("name", ""),
         "institution_email": institution_data.get("email", ""),
         "institution_phone": institution_data.get("phone", ""),
         "institution_address": institution_data.get("address", ""),
         "institution_logo_url": institution_data.get("logo_url"),
+        "theme_logo_url": institution_data.get("theme_logo_url"),
+        "theme_primary_color": institution_data.get("theme_primary_color"),
+        "theme_secondary_color": institution_data.get("theme_secondary_color"),
+        "theme_accent_color": institution_data.get("theme_accent_color"),
+        "special_requirements": booking_data.get("special_requirements", ""),
+        "dashboard_url": "https://budezivo.cz/admin",
     }
-    
+    ctx.update(extra)
+    return ctx
+
+
+async def trigger_reservation_confirmed_email(
+    booking_data: Dict[str, Any],
+    program_data: Dict[str, Any],
+    institution_data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Trigger email when reservation is confirmed."""
+    context = _build_email_context(booking_data, program_data, institution_data)
+
     return await EmailService.send_transactional_email(
         template_name="reservation_confirmed",
         to_email=booking_data.get("contact_email", ""),
@@ -451,19 +451,12 @@ async def trigger_reservation_cancelled_email(
     cancellation_reason: str = "",
 ) -> Dict[str, Any]:
     """Trigger email when reservation is cancelled."""
-    context = {
-        "school_name": booking_data.get("school_name", ""),
-        "teacher_name": booking_data.get("contact_name", ""),
-        "reservation_date": booking_data.get("date", ""),
-        "reservation_time": booking_data.get("time_block", ""),
-        "children_count": booking_data.get("num_students", 0),
-        "teachers_count": booking_data.get("num_teachers", 0),
-        "program_name": program_data.get("name_cs", ""),
-        "institution_name": institution_data.get("name", ""),
-        "cancellation_reason": cancellation_reason,
-        "booking_url": f"https://www.budezivo.cz/booking/{institution_data.get('id', '')}",
-    }
-    
+    context = _build_email_context(
+        booking_data, program_data, institution_data,
+        cancellation_reason=cancellation_reason,
+        booking_url=f"https://www.budezivo.cz/booking/{institution_data.get('id', '')}",
+    )
+
     return await EmailService.send_transactional_email(
         template_name="reservation_cancelled",
         to_email=booking_data.get("contact_email", ""),
@@ -513,23 +506,11 @@ async def trigger_reservation_rescheduled_email(
     original_time: str,
 ) -> Dict[str, Any]:
     """Trigger email when admin changes reservation date or time."""
-    context = {
-        "school_name": booking_data.get("school_name", ""),
-        "teacher_name": booking_data.get("contact_name", ""),
-        "teacher_email": booking_data.get("contact_email", ""),
-        "teacher_phone": booking_data.get("contact_phone", ""),
-        "reservation_date": booking_data.get("date", ""),
-        "reservation_time": booking_data.get("time_block", ""),
-        "original_date": original_date,
-        "original_time": original_time,
-        "children_count": booking_data.get("num_students", 0),
-        "teachers_count": booking_data.get("num_teachers", 0),
-        "program_name": program_data.get("name_cs", ""),
-        "institution_name": institution_data.get("name", ""),
-        "institution_email": institution_data.get("email", ""),
-        "institution_phone": institution_data.get("phone", ""),
-        "institution_logo_url": institution_data.get("logo_url"),
-    }
+    context = _build_email_context(
+        booking_data, program_data, institution_data,
+        original_date=original_date,
+        original_time=original_time,
+    )
 
     return await EmailService.send_transactional_email(
         template_name="reservation_rescheduled",

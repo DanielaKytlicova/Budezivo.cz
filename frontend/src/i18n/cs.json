@@ -35,68 +35,86 @@
     "feature5": "Statistiky a reporty"
   },
   "pricing": {
-    "title": "Vyberte si tarif pro vaši instituci",
+    "title": "Jednoduché a transparentní tarify",
     "monthly": "Měsíčně",
     "yearly": "Ročně",
+    "perMonth": "Kč / měsíc",
+    "perYear": "Kč / rok",
+    "save": "Ušetřete 20%",
     "free": {
       "name": "Zdarma",
       "price": "0",
+      "priceLabel": "0 Kč / navždy",
       "description": "Pro začátek",
+      "cta": "Začít zdarma",
+      "highlight": "Ideální pro malé instituce na vyzkoušení",
       "features": [
-        "Až 50 rezervací měsíčně",
-        "3 aktivní programy",
+        "Max. 40 rezervací měsíčně",
+        "3 aktivní doprovodné programy",
+        "Základní přehled rezervací",
+        "E-mailová podpora"
+      ],
+      "limitations": [
+        "Bez paralelních termínů (programy se nepřekrývají)",
+        "Bez vlastního brandingu (zobrazeno logo Budeživo)",
+        "Bez úprav vzhledu formuláře a e-mailů"
+      ]
+    },
+    "start": {
+      "name": "Start",
+      "price": "790",
+      "priceYearly": "7580",
+      "description": "Nejčastější volba",
+      "cta": "Vybrat Start",
+      "highlight": "Klíčová hodnota: profesionální komunikace směrem ke školám",
+      "features": [
+        "Až 150 rezervací měsíčně",
+        "Neomezený počet programů",
+        "Paralelně běžící programy",
+        "Vlastní branding (logo, barvy)",
+        "Úprava rezervačního formuláře",
+        "Vlastní e-mailové šablony",
         "Základní statistiky",
         "E-mailová podpora"
       ],
-      "cta": "Začít zdarma"
+      "limitations": []
     },
-    "basic": {
-      "name": "Basic",
-      "price": "990",
-      "priceYearly": "9900",
-      "description": "Nejčastější volba",
+    "pro": {
+      "name": "Pro",
+      "price": "1490",
+      "priceYearly": "14300",
+      "description": "Pro aktivní instituce",
+      "cta": "Vybrat Pro",
+      "highlight": "Ideální pro aktivní instituce s větším provozem",
       "features": [
-        "Až 200 rezervací měsíčně",
-        "Neomezené programy",
-        "Pokročilé statistiky",
-        "Prioritní e-mailová podpora",
-        "Export dat"
+        "Až 400 rezervací měsíčně",
+        "Vše ze Start +",
+        "Pokročilé statistiky a vytíženost",
+        "Export / import dat (hromadně)",
+        "Mailing na školy (propagace programů)",
+        "Přehled obsazenosti (kalendář / reporty)",
+        "Prioritní e-mailová podpora"
       ],
-      "cta": "Vybrat Basic"
+      "limitations": []
     },
-    "standard": {
-      "name": "Standard",
-      "price": "1990",
-      "priceYearly": "19900",
-      "description": "Pro větší instituce",
-      "features": [
-        "Až 500 rezervací měsíčně",
-        "Neomezené programy",
-        "Pokročilé statistiky a reporty",
-        "Hromadné akce",
-        "Správa více uživatelů",
-        "Telefonická podpora"
-      ],
-      "cta": "Vybrat Standard"
-    },
-    "premium": {
-      "name": "Premium",
-      "price": "3990",
-      "priceYearly": "39900",
-      "description": "Pro maximální efektivitu",
+    "enterprise": {
+      "name": "Pro+ / Enterprise",
+      "price": "2990",
+      "priceYearly": "28700",
+      "description": "Pro velké organizace",
+      "cta": "Kontaktujte nás",
+      "highlight": "Pro velké organizace, města, sítě institucí",
       "features": [
         "Neomezené rezervace",
-        "Neomezené programy",
-        "Dedikovaný account manager",
-        "Vlastní branding",
-        "API přístup",
-        "Prioritní podpora 24/7"
+        "Vše z Pro +",
+        "Správa více uživatelů",
+        "Hromadné akce / blokace",
+        "API (napojení na web / systémy)",
+        "Prioritní podpora (rychlá reakce)",
+        "Možnost individuálních úprav"
       ],
-      "cta": "Vybrat Premium"
-    },
-    "perMonth": "Kč / měsíc",
-    "perYear": "Kč / rok",
-    "save": "Ušetřete 17%"
+      "limitations": []
+    }
   },
   "faq": {
     "title": "Často kladené otázky",

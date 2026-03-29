@@ -35,68 +35,86 @@
     "feature5": "Statistics and reports"
   },
   "pricing": {
-    "title": "Choose a Plan for Your Institution",
+    "title": "Simple and transparent pricing",
     "monthly": "Monthly",
     "yearly": "Yearly",
+    "perMonth": "CZK / month",
+    "perYear": "CZK / year",
+    "save": "Save 20%",
     "free": {
       "name": "Free",
       "price": "0",
+      "priceLabel": "0 CZK / forever",
       "description": "To get started",
+      "cta": "Start for free",
+      "highlight": "Ideal for small institutions to try out",
       "features": [
-        "Up to 50 bookings per month",
-        "5 active programs",
+        "Max. 40 reservations per month",
+        "3 active programs",
+        "Basic reservation overview",
+        "Email support"
+      ],
+      "limitations": [
+        "No parallel time slots (programs don't overlap)",
+        "No custom branding (Budezivo logo shown)",
+        "No form or email template customization"
+      ]
+    },
+    "start": {
+      "name": "Start",
+      "price": "790",
+      "priceYearly": "7580",
+      "description": "Most popular",
+      "cta": "Choose Start",
+      "highlight": "Key value: professional communication towards schools",
+      "features": [
+        "Up to 150 reservations per month",
+        "Unlimited number of programs",
+        "Parallel running programs",
+        "Custom branding (logo, colors)",
+        "Booking form customization",
+        "Custom email templates",
         "Basic statistics",
         "Email support"
       ],
-      "cta": "Start Free"
+      "limitations": []
     },
-    "basic": {
-      "name": "Basic",
-      "price": "39",
-      "priceYearly": "390",
-      "description": "Most popular",
+    "pro": {
+      "name": "Pro",
+      "price": "1490",
+      "priceYearly": "14300",
+      "description": "For active institutions",
+      "cta": "Choose Pro",
+      "highlight": "Ideal for active institutions with higher traffic",
       "features": [
-        "Up to 200 bookings per month",
-        "Unlimited programs",
-        "Advanced statistics",
-        "Priority email support",
-        "Data export"
+        "Up to 400 reservations per month",
+        "Everything from Start +",
+        "Advanced statistics and utilization",
+        "Bulk data export / import",
+        "School mailing (program promotion)",
+        "Occupancy overview (calendar / reports)",
+        "Priority email support"
       ],
-      "cta": "Choose Basic"
+      "limitations": []
     },
-    "standard": {
-      "name": "Standard",
-      "price": "79",
-      "priceYearly": "790",
-      "description": "For larger institutions",
+    "enterprise": {
+      "name": "Pro+ / Enterprise",
+      "price": "2990",
+      "priceYearly": "28700",
+      "description": "For large organizations",
+      "cta": "Contact us",
+      "highlight": "For large organizations, cities, institution networks",
       "features": [
-        "Up to 500 bookings per month",
-        "Unlimited programs",
-        "Advanced statistics and reports",
-        "Bulk actions",
+        "Unlimited reservations",
+        "Everything from Pro +",
         "Multi-user management",
-        "Phone support"
+        "Bulk actions / blocking",
+        "API (website / system integration)",
+        "Priority support (fast response)",
+        "Custom modifications available"
       ],
-      "cta": "Choose Standard"
-    },
-    "premium": {
-      "name": "Premium",
-      "price": "159",
-      "priceYearly": "1590",
-      "description": "For maximum efficiency",
-      "features": [
-        "Unlimited bookings",
-        "Unlimited programs",
-        "Dedicated account manager",
-        "Custom branding",
-        "API access",
-        "Priority 24/7 support"
-      ],
-      "cta": "Choose Premium"
-    },
-    "perMonth": "€ / month",
-    "perYear": "€ / year",
-    "save": "Save 17%"
+      "limitations": []
+    }
   },
   "faq": {
     "title": "Frequently Asked Questions",

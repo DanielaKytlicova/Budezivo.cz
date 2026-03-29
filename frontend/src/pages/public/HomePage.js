@@ -5,7 +5,7 @@ import { Footer } from '../../components/layout/Footer';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
-import { Check, Mail, RefreshCw, Table2, Copy, Eye, Calendar, Bell, Settings, Users, UserCheck, BarChart3, FileText, Clock, TrendingUp, Shield, Zap } from 'lucide-react';
+import { Check, X, Mail, RefreshCw, Table2, Copy, Eye, Calendar, Bell, Settings, Users, UserCheck, BarChart3, FileText, Clock, TrendingUp, Shield, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
@@ -48,7 +48,7 @@ export const HomePage = () => {
     }
   };
 
-  const pricingTiers = ['free', 'basic', 'standard', 'premium'];
+  const pricingTiers = ['free', 'start', 'pro', 'enterprise'];
 
   // Pain points data
   const painPoints = [
@@ -389,65 +389,88 @@ export const HomePage = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {pricingTiers.map((tier) => {
-              const isBasic = tier === 'basic';
-              
+              const isStart = tier === 'start';
+
               const prices = {
                 free: { monthly: 0, yearly: 0 },
-                basic: { monthly: 990, yearly: 9900 },
-                standard: { monthly: 1990, yearly: 19900 },
-                premium: { monthly: 3990, yearly: 39900 }
+                start: { monthly: 790, yearly: 7580 },
+                pro: { monthly: 1490, yearly: 14300 },
+                enterprise: { monthly: 2990, yearly: 28700 }
               };
-              
+
               const price = prices[tier][billingCycle];
               const tierFeatures = t(`pricing.${tier}.features`);
+              const tierLimitations = t(`pricing.${tier}.limitations`);
+              const tierHighlight = t(`pricing.${tier}.highlight`);
 
               return (
                 <Card
                   key={tier}
                   data-testid={`pricing-tier-${tier}`}
-                  className={`p-6 bg-white rounded-2xl relative border ${
-                    isBasic ? 'border-[#C4AB86] border-2' : 'border-gray-200'
+                  className={`p-6 bg-white rounded-2xl relative border flex flex-col ${
+                    isStart ? 'border-[#C4AB86] border-2 shadow-lg' : 'border-gray-200'
                   }`}
                 >
-                  {isBasic && (
+                  {isStart && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-[#C4AB86] text-white text-xs font-semibold px-4 py-1 rounded-full">
+                      <span className="bg-[#C4AB86] text-white text-xs font-semibold px-4 py-1 rounded-full whitespace-nowrap">
                         Nejčastější volba
                       </span>
                     </div>
                   )}
-                  <h3 className="text-2xl font-bold text-[#2B3E50] mb-2">{t(`pricing.${tier}.name`)}</h3>
-                  <div className="mb-6">
-                    <span className="text-4xl font-bold text-[#2B3E50]">{price} Kč</span>
-                    {tier !== 'free' && (
-                      <span className="text-gray-500 text-sm block mt-1">
-                        {billingCycle === 'monthly' ? 'měsíčně' : 'ročně'}
-                      </span>
-                    )}
-                    {tier === 'free' && (
-                      <span className="text-gray-500 text-sm block mt-1">navždy</span>
+                  <h3 className="text-xl font-bold text-[#2B3E50] mb-2">{t(`pricing.${tier}.name`)}</h3>
+                  <div className="mb-5">
+                    {tier === 'free' ? (
+                      <>
+                        <span className="text-3xl font-bold text-[#2B3E50]">0 Kč</span>
+                        <span className="text-gray-500 text-sm block mt-1">navždy</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-3xl font-bold text-[#2B3E50]">{price.toLocaleString('cs-CZ')} Kč</span>
+                        <span className="text-gray-500 text-sm block mt-1">
+                          {billingCycle === 'monthly' ? '/ měsíčně' : '/ ročně'}
+                        </span>
+                      </>
                     )}
                   </div>
-                  <ul className="space-y-3 mb-6">
+
+                  {/* Features */}
+                  <ul className="space-y-2.5 mb-4 flex-1">
                     {Array.isArray(tierFeatures) && tierFeatures.map((feature, idx) => (
                       <li key={idx} className="flex items-start">
-                        <Check className="w-5 h-5 text-[#4A6FA5] mr-2 flex-shrink-0 mt-0.5" />
+                        <Check className="w-4 h-4 text-[#4A6FA5] mr-2 flex-shrink-0 mt-0.5" />
                         <span className="text-sm text-gray-700">{feature}</span>
                       </li>
                     ))}
+                    {/* Limitations with X icon */}
+                    {Array.isArray(tierLimitations) && tierLimitations.map((limitation, idx) => (
+                      <li key={`lim-${idx}`} className="flex items-start">
+                        <X className="w-4 h-4 text-red-400 mr-2 flex-shrink-0 mt-0.5" />
+                        <span className="text-sm text-gray-400">{limitation}</span>
+                      </li>
+                    ))}
                   </ul>
-                  <Link to="/register" data-testid={`pricing-cta-${tier}`}>
+
+                  {/* Highlight */}
+                  {tierHighlight && typeof tierHighlight === 'string' && (
+                    <p className="text-xs text-gray-500 italic mb-4 border-t border-gray-100 pt-3">
+                      {tierHighlight}
+                    </p>
+                  )}
+
+                  <Link to="/register" data-testid={`pricing-cta-${tier}`} className="mt-auto">
                     <Button
                       className={`w-full rounded-lg ${
-                        isBasic
+                        isStart
                           ? 'bg-[#C4AB86] text-white hover:bg-[#b39975]'
                           : 'border-2 border-[#4A6FA5] text-[#4A6FA5] bg-white hover:bg-[#4A6FA5]/5'
                       }`}
-                      variant={isBasic ? 'default' : 'outline'}
+                      variant={isStart ? 'default' : 'outline'}
                     >
-                      Začít zdarma
+                      {t(`pricing.${tier}.cta`)}
                     </Button>
                   </Link>
                 </Card>

@@ -93,8 +93,9 @@ export const Header = ({ minimal = false }) => {
           {user ? (
             <>
               <Link to="/admin" data-testid="admin-dashboard-link">
-                <Button variant="ghost" size="sm" className="text-[#4A6FA5] hidden md:inline-flex">
-                  Přehled
+                <Button variant="ghost" size="sm" className="text-[#4A6FA5]">
+                  <span className="hidden md:inline">Přehled</span>
+                  <span className="md:hidden">Můj účet</span>
                 </Button>
               </Link>
               <Button

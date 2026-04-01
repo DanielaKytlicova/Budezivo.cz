@@ -214,7 +214,7 @@ export const StatisticsPage = () => {
   const feedbackByProgramData = feedbackStats?.by_program?.slice(0, 5).map(p => ({
     name: p.program_name?.length > 18 ? p.program_name.substring(0, 18) + '...' : p.program_name,
     fullName: p.program_name,
-    'Průměr': p.avg_rating ? parseFloat(p.avg_rating.toFixed(1)) : 0,
+    'Průměr': p.avg_rating ? parseFloat(Number(p.avg_rating).toFixed(1)) : 0,
     'Počet': p.count
   })) || [];
 

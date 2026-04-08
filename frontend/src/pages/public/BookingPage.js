@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from '../../i18n/useTranslation';
 import { ThemeContext } from '../../context/ThemeContext';
 import { BookingHeader } from '../../components/layout/BookingHeader';
@@ -10,7 +10,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Card } from '../../components/ui/card';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { ChevronLeft, ChevronRight, CheckCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, SlidersHorizontal, X } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
@@ -24,8 +24,25 @@ const AGE_GROUPS = {
   adults: 'Dospělí'
 };
 
+// Filter options — maps URL code to internal age_group/target_groups values
+const AGE_FILTER_OPTIONS = [
+  { code: 'MS', label: 'MŠ', longLabel: 'Mateřské školy', internalKeys: ['ms_3_6'] },
+  { code: 'ZS1', label: 'ZŠ I.', longLabel: 'I. stupeň ZŠ', internalKeys: ['zs1_7_12'] },
+  { code: 'ZS2', label: 'ZŠ II.', longLabel: 'II. stupeň ZŠ', internalKeys: ['zs2_12_15'] },
+  { code: 'SS', label: 'SŠ', longLabel: 'Střední školy', internalKeys: ['ss_14_18', 'ss_15_19'] },
+  { code: 'GYM', label: 'GYM', longLabel: 'Gymnázia', internalKeys: ['gym_14_18'] },
+];
+
+const DURATION_FILTER_OPTIONS = [
+  { value: 'all', label: 'Všechny délky' },
+  { value: 'short', label: 'Krátký (do 60 min)' },
+  { value: 'medium', label: 'Střední (60–120 min)' },
+  { value: 'long', label: 'Dlouhý (120+ min)' },
+];
+
 export const BookingPage = () => {
   const { institutionId } = useParams();
+  const [searchParams] = useSearchParams();
   const { t } = useTranslation();
   const { applyTheme } = useContext(ThemeContext);
   const [step, setStep] = useState(1);
@@ -36,6 +53,15 @@ export const BookingPage = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Filter state — initialized from URL params
+  const [ageFilters, setAgeFilters] = useState(() => {
+    const ageParam = searchParams.get('age');
+    if (ageParam) return ageParam.split(',').filter(Boolean).map(s => s.trim().toUpperCase());
+    return [];
+  });
+  const [durationFilter, setDurationFilter] = useState(() => searchParams.get('duration') || 'all');
   
   // Data instituce pro header a theme
   const [institutionData, setInstitutionData] = useState({
@@ -142,6 +168,57 @@ export const BookingPage = () => {
       setTimeBlocks([]);
     }
   };
+
+  // Client-side filtering of programs
+  const filteredPrograms = useMemo(() => {
+    let result = programs;
+    
+    if (ageFilters.length > 0) {
+      // Build set of internal keys from selected URL codes
+      const internalKeys = new Set();
+      for (const code of ageFilters) {
+        const opt = AGE_FILTER_OPTIONS.find(o => o.code === code);
+        if (opt) opt.internalKeys.forEach(k => internalKeys.add(k));
+      }
+      result = result.filter(p => {
+        const tgs = p.target_groups || [];
+        const ag = p.age_group || '';
+        return tgs.some(tg => internalKeys.has(tg)) || internalKeys.has(ag);
+      });
+    }
+    
+    if (durationFilter && durationFilter !== 'all') {
+      result = result.filter(p => {
+        const d = p.duration || 0;
+        if (durationFilter === 'short') return d < 60;
+        if (durationFilter === 'medium') return d >= 60 && d <= 120;
+        if (durationFilter === 'long') return d > 120;
+        return true;
+      });
+    }
+    
+    return result;
+  }, [programs, ageFilters, durationFilter]);
+
+  const toggleAgeFilter = (code) => {
+    setAgeFilters(prev => 
+      prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
+    );
+  };
+
+  const clearFilters = () => {
+    setAgeFilters([]);
+    setDurationFilter('all');
+  };
+
+  const hasActiveFilters = ageFilters.length > 0 || durationFilter !== 'all';
+
+  // Auto-show filters if URL params are present
+  useEffect(() => {
+    if (searchParams.get('age') || searchParams.get('duration')) {
+      setShowFilters(true);
+    }
+  }, [searchParams]);
 
   const handleProgramSelect = async (program) => {
     setSelectedProgram(program);
@@ -374,6 +451,82 @@ export const BookingPage = () => {
 
         {step === 1 && (
           <div>
+            {/* Filter bar */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                  data-testid="toggle-filters-btn"
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  Filtrovat programy
+                  {hasActiveFilters && (
+                    <span 
+                      className="ml-1 w-5 h-5 rounded-full text-xs text-white flex items-center justify-center"
+                      style={{ backgroundColor: institutionData.primaryColor }}
+                    >
+                      {ageFilters.length + (durationFilter !== 'all' ? 1 : 0)}
+                    </span>
+                  )}
+                </button>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
+                    data-testid="clear-filters-btn"
+                  >
+                    <X className="w-3 h-3" />
+                    Zrušit filtry
+                  </button>
+                )}
+              </div>
+
+              {showFilters && (
+                <Card className="p-4 border border-gray-200 space-y-4" data-testid="filter-panel">
+                  {/* Age category checkboxes */}
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Věková skupina</p>
+                    <div className="flex flex-wrap gap-2">
+                      {AGE_FILTER_OPTIONS.map(opt => {
+                        const isActive = ageFilters.includes(opt.code);
+                        return (
+                          <button
+                            key={opt.code}
+                            onClick={() => toggleAgeFilter(opt.code)}
+                            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
+                              isActive 
+                                ? 'text-white border-transparent' 
+                                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                            }`}
+                            style={isActive ? { backgroundColor: institutionData.primaryColor } : {}}
+                            data-testid={`filter-age-${opt.code}`}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Duration select */}
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Doba trvání</p>
+                    <Select value={durationFilter} onValueChange={setDurationFilter}>
+                      <SelectTrigger className="w-full sm:w-56" data-testid="filter-duration">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DURATION_FILTER_OPTIONS.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </Card>
+              )}
+            </div>
+
             {loading ? (
               <div className="text-center py-12">
                 <div 
@@ -381,9 +534,27 @@ export const BookingPage = () => {
                   style={{ borderColor: institutionData.primaryColor }}
                 ></div>
               </div>
+            ) : filteredPrograms.length === 0 ? (
+              <Card className="p-8 text-center border border-gray-200">
+                <p className="text-gray-500 mb-2">
+                  {hasActiveFilters 
+                    ? 'Žádné programy neodpovídají vybraným filtrům.'
+                    : 'Momentálně nejsou k dispozici žádné programy.'
+                  }
+                </p>
+                {hasActiveFilters && (
+                  <button
+                    onClick={clearFilters}
+                    className="text-sm font-medium hover:underline"
+                    style={{ color: institutionData.primaryColor }}
+                  >
+                    Zobrazit všechny programy
+                  </button>
+                )}
+              </Card>
             ) : (
               <div className="space-y-4">
-                {Array.isArray(programs) && programs.map((program) => {
+                {filteredPrograms.map((program) => {
                   // Format validity dates
                   const formatDate = (dateStr) => {
                     if (!dateStr) return null;

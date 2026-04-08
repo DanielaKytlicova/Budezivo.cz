@@ -75,13 +75,28 @@ async def get_public_programs(
     program_repo = ProgramRepositorySupabase(db)
     programs = await program_repo.find_public(institution_id)
 
+    # Mapping from short URL codes to internal age_group/target_groups values
+    AGE_CODE_MAP = {
+        "MS": ["ms_3_6"],
+        "ZS1": ["zs1_7_12"],
+        "ZS2": ["zs2_12_15"],
+        "SS": ["ss_14_18", "ss_15_19"],
+        "GYM": ["gym_14_18"],
+        "ADULTS": ["adults"],
+    }
+
     # Apply filters
     if age:
         age_filter = [a.strip().upper() for a in age.split(",") if a.strip()]
         if age_filter:
+            # Expand codes to internal values for fallback matching
+            expanded = set()
+            for code in age_filter:
+                expanded.update(AGE_CODE_MAP.get(code, [code.lower()]))
+
             programs = [
                 p for p in programs
-                if any(cat in age_filter for cat in (p.get("age_categories") or []))
+                if _matches_age(p, age_filter, expanded)
             ]
 
     if duration:
@@ -100,6 +115,21 @@ async def get_public_programs(
             ]
 
     return programs
+
+
+def _matches_age(program: dict, url_codes: list, expanded_internal: set) -> bool:
+    """Check if program matches age filter using age_categories first, then fallback."""
+    # Primary: check age_categories array (new field)
+    cats = program.get("age_categories") or []
+    if cats:
+        return any(c.upper() in url_codes for c in cats)
+    # Fallback: check target_groups array
+    tgs = program.get("target_groups") or []
+    if tgs:
+        return any(tg in expanded_internal for tg in tgs)
+    # Fallback: check legacy age_group string
+    ag = program.get("age_group") or ""
+    return ag in expanded_internal
 
 
 def _matches_duration(dur: int, filt: str) -> bool:

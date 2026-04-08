@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
 import { Checkbox } from '../../components/ui/checkbox';
-import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail, ShieldAlert, Info, User } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail, ShieldAlert, Info, User, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -85,7 +85,16 @@ export const ProgramsPage = () => {
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [urlData, setUrlData] = useState(null);
   const [selectedProgramForUrl, setSelectedProgramForUrl] = useState('all');
+  const [urlAgeFilters, setUrlAgeFilters] = useState([]);
   const [institutionData, setInstitutionData] = useState(null);
+
+  const URL_AGE_OPTIONS = [
+    { code: 'MS', label: 'MŠ (3-6 let)' },
+    { code: 'ZS1', label: 'I. stupeň ZŠ (7-12 let)' },
+    { code: 'ZS2', label: 'II. stupeň ZŠ (12-15 let)' },
+    { code: 'SS', label: 'SŠ (14-18 let)' },
+    { code: 'GYM', label: 'Gymnázium (14-18 let)' },
+  ];
 
   useEffect(() => {
     fetchPrograms();
@@ -115,28 +124,36 @@ export const ProgramsPage = () => {
 
   const openUrlGenerator = () => {
     setSelectedProgramForUrl('all');
+    setUrlAgeFilters([]);
     setUrlData(null);
     setShowUrlModal(true);
   };
 
-  const generateUrl = (programId = 'all') => {
+  const generateUrl = (programId = 'all', ageFilters = []) => {
     if (!institutionData) return;
     
     const baseUrl = "https://budezivo.cz";
     const institutionId = institutionData.institution_id;
     const institutionName = institutionData.institution_name || 'Vaše instituce';
     
+    // Build query params
+    const params = new URLSearchParams();
+    if (programId !== 'all') params.set('program', programId);
+    if (ageFilters.length > 0) params.set('age', ageFilters.join(','));
+    const queryStr = params.toString() ? `?${params.toString()}` : '';
+    
     if (programId === 'all') {
-      const url = `${baseUrl}/booking/${institutionId}`;
+      const url = `${baseUrl}/booking/${institutionId}${queryStr}`;
+      const filterLabel = ageFilters.length > 0 ? ` (${ageFilters.join(', ')})` : '';
       setUrlData({
         url,
-        program_name: 'Všechny programy',
+        program_name: `Všechny programy${filterLabel}`,
         institution_name: institutionName,
         embed_code: `<a href="${url}" target="_blank">Rezervovat program v ${institutionName}</a>`
       });
     } else {
       const program = programs.find(p => p.id === programId);
-      const url = `${baseUrl}/booking/${institutionId}?program=${programId}`;
+      const url = `${baseUrl}/booking/${institutionId}${queryStr}`;
       setUrlData({
         url,
         program_name: program?.name_cs || 'Program',
@@ -148,7 +165,15 @@ export const ProgramsPage = () => {
 
   const handleProgramSelectForUrl = (programId) => {
     setSelectedProgramForUrl(programId);
-    generateUrl(programId);
+    generateUrl(programId, urlAgeFilters);
+  };
+
+  const toggleUrlAgeFilter = (code) => {
+    const newFilters = urlAgeFilters.includes(code)
+      ? urlAgeFilters.filter(c => c !== code)
+      : [...urlAgeFilters, code];
+    setUrlAgeFilters(newFilters);
+    generateUrl(selectedProgramForUrl, newFilters);
   };
 
   const copyToClipboard = (text) => {
@@ -1374,6 +1399,35 @@ export const ProgramsPage = () => {
                     {program.name_cs}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Age Filter for URL */}
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4" />
+                Filtr věkové skupiny (volitelné)
+              </Label>
+              <p className="text-xs text-gray-500 mb-2">Vyberte cílovou skupinu — učitelé uvidí jen relevantní programy</p>
+              <div className="flex flex-wrap gap-2">
+                {URL_AGE_OPTIONS.map(opt => {
+                  const isActive = urlAgeFilters.includes(opt.code);
+                  return (
+                    <button
+                      key={opt.code}
+                      type="button"
+                      onClick={() => toggleUrlAgeFilter(opt.code)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                        isActive 
+                          ? 'bg-slate-800 text-white border-slate-800' 
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                      }`}
+                      data-testid={`url-age-filter-${opt.code}`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

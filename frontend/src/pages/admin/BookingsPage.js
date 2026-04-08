@@ -31,7 +31,9 @@ import {
   Copy,
   CheckSquare,
   Square,
-  Filter
+  Filter,
+  Download,
+  CalendarPlus
 } from 'lucide-react';
 import { API } from '../../config/api';
 
@@ -720,6 +722,23 @@ export const BookingsPage = () => {
               </Card>
             )}
 
+            {/* Outlook export */}
+            <div className="pt-3 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  window.open(`${API}/calendar/reservation/${selectedBooking.id}.ics`, '_blank');
+                  toast.success('ICS soubor se stahuje');
+                }}
+                data-testid="add-to-outlook-btn"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Přidat do Outlooku (.ics)
+              </Button>
+            </div>
+
             {/* Akce */}
             <div className="flex gap-2 pt-4 border-t">
               {selectedBooking.status === 'pending' && permissions.canEditAll && (
@@ -765,9 +784,26 @@ export const BookingsPage = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Rezervace</h1>
-          <Badge variant="outline" className="text-sm">
-            Role: {currentUserRole}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const instId = user?.institution_id;
+                if (instId) {
+                  window.open(`${API}/calendar/institution/${instId}.ics`, '_blank');
+                  toast.success('ICS feed se stahuje');
+                }
+              }}
+              data-testid="export-ics-feed-btn"
+            >
+              <CalendarPlus className="w-4 h-4 mr-1.5" />
+              <span className="hidden sm:inline">Outlook kalendář</span>
+            </Button>
+            <Badge variant="outline" className="text-sm">
+              Role: {currentUserRole}
+            </Badge>
+          </div>
         </div>
 
         {/* Filters & Search */}

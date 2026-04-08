@@ -42,6 +42,7 @@ from routes.lecturer_availability import router as lecturer_availability_router
 from routes.gdpr import router as gdpr_router
 from routes.onboarding import router as onboarding_router
 from routes.audit import router as audit_router
+from routes.calendar_export import router as calendar_export_router
 from models.schemas import ContactFormData, InstitutionSettings
 
 # Configure logging
@@ -64,6 +65,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        # Preserve Cache-Control for ICS calendar feeds
+        if "Cache-Control" not in response.headers:
+            pass  # Let endpoints set their own cache policy
         return response
 
 
@@ -112,6 +116,7 @@ api_router.include_router(lecturer_availability_router)
 api_router.include_router(gdpr_router)
 api_router.include_router(onboarding_router)
 api_router.include_router(audit_router)
+api_router.include_router(calendar_export_router)
 
 
 # ============ Additional Routes ============

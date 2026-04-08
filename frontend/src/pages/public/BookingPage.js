@@ -10,7 +10,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Card } from '../../components/ui/card';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { ChevronLeft, ChevronRight, CheckCircle, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, SlidersHorizontal, X, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
@@ -53,6 +53,7 @@ export const BookingPage = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [createdReservationId, setCreatedReservationId] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   
   // Filter state — initialized from URL params
@@ -255,7 +256,8 @@ export const BookingPage = () => {
     setSubmitting(true);
 
     try {
-      await axios.post(`${API}/bookings/public/${institutionId}`, formData);
+      const response = await axios.post(`${API}/bookings/public/${institutionId}`, formData);
+      setCreatedReservationId(response.data?.id || null);
       setSuccess(true);
       toast.success('Rezervace byla odeslána');
     } catch (error) {
@@ -400,13 +402,26 @@ export const BookingPage = () => {
             <p className="text-lg text-gray-600 mb-8">
               Vaši rezervaci jsme přijali. Brzy vás budeme kontaktovat s potvrzením.
             </p>
-            <Button
-              onClick={() => window.location.reload()}
-              style={{ backgroundColor: institutionData.accentColor }}
-              className="text-white hover:opacity-90 rounded-lg"
-            >
-              Vytvořit další rezervaci
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              {createdReservationId && (
+                <Button
+                  variant="outline"
+                  onClick={() => window.open(`${API}/calendar/reservation/${createdReservationId}.ics`, '_blank')}
+                  className="rounded-lg"
+                  data-testid="success-add-to-outlook-btn"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Přidat do Outlooku
+                </Button>
+              )}
+              <Button
+                onClick={() => window.location.reload()}
+                style={{ backgroundColor: institutionData.accentColor }}
+                className="text-white hover:opacity-90 rounded-lg"
+              >
+                Vytvořit další rezervaci
+              </Button>
+            </div>
           </Card>
         </div>
       </div>

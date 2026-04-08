@@ -586,15 +586,21 @@ export const BookingPage = () => {
                     </div>
                     <p className="text-gray-600 mb-4">{program.description_cs}</p>
                     <div className="flex flex-wrap gap-3 mb-3">
-                      <span 
-                        className="px-3 py-1 rounded-md text-sm font-medium"
-                        style={{ 
-                          backgroundColor: `${institutionData.primaryColor}15`,
-                          color: institutionData.primaryColor 
-                        }}
-                      >
-                        {AGE_GROUPS[program.age_group]}
-                      </span>
+                      {(() => {
+                        const ageLabel = AGE_GROUPS[program.age_group] || AGE_GROUPS[(program.target_groups || [])[0]];
+                        if (!ageLabel) return null;
+                        return (
+                          <span 
+                            className="px-3 py-1 rounded-md text-sm font-medium"
+                            style={{ 
+                              backgroundColor: `${institutionData.primaryColor}15`,
+                              color: institutionData.primaryColor 
+                            }}
+                          >
+                            {ageLabel}
+                          </span>
+                        );
+                      })()}
                       <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm font-medium">
                         {program.duration} min.
                       </span>

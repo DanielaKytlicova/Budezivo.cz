@@ -42,36 +42,34 @@ Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538 (není plátce DP
 
 ### Fáze 14 - Archive UI + Onboarding wizard (28.3.2026)
 - [x] **Archive UI**: ArchivePage.js s /admin/archive routou
-- [x] **Archive link**: Tlačítko "Archiv" v ProgramsPage
-- [x] **Archivace z ProgramsPage**: Dedikovaný POST /archive endpoint
-- [x] **Unarchive**: Obnovení programu z archivu
-- [x] **Archive Report**: Dialog se statistikami + JSON export
-- [x] **Oprava route ordering**: GET /archived před GET /{program_id}
-- [x] **Oprava datetime**: archived_at jako datetime objekt (ne string)
 - [x] **Onboarding Wizard**: 4-krokový průvodce na Dashboard
-  - Welcome, Create Program, Set Availability, Done
-  - Rozpoznání existujících programů (zelený banner)
-  - Skip/dismiss funkce
-  - Backend: GET/POST /api/onboarding (status + complete)
-  - DB: institutions.onboarding_completed boolean
 
 ### Fáze 15 - Email Template Theming (28.3.2026)
-- [x] **Theme systém**: `_build_theme(data)` + `_button_style(theme)` helpery
-- [x] **Branded hlavička**: Logo instituce + secondary_color pozadí + "powered by Budezivo" bar
-- [x] **Fallback**: Bez loga = výchozí Budezivo hlavička, bez změn barevnosti
-- [x] **Konzistence**: Všech 18 šablon používá centrální `_base_template(content, data)`
-- [x] **Feedback šablony**: `feedback_request` a `feedback_reminder` přesunuty do template systému
-- [x] **DRY context**: `_build_email_context()` helper pro trigger funkce
-- [x] **Theme data flow**: `find_by_id_with_theme()` → trigger funkce → šablony
-- [x] **Kompatibilita**: Inline styly, tabulkový layout, fallback fonty
-- [x] **Oprava dual-logo**: V hlavičce vždy jen JEDNO logo (instituce NEBO Budezivo, nikdy obě)
-- [x] **Footer platform**: U brandovaných emailů "Rezervace přes Budezivo.cz" v patičce
+- [x] **Theme systém**: Branded hlavička, fallback, konzistence všech šablon
+- [x] **Oprava dual-logo**: V hlavičce vždy jen JEDNO logo
+
+### Fáze 16 - Pricing, Mobile fix, Demo data, Statistics fix (28.3.2026)
+- [x] Pricing tiers update (Zdarma, Start, Pro, Pro+)
+- [x] Mobile navigation fix pro přihlášené uživatele
+- [x] Demo account seeding s programy, rezervacemi, feedbackem
+- [x] Statistics page oprava (toFixed null reference bug)
+
+### Fáze 17 - Audit Log + Program Filtering (8.4.2026)
+- [x] **Audit Log**: DB tabulka `audit_logs`, backend `GET /api/audit-log` s paginací a filtrováním
+- [x] **AuditLogPage.js**: Admin stránka s tabulkou, entity type filtrem, paginací
+- [x] **Audit logging**: `log_action()` helper integrován do program CRUD a archivace
+- [x] **Program filtering (backend)**: `GET /api/programs/public/{id}?age=MS,ZS1&duration=short&tag=..`
+- [x] **Program filtering (frontend)**: BookingPage filtrační panel (věkové skupiny pilulky + délka select)
+- [x] **URL param sync**: `useSearchParams` parsování ?age=MS,ZS1 s automatickým předvyplněním filtrů
+- [x] **Client-side filtering**: `useMemo` s fallback na `target_groups` a `age_group`
+- [x] **Admin URL generátor s filtry**: Rozšířený modal s checkboxy věkových kategorií → ?age=MS,ZS1 v URL
+- [x] **Fallback matching**: `_matches_age()` kontroluje `age_categories` → `target_groups` → `age_group`
 
 ---
 
 ## Testovací přístupy
 - **Demo účet:** demo@budezivo.cz / Demo2026!
-- **Test reports:** iteration_21 (archive), iteration_22 (onboarding), iteration_23 (email theming)
+- **Test reports:** iteration_21 (archive), iteration_22 (onboarding), iteration_23 (email theming), iteration_24 (filtering + audit)
 
 ---
 
@@ -79,10 +77,8 @@ Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538 (není plátce DP
 
 ### P2 - Střední priorita
 - [ ] i18n přepínač jazyků (CZ/EN)
-- [ ] Smazat testovací data z DB
 
 ### P3 - Backlog
-- [ ] Audit log (kdo, co, kdy změnil)
 - [ ] Social proof na landing page (loga, reference, čísla)
 
 ### P4 - Budoucnost
@@ -95,22 +91,22 @@ Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538 (není plátce DP
 ---
 
 ## Klíčové API endpointy
+- `GET /api/programs/public/{id}?age=MS,ZS1&duration=short` - filtrovaný seznam programů
+- `GET /api/audit-log?page=1&entity_type=program` - audit log s paginací
 - `POST /api/programs/{id}/archive` - archivace
 - `POST /api/programs/{id}/unarchive` - obnovení
 - `GET /api/programs/{id}/archive-report` - report
-- `GET /api/programs/archived` - seznam archivovaných
 - `GET /api/onboarding/status` - stav onboardingu
-- `POST /api/onboarding/complete` - dokončení onboardingu
 
 ---
 
 ## Architektura
 ```
-/app/backend/routes/onboarding.py    - Onboarding endpoints
-/app/backend/routes/programs.py      - Archive endpoints
-/app/frontend/src/pages/admin/ArchivePage.js
-/app/frontend/src/components/admin/OnboardingWizard.js
-/app/frontend/src/pages/admin/DashboardPage.js  - Onboarding integration
+/app/backend/routes/audit.py          - Audit log endpoints + log_action helper
+/app/backend/routes/programs.py       - Programs CRUD + filtering + archive
+/app/frontend/src/pages/public/BookingPage.js   - Filter UI + URL param sync
+/app/frontend/src/pages/admin/ProgramsPage.js   - URL generator s age filtry
+/app/frontend/src/pages/admin/AuditLogPage.js   - Audit log tabulka
 ```
 
-*Poslední aktualizace: 28. března 2026*
+*Poslední aktualizace: 8. dubna 2026*

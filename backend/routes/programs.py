@@ -18,6 +18,7 @@ from database.supabase_repositories import (
     InstitutionRepositorySupabase,
     BookingRepositorySupabase,
 )
+from routes.audit import log_action
 
 router = APIRouter(prefix="/programs", tags=["Programs"])
 logger = logging.getLogger(__name__)
@@ -39,6 +40,12 @@ async def create_program(
         program_data.model_dump(),
         current_user["institution_id"]
     )
+    await log_action(
+        db, institution_id=current_user["institution_id"],
+        user_id=current_user["user_id"], user_email=current_user.get("email", ""),
+        action="create", entity_type="program", entity_id=str(program.get("id", "")),
+        details={"name": program_data.name_cs},
+    )
     return program
 
 
@@ -52,12 +59,61 @@ async def get_programs(
     return await program_repo.find_by_institution(current_user["institution_id"])
 
 
-@router.get("/public/{institution_id}", response_model=List[Program])
-async def get_public_programs(institution_id: str, db: AsyncSession = Depends(get_db)):
-    """Get public programs for booking page."""
+@router.get("/public/{institution_id}")
+async def get_public_programs(
+    institution_id: str,
+    db: AsyncSession = Depends(get_db),
+    age: Optional[str] = Query(None, description="Comma-separated age categories: MS,ZS1,ZS2,SS"),
+    duration: Optional[str] = Query(None, description="Duration filter: short (<60), medium (60-120), long (120+)"),
+    tag: Optional[str] = Query(None, description="Comma-separated subject tags"),
+):
+    """Get public programs for booking page with optional filtering."""
     # Handle demo institution
     if institution_id == "demo":
-        return [
+        return _get_demo_programs()
+
+    program_repo = ProgramRepositorySupabase(db)
+    programs = await program_repo.find_public(institution_id)
+
+    # Apply filters
+    if age:
+        age_filter = [a.strip().upper() for a in age.split(",") if a.strip()]
+        if age_filter:
+            programs = [
+                p for p in programs
+                if any(cat in age_filter for cat in (p.get("age_categories") or []))
+            ]
+
+    if duration:
+        dur_filter = duration.strip().lower()
+        programs = [
+            p for p in programs
+            if _matches_duration(p.get("duration", 0), dur_filter)
+        ]
+
+    if tag:
+        tag_filter = [t.strip().lower() for t in tag.split(",") if t.strip()]
+        if tag_filter:
+            programs = [
+                p for p in programs
+                if any(st.lower() in tag_filter for st in (p.get("subject_tags") or []))
+            ]
+
+    return programs
+
+
+def _matches_duration(dur: int, filt: str) -> bool:
+    if filt == "short":
+        return dur < 60
+    elif filt == "medium":
+        return 60 <= dur <= 120
+    elif filt == "long":
+        return dur > 120
+    return True
+
+
+def _get_demo_programs() -> list:
+    return [
             {
                 "id": "demo-1",
                 "institution_id": "demo",
@@ -140,9 +196,6 @@ async def get_public_programs(institution_id: str, db: AsyncSession = Depends(ge
                 "created_at": datetime.now(timezone.utc).isoformat()
             }
         ]
-    
-    program_repo = ProgramRepositorySupabase(db)
-    return await program_repo.find_public(institution_id)
 
 
 @router.get("/debug/{institution_id}")
@@ -240,6 +293,12 @@ async def archive_program(
         "archive_reason": data.reason,
         "is_published": False,
     })
+    await log_action(
+        db, institution_id=current_user["institution_id"],
+        user_id=current_user["user_id"], user_email=current_user.get("email", ""),
+        action="archive", entity_type="program", entity_id=program_id,
+        details={"name": program.get("name_cs", ""), "reason": data.reason},
+    )
     return {"message": "Program přesunut do archivu"}
 
 
@@ -263,6 +322,12 @@ async def unarchive_program(
         "archived_by": None,
         "archive_reason": None,
     })
+    await log_action(
+        db, institution_id=current_user["institution_id"],
+        user_id=current_user["user_id"], user_email=current_user.get("email", ""),
+        action="unarchive", entity_type="program", entity_id=program_id,
+        details={"name": program.get("name_cs", "")},
+    )
     return {"message": "Program obnoven"}
 
 

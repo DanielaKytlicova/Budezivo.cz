@@ -28,6 +28,7 @@ from services.email_service import (
     trigger_reservation_rescheduled_email,
 )
 from services.collision_service import check_booking_collision
+from routes.audit import log_action
 
 from pydantic import BaseModel as PydanticBaseModel
 
@@ -308,6 +309,14 @@ async def update_booking_status(
             logger.error(f"Failed to send status change email: {str(e)}")
     
     background_tasks.add_task(send_status_email)
+
+    # Audit log
+    await log_action(
+        db, institution_id=current_user["institution_id"],
+        user_id=current_user["user_id"], user_email=current_user.get("email", ""),
+        action=status, entity_type="reservation", entity_id=booking_id,
+        details={"old_status": old_status, "new_status": status, "school": booking.get("school_name", "")},
+    )
     
     return {"message": "Status updated"}
 

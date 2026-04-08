@@ -168,6 +168,10 @@ class Program(Base):
     archived_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     archive_reason = Column(Text)
     
+    # Filtering & Tags
+    age_categories = Column(ARRAY(Text), default=[])   # MS, ZS1, ZS2, SS
+    subject_tags = Column(ARRAY(Text), default=[])      # hudební, výtvarné, technické, ...
+    
     # Metadata
     created_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
@@ -640,4 +644,26 @@ class LecturerTimeOff(Base):
     __table_args__ = (
         Index('idx_lecturer_timeoff_lecturer', 'lecturer_id'),
         Index('idx_lecturer_timeoff_institution', 'institution_id'),
+    )
+
+
+
+class AuditLog(Base):
+    """Audit log for admin actions."""
+    __tablename__ = 'audit_logs'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    user_email = Column(Text, default='')
+    action = Column(Text, nullable=False)       # create, update, delete, archive, confirm, cancel, ...
+    entity_type = Column(Text, nullable=False)  # program, reservation, school, settings, ...
+    entity_id = Column(Text)
+    details = Column(JSON, default={})
+    ip_address = Column(Text)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_audit_logs_institution', 'institution_id'),
+        Index('idx_audit_logs_created', 'created_at'),
     )

@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../i18n/useTranslation';
 import { AuthContext } from '../../context/AuthContext';
-import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, Clock } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, Clock, FileText } from 'lucide-react';
 
 // Logo Budeživo.cz - oficiální SVG
 const BudezivoLogo = ({ showText = true }) => (
@@ -65,6 +65,7 @@ export const AdminLayout = ({ children }) => {
       { path: '/admin/statistics', icon: BarChart3, label: 'Statistiky', testId: 'nav-statistics', roles: ['admin', 'spravce', 'edukator', 'staff'] },
       { path: '/admin/team', icon: Users, label: 'Tým', testId: 'nav-team', roles: ['admin', 'spravce'] },
       { path: '/admin/settings', icon: Settings, label: 'Nastavení', testId: 'nav-settings', roles: ['admin', 'spravce'] },
+      { path: '/admin/audit-log', icon: FileText, label: 'Audit log', testId: 'nav-audit-log', roles: ['admin', 'spravce'] },
     ];
 
     const userRole = user?.role || 'viewer';

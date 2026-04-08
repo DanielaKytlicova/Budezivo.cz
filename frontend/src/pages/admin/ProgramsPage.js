@@ -133,6 +133,7 @@ export const ProgramsPage = () => {
     if (!institutionData) return;
     
     const baseUrl = "https://budezivo.cz";
+    const previewBase = window.location.origin;
     const institutionId = institutionData.institution_id;
     const institutionName = institutionData.institution_name || 'Vaše instituce';
     
@@ -141,21 +142,24 @@ export const ProgramsPage = () => {
     if (programId !== 'all') params.set('program', programId);
     if (ageFilters.length > 0) params.set('age', ageFilters.join(','));
     const queryStr = params.toString() ? `?${params.toString()}` : '';
+    const path = `/booking/${institutionId}${queryStr}`;
     
     if (programId === 'all') {
-      const url = `${baseUrl}/booking/${institutionId}${queryStr}`;
+      const url = `${baseUrl}${path}`;
       const filterLabel = ageFilters.length > 0 ? ` (${ageFilters.join(', ')})` : '';
       setUrlData({
         url,
+        previewUrl: `${previewBase}${path}`,
         program_name: `Všechny programy${filterLabel}`,
         institution_name: institutionName,
         embed_code: `<a href="${url}" target="_blank">Rezervovat program v ${institutionName}</a>`
       });
     } else {
       const program = programs.find(p => p.id === programId);
-      const url = `${baseUrl}/booking/${institutionId}${queryStr}`;
+      const url = `${baseUrl}${path}`;
       setUrlData({
         url,
+        previewUrl: `${previewBase}${path}`,
         program_name: program?.name_cs || 'Program',
         institution_name: institutionName,
         embed_code: `<a href="${url}" target="_blank">Rezervovat: ${program?.name_cs || 'Program'}</a>`
@@ -1481,7 +1485,7 @@ export const ProgramsPage = () => {
                 <div className="flex gap-2 pt-4 border-t">
                   <Button
                     variant="outline"
-                    onClick={() => window.open(urlData.url, '_blank')}
+                    onClick={() => window.open(urlData.previewUrl, '_blank')}
                     className="flex-1"
                     data-testid="preview-url-btn"
                   >

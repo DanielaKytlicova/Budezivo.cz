@@ -442,8 +442,42 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
             while url:
                 resp = await client.get(url, headers=headers, params=params, timeout=30)
                 if resp.status_code != 200:
-                    error_msg = f"Graph API error {resp.status_code}: {resp.text[:200]}"
+                    error_body = resp.text
+                    error_msg = f"Graph API error {resp.status_code}: {error_body[:500]}"
                     logger.error(error_msg)
+                    
+                    # If 401, try to decode token scopes for debugging
+                    try:
+                        import base64, json as _json
+                        token_parts = token.split(".")
+                        if len(token_parts) >= 2:
+                            padded = token_parts[1] + "=" * (4 - len(token_parts[1]) % 4)
+                            payload = _json.loads(base64.b64decode(padded))
+                            logger.error(f"Token scopes (scp): {payload.get('scp', 'NONE')}")
+                            logger.error(f"Token roles: {payload.get('roles', 'NONE')}")
+                            logger.error(f"Token aud: {payload.get('aud', 'NONE')}")
+                    except Exception as te:
+                        logger.error(f"Could not decode token: {te}")
+                    
+                    # If calendarView fails, try /me/events as fallback
+                    if "/calendarView" in url and resp.status_code == 401:
+                        logger.info("Trying /me/events as fallback...")
+                        fallback_url = f"{GRAPH_BASE}/me/events"
+                        fallback_params = {
+                            "$top": 250,
+                            "$select": "id,subject,start,end,showAs,isAllDay",
+                            "$filter": f"start/dateTime ge '{now.strftime('%Y-%m-%dT%H:%M:%S')}'",
+                            "$orderby": "start/dateTime",
+                        }
+                        resp2 = await client.get(fallback_url, headers=headers, params=fallback_params, timeout=30)
+                        if resp2.status_code == 200:
+                            logger.info("Fallback /me/events succeeded!")
+                            all_events.extend(resp2.json().get("value", []))
+                            url = None
+                            continue
+                        else:
+                            logger.error(f"Fallback /me/events also failed: {resp2.status_code} {resp2.text[:300]}")
+                    
                     integration.sync_error = error_msg
                     await db.commit()
                     raise Exception(error_msg)

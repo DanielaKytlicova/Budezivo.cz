@@ -1,8 +1,12 @@
 """
 Calendar export routes - ICS feed generation for Outlook/Google Calendar integration.
 Generates .ics feeds for reservations (read-only export).
+All ICS feeds require HMAC-signed tokens or JWT authentication.
 """
+import hashlib
+import hmac
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
@@ -14,11 +18,31 @@ import pytz
 
 from database.supabase import get_db
 from database.models import Reservation, Program, Institution
+from core.security import get_current_user
 
 router = APIRouter(prefix="/calendar", tags=["Calendar"])
 logger = logging.getLogger(__name__)
 
 PRAGUE_TZ = pytz.timezone("Europe/Prague")
+
+
+def _get_ics_signing_key() -> bytes:
+    """Derive a stable signing key from JWT_SECRET."""
+    secret = os.environ.get("JWT_SECRET", "")
+    return hashlib.sha256(f"ics-feed-{secret}".encode()).digest()
+
+
+def _sign_feed_token(entity_type: str, entity_id: str) -> str:
+    """Generate HMAC token for an ICS feed URL."""
+    key = _get_ics_signing_key()
+    msg = f"{entity_type}:{entity_id}".encode()
+    return hmac.new(key, msg, hashlib.sha256).hexdigest()[:32]
+
+
+def _verify_feed_token(entity_type: str, entity_id: str, token: str) -> bool:
+    """Verify HMAC token for an ICS feed URL."""
+    expected = _sign_feed_token(entity_type, entity_id)
+    return hmac.compare_digest(expected, token)
 
 
 def _parse_time_block(time_block: str) -> tuple:
@@ -177,13 +201,39 @@ async def _get_reservations(db: AsyncSession, institution_id: str, program_id: s
 # ── ICS Feed Endpoints ──────────────────────────────────────────────
 
 
+@router.get("/feed-token/{entity_type}/{entity_id}")
+async def generate_feed_token(
+    entity_type: str,
+    entity_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Generate a signed token for ICS feed URLs. Requires auth."""
+    if entity_type not in ("institution", "program", "reservation"):
+        raise HTTPException(status_code=400, detail="Neplatný typ entity")
+    # Only allow generating tokens for own institution
+    if entity_type == "institution" and entity_id != current_user["institution_id"]:
+        raise HTTPException(status_code=403, detail="Přístup odepřen")
+    token = _sign_feed_token(entity_type, entity_id)
+    return {"token": token, "url_suffix": f"?token={token}"}
+
+
+@router.get("/public-feed-token/reservation/{reservation_id}")
+async def generate_public_reservation_token(reservation_id: str):
+    """Generate a signed token for a single reservation ICS download (post-booking)."""
+    token = _sign_feed_token("reservation", reservation_id)
+    return {"token": token}
+
+
 @router.get("/institution/{institution_id}.ics")
 async def institution_calendar_feed(
     institution_id: str,
+    token: str = Query(..., description="Signed HMAC token"),
     status: Optional[str] = Query(None, description="Comma-separated statuses filter"),
     db: AsyncSession = Depends(get_db),
 ):
-    """ICS feed for ALL reservations of an institution."""
+    """ICS feed for ALL reservations of an institution. Requires signed token."""
+    if not _verify_feed_token("institution", institution_id, token):
+        raise HTTPException(status_code=403, detail="Neplatný token pro ICS feed")
     institution = await _get_institution(db, institution_id)
     programs_lookup = await _get_programs_lookup(db, institution_id)
 
@@ -204,9 +254,12 @@ async def institution_calendar_feed(
 @router.get("/program/{program_id}.ics")
 async def program_calendar_feed(
     program_id: str,
+    token: str = Query(..., description="Signed HMAC token"),
     db: AsyncSession = Depends(get_db),
 ):
-    """ICS feed for reservations of a specific program."""
+    """ICS feed for reservations of a specific program. Requires signed token."""
+    if not _verify_feed_token("program", program_id, token):
+        raise HTTPException(status_code=403, detail="Neplatný token pro ICS feed")
     from database.supabase_repositories import to_dict
     import uuid
 
@@ -232,9 +285,12 @@ async def program_calendar_feed(
 @router.get("/reservation/{reservation_id}.ics")
 async def reservation_ics_download(
     reservation_id: str,
+    token: str = Query(..., description="Signed HMAC token"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Download a single reservation as .ics file (for 'Add to Outlook' button)."""
+    """Download a single reservation as .ics file. Requires signed token."""
+    if not _verify_feed_token("reservation", reservation_id, token):
+        raise HTTPException(status_code=403, detail="Neplatný token pro ICS feed")
     from database.supabase_repositories import to_dict
     import uuid
 

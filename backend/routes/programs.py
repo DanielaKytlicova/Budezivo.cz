@@ -6,9 +6,11 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from models.schemas import ProgramCreate, Program
 from core.security import get_current_user
@@ -22,6 +24,7 @@ from routes.audit import log_action
 
 router = APIRouter(prefix="/programs", tags=["Programs"])
 logger = logging.getLogger(__name__)
+_pub_limiter = Limiter(key_func=get_remote_address)
 
 
 class ArchiveRequest(BaseModel):
@@ -60,8 +63,10 @@ async def get_programs(
 
 
 @router.get("/public/{institution_id}")
+@_pub_limiter.limit("30/minute")
 async def get_public_programs(
     institution_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     age: Optional[str] = Query(None, description="Comma-separated age categories: MS,ZS1,ZS2,SS"),
     duration: Optional[str] = Query(None, description="Duration filter: short (<60), medium (60-120), long (120+)"),
@@ -74,6 +79,17 @@ async def get_public_programs(
 
     program_repo = ProgramRepositorySupabase(db)
     programs = await program_repo.find_public(institution_id)
+
+    # ── Strip internal/sensitive fields before any processing ──
+    PUBLIC_ALLOWED_FIELDS = {
+        "id", "institution_id", "name_cs", "name_en", "description_cs", "description_en",
+        "duration", "age_group", "age_categories", "target_groups", "subject_tags",
+        "min_capacity", "max_capacity", "target_group", "price", "status",
+        "is_published", "available_days", "time_blocks", "start_date", "end_date",
+        "min_days_before_booking", "max_days_before_booking",
+        "preparation_time", "cleanup_time", "requires_approval",
+    }
+    programs = [{k: v for k, v in p.items() if k in PUBLIC_ALLOWED_FIELDS} for p in programs]
 
     # Mapping from short URL codes to internal age_group/target_groups values
     AGE_CODE_MAP = {
@@ -229,18 +245,23 @@ def _get_demo_programs() -> list:
 
 
 @router.get("/debug/{institution_id}")
-async def debug_programs(institution_id: str, db: AsyncSession = Depends(get_db)):
-    """Debug endpoint to check all programs for an institution."""
+async def debug_programs(
+    institution_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Debug endpoint - requires auth, scoped to own institution only."""
+    if current_user["institution_id"] != institution_id:
+        raise HTTPException(status_code=403, detail="Přístup odepřen")
+
     from sqlalchemy import text
-    
-    result = await db.execute(text(f"""
-        SELECT id, name_cs, status, is_published, created_at
-        FROM programs 
-        WHERE institution_id = '{institution_id}'
-        ORDER BY created_at DESC
-    """))
+
+    result = await db.execute(
+        text("SELECT id, name_cs, status, is_published, created_at FROM programs WHERE institution_id = :inst_id ORDER BY created_at DESC"),
+        {"inst_id": institution_id},
+    )
     rows = result.fetchall()
-    
+
     return {
         "institution_id": institution_id,
         "total_programs": len(rows),
@@ -250,10 +271,10 @@ async def debug_programs(institution_id: str, db: AsyncSession = Depends(get_db)
                 "name_cs": row[1],
                 "status": row[2],
                 "is_published": row[3],
-                "created_at": str(row[4]) if row[4] else None
+                "created_at": str(row[4]) if row[4] else None,
             }
             for row in rows
-        ]
+        ],
     }
 
 

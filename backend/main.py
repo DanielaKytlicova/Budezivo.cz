@@ -67,17 +67,19 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        # Preserve Cache-Control for ICS calendar feeds
-        if "Cache-Control" not in response.headers:
-            pass  # Let endpoints set their own cache policy
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
 
 
-# Create FastAPI app
+# Create FastAPI app — disable docs in production
+import os as _os
+_is_preview = "preview" in _os.environ.get("REACT_APP_BACKEND_URL", "")
 app = FastAPI(
     title="Budeživo.cz API",
-    description="Multi-tenant SaaS booking system for cultural institutions - Powered by Supabase",
-    version="2.0.0"
+    version="2.0.0",
+    docs_url="/docs" if _is_preview else None,
+    redoc_url="/redoc" if _is_preview else None,
+    openapi_url="/openapi.json" if _is_preview else None,
 )
 
 # Attach rate limiter state and exception handler
@@ -104,6 +106,7 @@ api_router.include_router(settings_router)
 api_router.include_router(team_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(payments_router)
+api_router.include_router(calendar_export_router)
 api_router.include_router(availability_router)
 api_router.include_router(statistics_router)
 api_router.include_router(email_templates_router)
@@ -118,7 +121,6 @@ api_router.include_router(lecturer_availability_router)
 api_router.include_router(gdpr_router)
 api_router.include_router(onboarding_router)
 api_router.include_router(audit_router)
-api_router.include_router(calendar_export_router)
 api_router.include_router(rooms_router)
 api_router.include_router(ms_calendar_router)
 

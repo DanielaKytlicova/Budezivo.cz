@@ -406,7 +406,12 @@ export const BookingPage = () => {
               {createdReservationId && (
                 <Button
                   variant="outline"
-                  onClick={() => window.open(`${API}/calendar/reservation/${createdReservationId}.ics`, '_blank')}
+                  onClick={async () => {
+                    try {
+                      const res = await axios.get(`${API}/calendar/public-feed-token/reservation/${createdReservationId}`);
+                      window.open(`${API}/calendar/reservation/${createdReservationId}.ics?token=${res.data.token}`, '_blank');
+                    } catch { /* ignore */ }
+                  }}
                   className="rounded-lg"
                   data-testid="success-add-to-outlook-btn"
                 >

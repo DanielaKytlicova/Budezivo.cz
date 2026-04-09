@@ -587,10 +587,12 @@ def _block_to_dict(block: AvailabilityBlock) -> dict:
 def _close_popup_html(error: Optional[str]) -> "HTMLResponse":
     """Return HTML that communicates result to parent window and closes popup."""
     from fastapi.responses import HTMLResponse
+    # Use restrictive targetOrigin — read from env for production safety
+    origin = os.environ.get("FRONTEND_URL", os.environ.get("CORS_ORIGINS", "").split(",")[0] if os.environ.get("CORS_ORIGINS") else "*")
     if error:
-        script = f'window.opener && window.opener.postMessage({{type:"outlook_error",error:"{error}"}}, "*"); window.close();'
+        script = f'window.opener && window.opener.postMessage({{type:"outlook_error",error:"{error}"}}, "{origin}"); window.close();'
     else:
-        script = 'window.opener && window.opener.postMessage({type:"outlook_connected"}, "*"); window.close();'
+        script = f'window.opener && window.opener.postMessage({{type:"outlook_connected"}}, "{origin}"); window.close();'
     html = f"""<!DOCTYPE html><html><body>
     <p>{"Chyba: " + error if error else "Připojeno! Toto okno se zavře..."}</p>
     <script>{script}</script>

@@ -251,7 +251,9 @@ async def reset_password(
     from datetime import datetime, timezone
     
     user_repo = UserRepositorySupabase(db)
-    secret_key = os.environ.get("JWT_SECRET", "fallback-secret-key-change-in-production")
+    secret_key = os.environ.get("JWT_SECRET")
+    if not secret_key:
+        raise HTTPException(status_code=500, detail="Konfigurace serveru není kompletní")
     
     # Verify JWT token
     try:

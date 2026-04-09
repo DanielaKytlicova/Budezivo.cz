@@ -696,14 +696,15 @@ async def get_schools(
     contacts_map = {}
     
     if school_ids:
-        # Build IN clause with proper escaping for UUIDs
-        placeholders = ', '.join([f"'{sid}'" for sid in school_ids])
+        # Parametrized IN clause — safe against SQL injection
+        id_params = {f"sid_{i}": sid for i, sid in enumerate(school_ids)}
+        id_placeholders = ", ".join(f":sid_{i}" for i in range(len(school_ids)))
         contacts_result = await db.execute(text(f"""
             SELECT id, school_id, email, name, phone, status, is_primary, email_validated, created_at
             FROM school_contacts
-            WHERE school_id IN ({placeholders})
+            WHERE school_id::text IN ({id_placeholders})
             ORDER BY is_primary DESC, created_at ASC
-        """))
+        """), id_params)
         
         for c in contacts_result.fetchall():
             school_id = str(c[1])
@@ -1260,16 +1261,18 @@ async def send_propagation(
     if not program:
         raise HTTPException(status_code=404, detail="Program nenalezen")
     
-    # Get active contacts for selected schools
-    placeholders = ', '.join([f"'{sid}'" for sid in request.school_ids])
+    # Get active contacts for selected schools (parametrized)
+    id_params = {f"sid_{i}": sid for i, sid in enumerate(request.school_ids)}
+    id_params["inst_id"] = current_user["institution_id"]
+    id_placeholders = ", ".join(f":sid_{i}" for i in range(len(request.school_ids)))
     result = await db.execute(text(f"""
         SELECT DISTINCT sc.email, sc.name, s.name as school_name
         FROM school_contacts sc
         JOIN schools s ON s.id = sc.school_id
-        WHERE s.id IN ({placeholders})
+        WHERE s.id::text IN ({id_placeholders})
         AND sc.status = 'active'
         AND s.institution_id = :inst_id
-    """), {"inst_id": current_user["institution_id"]})
+    """), id_params)
     
     contacts = result.fetchall()
     

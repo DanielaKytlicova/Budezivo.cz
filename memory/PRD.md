@@ -95,8 +95,17 @@ Pro testování na preview prostředí je potřeba v Azure Portal přidat Redire
 
 Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 
-### Fáze 19 - Aktualizace VOP (10.4.2026)
-- [x] Bod 4 rozšířen: podrobný popis role platformy (4.1–4.4)
-- [x] Nový bod 16: Ochrana systému a duševního vlastnictví (16.1–16.5)
+### Fáze 20 - Bezpečnostní audit a opravy (10.4.2026)
+- [x] H1: Email debug endpoint zabezpečen (auth + bez raw klíčů)
+- [x] H2: SQL Injection v programs debug opravena (parametrizované dotazy + auth)
+- [x] H3: SQL Injection v schools.py IN clause opravena
+- [x] H4: ICS Calendar feedy zabezpečeny HMAC tokeny
+- [x] H5: Public API filtruje citlivé fieldy (whitelist 26 polí)
+- [x] M1: JWT fallback secret odstraněn
+- [x] M3: Swagger docs podmíněny preview prostředím
+- [x] M4: postMessage wildcard origin opraven
+- [x] M6: Rate limiting na veřejných endpointech
+- [x] L3: HSTS hlavička přidána
+- Bezpečnostní roadmap: /app/memory/SECURITY_ROADMAP.md
 
 *Poslední aktualizace: 10. dubna 2026*

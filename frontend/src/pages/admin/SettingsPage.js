@@ -26,7 +26,8 @@ import {
   Loader2,
   CheckCircle,
   Lock,
-  FileText
+  FileText,
+  ClipboardList
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { API } from '../../config/api';
@@ -76,6 +77,13 @@ const SETTINGS_MENU = [
     icon: FileText,
     title: 'Obchodní podmínky (VOP)',
     description: 'Všeobecné obchodní podmínky platformy',
+  },
+  {
+    id: 'audit',
+    icon: ClipboardList,
+    title: 'Audit log',
+    description: 'Historie všech změn a akcí v systému',
+    link: '/admin/audit-log',
   },
 ];
 

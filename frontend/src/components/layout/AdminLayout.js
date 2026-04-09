@@ -65,7 +65,6 @@ export const AdminLayout = ({ children }) => {
       { path: '/admin/statistics', icon: BarChart3, label: 'Statistiky', testId: 'nav-statistics', roles: ['admin', 'spravce', 'edukator', 'staff'] },
       { path: '/admin/team', icon: Users, label: 'Tým', testId: 'nav-team', roles: ['admin', 'spravce'] },
       { path: '/admin/settings', icon: Settings, label: 'Nastavení', testId: 'nav-settings', roles: ['admin', 'spravce'] },
-      { path: '/admin/audit-log', icon: FileText, label: 'Audit log', testId: 'nav-audit-log', roles: ['admin', 'spravce'] },
     ];
 
     const userRole = user?.role || 'viewer';

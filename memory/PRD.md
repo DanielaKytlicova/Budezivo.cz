@@ -2,92 +2,97 @@
 
 ## Přehled projektu
 Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů, rezervací a institucí v České republice.
-Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538 (není plátce DPH)
 
 ## Technologický stack
 - **Frontend:** React 18, TailwindCSS, Shadcn/UI, Axios
-- **Backend:** FastAPI, SQLAlchemy Async, Pydantic, slowapi, icalendar
+- **Backend:** FastAPI, SQLAlchemy Async, Pydantic, slowapi, icalendar, msal, httpx
 - **Databáze:** Supabase (PostgreSQL) + pg_advisory_xact_lock
 - **Emaily:** Resend API (s ICS přílohou)
-- **Scheduler:** APScheduler (feedback, GDPR, auto-archivace)
+- **Integrace:** Microsoft Graph API (Outlook calendar sync)
+- **Scheduler:** APScheduler (feedback, GDPR, auto-archivace, Outlook sync 5min)
 
 ---
 
 ## Implementované funkce
 
 ### Fáze 1-16 (předchozí)
-- Core MVP, Feedback, Team Invitations, Legal & PRO Plan
-- School Import + CRM, Booking & Team Improvements
-- Kolize, Dostupnost lektora, Hromadné akce, GDPR
-- VOP, Security Hardening, One-off bloky, Archive UI
-- Onboarding Wizard, Email Theming, Pricing, Mobile fix
-- Demo data seeding, Statistics fix
+- Core MVP, Feedback, Team, Legal, CRM, Booking, Kolize, GDPR
+- VOP, Security, One-off bloky, Archive, Onboarding, Email Theming
+- Pricing, Mobile fix, Demo data, Statistics fix
 
 ### Fáze 17 - Audit Log + Program Filtering (8.4.2026)
 - [x] Audit Log: DB + API + admin stránka
 - [x] Program filtering: BookingPage filtrační panel + URL params
 - [x] Admin URL generátor s filtry
 
-### Fáze 18A - Outlook ICS Export (8.4.2026)
+### Fáze 18A - ICS Export (8.4.2026)
 - [x] ICS Feed: `/api/calendar/institution/{id}.ics`, `/program/{id}.ics`, `/reservation/{id}.ics`
-- [x] Tlačítko "Přidat do Outlooku" v admin + veřejné success stránce
+- [x] Tlačítko "Přidat do Outlooku" (admin + veřejná success stránka)
 - [x] ICS příloha v potvrzovacím emailu
 
 ### Fáze 18B - Kolizní systém Hardening (9.4.2026)
-- [x] **R1 — Kolize lektora při přiřazení**: `assign_lecturer` a `admin_assign_lecturer` nyní kontrolují časový překryv → 409 při konfliktu
-- [x] **R2 — Oprava `check_booking_collision`**: Využívá `assigned_lecturer_id` z programu jako fallback
-- [x] **R3 — Aktivace `check_lecturer_available_for_block`**: Kontrola recurring availability + time-off bloků
-- [x] **R4 — Místnosti (rooms)**:
-  - DB tabulka `rooms` (id, institution_id, name, capacity, equipment, is_active)
-  - `room_id` FK na `programs`
-  - CRUD API: `GET/POST /api/rooms`, `PATCH/DELETE /api/rooms/{id}`
-  - Kolizní kontrola: Pokud `"room" in collision_resources` a dva programy sdílí `room_id`, překryv blokován
-  - Frontend: Room management inline v záložce Kolize (dropdown + create/delete)
-- [x] **R5 — Advisory Lock**: `pg_advisory_xact_lock(hash(institution_id, date))` v `check_booking_collision` brání race conditions
+- [x] Kolize lektora při přiřazení (409 při konfliktu)
+- [x] Místnosti: CRUD API + room_id na programech + kolizní kontrola
+- [x] Advisory Lock: pg_advisory_xact_lock brání race conditions
+
+### Fáze 18C - Microsoft Outlook Integration (9.4.2026)
+- [x] **OAuth2 flow**: `GET /api/microsoft-calendar/connect` → MS login → callback → token storage
+- [x] **Token management**: access_token + refresh_token s automatickým obnovením
+- [x] **Calendar sync**: Stahuje 30 dní eventů z Outlook → `availability_blocks`
+- [x] **Polling sync**: APScheduler job každých 5 minut pro automatickou synchronizaci
+- [x] **Override logika**: `POST /blocks/{id}/override` — povolí/zablokuje rezervace v čase Outlook eventu
+- [x] **Kolizní integrace**: `check_availability_blocks()` v collision_service kontroluje Outlook bloky
+- [x] **Frontend UI**: Outlook karta na stránce Dostupnost — připojit/odpojit/sync/override
+- [x] **Popup OAuth**: postMessage komunikace mezi popup oknem a rodičovským oknem
+
+### DB Schema (nové tabulky)
+```
+user_calendar_integrations: id, user_id, institution_id, provider, access_token, 
+    refresh_token, expires_at, microsoft_user_id, is_active, last_sync_at, sync_error
+availability_blocks: id, user_id, institution_id, start_time, end_time, source, 
+    external_event_id, title, override
+rooms: id, institution_id, name, capacity, equipment, is_active
+programs: + room_id (FK → rooms.id)
+```
 
 ---
 
 ## Testovací přístupy
 - **Demo účet:** demo@budezivo.cz / Demo2026!
-- **Test reports:** iteration_21-26
+- **Test reports:** iteration_21-27
+
+---
+
+## Klíčové API endpointy (nové)
+- `GET /api/microsoft-calendar/connect` — zahájí OAuth flow
+- `GET /api/microsoft-calendar/callback` — OAuth callback
+- `GET /api/microsoft-calendar/status` — stav připojení
+- `POST /api/microsoft-calendar/disconnect` — odpojení
+- `POST /api/microsoft-calendar/sync` — manuální sync
+- `GET /api/microsoft-calendar/blocks` — seznam bloků
+- `POST /api/microsoft-calendar/blocks/{id}/override` — toggle override
+- `GET/POST /api/rooms` + `PATCH/DELETE /api/rooms/{id}` — CRUD místností
 
 ---
 
 ## Backlog
 
-### P0 - Outlook Integration Fáze B (čeká na Azure credentials)
-- [ ] Microsoft OAuth připojení (Azure AD App Registration)
-- [ ] DB tabulky: `user_calendar_integrations`, `availability_blocks`
-- [ ] Synchronizace kalendáře (webhooks + polling fallback)
-- [ ] Override logika (povolení/blokace Outlook bloků)
-- [ ] UX: Zobrazení Outlook bloků v kalendáři dostupnosti
-
 ### P2 - Střední priorita
 - [ ] i18n přepínač jazyků (CZ/EN)
 
 ### P3 - Backlog
-- [ ] Social proof na landing page (loga, reference, čísla)
+- [ ] Social proof na landing page
+- [ ] Microsoft webhook subscription (real-time místo polling)
 
 ### P4 - Budoucnost
-- [ ] Pokročilá analytika (heatmapa, trendy, finanční přehledy)
-- [ ] Platební integrace (Stripe / Fakturoid)
-- [ ] PWA, push notifikace
-- [ ] 2FA, Alembic migrace
+- [ ] Pokročilá analytika, Stripe/Fakturoid, PWA, 2FA, Alembic
 
 ---
 
-## Klíčové API endpointy
-- `GET/POST /api/rooms` — CRUD místností
-- `PATCH/DELETE /api/rooms/{id}`
-- `POST /api/bookings/{id}/assign-lecturer-admin` — nyní s 409 kolizní kontrolou
-- `GET /api/calendar/institution/{id}.ics` — ICS feed
-- `GET /api/programs/public/{id}?age=MS,ZS1` — Filtrované programy
+## Důležitá poznámka k OAuth
+Pro testování na preview prostředí je potřeba v Azure Portal přidat Redirect URI:
+`https://booking-crm-3.preview.emergentagent.com/api/auth/microsoft/callback`
 
-## DB Schema (nové)
-```
-rooms: id, institution_id, name, capacity, equipment, is_active
-programs: + room_id (FK → rooms.id)
-reservations: + composite index (institution_id, date, status)
-```
+Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 
 *Poslední aktualizace: 9. dubna 2026*

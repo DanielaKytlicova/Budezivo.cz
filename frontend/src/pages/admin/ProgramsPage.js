@@ -70,6 +70,7 @@ const getDefaultFormData = () => ({
   allow_parallel: false,
   collision_resources: [],
   blocked_program_ids: [],
+  room_id: null,
 });
 
 export const ProgramsPage = () => {
@@ -87,6 +88,9 @@ export const ProgramsPage = () => {
   const [selectedProgramForUrl, setSelectedProgramForUrl] = useState('all');
   const [urlAgeFilters, setUrlAgeFilters] = useState([]);
   const [institutionData, setInstitutionData] = useState(null);
+  const [rooms, setRooms] = useState([]);
+  const [newRoomName, setNewRoomName] = useState('');
+  const [newRoomCapacity, setNewRoomCapacity] = useState('');
 
   const URL_AGE_OPTIONS = [
     { code: 'MS', label: 'MŠ (3-6 let)' },
@@ -99,6 +103,7 @@ export const ProgramsPage = () => {
   useEffect(() => {
     fetchPrograms();
     fetchInstitutionData();
+    fetchRooms();
   }, []);
 
   const fetchPrograms = async () => {
@@ -119,6 +124,41 @@ export const ProgramsPage = () => {
       setInstitutionData(response.data);
     } catch (error) {
       console.error('Failed to fetch institution data');
+    }
+  };
+
+  const fetchRooms = async () => {
+    try {
+      const response = await axios.get(`${API}/rooms`);
+      setRooms(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Failed to fetch rooms');
+    }
+  };
+
+  const createRoom = async () => {
+    if (!newRoomName.trim()) return;
+    try {
+      await axios.post(`${API}/rooms`, { 
+        name: newRoomName.trim(),
+        capacity: newRoomCapacity ? parseInt(newRoomCapacity) : null 
+      });
+      setNewRoomName('');
+      setNewRoomCapacity('');
+      await fetchRooms();
+      toast.success('Místnost vytvořena');
+    } catch (error) {
+      toast.error('Chyba při vytváření místnosti');
+    }
+  };
+
+  const deleteRoom = async (roomId) => {
+    try {
+      await axios.delete(`${API}/rooms/${roomId}`);
+      await fetchRooms();
+      toast.success('Místnost smazána');
+    } catch (error) {
+      toast.error('Chyba při mazání místnosti');
     }
   };
 
@@ -284,6 +324,7 @@ export const ProgramsPage = () => {
       allow_parallel: program.allow_parallel || false,
       collision_resources: program.collision_resources || [],
       blocked_program_ids: program.blocked_program_ids || [],
+      room_id: program.room_id || null,
     });
     setActiveTab('detail');
     setShowDialog(true);
@@ -1124,6 +1165,84 @@ export const ProgramsPage = () => {
                   <p className="text-sm text-amber-700">
                     Žádný zdroj není vybrán — program se může překrývat se vším bez omezení.
                   </p>
+                </div>
+              )}
+
+              {/* Room assignment - visible when room collision is checked */}
+              {formData.collision_resources.includes('room') && (
+                <div className="space-y-3 pt-3 border-t">
+                  <Label className="text-sm font-medium text-slate-700">Přiřazená místnost</Label>
+                  <Select 
+                    value={formData.room_id || 'none'} 
+                    onValueChange={(val) => setFormData({ ...formData, room_id: val === 'none' ? null : val })}
+                  >
+                    <SelectTrigger data-testid="room-select">
+                      <SelectValue placeholder="Vyberte místnost..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Žádná místnost</SelectItem>
+                      {rooms.filter(r => r.is_active).map(room => (
+                        <SelectItem key={room.id} value={room.id}>
+                          {room.name}{room.capacity ? ` (${room.capacity} míst)` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {rooms.length === 0 && (
+                    <p className="text-xs text-gray-500">Zatím nemáte žádné místnosti. Vytvořte je níže.</p>
+                  )}
+
+                  {/* Inline room creation */}
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Název místnosti..."
+                        value={newRoomName}
+                        onChange={(e) => setNewRoomName(e.target.value)}
+                        className="text-sm"
+                        data-testid="new-room-name"
+                      />
+                    </div>
+                    <div className="w-24">
+                      <Input
+                        placeholder="Kapacita"
+                        type="number"
+                        value={newRoomCapacity}
+                        onChange={(e) => setNewRoomCapacity(e.target.value)}
+                        className="text-sm"
+                        data-testid="new-room-capacity"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={createRoom}
+                      disabled={!newRoomName.trim()}
+                      data-testid="create-room-btn"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* Existing rooms list */}
+                  {rooms.length > 0 && (
+                    <div className="space-y-1">
+                      {rooms.map(room => (
+                        <div key={room.id} className="flex items-center justify-between text-xs text-gray-600 px-2 py-1 bg-gray-50 rounded">
+                          <span>{room.name}{room.capacity ? ` · ${room.capacity} míst` : ''}</span>
+                          <button
+                            type="button"
+                            onClick={() => deleteRoom(room.id)}
+                            className="text-red-400 hover:text-red-600"
+                            data-testid={`delete-room-${room.id}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </Card>

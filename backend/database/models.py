@@ -77,6 +77,7 @@ class Institution(Base):
     programs = relationship("Program", back_populates="institution", cascade="all, delete-orphan")
     reservations = relationship("Reservation", back_populates="institution", cascade="all, delete-orphan")
     schools = relationship("School", back_populates="institution", cascade="all, delete-orphan")
+    rooms = relationship("Room", back_populates="institution", cascade="all, delete-orphan")
     theme_settings = relationship("ThemeSetting", back_populates="institution", uselist=False, cascade="all, delete-orphan")
 
 
@@ -162,6 +163,9 @@ class Program(Base):
     
     # Assigned Lecturer
     assigned_lecturer_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+    
+    # Assigned Room
+    room_id = Column(UUID(as_uuid=True), ForeignKey('rooms.id', ondelete='SET NULL'))
     
     # Archive
     archived_at = Column(DateTime(timezone=True))
@@ -302,6 +306,27 @@ class School(Base):
         Index('idx_schools_institution', 'institution_id'),
         Index('idx_schools_email', 'email'),
         Index('idx_schools_name_city', 'institution_id', 'name', 'city'),
+    )
+
+
+class Room(Base):
+    """Room/Space model for collision management."""
+    __tablename__ = 'rooms'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    name = Column(Text, nullable=False)
+    capacity = Column(Integer)
+    equipment = Column(Text)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    institution = relationship("Institution", back_populates="rooms")
+    
+    __table_args__ = (
+        Index('idx_rooms_institution', 'institution_id'),
     )
 
 

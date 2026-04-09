@@ -95,6 +95,8 @@ class ProgramBase(BaseModel):
     blocked_program_ids: List[str] = []
     # Assigned Lecturer
     assigned_lecturer_id: Optional[str] = None
+    # Assigned Room
+    room_id: Optional[str] = None
 
 
 class ProgramCreate(ProgramBase):

@@ -311,6 +311,7 @@ class ProgramRepositorySupabase:
             collision_resources=program_data.get('collision_resources', []),
             blocked_program_ids=program_data.get('blocked_program_ids', []),
             assigned_lecturer_id=uuid.UUID(program_data['assigned_lecturer_id']) if program_data.get('assigned_lecturer_id') else None,
+            room_id=uuid.UUID(program_data['room_id']) if program_data.get('room_id') else None,
         )
         self.db.add(prog)
         await self.db.commit()
@@ -347,6 +348,16 @@ class ProgramRepositorySupabase:
                     processed_data['assigned_lecturer_id'] = None
             else:
                 processed_data['assigned_lecturer_id'] = None
+        
+        # Convert room_id to UUID
+        if 'room_id' in processed_data:
+            if processed_data['room_id']:
+                try:
+                    processed_data['room_id'] = uuid.UUID(processed_data['room_id'])
+                except (ValueError, TypeError):
+                    processed_data['room_id'] = None
+            else:
+                processed_data['room_id'] = None
         
         # Convert archived_by to UUID
         if 'archived_by' in processed_data:

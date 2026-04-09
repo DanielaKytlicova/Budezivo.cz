@@ -1,14 +1,16 @@
 """
 Collision validation logic for booking creation.
 Checks for time overlap based on program collision settings.
+Includes lecturer collision, room collision, and advisory locking.
 """
 import logging
+import hashlib
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, text
 import uuid
 
-from database.models import Reservation, Program
+from database.models import Reservation, Program, Room
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +53,13 @@ def time_blocks_overlap(block_a: str, duration_a: int, block_b: str, duration_b:
     return start_a < end_b and start_b < end_a
 
 
+def _advisory_lock_key(institution_id: str, date: str) -> int:
+    """Generate a deterministic int64 advisory lock key from institution+date."""
+    raw = f"{institution_id}:{date}"
+    h = hashlib.sha256(raw.encode()).hexdigest()
+    return int(h[:15], 16)  # 60-bit int, fits pg_advisory_xact_lock bigint
+
+
 async def check_booking_collision(
     db: AsyncSession,
     institution_id: str,
@@ -62,9 +71,15 @@ async def check_booking_collision(
     """
     Check if a booking would collide with existing reservations.
     Returns error message string if collision found, None if OK.
+    
+    Uses PostgreSQL advisory lock to prevent race conditions.
     """
     inst_uuid = uuid.UUID(institution_id)
     prog_uuid = uuid.UUID(program_id)
+
+    # ── Advisory Lock: prevents parallel inserts for same institution+date ──
+    lock_key = _advisory_lock_key(institution_id, date)
+    await db.execute(text(f"SELECT pg_advisory_xact_lock({lock_key})"))
 
     # Get the program being booked
     result = await db.execute(
@@ -81,10 +96,10 @@ async def check_booking_collision(
     allow_parallel = program.allow_parallel or False
     collision_resources = program.collision_resources or []
     blocked_program_ids = program.blocked_program_ids or []
+    program_room_id = str(program.room_id) if program.room_id else None
 
     # ====== CASE 1: Parallel NOT allowed → block all overlapping slots globally ======
     if not allow_parallel:
-        # Find ALL non-cancelled reservations for the same institution on the same date
         result = await db.execute(
             select(Reservation).where(and_(
                 Reservation.institution_id == inst_uuid,
@@ -95,7 +110,6 @@ async def check_booking_collision(
         existing = result.scalars().all()
 
         for res in existing:
-            # Get the other program's duration
             other_prog = await db.execute(
                 select(Program).where(Program.id == res.program_id)
             )
@@ -114,7 +128,6 @@ async def check_booking_collision(
 
     # ====== CASE 2: Parallel allowed - check specific resources and blocked programs ======
     
-    # Get all non-cancelled reservations for the same date
     result = await db.execute(
         select(Reservation).where(and_(
             Reservation.institution_id == inst_uuid,
@@ -144,12 +157,30 @@ async def check_booking_collision(
                 f"Program '{other_name}' neumožňuje paralelní provoz."
             )
 
-        # Check lecturer collision
-        if "lecturer" in collision_resources and lecturer_id and res.assigned_lecturer_id:
-            if str(res.assigned_lecturer_id) == lecturer_id:
+        # ── Check LECTURER collision ──
+        if "lecturer" in collision_resources:
+            # Use lecturer_id from the new booking OR the program's default lecturer
+            effective_lecturer_id = lecturer_id or (str(program.assigned_lecturer_id) if program.assigned_lecturer_id else None)
+            if effective_lecturer_id and res.assigned_lecturer_id:
+                if str(res.assigned_lecturer_id) == effective_lecturer_id:
+                    other_name = other_program.name_cs if other_program else "Neznámý program"
+                    lecturer_name = res.assigned_lecturer_name or "Lektor"
+                    return (
+                        f"Kolize lektora: {lecturer_name} je již přiřazen/a k programu '{other_name}' "
+                        f"dne {date} v čase {res.time_block}."
+                    )
+
+        # ── Check ROOM collision ──
+        if "room" in collision_resources and program_room_id:
+            other_room_id = str(other_program.room_id) if other_program and other_program.room_id else None
+            if other_room_id and other_room_id == program_room_id:
                 other_name = other_program.name_cs if other_program else "Neznámý program"
+                # Get room name
+                room_result = await db.execute(select(Room).where(Room.id == uuid.UUID(program_room_id)))
+                room = room_result.scalar_one_or_none()
+                room_name = room.name if room else "Místnost"
                 return (
-                    f"Kolize lektora: Lektor je již přiřazen k programu '{other_name}' "
+                    f"Kolize místnosti: '{room_name}' je již obsazena programem '{other_name}' "
                     f"dne {date} v čase {res.time_block}."
                 )
 
@@ -170,6 +201,75 @@ async def check_booking_collision(
                 f"Kolize programů: Program '{other_name}' zakazuje překryv s tímto programem "
                 f"dne {date} v čase {res.time_block}."
             )
+
+    return None
+
+
+async def check_lecturer_collision_for_assignment(
+    db: AsyncSession,
+    lecturer_id: str,
+    institution_id: str,
+    booking_id: str,
+) -> Optional[str]:
+    """
+    Check if assigning a lecturer to a booking would create a time conflict.
+    Called from assign_lecturer endpoints.
+    Returns error message if collision found, None if OK.
+    """
+    inst_uuid = uuid.UUID(institution_id)
+    lect_uuid = uuid.UUID(lecturer_id)
+    book_uuid = uuid.UUID(booking_id)
+
+    # Get the target booking
+    result = await db.execute(
+        select(Reservation).where(and_(
+            Reservation.id == book_uuid,
+            Reservation.institution_id == inst_uuid
+        ))
+    )
+    booking = result.scalar_one_or_none()
+    if not booking:
+        return None
+
+    # Get the booking's program for duration
+    prog_result = await db.execute(select(Program).where(Program.id == booking.program_id))
+    program = prog_result.scalar_one_or_none()
+    booking_duration = program.duration if program else 60
+
+    # Find all other non-cancelled reservations on the same date with this lecturer
+    result = await db.execute(
+        select(Reservation).where(and_(
+            Reservation.institution_id == inst_uuid,
+            Reservation.date == booking.date,
+            Reservation.status != 'cancelled',
+            Reservation.assigned_lecturer_id == lect_uuid,
+            Reservation.id != book_uuid,  # Exclude the booking we're assigning to
+        ))
+    )
+    other_bookings = result.scalars().all()
+
+    for other in other_bookings:
+        # Get other program's duration
+        other_prog_result = await db.execute(select(Program).where(Program.id == other.program_id))
+        other_program = other_prog_result.scalar_one_or_none()
+        other_duration = other_program.duration if other_program else 60
+
+        if time_blocks_overlap(booking.time_block, booking_duration, other.time_block, other_duration):
+            other_name = other_program.name_cs if other_program else "Neznámý program"
+            return (
+                f"Kolize lektora: Lektor je již přiřazen k programu '{other_name}' "
+                f"dne {booking.date} v čase {other.time_block}."
+            )
+
+    # Also check lecturer availability (recurring + time-off)
+    available = await check_lecturer_available_for_block(
+        db, lecturer_id, institution_id, booking.date, booking.time_block, booking_duration
+    )
+    if not available:
+        return (
+            f"Lektor není dostupný dne {booking.date} v čase {booking.time_block} "
+            f"(mimo pracovní dobu nebo má blokaci)."
+        )
 
     return None
 
@@ -236,8 +336,9 @@ async def check_lecturer_available_for_block(
     )
     avail_blocks = result.scalars().all()
 
+    # If no availability configured, lecturer has no schedule constraints → allow
     if not avail_blocks:
-        return False  # No availability set = not available
+        return True
 
     in_availability = False
     for ab in avail_blocks:

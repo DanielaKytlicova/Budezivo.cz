@@ -43,6 +43,7 @@ from routes.gdpr import router as gdpr_router
 from routes.onboarding import router as onboarding_router
 from routes.audit import router as audit_router
 from routes.calendar_export import router as calendar_export_router
+from routes.rooms import router as rooms_router
 from models.schemas import ContactFormData, InstitutionSettings
 
 # Configure logging
@@ -117,6 +118,7 @@ api_router.include_router(gdpr_router)
 api_router.include_router(onboarding_router)
 api_router.include_router(audit_router)
 api_router.include_router(calendar_export_router)
+api_router.include_router(rooms_router)
 
 
 # ============ Additional Routes ============

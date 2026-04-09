@@ -30,7 +30,7 @@ CLIENT_SECRET = os.environ.get("MICROSOFT_CLIENT_SECRET", "")
 TENANT_ID = os.environ.get("MICROSOFT_TENANT_ID", "")
 REDIRECT_URI = os.environ.get("MICROSOFT_REDIRECT_URI", "")
 
-AUTHORITY = f"https://login.microsoftonline.com/{TENANT_ID}"
+AUTHORITY = f"https://login.microsoftonline.com/common"
 SCOPES = ["Calendars.Read", "User.Read", "offline_access"]
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 

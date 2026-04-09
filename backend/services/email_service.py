@@ -139,6 +139,7 @@ class EmailService:
         add_gdpr_footer: bool = True,
         reply_to: Optional[str] = None,
         tags: Optional[List[Dict[str, str]]] = None,
+        attachments: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Send email via Resend API (async, non-blocking).
@@ -199,6 +200,9 @@ class EmailService:
             
         if tags:
             params["tags"] = tags
+        
+        if attachments:
+            params["attachments"] = attachments
         
         try:
             # Run sync SDK in thread to keep FastAPI non-blocking
@@ -297,7 +301,11 @@ class EmailService:
     ) -> Dict[str, Any]:
         """
         Send booking confirmation email (backwards compatible).
+        Includes .ics attachment for Outlook/calendar integration.
         """
+        # Generate ICS attachment
+        ics_attachment = cls._generate_ics_attachment(booking_data, program_data, institution_data)
+        
         # Build context for template rendering
         context = {
             "school_name": booking_data.get("school_name", ""),
@@ -332,6 +340,7 @@ class EmailService:
                 subject=subject,
                 html_content=body,
                 reply_to=institution_data.get("email"),
+                attachments=[ics_attachment] if ics_attachment else None,
             )
         else:
             # Use predefined template
@@ -341,6 +350,65 @@ class EmailService:
                 data=context,
                 reply_to=institution_data.get("email"),
             )
+    
+    @staticmethod
+    def _generate_ics_attachment(booking_data: dict, program_data: dict, institution_data: dict) -> Optional[dict]:
+        """Generate ICS file content as a Resend attachment dict."""
+        try:
+            from icalendar import Calendar, Event, vText
+            import pytz
+            from datetime import datetime, timedelta
+            import base64
+            
+            PRAGUE_TZ = pytz.timezone("Europe/Prague")
+            
+            cal = Calendar()
+            cal.add("prodid", "-//Budezivo.cz//Calendar//CS")
+            cal.add("version", "2.0")
+            cal.add("method", "PUBLISH")
+            
+            event = Event()
+            res_id = booking_data.get("id", "unknown")
+            event.add("uid", f"{res_id}@budezivo.cz")
+            
+            program_name = program_data.get("name_cs") or "Program"
+            event.add("summary", program_name)
+            
+            date_str = booking_data.get("date", "")
+            time_block = booking_data.get("time_block", "09:00")
+            duration_min = program_data.get("duration") or 60
+            
+            try:
+                year, month, day = map(int, date_str.split("-"))
+                start_part = time_block.split("-")[0].strip()
+                parts = start_part.split(":")
+                h, m = int(parts[0]), int(parts[1]) if len(parts) > 1 else 0
+                dt_start = PRAGUE_TZ.localize(datetime(year, month, day, h, m))
+                dt_end = dt_start + timedelta(minutes=duration_min)
+            except (ValueError, IndexError):
+                return None
+            
+            event.add("dtstart", dt_start)
+            event.add("dtend", dt_end)
+            
+            desc = f"Škola: {booking_data.get('school_name', '')}\nPočet dětí: {booking_data.get('num_students', '')}"
+            event.add("description", desc)
+            
+            address = institution_data.get("address") or institution_data.get("name") or ""
+            if address:
+                event["location"] = vText(address)
+            
+            cal.add_component(event)
+            ics_bytes = cal.to_ical()
+            
+            return {
+                "filename": "rezervace.ics",
+                "content": base64.b64encode(ics_bytes).decode("utf-8"),
+                "content_type": "text/calendar",
+            }
+        except Exception as e:
+            logger.error(f"Failed to generate ICS attachment: {e}")
+            return None
     
     @classmethod
     async def send_test_email(

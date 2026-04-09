@@ -32,6 +32,7 @@ import { TeamPage } from './pages/admin/TeamPage';
 import FeedbackAdminPage from './pages/admin/FeedbackAdminPage';
 import { LecturerAvailabilityPage } from './pages/admin/LecturerAvailabilityPage';
 import { ArchivePage } from './pages/admin/ArchivePage';
+import { AuditLogPage } from './pages/admin/AuditLogPage';
 
 import './App.css';
 
@@ -155,6 +156,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <ArchivePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/audit-log"
+                element={
+                  <ProtectedRoute>
+                    <AuditLogPage />
                   </ProtectedRoute>
                 }
               />

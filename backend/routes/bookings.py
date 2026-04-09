@@ -27,7 +27,8 @@ from services.email_service import (
     trigger_reservation_cancelled_email,
     trigger_reservation_rescheduled_email,
 )
-from services.collision_service import check_booking_collision
+from services.collision_service import check_booking_collision, check_lecturer_collision_for_assignment
+from routes.audit import log_action
 
 from pydantic import BaseModel as PydanticBaseModel
 
@@ -308,6 +309,14 @@ async def update_booking_status(
             logger.error(f"Failed to send status change email: {str(e)}")
     
     background_tasks.add_task(send_status_email)
+
+    # Audit log
+    await log_action(
+        db, institution_id=current_user["institution_id"],
+        user_id=current_user["user_id"], user_email=current_user.get("email", ""),
+        action=status, entity_type="reservation", entity_id=booking_id,
+        details={"old_status": old_status, "new_status": status, "school": booking.get("school_name", "")},
+    )
     
     return {"message": "Status updated"}
 
@@ -556,6 +565,13 @@ async def assign_lecturer_to_booking(
     if booking.get("assigned_lecturer_id"):
         raise HTTPException(status_code=400, detail="Booking already has assigned lecturer")
     
+    # Check for lecturer time collisions
+    collision_error = await check_lecturer_collision_for_assignment(
+        db, current_user["user_id"], current_user["institution_id"], booking_id
+    )
+    if collision_error:
+        raise HTTPException(status_code=409, detail=collision_error)
+    
     # Assign lecturer
     await booking_repo.assign_lecturer(
         booking_id,
@@ -622,6 +638,13 @@ async def admin_assign_lecturer_to_booking(
     
     if lecturer.get("institution_id") != current_user["institution_id"]:
         raise HTTPException(status_code=403, detail="Lektor nepatří do vaší instituce")
+    
+    # Check for lecturer time collisions
+    collision_error = await check_lecturer_collision_for_assignment(
+        db, request.lecturer_id, current_user["institution_id"], booking_id
+    )
+    if collision_error:
+        raise HTTPException(status_code=409, detail=collision_error)
     
     lecturer_name = lecturer.get("name") or lecturer.get("email", "Unknown")
     

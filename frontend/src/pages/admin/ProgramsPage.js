@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
 import { Checkbox } from '../../components/ui/checkbox';
-import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail, ShieldAlert, Info, User } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail, ShieldAlert, Info, User, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -70,6 +70,7 @@ const getDefaultFormData = () => ({
   allow_parallel: false,
   collision_resources: [],
   blocked_program_ids: [],
+  room_id: null,
 });
 
 export const ProgramsPage = () => {
@@ -85,11 +86,24 @@ export const ProgramsPage = () => {
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [urlData, setUrlData] = useState(null);
   const [selectedProgramForUrl, setSelectedProgramForUrl] = useState('all');
+  const [urlAgeFilters, setUrlAgeFilters] = useState([]);
   const [institutionData, setInstitutionData] = useState(null);
+  const [rooms, setRooms] = useState([]);
+  const [newRoomName, setNewRoomName] = useState('');
+  const [newRoomCapacity, setNewRoomCapacity] = useState('');
+
+  const URL_AGE_OPTIONS = [
+    { code: 'MS', label: 'MŠ (3-6 let)' },
+    { code: 'ZS1', label: 'I. stupeň ZŠ (7-12 let)' },
+    { code: 'ZS2', label: 'II. stupeň ZŠ (12-15 let)' },
+    { code: 'SS', label: 'SŠ (14-18 let)' },
+    { code: 'GYM', label: 'Gymnázium (14-18 let)' },
+  ];
 
   useEffect(() => {
     fetchPrograms();
     fetchInstitutionData();
+    fetchRooms();
   }, []);
 
   const fetchPrograms = async () => {
@@ -113,32 +127,79 @@ export const ProgramsPage = () => {
     }
   };
 
+  const fetchRooms = async () => {
+    try {
+      const response = await axios.get(`${API}/rooms`);
+      setRooms(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Failed to fetch rooms');
+    }
+  };
+
+  const createRoom = async () => {
+    if (!newRoomName.trim()) return;
+    try {
+      await axios.post(`${API}/rooms`, { 
+        name: newRoomName.trim(),
+        capacity: newRoomCapacity ? parseInt(newRoomCapacity) : null 
+      });
+      setNewRoomName('');
+      setNewRoomCapacity('');
+      await fetchRooms();
+      toast.success('Místnost vytvořena');
+    } catch (error) {
+      toast.error('Chyba při vytváření místnosti');
+    }
+  };
+
+  const deleteRoom = async (roomId) => {
+    try {
+      await axios.delete(`${API}/rooms/${roomId}`);
+      await fetchRooms();
+      toast.success('Místnost smazána');
+    } catch (error) {
+      toast.error('Chyba při mazání místnosti');
+    }
+  };
+
   const openUrlGenerator = () => {
     setSelectedProgramForUrl('all');
+    setUrlAgeFilters([]);
     setUrlData(null);
     setShowUrlModal(true);
   };
 
-  const generateUrl = (programId = 'all') => {
+  const generateUrl = (programId = 'all', ageFilters = []) => {
     if (!institutionData) return;
     
     const baseUrl = "https://budezivo.cz";
+    const previewBase = window.location.origin;
     const institutionId = institutionData.institution_id;
     const institutionName = institutionData.institution_name || 'Vaše instituce';
     
+    // Build query params
+    const params = new URLSearchParams();
+    if (programId !== 'all') params.set('program', programId);
+    if (ageFilters.length > 0) params.set('age', ageFilters.join(','));
+    const queryStr = params.toString() ? `?${params.toString()}` : '';
+    const path = `/booking/${institutionId}${queryStr}`;
+    
     if (programId === 'all') {
-      const url = `${baseUrl}/booking/${institutionId}`;
+      const url = `${baseUrl}${path}`;
+      const filterLabel = ageFilters.length > 0 ? ` (${ageFilters.join(', ')})` : '';
       setUrlData({
         url,
-        program_name: 'Všechny programy',
+        previewUrl: `${previewBase}${path}`,
+        program_name: `Všechny programy${filterLabel}`,
         institution_name: institutionName,
         embed_code: `<a href="${url}" target="_blank">Rezervovat program v ${institutionName}</a>`
       });
     } else {
       const program = programs.find(p => p.id === programId);
-      const url = `${baseUrl}/booking/${institutionId}?program=${programId}`;
+      const url = `${baseUrl}${path}`;
       setUrlData({
         url,
+        previewUrl: `${previewBase}${path}`,
         program_name: program?.name_cs || 'Program',
         institution_name: institutionName,
         embed_code: `<a href="${url}" target="_blank">Rezervovat: ${program?.name_cs || 'Program'}</a>`
@@ -148,7 +209,15 @@ export const ProgramsPage = () => {
 
   const handleProgramSelectForUrl = (programId) => {
     setSelectedProgramForUrl(programId);
-    generateUrl(programId);
+    generateUrl(programId, urlAgeFilters);
+  };
+
+  const toggleUrlAgeFilter = (code) => {
+    const newFilters = urlAgeFilters.includes(code)
+      ? urlAgeFilters.filter(c => c !== code)
+      : [...urlAgeFilters, code];
+    setUrlAgeFilters(newFilters);
+    generateUrl(selectedProgramForUrl, newFilters);
   };
 
   const copyToClipboard = (text) => {
@@ -255,6 +324,7 @@ export const ProgramsPage = () => {
       allow_parallel: program.allow_parallel || false,
       collision_resources: program.collision_resources || [],
       blocked_program_ids: program.blocked_program_ids || [],
+      room_id: program.room_id || null,
     });
     setActiveTab('detail');
     setShowDialog(true);
@@ -1097,6 +1167,84 @@ export const ProgramsPage = () => {
                   </p>
                 </div>
               )}
+
+              {/* Room assignment - visible when room collision is checked */}
+              {formData.collision_resources.includes('room') && (
+                <div className="space-y-3 pt-3 border-t">
+                  <Label className="text-sm font-medium text-slate-700">Přiřazená místnost</Label>
+                  <Select 
+                    value={formData.room_id || 'none'} 
+                    onValueChange={(val) => setFormData({ ...formData, room_id: val === 'none' ? null : val })}
+                  >
+                    <SelectTrigger data-testid="room-select">
+                      <SelectValue placeholder="Vyberte místnost..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Žádná místnost</SelectItem>
+                      {rooms.filter(r => r.is_active).map(room => (
+                        <SelectItem key={room.id} value={room.id}>
+                          {room.name}{room.capacity ? ` (${room.capacity} míst)` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {rooms.length === 0 && (
+                    <p className="text-xs text-gray-500">Zatím nemáte žádné místnosti. Vytvořte je níže.</p>
+                  )}
+
+                  {/* Inline room creation */}
+                  <div className="flex gap-2 items-end">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Název místnosti..."
+                        value={newRoomName}
+                        onChange={(e) => setNewRoomName(e.target.value)}
+                        className="text-sm"
+                        data-testid="new-room-name"
+                      />
+                    </div>
+                    <div className="w-24">
+                      <Input
+                        placeholder="Kapacita"
+                        type="number"
+                        value={newRoomCapacity}
+                        onChange={(e) => setNewRoomCapacity(e.target.value)}
+                        className="text-sm"
+                        data-testid="new-room-capacity"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={createRoom}
+                      disabled={!newRoomName.trim()}
+                      data-testid="create-room-btn"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* Existing rooms list */}
+                  {rooms.length > 0 && (
+                    <div className="space-y-1">
+                      {rooms.map(room => (
+                        <div key={room.id} className="flex items-center justify-between text-xs text-gray-600 px-2 py-1 bg-gray-50 rounded">
+                          <span>{room.name}{room.capacity ? ` · ${room.capacity} míst` : ''}</span>
+                          <button
+                            type="button"
+                            onClick={() => deleteRoom(room.id)}
+                            className="text-red-400 hover:text-red-600"
+                            data-testid={`delete-room-${room.id}`}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </Card>
 
             {/* Section 3: Manual program exclusions */}
@@ -1377,6 +1525,35 @@ export const ProgramsPage = () => {
               </div>
             </div>
 
+            {/* Age Filter for URL */}
+            <div>
+              <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4" />
+                Filtr věkové skupiny (volitelné)
+              </Label>
+              <p className="text-xs text-gray-500 mb-2">Vyberte cílovou skupinu — učitelé uvidí jen relevantní programy</p>
+              <div className="flex flex-wrap gap-2">
+                {URL_AGE_OPTIONS.map(opt => {
+                  const isActive = urlAgeFilters.includes(opt.code);
+                  return (
+                    <button
+                      key={opt.code}
+                      type="button"
+                      onClick={() => toggleUrlAgeFilter(opt.code)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                        isActive 
+                          ? 'bg-slate-800 text-white border-slate-800' 
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                      }`}
+                      data-testid={`url-age-filter-${opt.code}`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Generated URL */}
             {urlData && (
               <>
@@ -1427,7 +1604,7 @@ export const ProgramsPage = () => {
                 <div className="flex gap-2 pt-4 border-t">
                   <Button
                     variant="outline"
-                    onClick={() => window.open(urlData.url, '_blank')}
+                    onClick={() => window.open(urlData.previewUrl, '_blank')}
                     className="flex-1"
                     data-testid="preview-url-btn"
                   >

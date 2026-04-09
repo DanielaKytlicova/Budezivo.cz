@@ -2,76 +2,76 @@
 
 ## Přehled projektu
 Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů, rezervací a institucí v České republice.
-Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538 (není plátce DPH)
 
 ## Technologický stack
 - **Frontend:** React 18, TailwindCSS, Shadcn/UI, Axios
-- **Backend:** FastAPI, SQLAlchemy Async, Pydantic, slowapi (rate limiting)
-- **Databáze:** Supabase (PostgreSQL)
-- **Emaily:** Resend API
-- **Scheduler:** APScheduler (feedback emaily, GDPR auto-cleanup, auto-archivace)
+- **Backend:** FastAPI, SQLAlchemy Async, Pydantic, slowapi, icalendar, msal, httpx
+- **Databáze:** Supabase (PostgreSQL) + pg_advisory_xact_lock
+- **Emaily:** Resend API (s ICS přílohou)
+- **Integrace:** Microsoft Graph API (Outlook calendar sync)
+- **Scheduler:** APScheduler (feedback, GDPR, auto-archivace, Outlook sync 5min)
 
 ---
 
 ## Implementované funkce
 
-### Fáze 1-9 (předchozí)
-- Core MVP, Feedback System, Team Invitations, Legal & PRO Plan
-- School Import + Multi-Contact CRM, Booking & Team Improvements
-- Kolize a paralelní běh programů, Dostupnost lektora
+### Fáze 1-16 (předchozí)
+- Core MVP, Feedback, Team, Legal, CRM, Booking, Kolize, GDPR
+- VOP, Security, One-off bloky, Archive, Onboarding, Email Theming
+- Pricing, Mobile fix, Demo data, Statistics fix
 
-### Fáze 10 - Hromadné akce a GDPR (26.3.2026)
-- [x] Hromadná změna stavu rezervací (bulk-status)
-- [x] GDPR export + anonymizace osobních údajů
-- [x] Filtry stavu, checkboxy, vyhledávání v rezervacích
+### Fáze 17 - Audit Log + Program Filtering (8.4.2026)
+- [x] Audit Log: DB + API + admin stránka
+- [x] Program filtering: BookingPage filtrační panel + URL params
+- [x] Admin URL generátor s filtry
 
-### Fáze 11 - VOP + GDPR Auto-cleanup (26.3.2026)
-- [x] VOP 15 článků, public stránka /obchodni-podminky, admin sekce
-- [x] Registrační checkbox souhlasu s VOP
-- [x] GDPR auto-cleanup scheduler (denní, 3:00 UTC)
+### Fáze 18A - ICS Export (8.4.2026)
+- [x] ICS Feed: `/api/calendar/institution/{id}.ics`, `/program/{id}.ics`, `/reservation/{id}.ics`
+- [x] Tlačítko "Přidat do Outlooku" (admin + veřejná success stránka)
+- [x] ICS příloha v potvrzovacím emailu
 
-### Fáze 12 - Security Hardening + Pre-pilot (26.3.2026)
-- [x] CORS, Rate limiting, Security headers, JWT 7-day expiry
-- [x] Password strength validation, Email templates
-- [x] OG meta tagy, robots.txt, sitemap.xml
+### Fáze 18B - Kolizní systém Hardening (9.4.2026)
+- [x] Kolize lektora při přiřazení (409 při konfliktu)
+- [x] Místnosti: CRUD API + room_id na programech + kolizní kontrola
+- [x] Advisory Lock: pg_advisory_xact_lock brání race conditions
 
-### Fáze 13 - One-off bloky + Program Archive (27.3.2026)
-- [x] One-off časové bloky pro lektory (jednorázová dostupnost)
-- [x] Backend: Archive, Unarchive, Archive-report endpoints
-- [x] Auto-archivace scheduler (APScheduler)
+### Fáze 18C - Microsoft Outlook Integration (9.4.2026)
+- [x] **OAuth2 flow**: `GET /api/microsoft-calendar/connect` → MS login → callback → token storage
+- [x] **Token management**: access_token + refresh_token s automatickým obnovením
+- [x] **Calendar sync**: Stahuje 30 dní eventů z Outlook → `availability_blocks`
+- [x] **Polling sync**: APScheduler job každých 5 minut pro automatickou synchronizaci
+- [x] **Override logika**: `POST /blocks/{id}/override` — povolí/zablokuje rezervace v čase Outlook eventu
+- [x] **Kolizní integrace**: `check_availability_blocks()` v collision_service kontroluje Outlook bloky
+- [x] **Frontend UI**: Outlook karta na stránce Dostupnost — připojit/odpojit/sync/override
+- [x] **Popup OAuth**: postMessage komunikace mezi popup oknem a rodičovským oknem
 
-### Fáze 14 - Archive UI + Onboarding wizard (28.3.2026)
-- [x] **Archive UI**: ArchivePage.js s /admin/archive routou
-- [x] **Archive link**: Tlačítko "Archiv" v ProgramsPage
-- [x] **Archivace z ProgramsPage**: Dedikovaný POST /archive endpoint
-- [x] **Unarchive**: Obnovení programu z archivu
-- [x] **Archive Report**: Dialog se statistikami + JSON export
-- [x] **Oprava route ordering**: GET /archived před GET /{program_id}
-- [x] **Oprava datetime**: archived_at jako datetime objekt (ne string)
-- [x] **Onboarding Wizard**: 4-krokový průvodce na Dashboard
-  - Welcome, Create Program, Set Availability, Done
-  - Rozpoznání existujících programů (zelený banner)
-  - Skip/dismiss funkce
-  - Backend: GET/POST /api/onboarding (status + complete)
-  - DB: institutions.onboarding_completed boolean
-
-### Fáze 15 - Email Template Theming (28.3.2026)
-- [x] **Theme systém**: `_build_theme(data)` + `_button_style(theme)` helpery
-- [x] **Branded hlavička**: Logo instituce + secondary_color pozadí + "powered by Budezivo" bar
-- [x] **Fallback**: Bez loga = výchozí Budezivo hlavička, bez změn barevnosti
-- [x] **Konzistence**: Všech 18 šablon používá centrální `_base_template(content, data)`
-- [x] **Feedback šablony**: `feedback_request` a `feedback_reminder` přesunuty do template systému
-- [x] **DRY context**: `_build_email_context()` helper pro trigger funkce
-- [x] **Theme data flow**: `find_by_id_with_theme()` → trigger funkce → šablony
-- [x] **Kompatibilita**: Inline styly, tabulkový layout, fallback fonty
-- [x] **Oprava dual-logo**: V hlavičce vždy jen JEDNO logo (instituce NEBO Budezivo, nikdy obě)
-- [x] **Footer platform**: U brandovaných emailů "Rezervace přes Budezivo.cz" v patičce
+### DB Schema (nové tabulky)
+```
+user_calendar_integrations: id, user_id, institution_id, provider, access_token, 
+    refresh_token, expires_at, microsoft_user_id, is_active, last_sync_at, sync_error
+availability_blocks: id, user_id, institution_id, start_time, end_time, source, 
+    external_event_id, title, override
+rooms: id, institution_id, name, capacity, equipment, is_active
+programs: + room_id (FK → rooms.id)
+```
 
 ---
 
 ## Testovací přístupy
 - **Demo účet:** demo@budezivo.cz / Demo2026!
-- **Test reports:** iteration_21 (archive), iteration_22 (onboarding), iteration_23 (email theming)
+- **Test reports:** iteration_21-27
+
+---
+
+## Klíčové API endpointy (nové)
+- `GET /api/microsoft-calendar/connect` — zahájí OAuth flow
+- `GET /api/microsoft-calendar/callback` — OAuth callback
+- `GET /api/microsoft-calendar/status` — stav připojení
+- `POST /api/microsoft-calendar/disconnect` — odpojení
+- `POST /api/microsoft-calendar/sync` — manuální sync
+- `GET /api/microsoft-calendar/blocks` — seznam bloků
+- `POST /api/microsoft-calendar/blocks/{id}/override` — toggle override
+- `GET/POST /api/rooms` + `PATCH/DELETE /api/rooms/{id}` — CRUD místností
 
 ---
 
@@ -79,38 +79,20 @@ Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538 (není plátce DP
 
 ### P2 - Střední priorita
 - [ ] i18n přepínač jazyků (CZ/EN)
-- [ ] Smazat testovací data z DB
 
 ### P3 - Backlog
-- [ ] Audit log (kdo, co, kdy změnil)
-- [ ] Social proof na landing page (loga, reference, čísla)
+- [ ] Social proof na landing page
+- [ ] Microsoft webhook subscription (real-time místo polling)
 
 ### P4 - Budoucnost
-- [ ] Pokročilá analytika (heatmapa, trendy, finanční přehledy)
-- [ ] Platební integrace (Stripe pro PRO / Fakturoid)
-- [ ] PWA, push notifikace
-- [ ] 2FA pro admin účty
-- [ ] Alembic migrace (nahrazení ručních SQL)
+- [ ] Pokročilá analytika, Stripe/Fakturoid, PWA, 2FA, Alembic
 
 ---
 
-## Klíčové API endpointy
-- `POST /api/programs/{id}/archive` - archivace
-- `POST /api/programs/{id}/unarchive` - obnovení
-- `GET /api/programs/{id}/archive-report` - report
-- `GET /api/programs/archived` - seznam archivovaných
-- `GET /api/onboarding/status` - stav onboardingu
-- `POST /api/onboarding/complete` - dokončení onboardingu
+## Důležitá poznámka k OAuth
+Pro testování na preview prostředí je potřeba v Azure Portal přidat Redirect URI:
+`https://booking-crm-3.preview.emergentagent.com/api/auth/microsoft/callback`
 
----
+Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 
-## Architektura
-```
-/app/backend/routes/onboarding.py    - Onboarding endpoints
-/app/backend/routes/programs.py      - Archive endpoints
-/app/frontend/src/pages/admin/ArchivePage.js
-/app/frontend/src/components/admin/OnboardingWizard.js
-/app/frontend/src/pages/admin/DashboardPage.js  - Onboarding integration
-```
-
-*Poslední aktualizace: 28. března 2026*
+*Poslední aktualizace: 9. dubna 2026*

@@ -10,7 +10,7 @@ import { Checkbox } from '../../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, ChevronLeft, ChevronRight, Clock, Ban, Edit2, Info, CalendarDays, CalendarPlus } from 'lucide-react';
+import { Plus, Trash2, ChevronLeft, ChevronRight, Clock, Ban, Edit2, Info, CalendarDays, CalendarPlus, RefreshCw, Unlink, ExternalLink } from 'lucide-react';
 import axios from 'axios';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -51,6 +51,11 @@ export const LecturerAvailabilityPage = () => {
   const [showAddTimeOff, setShowAddTimeOff] = useState(false);
   const [editingRecurring, setEditingRecurring] = useState(null);
   const [editingTimeOff, setEditingTimeOff] = useState(null);
+  
+  // Outlook integration state
+  const [outlookStatus, setOutlookStatus] = useState({ connected: false });
+  const [outlookBlocks, setOutlookBlocks] = useState([]);
+  const [outlookSyncing, setOutlookSyncing] = useState(false);
 
   // Forms
   const [recurringForm, setRecurringForm] = useState({
@@ -104,6 +109,90 @@ export const LecturerAvailabilityPage = () => {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchTeam(); }, [fetchTeam]);
+  useEffect(() => { fetchOutlookStatus(); }, [token]);
+  useEffect(() => { if (outlookStatus.connected) fetchOutlookBlocks(); }, [weekStart, lecturerId, outlookStatus.connected]);
+
+  // Listen for OAuth popup messages
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data?.type === 'outlook_connected') {
+        toast.success('Outlook kalendář připojen!');
+        fetchOutlookStatus();
+        fetchOutlookBlocks();
+      } else if (event.data?.type === 'outlook_error') {
+        toast.error(event.data.error || 'Chyba při připojení Outlooku');
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  const fetchOutlookStatus = async () => {
+    try {
+      const res = await axios.get(`${API}/api/microsoft-calendar/status`, { headers });
+      setOutlookStatus(res.data);
+      if (res.data.connected) fetchOutlookBlocks();
+    } catch (err) {
+      console.error('Outlook status fetch failed');
+    }
+  };
+
+  const fetchOutlookBlocks = async () => {
+    try {
+      const weekStr = formatDate(weekStart);
+      const endStr = formatDate(new Date(weekStart.getTime() + 6 * 86400000));
+      const params = lecturerId ? `?user_id=${lecturerId}&start=${weekStr}&end=${endStr}` : `?start=${weekStr}&end=${endStr}`;
+      const res = await axios.get(`${API}/api/microsoft-calendar/blocks${params}`, { headers });
+      setOutlookBlocks(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error('Outlook blocks fetch failed');
+    }
+  };
+
+  const connectOutlook = async () => {
+    try {
+      const res = await axios.get(`${API}/api/microsoft-calendar/connect`, { headers });
+      if (res.data.auth_url) {
+        window.open(res.data.auth_url, 'outlook_auth', 'width=500,height=700');
+      }
+    } catch (err) {
+      toast.error('Nepodařilo se zahájit připojení Outlooku');
+    }
+  };
+
+  const disconnectOutlook = async () => {
+    try {
+      await axios.post(`${API}/api/microsoft-calendar/disconnect`, {}, { headers });
+      setOutlookStatus({ connected: false });
+      setOutlookBlocks([]);
+      toast.success('Outlook odpojen');
+    } catch (err) {
+      toast.error('Chyba při odpojování');
+    }
+  };
+
+  const syncOutlook = async () => {
+    setOutlookSyncing(true);
+    try {
+      const res = await axios.post(`${API}/api/microsoft-calendar/sync`, {}, { headers });
+      toast.success(res.data.message || 'Synchronizováno');
+      await fetchOutlookBlocks();
+    } catch (err) {
+      toast.error('Synchronizace selhala');
+    } finally {
+      setOutlookSyncing(false);
+    }
+  };
+
+  const toggleBlockOverride = async (blockId) => {
+    try {
+      const res = await axios.post(`${API}/api/microsoft-calendar/blocks/${blockId}/override`, {}, { headers });
+      toast.success(res.data.message);
+      await fetchOutlookBlocks();
+    } catch (err) {
+      toast.error('Chyba při změně přepsání');
+    }
+  };
 
   const navigateWeek = (dir) => {
     const newDate = new Date(weekStart);
@@ -254,17 +343,27 @@ export const LecturerAvailabilityPage = () => {
     const dayOneOffs = oneOffs.filter(o => o.specific_date === dateStr);
     const allAvail = [...avail, ...dayOneOffs];
     const offs = timeOffs.filter(t => t.start_date <= dateStr && t.end_date >= dateStr);
-    return { avail: allAvail, offs };
+    
+    // Outlook blocks for this day
+    const dayOutlook = outlookBlocks.filter(b => {
+      const bDate = new Date(b.start_time).toISOString().slice(0, 10);
+      return bDate === dateStr;
+    });
+    
+    return { avail: allAvail, offs, outlook: dayOutlook };
   };
 
   const renderCalendarCell = (dayIndex, hour) => {
-    const { avail, offs } = getBlocksForDay(dayIndex);
+    const { avail, offs, outlook } = getBlocksForDay(dayIndex);
     const cellStart = hour * 60;
     const cellEnd = (hour + 1) * 60;
 
     let isAvailable = false;
     let isBlocked = false;
     let blockReason = '';
+    let isOutlookBlock = false;
+    let isOutlookOverride = false;
+    let outlookTitle = '';
 
     for (const a of avail) {
       const aStart = timeToMinutes(a.start_time);
@@ -290,11 +389,33 @@ export const LecturerAvailabilityPage = () => {
       }
     }
 
+    // Check Outlook blocks
+    for (const ob of (outlook || [])) {
+      const obStart = new Date(ob.start_time);
+      const obEnd = new Date(ob.end_time);
+      const obStartMin = obStart.getHours() * 60 + obStart.getMinutes();
+      const obEndMin = obEnd.getHours() * 60 + obEnd.getMinutes();
+      if (cellStart < obEndMin && cellEnd > obStartMin) {
+        isOutlookBlock = true;
+        isOutlookOverride = ob.override || false;
+        outlookTitle = ob.title || 'Outlook';
+        break;
+      }
+    }
+
     let bg = 'bg-gray-50';
     let textColor = 'text-gray-300';
     let title = 'Nedostupný';
 
-    if (isBlocked && isAvailable) {
+    if (isOutlookBlock && !isOutlookOverride) {
+      bg = 'bg-slate-200 border-slate-300';
+      textColor = 'text-slate-600';
+      title = `Outlook: ${outlookTitle}`;
+    } else if (isOutlookBlock && isOutlookOverride) {
+      bg = 'bg-amber-100 border-amber-300';
+      textColor = 'text-amber-700';
+      title = `Povoleno: ${outlookTitle}`;
+    } else if (isBlocked && isAvailable) {
       bg = 'bg-red-100 border-red-200';
       textColor = 'text-red-600';
       title = blockReason;
@@ -315,9 +436,9 @@ export const LecturerAvailabilityPage = () => {
         title={title}
         data-testid={`cal-cell-${dayIndex}-${hour}`}
       >
-        {(isAvailable || isBlocked) && (
+        {(isAvailable || isBlocked || isOutlookBlock) && (
           <div className={`absolute inset-0 flex items-center justify-center ${textColor} text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity`}>
-            {isBlocked ? 'Blokace' : 'Volný'}
+            {isOutlookBlock ? outlookTitle : (isBlocked ? 'Blokace' : 'Volný')}
           </div>
         )}
       </div>
@@ -388,6 +509,99 @@ export const LecturerAvailabilityPage = () => {
           </Card>
         )}
 
+        {/* Outlook Integration Card */}
+        <Card className="p-4 border border-slate-200" data-testid="outlook-integration-card">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${outlookStatus.connected ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                <CalendarDays className={`w-5 h-5 ${outlookStatus.connected ? 'text-blue-600' : 'text-gray-400'}`} />
+              </div>
+              <div>
+                <p className="font-medium text-slate-800 text-sm">Outlook kalendář</p>
+                {outlookStatus.connected ? (
+                  <p className="text-xs text-green-600">
+                    Připojeno
+                    {outlookStatus.last_sync_at && ` · Poslední sync: ${new Date(outlookStatus.last_sync_at).toLocaleString('cs-CZ')}`}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500">Nepřipojeno — události z Outlooku neblokují rezervace</p>
+                )}
+                {outlookStatus.sync_error && (
+                  <p className="text-xs text-red-500 mt-0.5">{outlookStatus.sync_error}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {outlookStatus.connected ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={syncOutlook}
+                    disabled={outlookSyncing}
+                    data-testid="sync-outlook-btn"
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-1 ${outlookSyncing ? 'animate-spin' : ''}`} />
+                    Sync
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={disconnectOutlook}
+                    className="text-red-600 border-red-200 hover:bg-red-50"
+                    data-testid="disconnect-outlook-btn"
+                  >
+                    <Unlink className="w-4 h-4 mr-1" />
+                    Odpojit
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={connectOutlook}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  data-testid="connect-outlook-btn"
+                >
+                  <ExternalLink className="w-4 h-4 mr-1" />
+                  Připojit Outlook
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Outlook blocks inline controls (compact) */}
+          {outlookBlocks.length > 0 && (
+            <div className="mt-3 pt-3 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  {outlookBlocks.length} Outlook {outlookBlocks.length === 1 ? 'blok' : 'bloků'} tento týden
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {outlookBlocks.map(block => (
+                  <button
+                    key={block.id}
+                    onClick={() => toggleBlockOverride(block.id)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      block.override 
+                        ? 'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200' 
+                        : 'bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200'
+                    }`}
+                    title={block.override ? 'Klikněte pro blokaci' : 'Klikněte pro povolení rezervací'}
+                    data-testid={`toggle-override-${block.id}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${block.override ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                    {block.title || 'Outlook'}
+                    <span className="text-[10px] opacity-70">
+                      {new Date(block.start_time).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+
         {/* Legend */}
         <div className="flex items-center gap-6 text-xs">
           <div className="flex items-center gap-1.5">
@@ -397,6 +611,14 @@ export const LecturerAvailabilityPage = () => {
           <div className="flex items-center gap-1.5">
             <div className="w-4 h-4 rounded bg-red-100 border border-red-200" />
             <span className="text-gray-600">Blokace</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-4 rounded bg-gray-100 border border-gray-300" />
+            <span className="text-gray-600">Outlook blok</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-4 h-4 rounded bg-amber-100 border border-amber-300" />
+            <span className="text-gray-600">Ručně povoleno</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-4 h-4 rounded bg-gray-50 border border-gray-100" />

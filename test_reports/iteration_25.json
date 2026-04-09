@@ -1,0 +1,109 @@
+{
+  "summary": "Completed testing of ICS Calendar Export feature for Outlook integration. All 15 backend API tests pass (100%). Frontend UI verified: 'Outlook kalendář' button in BookingsPage header, 'Přidat do Outlooku (.ics)' button in booking detail modal. Public booking success page has ICS button (code verified).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_calendar_export.py",
+    "/app/test_reports/pytest/pytest_calendar_export.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ICS endpoints are public (no auth required) - correct for calendar subscription use case",
+    "calendar_export.py uses icalendar library correctly with VCALENDAR, VEVENT components",
+    "Europe/Prague timezone properly set via X-WR-TIMEZONE header",
+    "Content-Type: text/calendar and Content-Disposition: attachment headers correctly set",
+    "UID format uses {reservation_id}@budezivo.cz for uniqueness",
+    "Status mapping: confirmed→CONFIRMED, cancelled→CANCELLED, others→TENTATIVE",
+    "BookingsPage 'Outlook kalendář' button uses user.institution_id for ICS feed URL",
+    "Booking detail modal 'Přidat do Outlooku' button uses selectedBooking.id for single reservation ICS",
+    "Public BookingPage success screen uses createdReservationId state for ICS download",
+    "Email service _generate_ics_attachment method creates ICS attachment for confirmation emails"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_calendar_export.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_user": "demo@budezivo.cz",
+    "admin_password": "Demo2026!"
+  },
+  "seed_data_creation": "None - used existing demo institution with ~52 reservations",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "ICS Calendar Export fully tested. Institution ID: 669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5. ICS endpoints: GET /api/calendar/institution/{id}.ics, GET /api/calendar/program/{id}.ics, GET /api/calendar/reservation/{id}.ics. All endpoints are public (no auth). Status filter supported: ?status=confirmed. Frontend buttons: data-testid='export-ics-feed-btn' (header), data-testid='add-to-outlook-btn' (modal), data-testid='success-add-to-outlook-btn' (public success page).",
+  "features_tested": {
+    "backend_api": {
+      "GET /api/calendar/institution/{id}.ics returns valid ICS": "PASS",
+      "ICS has VCALENDAR, VEVENT components": "PASS",
+      "ICS has correct DTSTART/DTEND with Europe/Prague timezone": "PASS",
+      "ICS has UID, SUMMARY, DESCRIPTION, LOCATION fields": "PASS",
+      "Content-Type: text/calendar header": "PASS",
+      "Content-Disposition: attachment header": "PASS",
+      "GET /api/calendar/institution/{id}.ics?status=confirmed filter works": "PASS",
+      "GET /api/calendar/program/{id}.ics returns program-specific ICS": "PASS",
+      "GET /api/calendar/reservation/{id}.ics returns single reservation ICS": "PASS",
+      "Non-existent institution ID returns 404": "PASS",
+      "Non-existent program ID returns 404": "PASS",
+      "Non-existent reservation ID returns 404": "PASS",
+      "ICS STATUS field maps correctly": "PASS",
+      "ICS X-WR-CALNAME set": "PASS",
+      "ICS DTSTART/DTEND format correct": "PASS"
+    },
+    "frontend_ui": {
+      "BookingsPage header shows 'Outlook kalendář' button": "PASS",
+      "Button has data-testid='export-ics-feed-btn'": "PASS",
+      "Booking detail modal shows 'Přidat do Outlooku (.ics)' button": "PASS",
+      "Modal button has data-testid='add-to-outlook-btn'": "PASS",
+      "Public booking success page has 'Přidat do Outlooku' button (code verified)": "PASS",
+      "Success button has data-testid='success-add-to-outlook-btn'": "PASS"
+    }
+  },
+  "verified_features": [
+    {
+      "feature": "Backend: GET /api/calendar/institution/{id}.ics returns valid ICS with VCALENDAR, VEVENT",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Backend: GET /api/calendar/program/{id}.ics returns ICS for program's reservations only",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Backend: GET /api/calendar/reservation/{id}.ics returns ICS for single reservation",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Backend: ICS response has Content-Type: text/calendar and Content-Disposition: attachment",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Backend: ICS feed with status filter ?status=confirmed works",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Backend: Non-existent ID returns 404",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: BookingsPage header shows 'Outlook kalendář' button",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Booking detail modal shows 'Přidat do Outlooku (.ics)' button",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Frontend: Public booking success page has 'Přidat do Outlooku' button (code verified)",
+      "status": "VERIFIED"
+    }
+  ]
+}

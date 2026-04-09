@@ -77,6 +77,7 @@ class Institution(Base):
     programs = relationship("Program", back_populates="institution", cascade="all, delete-orphan")
     reservations = relationship("Reservation", back_populates="institution", cascade="all, delete-orphan")
     schools = relationship("School", back_populates="institution", cascade="all, delete-orphan")
+    rooms = relationship("Room", back_populates="institution", cascade="all, delete-orphan")
     theme_settings = relationship("ThemeSetting", back_populates="institution", uselist=False, cascade="all, delete-orphan")
 
 
@@ -163,10 +164,17 @@ class Program(Base):
     # Assigned Lecturer
     assigned_lecturer_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     
+    # Assigned Room
+    room_id = Column(UUID(as_uuid=True), ForeignKey('rooms.id', ondelete='SET NULL'))
+    
     # Archive
     archived_at = Column(DateTime(timezone=True))
     archived_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     archive_reason = Column(Text)
+    
+    # Filtering & Tags
+    age_categories = Column(ARRAY(Text), default=[])   # MS, ZS1, ZS2, SS
+    subject_tags = Column(ARRAY(Text), default=[])      # hudební, výtvarné, technické, ...
     
     # Metadata
     created_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
@@ -298,6 +306,27 @@ class School(Base):
         Index('idx_schools_institution', 'institution_id'),
         Index('idx_schools_email', 'email'),
         Index('idx_schools_name_city', 'institution_id', 'name', 'city'),
+    )
+
+
+class Room(Base):
+    """Room/Space model for collision management."""
+    __tablename__ = 'rooms'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    name = Column(Text, nullable=False)
+    capacity = Column(Integer)
+    equipment = Column(Text)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    
+    # Relationships
+    institution = relationship("Institution", back_populates="rooms")
+    
+    __table_args__ = (
+        Index('idx_rooms_institution', 'institution_id'),
     )
 
 
@@ -641,3 +670,63 @@ class LecturerTimeOff(Base):
         Index('idx_lecturer_timeoff_lecturer', 'lecturer_id'),
         Index('idx_lecturer_timeoff_institution', 'institution_id'),
     )
+
+
+
+class AuditLog(Base):
+    """Audit log for admin actions."""
+    __tablename__ = 'audit_logs'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id'), nullable=False)
+    user_email = Column(Text, default='')
+    action = Column(Text, nullable=False)       # create, update, delete, archive, confirm, cancel, ...
+    entity_type = Column(Text, nullable=False)  # program, reservation, school, settings, ...
+    entity_id = Column(Text)
+    details = Column(JSON, default={})
+    ip_address = Column(Text)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_audit_logs_institution', 'institution_id'),
+        Index('idx_audit_logs_created', 'created_at'),
+    )
+
+
+
+class UserCalendarIntegration(Base):
+    """Stores Microsoft OAuth tokens for calendar sync."""
+    __tablename__ = 'user_calendar_integrations'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    provider = Column(Text, nullable=False, default='microsoft')
+    access_token = Column(Text)
+    refresh_token = Column(Text)
+    expires_at = Column(DateTime(timezone=True))
+    microsoft_user_id = Column(Text)
+    external_calendar_id = Column(Text)
+    is_active = Column(Boolean, default=True)
+    last_sync_at = Column(DateTime(timezone=True))
+    sync_error = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class AvailabilityBlock(Base):
+    """External calendar blocks (Outlook) or manual blocks for availability."""
+    __tablename__ = 'availability_blocks'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    start_time = Column(DateTime(timezone=True), nullable=False)
+    end_time = Column(DateTime(timezone=True), nullable=False)
+    source = Column(Text, nullable=False, default='manual')  # 'outlook' | 'manual'
+    external_event_id = Column(Text)
+    title = Column(Text)
+    override = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))

@@ -37,6 +37,31 @@ import {
 } from 'lucide-react';
 import { API } from '../../config/api';
 
+// Helper to download ICS with signed token
+const downloadIcs = async (entityType, entityId, token) => {
+  try {
+    const tokenRes = await axios.get(`${API}/calendar/feed-token/${entityType}/${entityId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const signedToken = tokenRes.data.token;
+    window.open(`${API}/calendar/${entityType}/${entityId}.ics?token=${signedToken}`, '_blank');
+  } catch {
+    toast.error('Nepodařilo se vygenerovat ICS odkaz');
+  }
+};
+
+const downloadReservationIcs = async (reservationId, token) => {
+  try {
+    const tokenRes = await axios.get(`${API}/calendar/feed-token/reservation/${reservationId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const signedToken = tokenRes.data.token;
+    window.open(`${API}/calendar/reservation/${reservationId}.ics?token=${signedToken}`, '_blank');
+  } catch {
+    toast.error('Nepodařilo se vygenerovat ICS odkaz');
+  }
+};
+
 // Role permissions helper
 const PERMISSIONS = {
   admin: { canEditAll: true, canEditAttendance: true, canAssignLecturer: true, canEditDateTime: true, canEditContact: true },
@@ -729,7 +754,7 @@ export const BookingsPage = () => {
                 size="sm"
                 className="w-full"
                 onClick={() => {
-                  window.open(`${API}/calendar/reservation/${selectedBooking.id}.ics`, '_blank');
+                  downloadReservationIcs(selectedBooking.id, localStorage.getItem('token'));
                   toast.success('ICS soubor se stahuje');
                 }}
                 data-testid="add-to-outlook-btn"
@@ -791,7 +816,7 @@ export const BookingsPage = () => {
               onClick={() => {
                 const instId = user?.institution_id;
                 if (instId) {
-                  window.open(`${API}/calendar/institution/${instId}.ics`, '_blank');
+                  downloadIcs('institution', instId, localStorage.getItem('token'));
                   toast.success('ICS feed se stahuje');
                 }
               }}

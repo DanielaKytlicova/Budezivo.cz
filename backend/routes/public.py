@@ -5,17 +5,20 @@ import httpx
 import uuid
 import os
 import logging
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import Depends
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from database.supabase import get_db
 from database.supabase_repositories import InstitutionRepositorySupabase
 from services.email_service import EmailService
 
 router = APIRouter(prefix="/public", tags=["Public"])
 logger = logging.getLogger(__name__)
+limiter = Limiter(key_func=get_remote_address)
 
 # Admin email for contact form submissions
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "info@budezivo.cz")
@@ -31,7 +34,9 @@ class ContactFormRequest(BaseModel):
 
 
 @router.post("/contact")
+@limiter.limit("5/minute")
 async def submit_contact_form(
+    request: Request,
     data: ContactFormRequest,
     background_tasks: BackgroundTasks
 ):
@@ -65,7 +70,8 @@ async def submit_contact_form(
 
 
 @router.get("/stats")
-async def get_public_stats(db: AsyncSession = Depends(get_db)):
+@limiter.limit("30/minute")
+async def get_public_stats(request: Request, db: AsyncSession = Depends(get_db)):
     """
     Get public statistics for marketing purposes.
     Returns counts only if there are 20+ institutions.
@@ -100,7 +106,8 @@ async def get_public_stats(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/institutions/{institution_id}")
-async def get_public_institution_info(institution_id: str, db: AsyncSession = Depends(get_db)):
+@limiter.limit("30/minute")
+async def get_public_institution_info(institution_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     """
     Get public institution information for booking pages.
     Returns basic info: name, logo, plan (for feature gating).
@@ -147,7 +154,8 @@ async def get_public_institution_info(institution_id: str, db: AsyncSession = De
 
 
 @router.get("/ares/{ico}")
-async def validate_ico_ares(ico: str):
+@limiter.limit("10/minute")
+async def validate_ico_ares(ico: str, request: Request):
     """
     Validate IČO against ARES (Administrativní registr ekonomických subjektů).
     Returns company info if found.

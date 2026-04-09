@@ -43,49 +43,25 @@ async def get_email_config():
 
 
 @router.get("/debug")
-async def debug_email_config():
-    """Debug endpoint to check email configuration - shows what environment variables are set."""
-    import os
+async def debug_email_config(current_user: dict = Depends(get_current_user)):
+    """Debug endpoint - admin only. Never exposes raw keys."""
+    from database.supabase import get_db as _get_db
+    from database.supabase_repositories import UserRepositorySupabase
+    from sqlalchemy.ext.asyncio import AsyncSession
     from config.email_config import (
-        get_resend_api_key, 
-        get_sender_email, 
-        is_development, 
+        get_resend_api_key,
+        get_sender_email,
+        is_development,
         get_env,
-        RESEND_API_KEY  # Also check the module-level constant
     )
-    
-    # Runtime check
+
     runtime_key = get_resend_api_key()
-    runtime_key_status = "SET" if runtime_key else "NOT SET"
-    runtime_key_preview = f"{runtime_key[:10]}..." if runtime_key and len(runtime_key) > 10 else "N/A"
-    
-    # Module-level constant (set at import time)
-    module_key_status = "SET" if RESEND_API_KEY else "NOT SET"
-    module_key_preview = f"{RESEND_API_KEY[:10]}..." if RESEND_API_KEY and len(RESEND_API_KEY) > 10 else "N/A"
-    
-    # Direct environment check
-    env_key = os.environ.get("RESEND_API_KEY")
-    env_key_status = "SET" if env_key else "NOT SET"
-    env_key_preview = f"{env_key[:10]}..." if env_key and len(env_key) > 10 else "N/A"
-    
+
     return {
-        "runtime_check": {
-            "RESEND_API_KEY": runtime_key_status,
-            "RESEND_API_KEY_preview": runtime_key_preview,
-            "SENDER_EMAIL": get_sender_email(),
-            "IS_DEVELOPMENT": is_development(),
-            "ENV": get_env(),
-        },
-        "module_constant": {
-            "RESEND_API_KEY": module_key_status,
-            "RESEND_API_KEY_preview": module_key_preview,
-        },
-        "os_environ_direct": {
-            "RESEND_API_KEY": env_key_status,
-            "RESEND_API_KEY_preview": env_key_preview,
-            "SENDER_EMAIL": os.environ.get("SENDER_EMAIL", "not set"),
-            "ENV": os.environ.get("ENV", "not set"),
-        },
+        "resend_configured": bool(runtime_key),
+        "sender_email": get_sender_email(),
+        "is_development": is_development(),
+        "env": get_env(),
         "email_service_configured": EmailService.is_configured(),
     }
 

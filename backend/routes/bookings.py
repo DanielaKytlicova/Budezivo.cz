@@ -5,8 +5,10 @@ Uses Supabase (PostgreSQL) for database operations.
 import logging
 from datetime import datetime, timezone
 from typing import List
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from models.schemas import BookingCreate, Booking, BookingUpdate
 from core.security import get_current_user
@@ -41,6 +43,7 @@ class AssignLecturerRequest(PydanticBaseModel):
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 logger = logging.getLogger(__name__)
+_booking_limiter = Limiter(key_func=get_remote_address)
 
 
 @router.post("", response_model=Booking)
@@ -67,10 +70,12 @@ async def create_booking(
 
 
 @router.post("/public/{institution_id}", response_model=Booking)
+@_booking_limiter.limit("10/minute")
 async def create_public_booking(
     institution_id: str,
     booking_data: BookingCreate,
     background_tasks: BackgroundTasks,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """Create public booking without authentication."""

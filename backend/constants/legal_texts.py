@@ -223,9 +223,10 @@ VOP_SECTIONS = {
             "number": 4,
             "title": "Role platformy (zásadní ustanovení)",
             "content": [
-                "4.1 Platforma je pouze zprostředkovatel (technický nástroj).",
-                "4.2 Provozovatel:\n- nevstupuje do smluv mezi Institucí a zákazníkem\n- nenese odpovědnost za realizaci služeb",
-                "4.3 Provozovatel nenese odpovědnost za:\n- neuskutečněné rezervace\n- storna\n- kvalitu služeb\n- škody mezi stranami"
+                "4.1 Platforma Budeživo.cz je pouze zprostředkovatelem (technickým nástrojem) mezi institucemi a jejich zákazníky.",
+                "4.2 Provozovatel:\n- nevstupuje do smluvních vztahů mezi Institucí a zákazníkem\n- není poskytovatelem nabízených služeb\n- nenese odpovědnost za realizaci, průběh ani kvalitu služeb",
+                "4.3 Veškeré závazky vznikají výhradně mezi Institucí a zákazníkem.",
+                "4.4 Provozovatel nenese odpovědnost za:\n- neuskutečněné rezervace (např. nedostavení se školy)\n- storna rezervací nebo změny termínů\n- škody vzniklé mezi Institucí a zákazníkem\n- kvalitu poskytovaných služeb\n- jakékoliv nepřímé nebo následné škody"
             ]
         },
         {
@@ -327,6 +328,17 @@ VOP_SECTIONS = {
                 "15.1 Neplatnost části neovlivňuje celek.",
                 "15.2 Řídí se právem ČR.",
                 "15.3 Spory řeší soudy ČR."
+            ]
+        },
+        {
+            "number": 16,
+            "title": "Ochrana systému a duševního vlastnictví",
+            "content": [
+                "16.1 Platforma Budeživo.cz, včetně jejího zdrojového kódu, funkční logiky, struktury, databází a uživatelského rozhraní, je chráněna jako autorské dílo a obchodní tajemství provozovatele.",
+                "16.2 Instituce získává pouze nevýhradní a nepřenosné právo užívat platformu v rozsahu stanoveném těmito podmínkami.",
+                "16.3 Instituce se zavazuje, že nebude:\n- kopírovat, upravovat nebo jinak reprodukovat platformu nebo její části\n- analyzovat, dekompilovat nebo se pokoušet o reverzní inženýrství systému\n- využívat platformu nebo její části za účelem vývoje nebo podpory konkurenční služby\n- systematicky získávat nebo využívat data z platformy (zejména kontakty škol) pro jiné než oprávněné účely\n- obcházet platformu za účelem přímého sjednání služeb mimo systém, pokud k navázání kontaktu došlo prostřednictvím platformy",
+                "16.4 Veškerá práva k:\n- zdrojovému kódu\n- rezervační a kolizní logice\n- architektuře systému\n- designu a UX řešení\nnáleží výhradně provozovateli.",
+                "16.5 V případě porušení těchto ustanovení je provozovatel oprávněn:\n- okamžitě omezit nebo ukončit přístup Instituce k platformě\n- požadovat náhradu vzniklé škody"
             ]
         }
     ]

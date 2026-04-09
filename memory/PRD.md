@@ -95,4 +95,8 @@ Pro testování na preview prostředí je potřeba v Azure Portal přidat Redire
 
 Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 
-*Poslední aktualizace: 9. dubna 2026*
+### Fáze 19 - Aktualizace VOP (10.4.2026)
+- [x] Bod 4 rozšířen: podrobný popis role platformy (4.1–4.4)
+- [x] Nový bod 16: Ochrana systému a duševního vlastnictví (16.1–16.5)
+
+*Poslední aktualizace: 10. dubna 2026*

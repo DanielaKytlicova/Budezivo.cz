@@ -7,7 +7,7 @@ Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538 (není plátce DP
 ## Technologický stack
 - **Frontend:** React 18, TailwindCSS, Shadcn/UI, Axios
 - **Backend:** FastAPI, SQLAlchemy Async, Pydantic, slowapi, icalendar
-- **Databáze:** Supabase (PostgreSQL)
+- **Databáze:** Supabase (PostgreSQL) + pg_advisory_xact_lock
 - **Emaily:** Resend API (s ICS přílohou)
 - **Scheduler:** APScheduler (feedback, GDPR, auto-archivace)
 
@@ -24,30 +24,32 @@ Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538 (není plátce DP
 - Demo data seeding, Statistics fix
 
 ### Fáze 17 - Audit Log + Program Filtering (8.4.2026)
-- [x] Audit Log: DB + API + admin stránka s filtrováním
+- [x] Audit Log: DB + API + admin stránka
 - [x] Program filtering: BookingPage filtrační panel + URL params
-- [x] Admin URL generátor s filtry věkových kategorií
-- [x] Backend fallback matching (_matches_age)
+- [x] Admin URL generátor s filtry
 
-### Fáze 18 - Outlook Calendar Integration (Fáze A) (8.4.2026)
-- [x] **ICS Feed Endpoints**: 3 endpointy pro export rezervací
-  - `GET /api/calendar/institution/{id}.ics` — všechny rezervace instituce
-  - `GET /api/calendar/program/{id}.ics` — rezervace konkrétního programu
-  - `GET /api/calendar/reservation/{id}.ics` — jednotlivá rezervace
-- [x] **Timezone**: Europe/Prague (TZID), správný VEVENT formát
-- [x] **Status filter**: `?status=confirmed` query parameter
-- [x] **Content-Type**: `text/calendar; charset=utf-8` + Content-Disposition attachment
-- [x] **Admin BookingsPage**: Tlačítko "Outlook kalendář" v hlavičce (stáhne instituční ICS feed)
-- [x] **Booking detail modal**: Tlačítko "Přidat do Outlooku (.ics)" pro jednotlivou rezervaci
-- [x] **Veřejná success stránka**: Tlačítko "Přidat do Outlooku" po odeslání rezervace
-- [x] **ICS příloha v emailu**: `_generate_ics_attachment()` v `send_booking_confirmation`
-- [x] **ICS formát**: UID@budezivo.cz, SUMMARY, DTSTART/DTEND, DESCRIPTION (škola, počty, kontakt), LOCATION, STATUS
+### Fáze 18A - Outlook ICS Export (8.4.2026)
+- [x] ICS Feed: `/api/calendar/institution/{id}.ics`, `/program/{id}.ics`, `/reservation/{id}.ics`
+- [x] Tlačítko "Přidat do Outlooku" v admin + veřejné success stránce
+- [x] ICS příloha v potvrzovacím emailu
+
+### Fáze 18B - Kolizní systém Hardening (9.4.2026)
+- [x] **R1 — Kolize lektora při přiřazení**: `assign_lecturer` a `admin_assign_lecturer` nyní kontrolují časový překryv → 409 při konfliktu
+- [x] **R2 — Oprava `check_booking_collision`**: Využívá `assigned_lecturer_id` z programu jako fallback
+- [x] **R3 — Aktivace `check_lecturer_available_for_block`**: Kontrola recurring availability + time-off bloků
+- [x] **R4 — Místnosti (rooms)**:
+  - DB tabulka `rooms` (id, institution_id, name, capacity, equipment, is_active)
+  - `room_id` FK na `programs`
+  - CRUD API: `GET/POST /api/rooms`, `PATCH/DELETE /api/rooms/{id}`
+  - Kolizní kontrola: Pokud `"room" in collision_resources` a dva programy sdílí `room_id`, překryv blokován
+  - Frontend: Room management inline v záložce Kolize (dropdown + create/delete)
+- [x] **R5 — Advisory Lock**: `pg_advisory_xact_lock(hash(institution_id, date))` v `check_booking_collision` brání race conditions
 
 ---
 
 ## Testovací přístupy
 - **Demo účet:** demo@budezivo.cz / Demo2026!
-- **Test reports:** iteration_21-25
+- **Test reports:** iteration_21-26
 
 ---
 
@@ -75,17 +77,17 @@ Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538 (není plátce DP
 ---
 
 ## Klíčové API endpointy
-- `GET /api/calendar/institution/{id}.ics?status=confirmed` — ICS feed
-- `GET /api/calendar/program/{id}.ics` — ICS per program
-- `GET /api/calendar/reservation/{id}.ics` — Single ICS download
+- `GET/POST /api/rooms` — CRUD místností
+- `PATCH/DELETE /api/rooms/{id}`
+- `POST /api/bookings/{id}/assign-lecturer-admin` — nyní s 409 kolizní kontrolou
+- `GET /api/calendar/institution/{id}.ics` — ICS feed
 - `GET /api/programs/public/{id}?age=MS,ZS1` — Filtrované programy
-- `GET /api/audit-log` — Audit log
 
-## Architektura
+## DB Schema (nové)
 ```
-/app/backend/routes/calendar_export.py  - ICS feed endpoints (NEW)
-/app/backend/services/email_service.py  - ICS attachment in emails (UPDATED)
-/app/backend/main.py                    - calendar_export_router registered
+rooms: id, institution_id, name, capacity, equipment, is_active
+programs: + room_id (FK → rooms.id)
+reservations: + composite index (institution_id, date, status)
 ```
 
-*Poslední aktualizace: 8. dubna 2026*
+*Poslední aktualizace: 9. dubna 2026*

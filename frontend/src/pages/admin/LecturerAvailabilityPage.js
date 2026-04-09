@@ -110,6 +110,7 @@ export const LecturerAvailabilityPage = () => {
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchTeam(); }, [fetchTeam]);
   useEffect(() => { fetchOutlookStatus(); }, [token]);
+  useEffect(() => { if (outlookStatus.connected) fetchOutlookBlocks(); }, [weekStart, lecturerId, outlookStatus.connected]);
 
   // Listen for OAuth popup messages
   useEffect(() => {
@@ -342,17 +343,27 @@ export const LecturerAvailabilityPage = () => {
     const dayOneOffs = oneOffs.filter(o => o.specific_date === dateStr);
     const allAvail = [...avail, ...dayOneOffs];
     const offs = timeOffs.filter(t => t.start_date <= dateStr && t.end_date >= dateStr);
-    return { avail: allAvail, offs };
+    
+    // Outlook blocks for this day
+    const dayOutlook = outlookBlocks.filter(b => {
+      const bDate = new Date(b.start_time).toISOString().slice(0, 10);
+      return bDate === dateStr;
+    });
+    
+    return { avail: allAvail, offs, outlook: dayOutlook };
   };
 
   const renderCalendarCell = (dayIndex, hour) => {
-    const { avail, offs } = getBlocksForDay(dayIndex);
+    const { avail, offs, outlook } = getBlocksForDay(dayIndex);
     const cellStart = hour * 60;
     const cellEnd = (hour + 1) * 60;
 
     let isAvailable = false;
     let isBlocked = false;
     let blockReason = '';
+    let isOutlookBlock = false;
+    let isOutlookOverride = false;
+    let outlookTitle = '';
 
     for (const a of avail) {
       const aStart = timeToMinutes(a.start_time);
@@ -378,11 +389,33 @@ export const LecturerAvailabilityPage = () => {
       }
     }
 
+    // Check Outlook blocks
+    for (const ob of (outlook || [])) {
+      const obStart = new Date(ob.start_time);
+      const obEnd = new Date(ob.end_time);
+      const obStartMin = obStart.getHours() * 60 + obStart.getMinutes();
+      const obEndMin = obEnd.getHours() * 60 + obEnd.getMinutes();
+      if (cellStart < obEndMin && cellEnd > obStartMin) {
+        isOutlookBlock = true;
+        isOutlookOverride = ob.override || false;
+        outlookTitle = ob.title || 'Outlook';
+        break;
+      }
+    }
+
     let bg = 'bg-gray-50';
     let textColor = 'text-gray-300';
     let title = 'Nedostupný';
 
-    if (isBlocked && isAvailable) {
+    if (isOutlookBlock && !isOutlookOverride) {
+      bg = 'bg-slate-200 border-slate-300';
+      textColor = 'text-slate-600';
+      title = `Outlook: ${outlookTitle}`;
+    } else if (isOutlookBlock && isOutlookOverride) {
+      bg = 'bg-amber-100 border-amber-300';
+      textColor = 'text-amber-700';
+      title = `Povoleno: ${outlookTitle}`;
+    } else if (isBlocked && isAvailable) {
       bg = 'bg-red-100 border-red-200';
       textColor = 'text-red-600';
       title = blockReason;
@@ -403,9 +436,9 @@ export const LecturerAvailabilityPage = () => {
         title={title}
         data-testid={`cal-cell-${dayIndex}-${hour}`}
       >
-        {(isAvailable || isBlocked) && (
+        {(isAvailable || isBlocked || isOutlookBlock) && (
           <div className={`absolute inset-0 flex items-center justify-center ${textColor} text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity`}>
-            {isBlocked ? 'Blokace' : 'Volný'}
+            {isOutlookBlock ? outlookTitle : (isBlocked ? 'Blokace' : 'Volný')}
           </div>
         )}
       </div>
@@ -536,40 +569,35 @@ export const LecturerAvailabilityPage = () => {
             </div>
           </div>
 
-          {/* Outlook blocks list for current week */}
+          {/* Outlook blocks inline controls (compact) */}
           {outlookBlocks.length > 0 && (
-            <div className="mt-3 pt-3 border-t space-y-1.5">
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Outlook bloky tento týden</p>
-              {outlookBlocks.map(block => (
-                <div
-                  key={block.id}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
-                    block.override ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50 border border-gray-200'
-                  }`}
-                  data-testid={`outlook-block-${block.id}`}
-                >
-                  <div>
-                    <span className="font-medium text-slate-700">{block.title || 'Outlook událost'}</span>
-                    <span className="ml-2 text-xs text-gray-500">
-                      {new Date(block.start_time).toLocaleString('cs-CZ', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}
-                      {' – '}
-                      {new Date(block.end_time).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    {block.override && (
-                      <span className="ml-2 text-xs text-amber-600 font-medium">Ručně povoleno</span>
-                    )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
+            <div className="mt-3 pt-3 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  {outlookBlocks.length} Outlook {outlookBlocks.length === 1 ? 'blok' : 'bloků'} tento týden
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {outlookBlocks.map(block => (
+                  <button
+                    key={block.id}
                     onClick={() => toggleBlockOverride(block.id)}
-                    className={block.override ? 'text-gray-600' : 'text-amber-600'}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      block.override 
+                        ? 'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200' 
+                        : 'bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200'
+                    }`}
+                    title={block.override ? 'Klikněte pro blokaci' : 'Klikněte pro povolení rezervací'}
                     data-testid={`toggle-override-${block.id}`}
                   >
-                    {block.override ? 'Znovu blokovat' : 'Povolit rezervace'}
-                  </Button>
-                </div>
-              ))}
+                    <span className={`w-1.5 h-1.5 rounded-full ${block.override ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                    {block.title || 'Outlook'}
+                    <span className="text-[10px] opacity-70">
+                      {new Date(block.start_time).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </Card>

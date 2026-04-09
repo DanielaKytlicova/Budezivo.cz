@@ -38,6 +38,25 @@ GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 _oauth_states: dict = {}
 
 
+def _get_redirect_uri(request: Request) -> str:
+    """Build redirect URI from the current request's public-facing host."""
+    # Prefer X-Forwarded-Host (set by reverse proxy/ingress)
+    fwd_host = request.headers.get("x-forwarded-host")
+    fwd_proto = request.headers.get("x-forwarded-proto", "https")
+    if fwd_host:
+        return f"{fwd_proto}://{fwd_host}/api/microsoft-calendar/callback"
+    
+    # Fallback: use Origin/Referer header
+    origin = request.headers.get("origin") or request.headers.get("referer")
+    if origin:
+        from urllib.parse import urlparse
+        parsed = urlparse(origin)
+        base = f"{parsed.scheme}://{parsed.netloc}"
+        return f"{base}/api/microsoft-calendar/callback"
+    
+    return REDIRECT_URI or "https://budezivo.cz/api/microsoft-calendar/callback"
+
+
 def _get_msal_app():
     return msal.ConfidentialClientApplication(
         client_id=CLIENT_ID,
@@ -51,6 +70,7 @@ def _get_msal_app():
 
 @router.get("/connect")
 async def connect_outlook(
+    request: Request,
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -60,16 +80,19 @@ async def connect_outlook(
     if not CLIENT_ID or not CLIENT_SECRET:
         raise HTTPException(status_code=500, detail="Microsoft OAuth není nakonfigurován")
 
+    redirect = _get_redirect_uri(request)
+
     state = secrets.token_urlsafe(32)
     _oauth_states[state] = {
         "user_id": current_user["user_id"],
         "institution_id": current_user["institution_id"],
+        "redirect_uri": redirect,
     }
 
     params = {
         "client_id": CLIENT_ID,
         "response_type": "code",
-        "redirect_uri": REDIRECT_URI,
+        "redirect_uri": redirect,
         "response_mode": "query",
         "scope": " ".join(SCOPES),
         "state": state,
@@ -103,9 +126,10 @@ async def oauth_callback(
     if not user_data:
         return _close_popup_html("Neplatný stav relace. Zkuste to znovu.")
 
-    # Exchange code for tokens
+    # Exchange code for tokens — use redirect_uri matching the one used in /connect
+    redirect = user_data.get("redirect_uri", REDIRECT_URI)
     try:
-        token_data = await _exchange_code_for_tokens(code)
+        token_data = await _exchange_code_for_tokens(code, redirect)
     except Exception as e:
         logger.error(f"Token exchange failed: {e}")
         return _close_popup_html(f"Nepodařilo se získat token: {e}")
@@ -320,14 +344,14 @@ async def toggle_override(
 # ── Internal Helpers ────────────────────────────────────────────────
 
 
-async def _exchange_code_for_tokens(code: str) -> dict:
+async def _exchange_code_for_tokens(code: str, redirect_uri: str = None) -> dict:
     """Exchange authorization code for access + refresh tokens."""
     token_url = f"{AUTHORITY}/oauth2/v2.0/token"
     data = {
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
         "code": code,
-        "redirect_uri": REDIRECT_URI,
+        "redirect_uri": redirect_uri or REDIRECT_URI,
         "grant_type": "authorization_code",
         "scope": " ".join(SCOPES),
     }

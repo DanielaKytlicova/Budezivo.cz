@@ -205,6 +205,59 @@ async def check_booking_collision(
     return None
 
 
+async def check_availability_blocks(
+    db: AsyncSession,
+    lecturer_id: str,
+    institution_id: str,
+    date: str,
+    time_block: str,
+    duration: int,
+) -> Optional[str]:
+    """
+    Check if a lecturer has an Outlook/manual availability block
+    that prevents booking (source=outlook, override=false).
+    Returns error message if blocked, None if OK.
+    """
+    from database.models import AvailabilityBlock
+    import pytz
+
+    PRAGUE_TZ = pytz.timezone("Europe/Prague")
+    lect_uuid = uuid.UUID(lecturer_id)
+
+    start_min, end_min = parse_time_block(time_block)
+    if start_min is None:
+        return None
+    if end_min is None:
+        end_min = start_min + duration
+
+    year, month, day = map(int, date.split("-"))
+    booking_start = PRAGUE_TZ.localize(
+        __import__("datetime").datetime(year, month, day, start_min // 60, start_min % 60)
+    )
+    booking_end = PRAGUE_TZ.localize(
+        __import__("datetime").datetime(year, month, day, end_min // 60, end_min % 60)
+    )
+
+    result = await db.execute(
+        select(AvailabilityBlock).where(and_(
+            AvailabilityBlock.user_id == lect_uuid,
+            AvailabilityBlock.end_time > booking_start,
+            AvailabilityBlock.start_time < booking_end,
+            AvailabilityBlock.override == False,
+        ))
+    )
+    blocks = result.scalars().all()
+
+    for block in blocks:
+        return (
+            f"Lektor má blokaci v kalendáři: '{block.title or 'Outlook událost'}' "
+            f"({block.start_time.strftime('%H:%M')}–{block.end_time.strftime('%H:%M')}). "
+            f"Zdroj: {'Outlook' if block.source == 'outlook' else 'Ruční blokace'}."
+        )
+
+    return None
+
+
 async def check_lecturer_collision_for_assignment(
     db: AsyncSession,
     lecturer_id: str,
@@ -270,6 +323,13 @@ async def check_lecturer_collision_for_assignment(
             f"Lektor není dostupný dne {booking.date} v čase {booking.time_block} "
             f"(mimo pracovní dobu nebo má blokaci)."
         )
+
+    # Check Outlook / manual availability blocks
+    block_error = await check_availability_blocks(
+        db, lecturer_id, institution_id, str(booking.date), booking.time_block, booking_duration
+    )
+    if block_error:
+        return block_error
 
     return None
 

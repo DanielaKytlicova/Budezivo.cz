@@ -435,8 +435,25 @@ def start_scheduler():
         misfire_grace_time=3600
     )
     
+    # Outlook calendar sync — every 5 minutes
+    from apscheduler.triggers.interval import IntervalTrigger
+    async def _run_outlook_sync():
+        try:
+            from routes.microsoft_calendar import sync_all_integrations
+            await sync_all_integrations()
+        except Exception as e:
+            logger.error(f"Outlook sync scheduler error: {e}")
+    
+    scheduler.add_job(
+        _run_outlook_sync,
+        IntervalTrigger(minutes=5),
+        id='outlook_calendar_sync',
+        replace_existing=True,
+        misfire_grace_time=300
+    )
+    
     scheduler.start()
-    logger.info("Feedback scheduler started - runs daily at 8:00 AM CET, reminders at 9:00 AM CET, GDPR cleanup at 4:00 AM CET")
+    logger.info("Feedback scheduler started - includes Outlook sync every 5 min")
 
 
 def stop_scheduler():

@@ -692,3 +692,41 @@ class AuditLog(Base):
         Index('idx_audit_logs_institution', 'institution_id'),
         Index('idx_audit_logs_created', 'created_at'),
     )
+
+
+
+class UserCalendarIntegration(Base):
+    """Stores Microsoft OAuth tokens for calendar sync."""
+    __tablename__ = 'user_calendar_integrations'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    provider = Column(Text, nullable=False, default='microsoft')
+    access_token = Column(Text)
+    refresh_token = Column(Text)
+    expires_at = Column(DateTime(timezone=True))
+    microsoft_user_id = Column(Text)
+    external_calendar_id = Column(Text)
+    is_active = Column(Boolean, default=True)
+    last_sync_at = Column(DateTime(timezone=True))
+    sync_error = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class AvailabilityBlock(Base):
+    """External calendar blocks (Outlook) or manual blocks for availability."""
+    __tablename__ = 'availability_blocks'
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    start_time = Column(DateTime(timezone=True), nullable=False)
+    end_time = Column(DateTime(timezone=True), nullable=False)
+    source = Column(Text, nullable=False, default='manual')  # 'outlook' | 'manual'
+    external_event_id = Column(Text)
+    title = Column(Text)
+    override = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))

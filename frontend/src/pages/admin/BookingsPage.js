@@ -182,7 +182,8 @@ export const BookingsPage = () => {
       setSelectedIds(new Set());
       fetchBookings();
     } catch (error) {
-      toast.error(error.response?.data?.detail || `Chyba při hromadném ${labels[status]}`);
+      const detail = error.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : `Chyba při hromadném ${labels[status]}`);
     } finally {
       setBulkLoading(false);
     }
@@ -213,13 +214,29 @@ export const BookingsPage = () => {
     if (!selectedBooking) return;
     
     try {
-      await axios.put(`${API}/bookings/${selectedBooking.id}`, editData);
+      // Only send fields relevant to the current edit mode
+      let payload = {};
+      if (editMode === 'datetime') {
+        payload = { date: editData.date, time_block: editData.time_block };
+      } else if (editMode === 'attendance') {
+        payload = { actual_students: editData.actual_students || 0, actual_teachers: editData.actual_teachers || 0 };
+      } else if (editMode === 'contact') {
+        payload = { contact_name: editData.contact_name, contact_email: editData.contact_email, contact_phone: editData.contact_phone };
+      } else if (editMode === 'notes') {
+        payload = { notes: editData.notes };
+      } else {
+        payload = editData;
+      }
+
+      await axios.put(`${API}/bookings/${selectedBooking.id}`, payload);
       toast.success('Rezervace byla aktualizována');
       fetchBookings();
-      setSelectedBooking(prev => ({ ...prev, ...editData }));
+      setSelectedBooking(prev => ({ ...prev, ...payload }));
       setEditMode(null);
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Chyba při aktualizaci');
+      const detail = error.response?.data?.detail;
+      const msg = typeof detail === 'string' ? detail : 'Chyba při aktualizaci rezervace';
+      toast.error(msg);
     }
   };
 
@@ -233,7 +250,8 @@ export const BookingsPage = () => {
       const updatedBooking = await axios.get(`${API}/bookings/${selectedBooking.id}`);
       setSelectedBooking(updatedBooking.data);
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Chyba při přiřazení lektora');
+      const detail = error.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Chyba při přiřazení lektora');
     }
   };
 
@@ -250,7 +268,8 @@ export const BookingsPage = () => {
       setSelectedBooking(updatedBooking.data);
       setSelectedLecturer('');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Chyba při přiřazení lektora');
+      const detail = error.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Chyba při přiřazení lektora');
     }
   };
 
@@ -268,7 +287,8 @@ export const BookingsPage = () => {
         assigned_lecturer_at: null
       }));
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Chyba při odhlášení lektora');
+      const detail = error.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Chyba při odhlášení lektora');
     }
   };
 

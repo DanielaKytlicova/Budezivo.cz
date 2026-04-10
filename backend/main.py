@@ -217,6 +217,10 @@ app.add_middleware(
 
 app.add_middleware(SecurityHeadersMiddleware)
 
+# WAF middleware — must be added after CORS (outermost = first to execute)
+from middleware.waf import WAFMiddleware
+app.add_middleware(WAFMiddleware)
+
 
 # ============ Event Handlers ============
 

@@ -18,7 +18,7 @@ from sqlalchemy import select, and_, delete
 
 from core.security import get_current_user
 from database.supabase import get_db
-from database.models import UserCalendarIntegration, AvailabilityBlock
+from database.models import UserCalendarIntegration, AvailabilityBlock, OAuthState
 
 router = APIRouter(prefix="/microsoft-calendar", tags=["Microsoft Calendar"])
 logger = logging.getLogger(__name__)
@@ -30,12 +30,11 @@ CLIENT_SECRET = os.environ.get("MICROSOFT_CLIENT_SECRET", "")
 TENANT_ID = os.environ.get("MICROSOFT_TENANT_ID", "")
 REDIRECT_URI = os.environ.get("MICROSOFT_REDIRECT_URI", "")
 
-AUTHORITY = f"https://login.microsoftonline.com/common"
+AUTHORITY = "https://login.microsoftonline.com/common"
 SCOPES = ["Calendars.Read", "User.Read", "offline_access"]
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
-# In-memory store for OAuth state → user_id mapping (simple for single-instance)
-_oauth_states: dict = {}
+OAUTH_STATE_TTL_MINUTES = 10
 
 
 def _get_redirect_uri(request: Request) -> str:
@@ -72,6 +71,7 @@ def _get_msal_app():
 async def connect_outlook(
     request: Request,
     current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Step 1: Redirect user to Microsoft login.
@@ -83,11 +83,17 @@ async def connect_outlook(
     redirect = _get_redirect_uri(request)
 
     state = secrets.token_urlsafe(32)
-    _oauth_states[state] = {
-        "user_id": current_user["user_id"],
-        "institution_id": current_user["institution_id"],
-        "redirect_uri": redirect,
-    }
+
+    # Persist state in DB (replaces in-memory dict)
+    oauth_state = OAuthState(
+        state=state,
+        user_id=uuid.UUID(current_user["user_id"]),
+        institution_id=uuid.UUID(current_user["institution_id"]),
+        redirect_uri=redirect,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=OAUTH_STATE_TTL_MINUTES),
+    )
+    db.add(oauth_state)
+    await db.commit()
 
     params = {
         "client_id": CLIENT_ID,
@@ -122,9 +128,25 @@ async def oauth_callback(
     if not code or not state:
         return _close_popup_html("Chybí autorizační kód")
 
-    user_data = _oauth_states.pop(state, None)
-    if not user_data:
+    # Look up state from DB (replaces in-memory dict)
+    result = await db.execute(
+        select(OAuthState).where(OAuthState.state == state)
+    )
+    oauth_row = result.scalar_one_or_none()
+    if not oauth_row or oauth_row.expires_at < datetime.now(timezone.utc):
+        if oauth_row:
+            await db.delete(oauth_row)
+            await db.commit()
         return _close_popup_html("Neplatný stav relace. Zkuste to znovu.")
+
+    user_data = {
+        "user_id": str(oauth_row.user_id),
+        "institution_id": str(oauth_row.institution_id),
+        "redirect_uri": oauth_row.redirect_uri,
+    }
+    # Delete used state
+    await db.delete(oauth_row)
+    await db.commit()
 
     # Exchange code for tokens — use redirect_uri matching the one used in /connect
     redirect = user_data.get("redirect_uri", REDIRECT_URI)

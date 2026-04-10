@@ -1,15 +1,22 @@
 """
-Security utilities: password hashing, JWT handling, authentication.
+Security utilities: password hashing, JWT handling, refresh tokens.
 """
+import hashlib
+import secrets
 import bcrypt
 import jwt
 from datetime import datetime, timezone, timedelta
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from .config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
+from .config import JWT_SECRET, JWT_ALGORITHM
 
 security = HTTPBearer()
+
+# Access token: short-lived (15 min)
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+# Refresh token: long-lived (30 days)
+REFRESH_TOKEN_EXPIRE_DAYS = 30
 
 
 def hash_password(password: str) -> str:
@@ -23,15 +30,25 @@ def verify_password(password: str, hashed: str) -> bool:
 
 
 def create_jwt_token(user_id: str, institution_id: str, email: str, role: str = "viewer") -> str:
-    """Create a JWT token for authenticated user."""
+    """Create a short-lived JWT access token."""
     payload = {
         "user_id": user_id,
         "institution_id": institution_id,
         "email": email,
         "role": role,
-        "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def generate_refresh_token() -> str:
+    """Generate a cryptographically secure opaque refresh token."""
+    return secrets.token_urlsafe(64)
+
+
+def hash_refresh_token(token: str) -> str:
+    """SHA-256 hash of a refresh token for safe DB storage."""
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:

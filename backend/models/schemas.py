@@ -56,6 +56,7 @@ class User(BaseModel):
 
 class TokenResponse(BaseModel):
     token: str
+    refresh_token: Optional[str] = None
     user: Dict[str, Any]
 
 

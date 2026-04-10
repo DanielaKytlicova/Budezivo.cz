@@ -1,0 +1,140 @@
+{
+  "summary": "Security hardening testing completed. All 24 backend tests pass (100%). Frontend auth flow verified: login stores both tokens, logout clears localStorage. All new security features working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_security_hardening.py",
+    "/app/test_reports/pytest/pytest_security_hardening.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "A1-A6: Refresh token flow fully implemented - login returns both tokens, refresh rotates tokens, logout revokes tokens, old tokens rejected",
+    "A7-A9: Frontend AuthContext correctly stores/clears tokens in localStorage, has 401 interceptor for auto-refresh",
+    "B1: OAuth state persistence implemented in DB via OAuthState model with 10 min TTL - replaces in-memory dict",
+    "C1-C6: WAF middleware blocks SQL injection (DROP, UNION SELECT, SLEEP/BENCHMARK) and XSS (script tags, javascript:, event handlers)",
+    "JWT access token correctly set to 15 minutes expiry (verified via JWT decode)",
+    "Refresh token rotation working - old tokens are deleted after use",
+    "All regression tests pass - admin login, public programs, calendar availability, debug endpoints require auth, ICS feeds require tokens"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_security_hardening.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_user": "demo@budezivo.cz",
+    "admin_password": "Demo2026!",
+    "institution_id": "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
+  },
+  "seed_data_creation": "None required - testing existing endpoints",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Security hardening testing completed. All features verified: (A) Refresh tokens with rotation and revocation, (B) OAuth state persistence in DB, (C) WAF middleware blocking SQL/XSS. Test file: /app/backend/tests/test_security_hardening.py with 24 tests. Previous security audit tests in test_security_audit.py still valid.",
+  "verified_features": [
+    {
+      "feature": "A1: POST /api/auth/login returns both 'token' and 'refresh_token' fields",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "A2: Access token expires in ~15 minutes (JWT 'exp' field verified)",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "A3: POST /api/auth/refresh with valid refresh_token returns new token pair",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "A4: POST /api/auth/refresh with old (rotated) refresh_token returns 401",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "A5: POST /api/auth/logout revokes the refresh token",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "A6: POST /api/auth/refresh after logout returns 401",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "A7: Frontend login stores both 'token' and 'refresh_token' in localStorage",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "A8: Frontend auto-refreshes token when 401 received (axios interceptor in AuthContext.js lines 74-113)",
+      "status": "VERIFIED (code review)"
+    },
+    {
+      "feature": "A9: Frontend logout calls /api/auth/logout and clears localStorage",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "B1: Microsoft Calendar /connect endpoint persists OAuth state in DB (OAuthState model)",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "B1: /connect requires auth, /status returns connection status",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "C1: WAF blocks SQL injection DROP TABLE pattern",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "C2: WAF blocks UNION SELECT pattern",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "C3: WAF blocks XSS <script> tags in query params",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "C4: WAF blocks XSS in POST body",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "C5: WAF allows normal legitimate requests through",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "C6: WAF blocks SLEEP/BENCHMARK injection",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "WAF blocks javascript: protocol XSS",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "WAF blocks event handler XSS (onerror, onclick)",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Regression: Admin login and dashboard still works",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Regression: Public programs endpoint still works",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Regression: Calendar availability still works",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Regression: Debug endpoints require auth",
+      "status": "VERIFIED"
+    },
+    {
+      "feature": "Regression: ICS feeds require tokens",
+      "status": "VERIFIED"
+    }
+  ]
+}

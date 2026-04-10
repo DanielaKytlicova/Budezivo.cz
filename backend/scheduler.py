@@ -452,6 +452,34 @@ def start_scheduler():
         misfire_grace_time=300
     )
     
+    # Cleanup expired OAuth states & refresh tokens: run hourly
+    async def _cleanup_auth_tokens():
+        try:
+            from database.models import OAuthState, RefreshToken
+            from sqlalchemy import delete
+            async with AsyncSessionLocal() as session:
+                now = datetime.now(timezone.utc)
+                # Delete expired OAuth states
+                await session.execute(
+                    delete(OAuthState).where(OAuthState.expires_at < now)
+                )
+                # Delete expired refresh tokens
+                await session.execute(
+                    delete(RefreshToken).where(RefreshToken.expires_at < now)
+                )
+                await session.commit()
+                logger.info("Auth token cleanup completed")
+        except Exception as e:
+            logger.error(f"Auth token cleanup error: {e}")
+
+    scheduler.add_job(
+        _cleanup_auth_tokens,
+        CronTrigger(minute=30),
+        id='auth_token_cleanup',
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+
     scheduler.start()
     logger.info("Feedback scheduler started - includes Outlook sync every 5 min")
 

@@ -153,6 +153,16 @@ class Booking(BookingBase):
     created_at: datetime
 
 
+class PublicBooking(BookingBase):
+    """Public booking response - excludes internal fields like institution_id, notes, etc."""
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    status: str = "pending"
+    terms_accepted: Optional[bool] = None
+    program_name: Optional[str] = None
+    created_at: datetime
+
+
 class BookingUpdate(BaseModel):
     status: Optional[str] = None
     actual_students: Optional[int] = None

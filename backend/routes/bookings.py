@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-from models.schemas import BookingCreate, Booking, BookingUpdate
+from models.schemas import BookingCreate, Booking, BookingUpdate, PublicBooking
 from core.security import get_current_user
 from database.supabase import get_db, AsyncSessionLocal
 from database.supabase_repositories import (
@@ -45,6 +45,18 @@ router = APIRouter(prefix="/bookings", tags=["Bookings"])
 logger = logging.getLogger(__name__)
 _booking_limiter = Limiter(key_func=get_remote_address)
 
+# Fields to strip from public booking responses
+_INTERNAL_BOOKING_FIELDS = {
+    "assigned_lecturer_id", "assigned_lecturer_name", "assigned_lecturer_at",
+    "terms_accepted_at", "terms_accepted_text_version",
+    "institution_id", "actual_students", "actual_teachers", "notes",
+}
+
+
+def _strip_internal_fields(booking: dict) -> dict:
+    """Remove internal metadata from booking for public response."""
+    return {k: v for k, v in booking.items() if k not in _INTERNAL_BOOKING_FIELDS}
+
 
 @router.post("", response_model=Booking)
 async def create_booking(
@@ -69,7 +81,7 @@ async def create_booking(
     return booking
 
 
-@router.post("/public/{institution_id}", response_model=Booking)
+@router.post("/public/{institution_id}", response_model=PublicBooking)
 @_booking_limiter.limit("10/minute")
 async def create_public_booking(
     institution_id: str,
@@ -124,7 +136,7 @@ async def create_public_booking(
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         logger.info(f"Demo booking created for {booking_data.contact_email}")
-        return demo_booking
+        return _strip_internal_fields(demo_booking)
     
     # Create booking
     # First check for collisions
@@ -150,6 +162,8 @@ async def create_public_booking(
     
     logger.info(f"Booking created: {booking['id']} for {booking_data.contact_email}")
     
+    # Strip internal fields from public response (keep full booking for email processing)
+    public_booking = _strip_internal_fields(booking)
     # Send confirmation emails in background (if program has email enabled)
     try:
         program = await program_repo.find_by_id(booking_data.program_id, institution_id)
@@ -211,7 +225,7 @@ async def create_public_booking(
     except Exception as e:
         logger.error(f"Error preparing booking email: {str(e)}")
     
-    return booking
+    return public_booking
 
 
 @router.get("", response_model=List[Booking])

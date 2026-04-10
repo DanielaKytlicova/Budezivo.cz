@@ -63,6 +63,12 @@ export const StatisticsPage = () => {
   const [isPro, setIsPro] = useState(false);
   const [feedbackStats, setFeedbackStats] = useState(null);
   const [loadingFeedback, setLoadingFeedback] = useState(true);
+
+  // Advanced analytics state
+  const [heatmapData, setHeatmapData] = useState(null);
+  const [trendsData, setTrendsData] = useState(null);
+  const [topSchools, setTopSchools] = useState(null);
+  const [conversionData, setConversionData] = useState(null);
   
   // Filtry
   const [periodType, setPeriodType] = useState('month');
@@ -74,6 +80,7 @@ export const StatisticsPage = () => {
     fetchStatistics();
     fetchFeedbackStatistics();
     checkProStatus();
+    fetchAdvancedAnalytics();
   }, [periodType, selectedYear, selectedMonth, selectedSemester]);
 
   const checkProStatus = async () => {
@@ -174,6 +181,24 @@ export const StatisticsPage = () => {
       }
     } finally {
       setExporting(false);
+    }
+  };
+
+  const fetchAdvancedAnalytics = async () => {
+    const params = `year=${selectedYear}&month=${selectedMonth}`;
+    try {
+      const [hm, tr, ts, cv] = await Promise.all([
+        axios.get(`${API}/statistics/heatmap?${params}`),
+        axios.get(`${API}/statistics/trends?year=${selectedYear}`),
+        axios.get(`${API}/statistics/top-schools?${params}`),
+        axios.get(`${API}/statistics/conversion?${params}`),
+      ]);
+      setHeatmapData(hm.data);
+      setTrendsData(tr.data);
+      setTopSchools(ts.data);
+      setConversionData(cv.data);
+    } catch {
+      // Silently fail — advanced analytics are optional
     }
   };
 
@@ -761,6 +786,134 @@ export const StatisticsPage = () => {
               >
                 Zobrazit plány
               </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* ── Pokročilá analytika ─────────────────────────── */}
+        <div className="pt-4 border-t border-gray-100">
+          <h2 className="text-lg font-semibold text-slate-800 mb-4" data-testid="advanced-analytics-heading">Pokročilá analytika</h2>
+        </div>
+
+        {/* Konverzní poměr */}
+        {conversionData && (
+          <Card className="p-4" data-testid="conversion-card">
+            <h3 className="font-medium text-slate-700 mb-3">Konverzní poměr — {conversionData.period}</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="text-center p-3 bg-slate-50 rounded-lg">
+                <div className="text-2xl font-bold text-slate-800">{conversionData.total}</div>
+                <div className="text-xs text-slate-500">Celkem</div>
+              </div>
+              <div className="text-center p-3 bg-emerald-50 rounded-lg">
+                <div className="text-2xl font-bold text-emerald-600">{conversionData.confirmed}</div>
+                <div className="text-xs text-slate-500">Potvrzeno</div>
+              </div>
+              <div className="text-center p-3 bg-amber-50 rounded-lg">
+                <div className="text-2xl font-bold text-amber-600">{conversionData.pending}</div>
+                <div className="text-xs text-slate-500">Čeká</div>
+              </div>
+              <div className="text-center p-3 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-500">{conversionData.cancelled}</div>
+                <div className="text-xs text-slate-500">Zrušeno</div>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${conversionData.conversion_rate}%` }} />
+              </div>
+              <span className="text-sm font-semibold text-slate-700">{conversionData.conversion_rate}%</span>
+            </div>
+          </Card>
+        )}
+
+        {/* Heatmapa vytíženosti */}
+        {heatmapData && heatmapData.time_blocks.length > 0 && (
+          <Card className="p-4" data-testid="heatmap-card">
+            <h3 className="font-medium text-slate-700 mb-3">Heatmapa vytíženosti — {heatmapData.period}</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr>
+                    <th className="p-2 text-left text-slate-500">Den</th>
+                    {heatmapData.time_blocks.map(tb => (
+                      <th key={tb} className="p-2 text-center text-slate-500">{tb}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {heatmapData.data.map((row) => (
+                    <tr key={row.day}>
+                      <td className="p-2 font-medium text-slate-700">{row.day}</td>
+                      {heatmapData.time_blocks.map(tb => {
+                        const val = row[tb] || 0;
+                        const maxVal = Math.max(...heatmapData.data.map(r => Math.max(...heatmapData.time_blocks.map(t => r[t] || 0))), 1);
+                        const intensity = val / maxVal;
+                        const bg = val === 0 ? 'bg-gray-50' : intensity > 0.7 ? 'bg-emerald-500 text-white' : intensity > 0.3 ? 'bg-emerald-200' : 'bg-emerald-100';
+                        return (
+                          <td key={tb} className={`p-2 text-center rounded ${bg}`}>
+                            {val > 0 ? val : ''}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+
+        {/* Trend graf */}
+        {trendsData && (
+          <Card className="p-4" data-testid="trends-card">
+            <h3 className="font-medium text-slate-700 mb-3">Roční trend — {trendsData.current_year} vs {trendsData.previous_year}</h3>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={trendsData.chart_data} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                  <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '8px', fontSize: '12px', border: '1px solid #e2e8f0' }}
+                    formatter={(value, name) => [value, name.includes('Žáci') ? 'Žáků' : 'Rezervací']}
+                  />
+                  <Bar dataKey={String(trendsData.current_year)} fill="#1E293B" radius={[3,3,0,0]} name={String(trendsData.current_year)} />
+                  <Bar dataKey={String(trendsData.previous_year)} fill="#CBD5E1" radius={[3,3,0,0]} name={String(trendsData.previous_year)} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        )}
+
+        {/* Top školy */}
+        {topSchools && topSchools.schools.length > 0 && (
+          <Card className="p-4" data-testid="top-schools-card">
+            <h3 className="font-medium text-slate-700 mb-3">Nejaktivnější školy — {topSchools.period}</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="p-2 text-left text-slate-500 text-xs">#</th>
+                    <th className="p-2 text-left text-slate-500 text-xs">Škola</th>
+                    <th className="p-2 text-center text-slate-500 text-xs">Rezervace</th>
+                    <th className="p-2 text-center text-slate-500 text-xs">Žáci</th>
+                    <th className="p-2 text-center text-slate-500 text-xs">Učitelé</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topSchools.schools.map((s, i) => (
+                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50">
+                      <td className="p-2 text-slate-400 text-xs">{i + 1}</td>
+                      <td className="p-2 font-medium text-slate-700">{s.name}</td>
+                      <td className="p-2 text-center">
+                        <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-xs font-medium">{s.bookings}</span>
+                      </td>
+                      <td className="p-2 text-center text-slate-600">{s.students}</td>
+                      <td className="p-2 text-center text-slate-600">{s.teachers}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </Card>
         )}

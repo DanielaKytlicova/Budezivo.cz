@@ -3,10 +3,12 @@ Authentication routes: register, login, refresh, logout, verify, forgot password
 Uses Supabase (PostgreSQL) for database operations.
 """
 import logging
+import os
 import re
 import uuid
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, delete
 from slowapi import Limiter
@@ -17,7 +19,8 @@ from pydantic import BaseModel, EmailStr
 from core.security import (
     hash_password, verify_password, create_jwt_token, get_current_user,
     generate_refresh_token, hash_refresh_token,
-    REFRESH_TOKEN_EXPIRE_DAYS,
+    REFRESH_TOKEN_EXPIRE_DAYS, ACCESS_TOKEN_EXPIRE_MINUTES,
+    COOKIE_NAME, REFRESH_COOKIE_NAME,
 )
 from core.config import FRONTEND_URL, JWT_SECRET
 from database.supabase import get_db
@@ -71,6 +74,34 @@ def _build_token_response(access_token: str, refresh_token: str, user_dict: dict
         "refresh_token": refresh_token,
         "user": user_dict,
     }
+
+
+def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: str):
+    """Set httpOnly secure cookies for both tokens."""
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/api",
+    )
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+        path="/api/auth",
+    )
+
+
+def _clear_auth_cookies(response: JSONResponse):
+    """Remove auth cookies."""
+    response.delete_cookie(key=COOKIE_NAME, path="/api")
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/api/auth")
 
 
 # ── Endpoints ──────────────────────────────────────────────────────
@@ -168,7 +199,7 @@ async def register(
 
     logger.info(f"New institution registered: {user_data.institution_name} ({user_data.email})")
 
-    return _build_token_response(access_token, refresh_tok, {
+    body = _build_token_response(access_token, refresh_tok, {
         "id": user["id"],
         "email": user_data.email,
         "name": user_data.name,
@@ -176,6 +207,9 @@ async def register(
         "institution_name": user_data.institution_name,
         "role": "admin",
     })
+    response = JSONResponse(content=body)
+    _set_auth_cookies(response, access_token, refresh_tok)
+    return response
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -199,7 +233,7 @@ async def login(request: Request, credentials: UserLogin, db: AsyncSession = Dep
     access_token = create_jwt_token(user["id"], user["institution_id"], user["email"], user["role"])
     refresh_tok = await _create_refresh_token(db, user["id"], request)
 
-    return _build_token_response(access_token, refresh_tok, {
+    body = _build_token_response(access_token, refresh_tok, {
         "id": user["id"],
         "email": user["email"],
         "name": user.get("name"),
@@ -207,21 +241,29 @@ async def login(request: Request, credentials: UserLogin, db: AsyncSession = Dep
         "institution_name": institution["name"] if institution else "",
         "role": user["role"],
     })
+    response = JSONResponse(content=body)
+    _set_auth_cookies(response, access_token, refresh_tok)
+    return response
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str = ""
 
 
 @router.post("/refresh")
 @limiter.limit("30/minute")
 async def refresh_access_token(request: Request, body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     """Exchange a valid refresh token for a new access token + rotated refresh token."""
-    token_hash = hash_refresh_token(body.refresh_token)
+    # Try body first, then cookie
+    raw_refresh = body.refresh_token or request.cookies.get(REFRESH_COOKIE_NAME, "")
+    if not raw_refresh:
+        raise HTTPException(status_code=401, detail="Refresh token chybí")
+
+    token_hash = hash_refresh_token(raw_refresh)
 
     result = await db.execute(
         select(RefreshToken).where(
-            and_(RefreshToken.token_hash == token_hash, RefreshToken.revoked == False)
+            and_(RefreshToken.token_hash == token_hash, RefreshToken.revoked.is_(False))
         )
     )
     stored = result.scalar_one_or_none()
@@ -250,7 +292,7 @@ async def refresh_access_token(request: Request, body: RefreshRequest, db: Async
     new_access = create_jwt_token(user["id"], user["institution_id"], user["email"], user["role"])
     new_refresh = await _create_refresh_token(db, user["id"], request)
 
-    return _build_token_response(new_access, new_refresh, {
+    body_data = _build_token_response(new_access, new_refresh, {
         "id": user["id"],
         "email": user["email"],
         "name": user.get("name"),
@@ -258,24 +300,33 @@ async def refresh_access_token(request: Request, body: RefreshRequest, db: Async
         "institution_name": institution["name"] if institution else "",
         "role": user["role"],
     })
+    response = JSONResponse(content=body_data)
+    _set_auth_cookies(response, new_access, new_refresh)
+    return response
 
 
 @router.post("/logout")
 async def logout(
-    body: RefreshRequest,
+    request: Request,
+    body: RefreshRequest = RefreshRequest(),
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Revoke the given refresh token (server-side logout)."""
-    token_hash = hash_refresh_token(body.refresh_token)
-    result = await db.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-    )
-    stored = result.scalar_one_or_none()
-    if stored:
-        await db.delete(stored)
-        await db.commit()
-    return {"message": "Odhlášení úspěšné"}
+    raw_refresh = body.refresh_token or request.cookies.get(REFRESH_COOKIE_NAME, "")
+    if raw_refresh:
+        token_hash = hash_refresh_token(raw_refresh)
+        result = await db.execute(
+            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        )
+        stored = result.scalar_one_or_none()
+        if stored:
+            await db.delete(stored)
+            await db.commit()
+
+    response = JSONResponse(content={"message": "Odhlášení úspěšné"})
+    _clear_auth_cookies(response)
+    return response
 
 
 @router.post("/forgot-password")
@@ -332,7 +383,6 @@ async def reset_password(
 ):
     """Reset user password using JWT token from email. Revokes all sessions."""
     import jwt as pyjwt
-    import os
 
     user_repo = UserRepositorySupabase(db)
     secret_key = os.environ.get("JWT_SECRET")

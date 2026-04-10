@@ -4,13 +4,15 @@ import { API } from '../config/api';
 
 export const AuthContext = createContext();
 
+// Configure axios to send cookies with every request
+axios.defaults.withCredentials = true;
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const refreshTimerRef = useRef(null);
 
-  // Schedule automatic token refresh 1 minute before expiry
   const scheduleRefresh = useCallback((accessToken) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     try {
@@ -20,30 +22,33 @@ export const AuthProvider = ({ children }) => {
       const delay = Math.max(refreshAt - Date.now(), 5000);
       refreshTimerRef.current = setTimeout(() => refreshAccessToken(), delay);
     } catch {
-      // Invalid token format – skip scheduling
+      // Invalid token format
     }
   }, []);
 
   const refreshAccessToken = useCallback(async () => {
     const savedRefresh = localStorage.getItem('refresh_token');
-    if (!savedRefresh) {
-      doLogout();
-      return;
-    }
     try {
-      const res = await axios.post(`${API}/auth/refresh`, { refresh_token: savedRefresh });
+      // Send refresh token in body AND as cookie (dual-mode)
+      const res = await axios.post(`${API}/auth/refresh`, {
+        refresh_token: savedRefresh || "",
+      });
       const { token: newAccess, refresh_token: newRefresh, user: newUser } = res.data;
-
-      setToken(newAccess);
-      setUser(newUser);
-      localStorage.setItem('token', newAccess);
-      localStorage.setItem('refresh_token', newRefresh);
-      localStorage.setItem('user', JSON.stringify(newUser));
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newAccess}`;
-      scheduleRefresh(newAccess);
+      applyTokens(newAccess, newRefresh, newUser);
     } catch {
       doLogout();
     }
+  }, []);
+
+  const applyTokens = useCallback((accessToken, refreshToken, userData) => {
+    setToken(accessToken);
+    setUser(userData);
+    // Keep localStorage as fallback for Authorization header
+    localStorage.setItem('token', accessToken);
+    localStorage.setItem('refresh_token', refreshToken);
+    localStorage.setItem('user', JSON.stringify(userData));
+    axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+    scheduleRefresh(accessToken);
   }, [scheduleRefresh]);
 
   const doLogout = useCallback(() => {
@@ -83,26 +88,16 @@ export const AuthProvider = ({ children }) => {
           !originalRequest.url?.includes('/auth/login')
         ) {
           originalRequest._retry = true;
-          const savedRefresh = localStorage.getItem('refresh_token');
-          if (savedRefresh) {
-            try {
-              const res = await axios.post(`${API}/auth/refresh`, { refresh_token: savedRefresh });
-              const { token: newAccess, refresh_token: newRefresh, user: newUser } = res.data;
-
-              setToken(newAccess);
-              setUser(newUser);
-              localStorage.setItem('token', newAccess);
-              localStorage.setItem('refresh_token', newRefresh);
-              localStorage.setItem('user', JSON.stringify(newUser));
-              axios.defaults.headers.common['Authorization'] = `Bearer ${newAccess}`;
-              scheduleRefresh(newAccess);
-
-              originalRequest.headers['Authorization'] = `Bearer ${newAccess}`;
-              return axios(originalRequest);
-            } catch {
-              doLogout();
-            }
-          } else {
+          try {
+            const savedRefresh = localStorage.getItem('refresh_token');
+            const res = await axios.post(`${API}/auth/refresh`, {
+              refresh_token: savedRefresh || "",
+            });
+            const { token: newAccess, refresh_token: newRefresh, user: newUser } = res.data;
+            applyTokens(newAccess, newRefresh, newUser);
+            originalRequest.headers['Authorization'] = `Bearer ${newAccess}`;
+            return axios(originalRequest);
+          } catch {
             doLogout();
           }
         }
@@ -110,46 +105,28 @@ export const AuthProvider = ({ children }) => {
       }
     );
     return () => axios.interceptors.response.eject(interceptor);
-  }, [scheduleRefresh, doLogout]);
+  }, [applyTokens, doLogout]);
 
   const login = async (email, password) => {
     const response = await axios.post(`${API}/auth/login`, { email, password });
     const { token: newToken, refresh_token: newRefresh, user: newUser } = response.data;
-
-    setToken(newToken);
-    setUser(newUser);
-    localStorage.setItem('token', newToken);
-    localStorage.setItem('refresh_token', newRefresh);
-    localStorage.setItem('user', JSON.stringify(newUser));
-    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-    scheduleRefresh(newToken);
-
+    applyTokens(newToken, newRefresh, newUser);
     return newUser;
   };
 
   const register = async (userData) => {
     const response = await axios.post(`${API}/auth/register`, userData);
     const { token: newToken, refresh_token: newRefresh, user: newUser } = response.data;
-
-    setToken(newToken);
-    setUser(newUser);
-    localStorage.setItem('token', newToken);
-    localStorage.setItem('refresh_token', newRefresh);
-    localStorage.setItem('user', JSON.stringify(newUser));
-    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-    scheduleRefresh(newToken);
-
+    applyTokens(newToken, newRefresh, newUser);
     return newUser;
   };
 
   const logout = async () => {
     const savedRefresh = localStorage.getItem('refresh_token');
-    if (savedRefresh && token) {
-      try {
-        await axios.post(`${API}/auth/logout`, { refresh_token: savedRefresh });
-      } catch {
-        // Ignore errors during logout
-      }
+    try {
+      await axios.post(`${API}/auth/logout`, { refresh_token: savedRefresh || "" });
+    } catch {
+      // Ignore
     }
     doLogout();
   };

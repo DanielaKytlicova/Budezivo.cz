@@ -122,4 +122,10 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Bug 2: check_lecturer_available_for_block nyní kontroluje recurring I one-off bloky; lektor s definovanou dostupností ale ne pro daný den = nedostupný
 - [x] Zpětná kompatibilita: lektor bez jakékoli dostupnosti = bez omezení
 
+### Fáze 25 - Bugfix: Bílá obrazovka při úpravě rezervace (11.4.2026)
+- [x] Bug: updateBooking posílal VŠECHNA pole editData (včetně actual_students=''), Pydantic 422 + React crash při renderování error objektu
+- [x] Fix: updateBooking nyní posílá pouze pole relevantní pro aktuální editMode (datetime/attendance/contact/notes)
+- [x] Fix: Všechny toast.error handlery bezpečně zpracovávají ne-stringové chybové odpovědi
+- [x] Ověřeno: Reschedule email se odesílá rezervujícímu při změně termínu (funguje přes Resend API)
+
 *Poslední aktualizace: 11. dubna 2026*

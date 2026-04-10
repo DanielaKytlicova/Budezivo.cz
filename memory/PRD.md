@@ -117,4 +117,9 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Pokročilá analytika: Heatmapa vytíženosti, Roční trend, Top školy, Konverzní poměr
 - [x] Backlog: Finanční přehled (čeká na integraci cenníku do programů)
 
-*Poslední aktualizace: 10. dubna 2026*
+### Fáze 24 - Bugfixy: Kalendář off-by-one + Kolize lektora (11.4.2026)
+- [x] Bug 1: formatDate v LecturerAvailabilityPage, DashboardPage, ProgramsPage opravena z toISOString (UTC) na lokální datum
+- [x] Bug 2: check_lecturer_available_for_block nyní kontroluje recurring I one-off bloky; lektor s definovanou dostupností ale ne pro daný den = nedostupný
+- [x] Zpětná kompatibilita: lektor bez jakékoli dostupnosti = bez omezení
+
+*Poslední aktualizace: 11. dubna 2026*

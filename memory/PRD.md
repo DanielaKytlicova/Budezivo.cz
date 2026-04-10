@@ -95,17 +95,26 @@ Pro testování na preview prostředí je potřeba v Azure Portal přidat Redire
 
 Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 
-### Fáze 20 - Bezpečnostní audit a opravy (10.4.2026)
-- [x] H1: Email debug endpoint zabezpečen (auth + bez raw klíčů)
-- [x] H2: SQL Injection v programs debug opravena (parametrizované dotazy + auth)
-- [x] H3: SQL Injection v schools.py IN clause opravena
-- [x] H4: ICS Calendar feedy zabezpečeny HMAC tokeny
-- [x] H5: Public API filtruje citlivé fieldy (whitelist 26 polí)
-- [x] M1: JWT fallback secret odstraněn
-- [x] M3: Swagger docs podmíněny preview prostředím
-- [x] M4: postMessage wildcard origin opraven
-- [x] M6: Rate limiting na veřejných endpointech
-- [x] L3: HSTS hlavička přidána
-- Bezpečnostní roadmap: /app/memory/SECURITY_ROADMAP.md
+### Fáze 21 - Refresh Token, WAF, OAuth Persistence, Alembic (10.4.2026)
+- [x] Refresh Token: Access token zkrácen na 15 min, refresh token v DB (30 dní), rotace, revokace
+- [x] Nové endpointy: POST /api/auth/refresh, POST /api/auth/logout
+- [x] Frontend AuthContext přepsán: auto-refresh, 401 interceptor, server-side logout
+- [x] OAuth State Persistence: in-memory _oauth_states nahrazen DB tabulkou oauth_states
+- [x] WAF middleware: blokace SQL injection, XSS, timing attacks v query/body/path
+- [x] Alembic: framework inicializován, baseline migrace stampnuta
+- [x] Scheduler: automatické čištění expirovaných tokenů (každou hodinu)
+
+### Fáze 22 - Upload loga instituce (10.4.2026)
+- [x] Backend: POST /api/settings/logo/upload (validace typu + velikosti, Emergent Object Storage)
+- [x] Backend: GET /api/settings/logo/{path} (veřejné servírování s cache)
+- [x] Frontend: Drag & drop zóna, preview, tlačítko odstranit logo
+- [x] Integrace: Emergent Object Storage inicializován při startu
+
+### Fáze 23 - httpOnly Cookie, Filtrace, Pokročilá analytika (10.4.2026)
+- [x] httpOnly Cookie: JWT v httpOnly Secure SameSite=Lax cookie (dual-mode: cookie + header)
+- [x] Filtrace booking response: interní pole odstraněna z veřejného endpointu
+- [x] Source Map Removal: GENERATE_SOURCEMAP=false
+- [x] Pokročilá analytika: Heatmapa vytíženosti, Roční trend, Top školy, Konverzní poměr
+- [x] Backlog: Finanční přehled (čeká na integraci cenníku do programů)
 
 *Poslední aktualizace: 10. dubna 2026*

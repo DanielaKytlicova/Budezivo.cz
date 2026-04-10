@@ -18,7 +18,6 @@ JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET:
     raise RuntimeError("JWT_SECRET environment variable is required")
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 
 # Stripe
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY')

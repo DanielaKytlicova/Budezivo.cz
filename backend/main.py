@@ -217,6 +217,10 @@ app.add_middleware(
 
 app.add_middleware(SecurityHeadersMiddleware)
 
+# WAF middleware — must be added after CORS (outermost = first to execute)
+from middleware.waf import WAFMiddleware
+app.add_middleware(WAFMiddleware)
+
 
 # ============ Event Handlers ============
 
@@ -229,6 +233,12 @@ async def startup_event():
         logger.info("Application startup - Feedback scheduler initialized")
     except Exception as e:
         logger.warning(f"Failed to start scheduler: {e}")
+
+    try:
+        from services.storage_service import init_storage
+        init_storage()
+    except Exception as e:
+        logger.warning(f"Object storage init deferred: {e}")
 
 
 @app.on_event("shutdown")

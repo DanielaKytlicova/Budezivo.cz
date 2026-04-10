@@ -1,8 +1,10 @@
 """
-Settings routes - institution, theme, PRO, notifications, locale, GDPR.
+Settings routes - institution, theme, PRO, notifications, locale, GDPR, logo upload.
 Uses Supabase (PostgreSQL) for database operations.
 """
-from fastapi import APIRouter, HTTPException, Depends
+import logging
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.schemas import (
@@ -18,6 +20,7 @@ from database.supabase_repositories import (
 )
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
+logger = logging.getLogger(__name__)
 
 
 # ============ Theme Settings ============
@@ -181,4 +184,61 @@ async def update_gdpr_settings(
         current_user["institution_id"],
         data.model_dump()
     )
+
+
+# ============ Logo Upload ============
+
+
+@router.post("/logo/upload")
+async def upload_logo(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload institution logo (PNG, JPG, SVG, WebP). Max 2 MB."""
+    from services.storage_service import ALLOWED_IMAGE_TYPES, MAX_LOGO_SIZE, upload_logo
+
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Nepodporovaný formát. Povoleno: PNG, JPG, SVG, WebP")
+
+    data = await file.read()
+    if len(data) > MAX_LOGO_SIZE:
+        raise HTTPException(status_code=400, detail="Soubor je příliš velký (max 2 MB)")
+
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "png"
+
+    try:
+        storage_path = upload_logo(current_user["institution_id"], data, file.content_type, ext)
+    except Exception as e:
+        logger.error(f"Logo upload failed: {e}")
+        raise HTTPException(status_code=500, detail="Nahrání loga selhalo")
+
+    # Update institution and theme with new logo path
+    institution_repo = InstitutionRepositorySupabase(db)
+    theme_repo = ThemeRepositorySupabase(db)
+    logo_url = f"/api/settings/logo/{storage_path}"
+
+    await institution_repo.update(current_user["institution_id"], {"logo_url": logo_url})
+    await theme_repo.create_or_update(current_user["institution_id"], {"logo_url": logo_url})
+
+    logger.info(f"Logo uploaded for institution {current_user['institution_id']}: {storage_path}")
+    return {"logo_url": logo_url, "message": "Logo úspěšně nahráno"}
+
+
+@router.get("/logo/{path:path}")
+async def serve_logo(path: str):
+    """Serve uploaded logo from object storage. Public (used in <img> tags)."""
+    from services.storage_service import get_object
+
+    try:
+        data, content_type = get_object(path)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Logo nenalezeno")
+
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
     return {"message": "GDPR settings updated"}

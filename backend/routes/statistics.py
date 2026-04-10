@@ -656,3 +656,225 @@ async def get_popular_programs(
     data = [row.count for row in rows]
     
     return {"labels": labels, "data": data}
+
+
+
+# ============ Advanced Analytics ============
+
+
+@router.get("/heatmap")
+async def get_heatmap(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    year: int = Query(default=None),
+    month: int = Query(default=None),
+):
+    """Heatmap: count of bookings by day-of-week x time_block."""
+    from sqlalchemy import text as sql_text
+
+    institution_id = current_user["institution_id"]
+    now = datetime.now(timezone.utc)
+    y = year or now.year
+    m = month or now.month
+
+    from calendar import monthrange
+    _, last_day = monthrange(y, m)
+    start = f"{y}-{m:02d}-01"
+    end = f"{y}-{m:02d}-{last_day}"
+
+    result = await db.execute(
+        sql_text("""
+            SELECT
+                EXTRACT(DOW FROM r.date::date) as dow,
+                r.time_block,
+                COUNT(r.id) as cnt
+            FROM reservations r
+            WHERE r.institution_id = :inst_id
+              AND r.date >= :start_date
+              AND r.date <= :end_date
+              AND r.deleted_at IS NULL
+              AND r.status != 'cancelled'
+            GROUP BY dow, r.time_block
+        """),
+        {"inst_id": institution_id, "start_date": start, "end_date": end},
+    )
+    rows = result.fetchall()
+
+    DAY_LABELS = ["Ne", "Po", "Út", "St", "Čt", "Pá", "So"]
+    time_blocks = sorted(set(r.time_block for r in rows if r.time_block))
+    heatmap = []
+    for dow in range(7):
+        row_data = {"day": DAY_LABELS[dow]}
+        for tb in time_blocks:
+            row_data[tb] = 0
+        heatmap.append(row_data)
+
+    for r in rows:
+        dow_idx = int(r.dow)
+        if 0 <= dow_idx <= 6 and r.time_block in time_blocks:
+            heatmap[dow_idx][r.time_block] = r.cnt
+
+    # Move Sunday to end (Czech week starts Monday)
+    heatmap = heatmap[1:] + heatmap[:1]
+
+    return {"time_blocks": time_blocks, "data": heatmap, "period": f"{y}-{m:02d}"}
+
+
+@router.get("/trends")
+async def get_trends(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    year: int = Query(default=None),
+):
+    """Trend: monthly booking counts for current vs previous year."""
+    institution_id = current_user["institution_id"]
+    y = year or datetime.now(timezone.utc).year
+
+    async def _monthly_counts(yr: int) -> list:
+        from sqlalchemy import text as sql_text
+        result = await db.execute(
+            sql_text("""
+                SELECT
+                    EXTRACT(MONTH FROM r.date::date) as m,
+                    COUNT(r.id) as cnt,
+                    COALESCE(SUM(r.num_students), 0) as students
+                FROM reservations r
+                WHERE r.institution_id = :inst_id
+                  AND EXTRACT(YEAR FROM r.date::date) = :yr
+                  AND r.deleted_at IS NULL
+                  AND r.status != 'cancelled'
+                GROUP BY m
+                ORDER BY m
+            """),
+            {"inst_id": institution_id, "yr": yr},
+        )
+        rows = result.fetchall()
+        month_map = {int(r.m): {"bookings": r.cnt, "students": int(r.students)} for r in rows}
+        return [
+            {"month": i, "bookings": month_map.get(i, {}).get("bookings", 0),
+             "students": month_map.get(i, {}).get("students", 0)}
+            for i in range(1, 13)
+        ]
+
+    MONTH_LABELS = ["Led", "Úno", "Bře", "Dub", "Kvě", "Čer", "Črc", "Srp", "Zář", "Říj", "Lis", "Pro"]
+    current = await _monthly_counts(y)
+    previous = await _monthly_counts(y - 1)
+
+    chart_data = []
+    for i in range(12):
+        chart_data.append({
+            "name": MONTH_LABELS[i],
+            f"{y}": current[i]["bookings"],
+            f"{y - 1}": previous[i]["bookings"],
+            f"Žáci {y}": current[i]["students"],
+        })
+
+    return {"chart_data": chart_data, "current_year": y, "previous_year": y - 1}
+
+
+@router.get("/top-schools")
+async def get_top_schools(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    year: int = Query(default=None),
+    month: int = Query(default=None),
+    limit: int = Query(default=10, le=50),
+):
+    """Top schools by booking count in given period."""
+    from sqlalchemy import text as sql_text
+
+    institution_id = current_user["institution_id"]
+    now = datetime.now(timezone.utc)
+    y = year or now.year
+    m = month or now.month
+
+    from calendar import monthrange
+    _, last_day = monthrange(y, m)
+    start = f"{y}-{m:02d}-01"
+    end = f"{y}-{m:02d}-{last_day}"
+
+    result = await db.execute(
+        sql_text("""
+            SELECT
+                r.school_name,
+                r.contact_email,
+                COUNT(r.id) as bookings,
+                COALESCE(SUM(r.num_students), 0) as total_students,
+                COALESCE(SUM(r.num_teachers), 0) as total_teachers
+            FROM reservations r
+            WHERE r.institution_id = :inst_id
+              AND r.date >= :start_date
+              AND r.date <= :end_date
+              AND r.deleted_at IS NULL
+              AND r.status != 'cancelled'
+            GROUP BY r.school_name, r.contact_email
+            ORDER BY bookings DESC
+            LIMIT :lim
+        """),
+        {"inst_id": institution_id, "start_date": start, "end_date": end, "lim": limit},
+    )
+    rows = result.fetchall()
+
+    return {
+        "schools": [
+            {
+                "name": r.school_name or "Neznámá",
+                "email": r.contact_email,
+                "bookings": r.bookings,
+                "students": int(r.total_students),
+                "teachers": int(r.total_teachers),
+            }
+            for r in rows
+        ],
+        "period": f"{y}-{m:02d}",
+    }
+
+
+@router.get("/conversion")
+async def get_conversion_rate(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    year: int = Query(default=None),
+    month: int = Query(default=None),
+):
+    """Conversion rate: created vs confirmed vs cancelled bookings."""
+    institution_id = current_user["institution_id"]
+    now = datetime.now(timezone.utc)
+    y = year or now.year
+    m = month or now.month
+
+    from sqlalchemy import text as sql_text
+
+    from calendar import monthrange
+    _, last_day = monthrange(y, m)
+    start = f"{y}-{m:02d}-01"
+    end = f"{y}-{m:02d}-{last_day}"
+
+    result = await db.execute(
+        sql_text("""
+            SELECT r.status, COUNT(r.id) as cnt
+            FROM reservations r
+            WHERE r.institution_id = :inst_id
+              AND r.date >= :start_date
+              AND r.date <= :end_date
+              AND r.deleted_at IS NULL
+            GROUP BY r.status
+        """),
+        {"inst_id": institution_id, "start_date": start, "end_date": end},
+    )
+    rows = result.fetchall()
+    status_map = {r.status: r.cnt for r in rows}
+
+    total = sum(status_map.values())
+    confirmed = status_map.get("confirmed", 0) + status_map.get("completed", 0)
+    pending = status_map.get("pending", 0)
+    cancelled = status_map.get("cancelled", 0)
+
+    return {
+        "total": total,
+        "confirmed": confirmed,
+        "pending": pending,
+        "cancelled": cancelled,
+        "conversion_rate": round((confirmed / total * 100), 1) if total > 0 else 0,
+        "period": f"{y}-{m:02d}",
+    }

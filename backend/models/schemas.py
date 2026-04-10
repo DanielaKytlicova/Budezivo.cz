@@ -56,6 +56,7 @@ class User(BaseModel):
 
 class TokenResponse(BaseModel):
     token: str
+    refresh_token: Optional[str] = None
     user: Dict[str, Any]
 
 
@@ -148,6 +149,16 @@ class Booking(BookingBase):
     terms_accepted: Optional[bool] = None
     terms_accepted_at: Optional[datetime] = None
     terms_accepted_text_version: Optional[str] = None
+    program_name: Optional[str] = None
+    created_at: datetime
+
+
+class PublicBooking(BookingBase):
+    """Public booking response - excludes internal fields like institution_id, notes, etc."""
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    status: str = "pending"
+    terms_accepted: Optional[bool] = None
     program_name: Optional[str] = None
     created_at: datetime
 

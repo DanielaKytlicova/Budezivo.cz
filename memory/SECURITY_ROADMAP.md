@@ -27,24 +27,24 @@
 ### P1 — Střední priorita
 | # | Nález | Plán opravy | Status |
 |---|-------|------------|--------|
-| M2 | JWT platnost 7 dní bez revokace | Implementovat refresh token + blacklist (Redis/DB) | TODO |
-| M5 | In-memory OAuth state | Přesunout `_oauth_states` do DB/Redis pro multi-instance | TODO |
-| L1 | JWT v localStorage (XSS riziko) | Zvážit httpOnly secure cookie s CSRF ochranou | TODO |
-| L2 | Booking response vrací interní metadata | Filtrovat `assigned_lecturer_id`, `terms_*` z response | TODO |
+| M2 | JWT platnost 7 dní bez revokace | ~~Implementovat refresh token + blacklist~~ | **DONE** |
+| M5 | In-memory OAuth state | ~~Přesunout `_oauth_states` do DB~~ | **DONE** |
+| L1 | JWT v localStorage (XSS riziko) | ~~httpOnly Secure cookie s SameSite=Lax~~ | **DONE** |
+| L2 | Booking response vrací interní metadata | ~~Filtrovat interní pole z public response~~ | **DONE** |
 
 ### P2 — Nižší priorita (anti-cloning posílení)
 | # | Plán | Status |
 |---|------|--------|
-| AC1 | Source map removal v produkčním buildu (CRA `GENERATE_SOURCEMAP=false`) | TODO |
+| AC1 | Source map removal v produkčním buildu (GENERATE_SOURCEMAP=false) | **DONE** |
 | AC2 | JS bundle obfuskace (terser-webpack-plugin s mangle) | TODO |
-| AC3 | API response minimalizace — další filtry na booking responses | TODO |
+| AC3 | API response minimalizace — další filtry na booking responses | **DONE** |
 
 ### P3 — Infrastrukturní (long-term)
 | # | Plán | Status |
 |---|------|--------|
-| I1 | Alembic migrace místo raw SQL | TODO |
-| I2 | WAF (Web Application Firewall) pro API | TODO |
-| I3 | CAPTCHA na veřejné formuláře | TODO |
+| I1 | Alembic migrace místo raw SQL | **DONE** (inicializováno, baseline stamp) |
+| I2 | WAF (Web Application Firewall) pro API | **DONE** (SQL/XSS/timing bloky) |
+| I3 | CAPTCHA na veřejné formuláře | DEFERRED (rate limiting stačí) |
 
 ---
 

@@ -234,6 +234,12 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"Failed to start scheduler: {e}")
 
+    try:
+        from services.storage_service import init_storage
+        init_storage()
+    except Exception as e:
+        logger.warning(f"Object storage init deferred: {e}")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():

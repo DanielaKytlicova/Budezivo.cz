@@ -134,6 +134,7 @@ export const SettingsPage = () => {
   const { user, logout } = useContext(AuthContext);
   const [activeSection, setActiveSection] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   
   // Institution data
   const [institutionData, setInstitutionData] = useState({
@@ -309,6 +310,32 @@ export const SettingsPage = () => {
       toast.error('Nepodařilo se uložit nastavení');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogoUpload = async (file) => {
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Nepodporovaný formát. Povoleno: PNG, JPG, SVG, WebP');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Soubor je příliš velký (max 2 MB)');
+      return;
+    }
+    setLogoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await axios.post(`${API}/settings/logo/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setInstitutionData(prev => ({ ...prev, logo_url: res.data.logo_url }));
+      toast.success('Logo úspěšně nahráno');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Nahrání loga selhalo');
+    } finally {
+      setLogoUploading(false);
     }
   };
 
@@ -579,19 +606,67 @@ export const SettingsPage = () => {
         
         <div>
           <Label className="text-gray-600 text-sm">Logo instituce</Label>
-          <div className="mt-2 border-2 border-dashed border-gray-200 rounded-lg p-6 text-center">
-            <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-            <p className="text-sm text-gray-500">Vyberte monochronní logo</p>
-            <p className="text-xs text-gray-400">max. 150×60 px</p>
-            <Input
-              type="text"
-              value={institutionData.logo_url}
-              onChange={(e) => setInstitutionData({ ...institutionData, logo_url: e.target.value })}
-              placeholder="URL loga"
-              className="mt-3 text-sm"
-              data-testid="institution-logo"
-            />
+          <div
+            className="mt-2 border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-blue-400 transition-colors cursor-pointer relative"
+            data-testid="logo-upload-dropzone"
+            onClick={() => document.getElementById('logo-file-input').click()}
+            onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-blue-400', 'bg-blue-50'); }}
+            onDragLeave={(e) => { e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50'); }}
+            onDrop={async (e) => {
+              e.preventDefault();
+              e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50');
+              const file = e.dataTransfer.files[0];
+              if (file) await handleLogoUpload(file);
+            }}
+          >
+            {institutionData.logo_url ? (
+              <div className="space-y-2">
+                <img
+                  src={institutionData.logo_url.startsWith('/api') ? `${API.replace('/api', '')}${institutionData.logo_url}` : institutionData.logo_url}
+                  alt="Logo"
+                  className="max-h-16 mx-auto object-contain"
+                  data-testid="logo-preview"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+                <p className="text-xs text-gray-400">Klikněte nebo přetáhněte nové logo pro nahrazení</p>
+              </div>
+            ) : (
+              <>
+                <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">Klikněte nebo přetáhněte soubor s logem</p>
+                <p className="text-xs text-gray-400">PNG, JPG, SVG, WebP — max. 2 MB</p>
+              </>
+            )}
+            {logoUploading && (
+              <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-lg">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                <span className="ml-2 text-sm text-blue-600">Nahrávání...</span>
+              </div>
+            )}
           </div>
+          <input
+            id="logo-file-input"
+            type="file"
+            accept="image/png,image/jpeg,image/svg+xml,image/webp"
+            className="hidden"
+            data-testid="logo-file-input"
+            onChange={async (e) => {
+              const file = e.target.files[0];
+              if (file) await handleLogoUpload(file);
+              e.target.value = '';
+            }}
+          />
+          {institutionData.logo_url && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 text-red-500 hover:text-red-700"
+              data-testid="logo-remove-btn"
+              onClick={() => setInstitutionData({ ...institutionData, logo_url: '' })}
+            >
+              <Trash2 className="w-4 h-4 mr-1" /> Odstranit logo
+            </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">

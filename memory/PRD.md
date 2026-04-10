@@ -104,4 +104,10 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Alembic: framework inicializován, baseline migrace stampnuta
 - [x] Scheduler: automatické čištění expirovaných tokenů (každou hodinu)
 
+### Fáze 22 - Upload loga instituce (10.4.2026)
+- [x] Backend: POST /api/settings/logo/upload (validace typu + velikosti, Emergent Object Storage)
+- [x] Backend: GET /api/settings/logo/{path} (veřejné servírování s cache)
+- [x] Frontend: Drag & drop zóna, preview, tlačítko odstranit logo
+- [x] Integrace: Emergent Object Storage inicializován při startu
+
 *Poslední aktualizace: 10. dubna 2026*

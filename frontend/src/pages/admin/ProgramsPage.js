@@ -309,7 +309,7 @@ export const ProgramsPage = () => {
       try {
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return '';
-        return date.toISOString().split('T')[0];
+        return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
       } catch {
         return '';
       }

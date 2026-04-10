@@ -110,4 +110,11 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Frontend: Drag & drop zóna, preview, tlačítko odstranit logo
 - [x] Integrace: Emergent Object Storage inicializován při startu
 
+### Fáze 23 - httpOnly Cookie, Filtrace, Pokročilá analytika (10.4.2026)
+- [x] httpOnly Cookie: JWT v httpOnly Secure SameSite=Lax cookie (dual-mode: cookie + header)
+- [x] Filtrace booking response: interní pole odstraněna z veřejného endpointu
+- [x] Source Map Removal: GENERATE_SOURCEMAP=false
+- [x] Pokročilá analytika: Heatmapa vytíženosti, Roční trend, Top školy, Konverzní poměr
+- [x] Backlog: Finanční přehled (čeká na integraci cenníku do programů)
+
 *Poslední aktualizace: 10. dubna 2026*

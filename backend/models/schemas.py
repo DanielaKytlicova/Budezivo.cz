@@ -1,7 +1,7 @@
 """
 Pydantic models (schemas) for request/response validation.
 """
-from pydantic import BaseModel, Field, ConfigDict, EmailStr
+from pydantic import BaseModel, Field, ConfigDict, EmailStr, validator
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
@@ -98,6 +98,17 @@ class ProgramBase(BaseModel):
     assigned_lecturer_id: Optional[str] = None
     # Assigned Room
     room_id: Optional[str] = None
+    # Feedback Settings (PRO)
+    feedback_enabled: bool = True
+    feedback_questions: List[dict] = []
+
+    @validator('feedback_enabled', pre=True, always=True)
+    def default_feedback_enabled(cls, v):
+        return v if v is not None else True
+
+    @validator('feedback_questions', pre=True, always=True)
+    def default_feedback_questions(cls, v):
+        return v if v is not None else []
 
 
 class ProgramCreate(ProgramBase):

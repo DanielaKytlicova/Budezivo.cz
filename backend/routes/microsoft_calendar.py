@@ -18,7 +18,7 @@ from sqlalchemy import select, and_, delete
 
 from core.security import get_current_user
 from database.supabase import get_db
-from database.models import UserCalendarIntegration, AvailabilityBlock, OAuthState
+from database.models import UserCalendarIntegration, AvailabilityBlock, OAuthState, Program
 
 router = APIRouter(prefix="/microsoft-calendar", tags=["Microsoft Calendar"])
 logger = logging.getLogger(__name__)
@@ -433,7 +433,8 @@ async def _get_valid_token(db: AsyncSession, integration: UserCalendarIntegratio
 async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarIntegration) -> int:
     """
     Sync Outlook calendar events into availability_blocks.
-    Fetches next 30 days of events and upserts blocks.
+    Fetches events for a window based on the institution's max booking horizon + 60 day buffer.
+    Default: 180 days. Adapts dynamically to max_days_before_booking setting.
     """
     token = await _get_valid_token(db, integration)
     if not token:
@@ -441,9 +442,27 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
         await db.commit()
         raise Exception("Token refresh failed")
 
-    # Fetch events for next 30 days
+    # Determine sync window from institution's max_days_before_booking
+    sync_days = 180  # default
+    try:
+        result = await db.execute(
+            select(Program.max_days_before_booking).where(
+                and_(
+                    Program.institution_id == integration.institution_id,
+                    Program.status == 'active'
+                )
+            )
+        )
+        max_values = [row[0] for row in result.fetchall() if row[0] is not None]
+        if max_values:
+            sync_days = max(max_values) + 60  # max booking window + 60 day buffer
+            sync_days = max(sync_days, 180)   # at least 180 days
+    except Exception as e:
+        logger.warning(f"Could not determine sync window, using default {sync_days}d: {e}")
+
     now = datetime.now(timezone.utc)
-    end_date = now + timedelta(days=30)
+    end_date = now + timedelta(days=sync_days)
+    logger.info(f"Outlook sync window: {sync_days} days for institution {integration.institution_id}")
 
     headers = {
         "Authorization": f"Bearer {token}",

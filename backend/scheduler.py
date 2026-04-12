@@ -58,11 +58,40 @@ def is_working_day_after(reservation_date_str: str, check_date: datetime) -> boo
 
 async def process_completed_reservations():
     """
-    Main scheduler job: Find reservations that completed 1 working day ago
-    and create/send feedback requests.
+    Main scheduler job: 
+    1. Auto-complete confirmed reservations whose date has passed.
+    2. Find completed reservations and send feedback requests.
     """
-    logger.info("Running feedback scheduler job...")
+    logger.info("Running completed reservations scheduler job...")
     
+    # --- Step 1: Auto-complete past confirmed reservations ---
+    async with AsyncSessionLocal() as db:
+        try:
+            today = datetime.now(timezone.utc)
+            today_str = today.strftime("%Y-%m-%d")
+            
+            result = await db.execute(
+                select(Reservation).where(
+                    and_(
+                        Reservation.status == 'confirmed',
+                        Reservation.date < today_str
+                    )
+                )
+            )
+            past_confirmed = result.scalars().all()
+            
+            completed_count = 0
+            for reservation in past_confirmed:
+                reservation.status = 'completed'
+                completed_count += 1
+            
+            if completed_count > 0:
+                await db.commit()
+                logger.info(f"Auto-completed {completed_count} past reservations.")
+        except Exception as e:
+            logger.error(f"Error auto-completing reservations: {e}")
+    
+    # --- Step 2: Send feedback emails for newly completed reservations ---
     async with AsyncSessionLocal() as db:
         try:
             today = datetime.now(timezone.utc)

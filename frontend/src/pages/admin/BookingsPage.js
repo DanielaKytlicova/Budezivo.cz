@@ -1007,9 +1007,9 @@ export const BookingsPage = () => {
                         )}
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                        <div>
+                        <div className="min-w-0">
                           <span className="text-gray-500 block">Škola:</span>
-                          <span className="font-medium">{booking.school_name}</span>
+                          <span className="font-medium truncate block" title={booking.school_name}>{booking.school_name}</span>
                         </div>
                         <div>
                           <span className="text-gray-500 block">Datum:</span>

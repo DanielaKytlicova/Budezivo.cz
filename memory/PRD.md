@@ -142,4 +142,11 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Zpětná vazba: on/off per program, výchozí (hvězdičky + doporučení), individuální otázky (PRO, max 5, text/scale/yesno)
 - [x] DB migrace: feedback_enabled + feedback_questions na tabulce programs (Alembic)
 
+### Fáze 28 - Fix: URL program parameter + expanze časových bloků (12.4.2026)
+- [x] Bug 1: BookingPage s ?program=ID nyní přeskočí na kalendář a zobrazí pouze vybraný program
+- [x] Bug 2: Časová okna se expandují na individuální sloty dle trvání programu (30min interval)
+- [x] 90min program s oknem 08:30-12:00: sloty 08:30-10:00 až 10:30-12:00 (11:00 se NEZOBRAZÍ - přesahuje 12:00)
+- [x] Overlap-based booking detekce pro korektní blokování expandovaných slotů
+- [x] Programy s přesnými sloty (např. '09:00-10:30') se neexpandují
+
 *Poslední aktualizace: 12. dubna 2026*

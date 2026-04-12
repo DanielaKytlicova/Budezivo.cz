@@ -1,0 +1,119 @@
+{
+  "summary": "Iteration 34: Verified lecturer collision availability fix. All 13 backend tests passed (100%). When program has collision_resources=['lecturer'] and no assigned_lecturer_id, the system correctly checks ALL scheduled team lecturers. Afternoon blocks (13:00-15:00) outside Demo Admin's 8:00-12:00 availability are marked 'unavailable'. Morning blocks (08:30-12:00) within availability window are marked 'available'. Monthly calendar correctly shows weekdays as available (morning block covered) and weekends as unavailable.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_lecturer_collision_availability.py",
+    "/app/test_reports/pytest/pytest_lecturer_collision_availability.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: get_program_availability (availability.py:29-106) correctly checks lecturer availability when has_lecturer_collision=True",
+    "VERIFIED: When assigned_lecturer_id is NULL, check_any_lecturer_available_for_block is called to check ALL scheduled team lecturers",
+    "VERIFIED: Afternoon block (13:00-15:00) returns 'unavailable' because Demo Admin only has 8:00-12:00 availability",
+    "VERIFIED: Morning block (08:30-12:00) returns 'available' because it fits within Demo Admin's 8:00-12:00 window",
+    "VERIFIED: get_calendar_availability (availability.py:108-277) also checks lecturer availability for monthly view",
+    "VERIFIED: Only lecturers WITH defined availability schedules are considered (scheduled_lecturer_ids filter)",
+    "VERIFIED: Weekend dates return empty time_blocks (not in available_days)",
+    "VERIFIED: Login flow works with httpOnly cookies"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_lecturer_collision_availability.py"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_user": "demo@budezivo.cz",
+    "admin_password": "Demo2026!",
+    "institution_id": "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
+  },
+  "seed_data_creation": "None required - used existing program 'Čteme obrazy' with lecturer collision enabled",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Lecturer collision availability fix verified. Program 'Čteme obrazy' (128d6178-e199-4cc5-b247-0e42fe1955d7) has collision_resources=['lecturer'] and assigned_lecturer_id=NULL. Demo Admin (2868bc35-7d6e-4046-87fa-013ee5efdb60) has Mon-Fri 8:00-12:00 recurring availability. The fix ensures afternoon blocks outside lecturer availability are marked 'unavailable' in both daily and monthly views.",
+  "verified_features": [
+    {
+      "feature": "CRITICAL: Daily availability - afternoon block unavailable when outside lecturer hours",
+      "status": "VERIFIED",
+      "details": "GET /api/availability/{inst}/{prog}/2026-04-06 returns 13:00-15:00 as 'unavailable'"
+    },
+    {
+      "feature": "CRITICAL: Daily availability - morning block available when within lecturer hours",
+      "status": "VERIFIED",
+      "details": "GET /api/availability/{inst}/{prog}/2026-04-06 returns 08:30-12:00 as 'available'"
+    },
+    {
+      "feature": "CRITICAL: Monthly calendar checks lecturer availability",
+      "status": "VERIFIED",
+      "details": "GET /api/calendar/{inst}/2026/4?program_id={prog} shows weekdays with has_availability=true"
+    },
+    {
+      "feature": "Only scheduled lecturers considered",
+      "status": "VERIFIED",
+      "details": "Code filters to lecturers with defined availability schedules before checking"
+    },
+    {
+      "feature": "Weekend dates return empty time_blocks",
+      "status": "VERIFIED",
+      "details": "Saturday 2026-04-18 returns empty time_blocks array"
+    },
+    {
+      "feature": "Login flow works with httpOnly cookies",
+      "status": "VERIFIED",
+      "details": "Login successful, redirects to /admin, toast shows 'Přihlášení úspěšné'"
+    },
+    {
+      "feature": "Bookings list page loads correctly",
+      "status": "VERIFIED",
+      "details": "55 bookings displayed on /admin/bookings page"
+    }
+  ],
+  "backend_test_results": {
+    "test_file": "/app/backend/tests/test_lecturer_collision_availability.py",
+    "tests_run": 13,
+    "tests_passed": 13,
+    "tests_failed": 0,
+    "test_names": [
+      "test_login_works",
+      "test_program_has_lecturer_collision_enabled",
+      "test_daily_availability_morning_block_available",
+      "test_daily_availability_afternoon_block_unavailable",
+      "test_daily_availability_weekend_returns_empty",
+      "test_monthly_calendar_weekdays_have_availability",
+      "test_monthly_calendar_weekends_no_availability",
+      "test_specific_date_april_2026_monday",
+      "test_bookings_list_loads",
+      "test_availability_endpoint_returns_valid_structure",
+      "test_calendar_endpoint_returns_valid_structure",
+      "test_invalid_program_returns_empty",
+      "test_invalid_date_format_returns_empty"
+    ]
+  },
+  "api_test_results": {
+    "daily_availability_2026_04_06": {
+      "endpoint": "GET /api/availability/669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5/128d6178-e199-4cc5-b247-0e42fe1955d7/2026-04-06",
+      "response": {
+        "date": "2026-04-06",
+        "time_blocks": [
+          {"time": "08:30-12:00", "status": "available"},
+          {"time": "13:00-15:00", "status": "unavailable"}
+        ]
+      },
+      "status": "PASS"
+    },
+    "monthly_calendar_april_2026": {
+      "endpoint": "GET /api/calendar/669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5/2026/4?program_id=128d6178-e199-4cc5-b247-0e42fe1955d7",
+      "response_summary": "Weekdays from April 15+ show has_availability=true, weekends show has_availability=false",
+      "status": "PASS"
+    }
+  }
+}

@@ -176,6 +176,10 @@ class Program(Base):
     age_categories = Column(ARRAY(Text), default=[])   # MS, ZS1, ZS2, SS
     subject_tags = Column(ARRAY(Text), default=[])      # hudební, výtvarné, technické, ...
     
+    # Feedback Settings (PRO feature)
+    feedback_enabled = Column(Boolean, default=True)
+    feedback_questions = Column(JSON, default=[])  # [{id, question, type: "text"|"scale"|"yesno"}] max 5
+    
     # Metadata
     created_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))

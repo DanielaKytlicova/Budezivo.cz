@@ -149,4 +149,11 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Overlap-based booking detekce pro korektní blokování expandovaných slotů
 - [x] Programy s přesnými sloty (např. '09:00-10:30') se neexpandují
 
+### Fáze 29 - Validace časových bloků v nastavení programu (12.4.2026)
+- [x] Validační dialog při ukládání: upozornění na překrývající se bloky (overlap)
+- [x] Validace cleanup_time: varování když mezera mezi bloky < doba úklidu + návrh řešení
+- [x] Validace preparation_time: info o kolizi přípravy s předchozím blokem
+- [x] Tlačítka "Upravit nastavení" (vrátí na tab) / "Beru na vědomí" (uloží přesto)
+- [x] Bez varování pokud se bloky nepřekrývají
+
 *Poslední aktualizace: 12. dubna 2026*

@@ -135,4 +135,11 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Fix: Lektoři bez definovaného rozvrhu nejsou zahrnuti do kolizní logiky
 - [x] Podpora assigned_lecturer_id i plošné kontroly všech lektorů s rozvrhem
 
+### Fáze 27 - 4 úkoly (12.4.2026)
+- [x] CSS fix: přetékání názvu školy v záložce Rezervace (truncate + min-w-0)
+- [x] Bug fix: Auto-dokončení potvrzených rezervací s minulým datem (scheduler job)
+- [x] Outlook sync: Dynamické okno synchronizace dle max_days_before_booking + 60 dnů (min 180)
+- [x] Zpětná vazba: on/off per program, výchozí (hvězdičky + doporučení), individuální otázky (PRO, max 5, text/scale/yesno)
+- [x] DB migrace: feedback_enabled + feedback_questions na tabulce programs (Alembic)
+
 *Poslední aktualizace: 12. dubna 2026*

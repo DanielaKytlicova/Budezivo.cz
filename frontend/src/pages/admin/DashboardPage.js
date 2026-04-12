@@ -239,7 +239,7 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
   // Get reservations for a specific date
   const getReservationsForDate = (date) => {
     if (!Array.isArray(reservations)) return [];
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
     return reservations.filter(r => r.date === dateStr);
   };
 
@@ -561,7 +561,8 @@ export const DashboardPage = () => {
       
       // Normalize and filter upcoming/active reservations
       const allBookings = Array.isArray(bookingsRes.data) ? bookingsRes.data : [];
-      const today = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
       const upcomingBookings = allBookings.filter(b => 
         b.date >= today && b.status !== 'cancelled'
       );

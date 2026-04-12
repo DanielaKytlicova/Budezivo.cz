@@ -386,22 +386,49 @@ async def check_lecturer_available_for_block(
         h, m = map(int, t.split(':'))
         return h * 60 + m
 
-    # 1. Check recurring availability — must fit inside at least one block
+    # 1a. Check recurring availability for this day of week
     result = await db.execute(
         select(LecturerAvailability).where(and_(
             LecturerAvailability.lecturer_id == lect_uuid,
             LecturerAvailability.institution_id == inst_uuid,
-            LecturerAvailability.day_of_week == day_of_week
+            LecturerAvailability.day_of_week == day_of_week,
+            LecturerAvailability.is_recurring == True
         ))
     )
-    avail_blocks = result.scalars().all()
+    recurring_blocks = result.scalars().all()
 
-    # If no availability configured, lecturer has no schedule constraints → allow
-    if not avail_blocks:
+    # 1b. Check one-off availability for this specific date
+    result = await db.execute(
+        select(LecturerAvailability).where(and_(
+            LecturerAvailability.lecturer_id == lect_uuid,
+            LecturerAvailability.institution_id == inst_uuid,
+            LecturerAvailability.is_recurring == False,
+            LecturerAvailability.specific_date == date_str
+        ))
+    )
+    oneoff_blocks = result.scalars().all()
+
+    all_avail_blocks = list(recurring_blocks) + list(oneoff_blocks)
+
+    # If no availability configured at all, lecturer has no schedule constraints → allow
+    if not all_avail_blocks:
+        # But check if they have ANY availability defined for other days/dates
+        # If they do, it means they have a schedule and this day is not in it
+        any_result = await db.execute(
+            select(LecturerAvailability.id).where(and_(
+                LecturerAvailability.lecturer_id == lect_uuid,
+                LecturerAvailability.institution_id == inst_uuid
+            )).limit(1)
+        )
+        has_any_availability = any_result.scalar_one_or_none() is not None
+        if has_any_availability:
+            # Lecturer has a schedule but not for this day → unavailable
+            return False
+        # No schedule at all → no constraints → allow
         return True
 
     in_availability = False
-    for ab in avail_blocks:
+    for ab in all_avail_blocks:
         ab_start = time_str_to_min(ab.start_time)
         ab_end = time_str_to_min(ab.end_time)
         if block_start >= ab_start and block_end <= ab_end:

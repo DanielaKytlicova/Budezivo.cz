@@ -45,7 +45,11 @@ export const BookingPage = () => {
   const [searchParams] = useSearchParams();
   const { t } = useTranslation();
   const { applyTheme } = useContext(ThemeContext);
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(() => {
+    // If program is preselected via URL, start at step 2
+    const programParam = new URLSearchParams(window.location.search).get('program');
+    return programParam ? 2 : 1;
+  });
   const [programs, setPrograms] = useState([]);
   const [selectedProgram, setSelectedProgram] = useState(null);
   const [calendarData, setCalendarData] = useState(null);
@@ -63,6 +67,7 @@ export const BookingPage = () => {
     return [];
   });
   const [durationFilter, setDurationFilter] = useState(() => searchParams.get('duration') || 'all');
+  const preselectedProgramId = searchParams.get('program') || null;
   
   // Data instituce pro header a theme
   const [institutionData, setInstitutionData] = useState({
@@ -138,7 +143,19 @@ export const BookingPage = () => {
   const fetchPrograms = async () => {
     try {
       const response = await axios.get(`${API}/programs/public/${institutionId}`);
-      setPrograms(Array.isArray(response.data) ? response.data : []);
+      const allPrograms = Array.isArray(response.data) ? response.data : [];
+      setPrograms(allPrograms);
+      
+      // Auto-select preselected program from URL parameter
+      if (preselectedProgramId) {
+        const preselected = allPrograms.find(p => p.id === preselectedProgramId);
+        if (preselected) {
+          setSelectedProgram(preselected);
+          setFormData(prev => ({ ...prev, program_id: preselected.id }));
+          setStep(2); // Jump to calendar step
+          fetchCalendar(currentYear, currentMonth, preselected.id);
+        }
+      }
     } catch (error) {
       toast.error('Chyba při načítání programů');
       setPrograms([]);

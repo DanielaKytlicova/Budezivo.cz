@@ -128,4 +128,11 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Fix: Všechny toast.error handlery bezpečně zpracovávají ne-stringové chybové odpovědi
 - [x] Ověřeno: Reschedule email se odesílá rezervujícímu při změně termínu (funguje přes Resend API)
 
-*Poslední aktualizace: 11. dubna 2026*
+### Fáze 26 - Fix: Kolize lektora v rezervačním systému (12.4.2026)
+- [x] Bug: Měsíční kalendář + denní dostupnost nekontrolovaly dostupnost lektora při collision_resources=["lecturer"]
+- [x] Fix: Oba endpointy (calendar + availability) nyní kontrolují lektory s definovaným rozvrhem
+- [x] Fix: Pokud žádný lektor s rozvrhem nemá čas → blok/den označen jako nedostupný
+- [x] Fix: Lektoři bez definovaného rozvrhu nejsou zahrnuti do kolizní logiky
+- [x] Podpora assigned_lecturer_id i plošné kontroly všech lektorů s rozvrhem
+
+*Poslední aktualizace: 12. dubna 2026*

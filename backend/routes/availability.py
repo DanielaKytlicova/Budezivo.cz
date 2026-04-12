@@ -10,7 +10,12 @@ from typing import Optional
 
 from database.supabase import get_db
 from database.supabase_repositories import BookingRepositorySupabase, ProgramRepositorySupabase
-from services.collision_service import get_collision_info_for_availability, check_lecturer_available_for_block
+from services.collision_service import (
+    get_collision_info_for_availability,
+    check_lecturer_available_for_block,
+    check_any_lecturer_available_for_block,
+    check_lecturer_has_any_availability_on_date,
+)
 
 router = APIRouter(tags=["Availability"])
 
@@ -64,9 +69,11 @@ async def get_program_availability(
     # Mark booked time blocks as unavailable
     booked_times = {b.get("time_block") for b in bookings if b.get("status") != "cancelled"}
     
-    # Get program's assigned lecturer for availability check
+    # Get program's assigned lecturer and collision settings
     assigned_lecturer_id = program.get("assigned_lecturer_id")
     program_duration = program.get("duration") or 60
+    collision_resources = program.get("collision_resources") or []
+    has_lecturer_collision = "lecturer" in collision_resources
     
     for block in time_blocks:
         if block["time"] in booked_times:
@@ -78,14 +85,23 @@ async def get_program_availability(
             )
             if is_blocked:
                 block["status"] = "booked"
-            # Check lecturer availability (only if lecturer is assigned to program)
-            elif assigned_lecturer_id:
-                lecturer_available = await check_lecturer_available_for_block(
-                    db, str(assigned_lecturer_id), institution_id,
-                    date, block["time"], program_duration
-                )
-                if not lecturer_available:
-                    block["status"] = "unavailable"
+            # Check lecturer availability when lecturer collision is enabled
+            elif has_lecturer_collision:
+                if assigned_lecturer_id:
+                    # Check assigned lecturer specifically
+                    lecturer_available = await check_lecturer_available_for_block(
+                        db, str(assigned_lecturer_id), institution_id,
+                        date, block["time"], program_duration
+                    )
+                    if not lecturer_available:
+                        block["status"] = "unavailable"
+                else:
+                    # No assigned lecturer — check if ANY team lecturer is available
+                    any_available = await check_any_lecturer_available_for_block(
+                        db, institution_id, date, block["time"], program_duration
+                    )
+                    if not any_available:
+                        block["status"] = "unavailable"
     
     return {"date": date, "time_blocks": time_blocks}
 
@@ -177,6 +193,34 @@ async def get_calendar_availability(
             except (ValueError, TypeError):
                 pass
     
+    # Check if program has lecturer collision settings
+    has_lecturer_collision = False
+    prog_assigned_lecturer = None
+    scheduled_lecturer_ids = []
+    if programs:
+        prog = programs[0]
+        collision_resources = prog.get("collision_resources") or []
+        has_lecturer_collision = "lecturer" in collision_resources
+        if prog.get("assigned_lecturer_id"):
+            prog_assigned_lecturer = str(prog["assigned_lecturer_id"])
+    
+    # Pre-load scheduled lecturers for monthly check (only when needed)
+    if has_lecturer_collision and program_id and not prog_assigned_lecturer:
+        from services.collision_service import get_institution_lecturers
+        from database.models import LecturerAvailability
+        from sqlalchemy import select as sa_select, and_ as sa_and
+        import uuid as _uuid
+        lecturer_ids = await get_institution_lecturers(db, institution_id)
+        for lid in lecturer_ids:
+            result = await db.execute(
+                sa_select(LecturerAvailability.id).where(sa_and(
+                    LecturerAvailability.lecturer_id == _uuid.UUID(lid),
+                    LecturerAvailability.institution_id == _uuid.UUID(institution_id)
+                )).limit(1)
+            )
+            if result.scalar_one_or_none() is not None:
+                scheduled_lecturer_ids.append(lid)
+    
     # Build calendar
     for day in range(1, num_days + 1):
         date_str = f"{year}-{month:02d}-{day:02d}"
@@ -202,6 +246,25 @@ async def get_calendar_availability(
             not is_before_start and
             not is_after_end
         )
+        
+        # Check lecturer availability for this day (when specific program selected)
+        if has_availability and has_lecturer_collision and program_id:
+            if prog_assigned_lecturer:
+                lect_avail = await check_lecturer_has_any_availability_on_date(
+                    db, prog_assigned_lecturer, institution_id, date_str
+                )
+                if not lect_avail:
+                    has_availability = False
+            else:
+                # No assigned lecturer — check only SCHEDULED team lecturers
+                if scheduled_lecturer_ids:
+                    any_lect_avail = False
+                    for lid in scheduled_lecturer_ids:
+                        if await check_lecturer_has_any_availability_on_date(db, lid, institution_id, date_str):
+                            any_lect_avail = True
+                            break
+                    if not any_lect_avail:
+                        has_availability = False
         
         available_blocks = total_blocks if has_availability else 0
         

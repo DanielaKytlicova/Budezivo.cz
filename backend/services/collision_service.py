@@ -460,3 +460,129 @@ async def check_lecturer_available_for_block(
             return False
 
     return True
+
+
+
+async def check_lecturer_has_any_availability_on_date(
+    db: AsyncSession,
+    lecturer_id: str,
+    institution_id: str,
+    date_str: str,
+) -> bool:
+    """
+    Lightweight check: does this lecturer have ANY availability block on the given date?
+    Checks both recurring (by day_of_week) and one-off (by specific_date).
+    Returns True if the lecturer has at least one availability window, False otherwise.
+    If the lecturer has NO availability defined at all, returns True (no constraints).
+    """
+    from database.models import LecturerAvailability
+    from datetime import date as date_type
+
+    lect_uuid = uuid.UUID(lecturer_id)
+    inst_uuid = uuid.UUID(institution_id)
+    d = date_type.fromisoformat(date_str)
+    day_of_week = d.weekday()
+
+    # Check recurring blocks for this day of week
+    result = await db.execute(
+        select(LecturerAvailability.id).where(and_(
+            LecturerAvailability.lecturer_id == lect_uuid,
+            LecturerAvailability.institution_id == inst_uuid,
+            LecturerAvailability.day_of_week == day_of_week,
+            LecturerAvailability.is_recurring == True
+        )).limit(1)
+    )
+    if result.scalar_one_or_none() is not None:
+        return True
+
+    # Check one-off blocks for this specific date
+    result = await db.execute(
+        select(LecturerAvailability.id).where(and_(
+            LecturerAvailability.lecturer_id == lect_uuid,
+            LecturerAvailability.institution_id == inst_uuid,
+            LecturerAvailability.is_recurring == False,
+            LecturerAvailability.specific_date == date_str
+        )).limit(1)
+    )
+    if result.scalar_one_or_none() is not None:
+        return True
+
+    # No availability for this day — check if they have ANY availability at all
+    any_result = await db.execute(
+        select(LecturerAvailability.id).where(and_(
+            LecturerAvailability.lecturer_id == lect_uuid,
+            LecturerAvailability.institution_id == inst_uuid
+        )).limit(1)
+    )
+    has_any = any_result.scalar_one_or_none() is not None
+    if has_any:
+        # Has a schedule but not for this day → unavailable
+        return False
+    # No schedule at all → no constraints
+    return True
+
+
+async def get_institution_lecturers(
+    db: AsyncSession,
+    institution_id: str,
+) -> list:
+    """
+    Get all users in an institution that can act as lecturers.
+    Returns list of user IDs (as strings).
+    """
+    from database.models import User
+
+    inst_uuid = uuid.UUID(institution_id)
+    lecturer_roles = ('lektor', 'edukator', 'admin', 'spravce')
+    result = await db.execute(
+        select(User.id).where(and_(
+            User.institution_id == inst_uuid,
+            User.role.in_(lecturer_roles),
+            User.status == 'active'
+        ))
+    )
+    return [str(uid) for uid in result.scalars().all()]
+
+
+async def check_any_lecturer_available_for_block(
+    db: AsyncSession,
+    institution_id: str,
+    date_str: str,
+    time_block: str,
+    program_duration: int,
+) -> bool:
+    """
+    Check if at least ONE lecturer in the institution is available for a time block.
+    Only considers lecturers who have defined availability schedules.
+    Returns True if any scheduled lecturer can cover the block, False if none can.
+    If no lecturers have schedules → no constraints → True.
+    """
+    from database.models import LecturerAvailability
+
+    lecturer_ids = await get_institution_lecturers(db, institution_id)
+    if not lecturer_ids:
+        return True  # No lecturers in team → no constraints
+
+    # Filter to lecturers who have at least one availability block defined
+    scheduled_lecturer_ids = []
+    for lid in lecturer_ids:
+        result = await db.execute(
+            select(LecturerAvailability.id).where(and_(
+                LecturerAvailability.lecturer_id == uuid.UUID(lid),
+                LecturerAvailability.institution_id == uuid.UUID(institution_id)
+            )).limit(1)
+        )
+        if result.scalar_one_or_none() is not None:
+            scheduled_lecturer_ids.append(lid)
+
+    if not scheduled_lecturer_ids:
+        return True  # No lecturers have schedules → no constraints
+
+    for lid in scheduled_lecturer_ids:
+        available = await check_lecturer_available_for_block(
+            db, lid, institution_id, date_str, time_block, program_duration
+        )
+        if available:
+            return True  # At least one scheduled lecturer is available
+
+    return False  # No scheduled lecturer is available

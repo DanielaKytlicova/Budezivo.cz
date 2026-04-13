@@ -1,24 +1,25 @@
-<analysis>**original_problem_statement**: The user requested a deep security and architecture audit of the existing system with a specific focus on protecting proprietary logic, preventing reverse engineering, and minimizing SaaS cloning risk. Following the audit, the user requested the implementation of critical security fixes, JWT refresh tokens with DB blacklisting, OAuth state persistence, WAF middleware, initialization of Alembic migrations, manual institution logo upload functionality, httpOnly cookies for authentication, and advanced analytics (Heatmap/Trends) with Recharts. PRODUCT REQUIREMENTS: A highly secure, multi-tenant SaaS application providing School CRM, booking management with collision validation, GDPR compliance, advanced calendar integrations, and robust role-based security.
+<analysis>**original_problem_statement**: Deep security & architecture audit execution followed by consecutive iterative feature enhancements and complex bug fixes. The user requested resolving an off-by-one calendar bug, lecturer collision logic ignoring one-off blocks, frontend crash on form validation errors, unassigned lecturer collision filtering, auto-completion background jobs, dynamic 180-day Outlook sync, PRO program feedback settings, public URL program pre-selection, strict time-block bounds logic, and admin form warnings for overlapping time blocks. PRODUCT REQUIREMENTS: A highly secure, multi-tenant SaaS application providing School CRM, booking management with collision validation, GDPR compliance, advanced calendar integrations, and robust role-based security.
 
-**User's preferred language**: Czech (Čeština). **INSTRUCT NEXT AGENT TO RESPOND IN THE USER'S PREFERRED LANGUAGE ONLY.**
+**User's preferred language**: Czech (Čeština). INSTRUCT NEXT AGENT TO RESPOND IN THE USER'S PREFERRED LANGUAGE ONLY.
 
-**what currently exists?**: A fully functional, highly secure multi-tenant SaaS application (React + FastAPI + Supabase PostgreSQL). Features include CRM, bookings, GDPR tools, ICS exports (secured via tokens), Outlook OAuth integration (states persisted in DB), manual logo file uploads via Emergent Object Storage, Web Application Firewall (WAF) middleware, httpOnly cookie-based JWT authentication with refresh token rotation, and Advanced Analytics (Heatmap & Trends) visualizing data via Recharts. 
+**what currently exists?**: A fully functional, highly secure multi-tenant SaaS application. It now features accurate and robust lecturer availability logic (properly handling one-off blocks and unassigned lecturers dynamically checking the whole team), auto-completion of past bookings via APScheduler, custom feedback questions per program (PRO feature), dynamic 180-day Outlook sync, robust time-block overlap validation in the admin panel, and URL auto-selection for public bookings.
 
-**Last working item**:
-    - Last item agent was working: Implementing (P2) Source map removal, (L1) httpOnly cookies for JWT, (L2) internal field filtering for public booking responses, and Advanced Analytics (Heatmap/Trends) on the frontend using Recharts.
+**Last working item**: 
+    - Last item agent was working: Implementing a warning popup dialog in  to alert administrators if they create overlapping time blocks or time blocks that do not respect preparation/cleanup times.
     - Status: COMPLETED
     - Agent Testing Done: Y
-    - Which testing method agent to use?: NA (testing is already done via  iteration 31 with 100% success rate)
+    - Which testing method agent to use?: NA (Testing is already done via  iteration 37 with 100% success rate)
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  *(No pending issues. All critical bugs, security vulnerabilities, and requested tasks from the current session have been successfully resolved and tested.)*
+  *(No pending issues. All critical bugs, validation requests, and UI errors have been successfully resolved and tested.)*
 
-**In progress Task List**:
+**In progress Task List**: 
   *(No tasks are currently in progress. The agent finished the last task successfully.)*
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
+    - (P0) Connect  to the public feedback form: Ensure that the custom feedback questions set on a program level are displayed to respondents when filling out the form.
     - (P2) i18n Language Toggle (CZ/EN) using existing placeholder buttons.
     - (P3) Social proof on landing page (logos, references, numbers).
     
@@ -28,88 +29,82 @@
     - (P4) Mobile app (PWA).
 
 **Completed work in this session**
-- Updated Terms of Service (VOP) with points 4 and 16 (DONE)
-- Deep Security & Architecture Audit Execution (DONE)
-- Critical Security Fixes: SQL injections in schools.py, secured debug endpoints, token-secured ICS feeds, PII/business logic stripped from public APIs, and SlowAPI rate-limiting (DONE)
-- JWT Auth Hardening: 15-minute access tokens, 30-day refresh tokens, DB blacklisting/rotation (DONE)
-- OAuth State Persistence to DB for Microsoft Calendar (DONE)
-- Web Application Firewall (WAF) middleware blocking SQLi, XSS, and timing attacks (DONE)
-- Alembic Migration Initialization & Baseline setup (DONE)
-- Institution Logo File Upload using Emergent Object Storage & drag-and-drop UI (DONE)
-- Auth Migration to  secure cookies & CORS configuration updates (DONE)
-- Booking response filtering to strip internal fields from public endpoints (DONE)
-- Source map removal () (DONE)
-- Advanced Analytics: Backend SQL queries and frontend Recharts integration for Heatmaps & Booking Trends (DONE)
+- Calendar off-by-one UI fix (due to  UTC shift) (DONE)
+- Lecturer collision checks now support one-off availability blocks (DONE)
+- White screen crash on booking edit fixed (handled Pydantic 422 array responses cleanly in UI) (DONE)
+- Monthly/daily availability endpoints updated to check ANY team lecturer if a program has lecturer collision enabled but no specific lecturer is assigned (DONE)
+- CSS text overflow for long school names fixed in bookings table (DONE)
+- Background scheduler updated to automatically mark past confirmed reservations as  (DONE)
+- Outlook calendar sync window dynamically extended to 180 days (DONE)
+- Added Custom Feedback Settings (PRO feature) to Programs via Alembic migration and frontend integration (DONE)
+- Public  auto-selects program from URL parameter  (DONE)
+- Time block generation in availability strictly respects program duration bounds (slots surpassing ending time are excluded) (DONE)
+- UI warning dialog added in admin program settings for overlapping time blocks and cleanup times (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 - None.
 
 **Known issue recurrence from previous fork**
-  - None. (The previous recurring issue regarding Alembic not being configured was successfully resolved in this session. Alembic is now fully initialized and active).
+- None.
 
 **Code Architecture**
+*(Same as previous, with enhancements to APScheduler and availability services)*
 
 
 **Key Technical Concepts**
-- Frontend: React, TailwindCSS, Recharts (NEW).
-- Backend: FastAPI, Supabase (SQLAlchemy Async), Alembic (NEW).
-- Security:  cookies for JWT, WAF Middleware (NEW), bcrypt,  rate limiter.
-- Storage: Emergent Object Storage API (NEW).
-- Concurrency: PostgreSQL advisory locks.
+- Frontend: React, TailwindCSS, context API, custom hooks.
+- Backend: FastAPI, Supabase (SQLAlchemy Async), Alembic.
+- Tasks:  for cron-like background jobs.
+- Security: WAF Middleware,  cookies.
 
 **key DB schema**
-  - : uid=0(root) gid=0(root) groups=0(root), , , , , 
-  - : , , , 
-  - , , , , 
+  - : added  (Boolean) and  (JSONB).
+  - :  updated automatically by scheduler.
 
 **changes in tech stack**
-  - Implemented  for database migrations.
-  - Implemented  cookies for all authentication (removed  dependencies for tokens).
-  - Added  package to the frontend for advanced analytics visualizations.
-  - Integrated Emergent Object Storage () using the .
+  - No core changes. Heavy reliance on  for business logic automation (marking bookings completed).
 
 **All files of reference** 
-  -  &  (Auth flows and cookie handling)
-  -  (Frontend auth state relying on )
-  -  (Security request filtering)
-  -  (Recharts frontend implementation)
-  -  (File uploads handling)
+  -  (Heavily modified for feedback settings and time-block overlap validations)
+  -  (Core logic for calendar generation and bounds checking)
+  -  (Lecturer checking, including unassigned logic)
+  -  (URL parsing logic to pre-fill wizard)
+  -  (Auto-completion background job)
+  -  (Program schema feedback columns)
 
 **Areas that need refactoring**: 
-  - None immediately. The codebase has undergone massive security and architecture hardening.
+  - : This file is approaching 2,000 lines of code. It manages complex form states, tabs, dialogs, and deep validations. Future work on Programs should consider extracting the tabs (e.g., , ) into separate component files.
 
 **key api endpoints**
-  - , ,  (Now exclusively use  cookies)
-  -  (Multipart/form-data object storage upload)
-  -  & 
-  -  (Generates secure token for ICS feeds)
+  - 
+  - 
+  - 
+  - 
 
 **Critical Info for New Agent** 
   - **LANGUAGE**: Always respond in Czech.
-  - **AUTHENTICATION PARADIGM SHIFT**: The application now strictly uses , ,  cookies for JWT Access and Refresh tokens. **Do not** attempt to read tokens from  or append  headers manually in the frontend via Axios interceptors. Axios is configured with .
-  - **WAF MIDDLEWARE**: A Web Application Firewall is active globally. Any payload resembling SQL injection or XSS in JSON bodies or query parameters will yield a .  bypasses body inspection (useful for file uploads).
-  - **ALEMBIC**: Alembic is fully configured. Any changes to SQLAlchemy models MUST be followed by FAILED: No 'script_location' key found in configuration. and FAILED: No 'script_location' key found in configuration.. Stop using manual raw SQL bash execution for schema changes.
+  - **Collision Logic Paradigm**: If a program has  but , the system will fetch ALL valid team members and verify if *any* of them are available.
+  - **Booking auto-completion**: Handled by  in  running periodically.
+  - **Time Block Overlap Validation**: Strict checking exists on the frontend when creating/editing programs to ensure admins do not set blocks like 08:00 and 09:00 for a 90m program without acknowledging the conflict. 
+  - **Feedback Form Next Step**: The backend and admin UI for  are fully set up. The NEXT P0 task is to connect these questions to the public-facing feedback form.
 
 **documents and test reports created in this job** 
-  - 
-  -  (100% pass)
-  -  (100% pass)
-  -  (100% pass)
-  -  (100% pass)
+  -  (Updated)
+  -  (Updated)
+  -  through  (All 100% pass)
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Instructed the agent to act as a senior backend architect and conduct a deep security/anti-cloning audit.
- 2. User: Instructed the agent to implement critical fixes and create a work plan for all identified risks.
- 3. User: Questioned why the agent proposed adding a CAPTCHA when no open Google Forms were present.
- 4. User: Approved the plan to proceed with Refresh Tokens, DB OAuth states, and WAF, but asked for clarification on the CAPTCHA suggestion.
- 5. User: Requested manual logo upload capability from the institution settings file.
- 6. User: Requested implementation of (P2) Source map removal, (L1) httpOnly cookies, (L2) booking response filtering, and Advanced Analytics.
- 7. **PENDING HUMAN MESSAGE**: None. The agent successfully finalized the user's latest requests and proposed adding automated email reports as an enhancement in the finish summary. You should start by presenting the current state and asking the user if they want to proceed with the remaining P2/P3 upcoming tasks.
+ 1. User: Reported off-by-one bug in calendar and lecturer collision ignoring one-off blocks. (Resolved)
+ 2. User: Reported white screen crash when editing booking date/time. (Resolved)
+ 3. User: Reported lecturer collision not filtering out slots when no specific lecturer is assigned. (Resolved)
+ 4. User: Requested school name text wrap fix, extend Outlook sync, add program feedback settings, fix auto-completion bug. (Resolved)
+ 5. User: Reported URL  not preselecting program, and time slots exceeding time bounds. (Resolved)
+ 6. User: Requested a warning popup when admin creates overlapping time blocks for a program. (Resolved)
+ 7. **PENDING HUMAN MESSAGE**: None. The agent completed the warning dialog. The logical next step is implementing the custom feedback questions into the public form.
 
 **Project Health Check:**
 - Broken: None
 - Mocked: None
-- Working perfectly: Backend, Frontend, DB, Security layers, Integrations.
 
 **3rd Party Integrations** 
   - Supabase (Database) — requires User credentials
@@ -118,13 +113,13 @@
   - Emergent Object Storage — uses Emergent LLM Key ( in )
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Iterations 28, 29, 30, 31 all achieved 100% success).
+  - Testing agent used after significant changes: YES (Iterations 32 through 37 all achieved 100% success).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None
+  - Test files created: Handled continuously via .
   - Known regressions: None
 
 **Credentials to test flow:**
   -  / 
 
 **What agent forgot to execute**
-  - Nothing was forgotten. The agent implemented every task requested efficiently and comprehensively. Proceed to ask the user what to prioritize next.</analysis>
+  - Nothing was forgotten. The agent executed everything accurately. The only logical continuation is ensuring the newly added  feature actually manifests for the end user filling out the feedback form (P0 task).</analysis>

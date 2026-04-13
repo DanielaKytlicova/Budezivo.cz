@@ -44,6 +44,9 @@ async def get_program_availability(
     # Get time blocks from program settings or use defaults
     program_time_blocks = program.get("time_blocks") or ["09:00-10:30", "10:45-12:15", "13:00-14:30"]
     available_days = program.get("available_days") or ["monday", "tuesday", "wednesday", "thursday", "friday"]
+    program_duration = program.get("duration") or 60
+    prep_time = program.get("preparation_time") or 0
+    cleanup_time = program.get("cleanup_time") or 0
     
     # Check if the date's day of week is in available days
     try:
@@ -54,8 +57,41 @@ async def get_program_availability(
     except ValueError:
         return {"date": date, "time_blocks": []}
     
-    # Create time blocks
-    time_blocks = [{"time": tb, "status": "available"} for tb in program_time_blocks]
+    def time_to_min(t):
+        h, m = map(int, t.split(':'))
+        return h * 60 + m
+    
+    def min_to_time(m):
+        return f"{m // 60:02d}:{m % 60:02d}"
+    
+    # Expand time windows into individual slots based on program duration
+    expanded_blocks = []
+    for tb in program_time_blocks:
+        if '-' in tb:
+            parts = tb.split('-')
+            window_start = time_to_min(parts[0].strip())
+            window_end = time_to_min(parts[1].strip())
+            window_span = window_end - window_start
+            
+            # If the window is significantly larger than the duration, expand into individual slots
+            if window_span > program_duration + 15:
+                slot_start = window_start
+                step = 30  # 30-minute intervals
+                while slot_start + program_duration <= window_end:
+                    slot_end = slot_start + program_duration
+                    slot_str = f"{min_to_time(slot_start)}-{min_to_time(slot_end)}"
+                    expanded_blocks.append(slot_str)
+                    slot_start += step
+            else:
+                expanded_blocks.append(tb)
+        else:
+            # Single time like "09:00" — convert to full slot
+            start = time_to_min(tb.strip())
+            end = start + program_duration
+            expanded_blocks.append(f"{min_to_time(start)}-{min_to_time(end)}")
+    
+    # Create time blocks from expanded list
+    time_blocks = [{"time": tb, "status": "available"} for tb in expanded_blocks]
     
     if institution_id == "demo":
         return {"date": date, "time_blocks": time_blocks}
@@ -66,17 +102,40 @@ async def get_program_availability(
         institution_id, program_id, date
     )
     
-    # Mark booked time blocks as unavailable
-    booked_times = {b.get("time_block") for b in bookings if b.get("status") != "cancelled"}
+    # Parse booked time ranges for overlap detection (handles both old window and new slot formats)
+    booked_ranges = []
+    for b in bookings:
+        if b.get("status") == "cancelled":
+            continue
+        tb = b.get("time_block", "")
+        if '-' in tb:
+            parts = tb.split('-')
+            booked_ranges.append((time_to_min(parts[0].strip()), time_to_min(parts[1].strip())))
+        elif tb:
+            start = time_to_min(tb.strip())
+            booked_ranges.append((start, start + program_duration))
+    
+    def slot_overlaps_booking(slot_str):
+        """Check if a time slot overlaps with any existing booking."""
+        if '-' in slot_str:
+            parts = slot_str.split('-')
+            s_start = time_to_min(parts[0].strip())
+            s_end = time_to_min(parts[1].strip())
+        else:
+            s_start = time_to_min(slot_str.strip())
+            s_end = s_start + program_duration
+        for b_start, b_end in booked_ranges:
+            if s_start < b_end and s_end > b_start:
+                return True
+        return False
     
     # Get program's assigned lecturer and collision settings
     assigned_lecturer_id = program.get("assigned_lecturer_id")
-    program_duration = program.get("duration") or 60
     collision_resources = program.get("collision_resources") or []
     has_lecturer_collision = "lecturer" in collision_resources
     
     for block in time_blocks:
-        if block["time"] in booked_times:
+        if slot_overlaps_booking(block["time"]):
             block["status"] = "booked"
         elif block["status"] == "available":
             # Check cross-program collisions

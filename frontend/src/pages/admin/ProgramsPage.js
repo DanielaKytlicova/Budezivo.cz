@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
 import { Checkbox } from '../../components/ui/checkbox';
-import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail, ShieldAlert, Info, User, SlidersHorizontal, Star, MessageSquare, Lock } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail, ShieldAlert, Info, User, SlidersHorizontal, Star, MessageSquare, Lock, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -94,6 +94,8 @@ export const ProgramsPage = () => {
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomCapacity, setNewRoomCapacity] = useState('');
   const [isPro, setIsPro] = useState(false);
+  const [validationWarnings, setValidationWarnings] = useState([]);
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
 
   const URL_AGE_OPTIONS = [
     { code: 'MS', label: 'MŠ (3-6 let)' },
@@ -239,8 +241,91 @@ export const ProgramsPage = () => {
     toast.success('Zkopírováno do schránky');
   };
 
+  // --- Time Block Validation ---
+  const timeToMin = (t) => {
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+  };
+
+  const minToTime = (m) => {
+    return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  };
+
+  const validateTimeBlocks = () => {
+    const warnings = [];
+    const duration = parseInt(formData.duration) || 60;
+    const cleanupTime = parseInt(formData.cleanup_time) || 0;
+    const prepTime = parseInt(formData.preparation_time) || 0;
+    const blocks = (formData.time_blocks || []).filter(b => b && b.trim());
+
+    // Parse blocks into [start, end] ranges
+    const ranges = blocks.map(block => {
+      const trimmed = block.trim();
+      if (trimmed.includes('-')) {
+        const parts = trimmed.split('-');
+        return { start: timeToMin(parts[0].trim()), end: timeToMin(parts[1].trim()), raw: trimmed };
+      } else {
+        const start = timeToMin(trimmed);
+        return { start, end: start + duration, raw: trimmed };
+      }
+    }).filter(r => !isNaN(r.start) && !isNaN(r.end));
+
+    // Sort by start time
+    ranges.sort((a, b) => a.start - b.start);
+
+    // Check overlaps between consecutive slots
+    for (let i = 0; i < ranges.length - 1; i++) {
+      const current = ranges[i];
+      const next = ranges[i + 1];
+
+      // Direct overlap: current end > next start
+      if (current.end > next.start) {
+        warnings.push({
+          type: 'overlap',
+          severity: 'warning',
+          message: `Blok ${current.raw} (končí ${minToTime(current.end)}) se překrývá s blokem ${next.raw} (začíná ${minToTime(next.start)}). Při plné kapacitě by si rezervace vzájemně ubíraly místo.`
+        });
+      }
+
+      // Cleanup time collision: current end + cleanup > next start
+      if (cleanupTime > 0 && current.end + cleanupTime > next.start && current.end <= next.start) {
+        const gap = next.start - current.end;
+        warnings.push({
+          type: 'cleanup',
+          severity: 'warning',
+          message: `Mezi bloky ${current.raw} a ${next.raw} je mezera jen ${gap} min, ale úklid trvá ${cleanupTime} min. Další blok by mohl začít nejdříve v ${minToTime(current.end + cleanupTime)}.`,
+          suggestion: `Snížit dobu úklidu na ${gap} min nebo posunout další blok na ${minToTime(current.end + cleanupTime)}.`
+        });
+      }
+
+      // Preparation time collision: next start - prep < current end
+      if (prepTime > 0 && next.start - prepTime < current.end && current.end <= next.start) {
+        warnings.push({
+          type: 'preparation',
+          severity: 'info',
+          message: `Příprava dalšího bloku (${prepTime} min před ${next.raw}) by začala v ${minToTime(next.start - prepTime)}, kdy ještě probíhá předchozí blok nebo úklid.`
+        });
+      }
+    }
+
+    return warnings;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Run validation
+    const warnings = validateTimeBlocks();
+    if (warnings.length > 0) {
+      setValidationWarnings(warnings);
+      setShowValidationDialog(true);
+      return;
+    }
+    
+    await doSubmit();
+  };
+
+  const doSubmit = async () => {
     try {
       const submitData = {
         ...formData,
@@ -1801,6 +1886,68 @@ export const ProgramsPage = () => {
                 </div>
               </>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Time Block Validation Warning Dialog */}
+      <Dialog open={showValidationDialog} onOpenChange={setShowValidationDialog}>
+        <DialogContent className="max-w-lg" aria-describedby="validation-description">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="w-5 h-5" />
+              Upozornění na nastavení časových bloků
+            </DialogTitle>
+            <p id="validation-description" className="text-sm text-gray-500 mt-2">
+              Byly nalezeny potenciální problémy s nastavením časových bloků:
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-3 py-4 max-h-[40vh] overflow-y-auto">
+            {validationWarnings.map((w, i) => (
+              <div key={i} className={`p-3 rounded-lg border text-sm ${
+                w.type === 'overlap' 
+                  ? 'bg-amber-50 border-amber-200' 
+                  : w.type === 'cleanup' 
+                    ? 'bg-orange-50 border-orange-200'
+                    : 'bg-blue-50 border-blue-200'
+              }`} data-testid={`validation-warning-${i}`}>
+                <div className="flex gap-2">
+                  <AlertTriangle className={`w-4 h-4 shrink-0 mt-0.5 ${
+                    w.type === 'overlap' ? 'text-amber-500' : w.type === 'cleanup' ? 'text-orange-500' : 'text-blue-500'
+                  }`} />
+                  <div>
+                    <p className="text-slate-700">{w.message}</p>
+                    {w.suggestion && (
+                      <p className="text-xs text-gray-500 mt-1 italic">{w.suggestion}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2 border-t">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowValidationDialog(false);
+                setActiveTab('settings');
+              }}
+              data-testid="validation-cancel-btn"
+            >
+              Upravit nastavení
+            </Button>
+            <Button
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              onClick={() => {
+                setShowValidationDialog(false);
+                doSubmit();
+              }}
+              data-testid="validation-accept-btn"
+            >
+              Beru na vědomí
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

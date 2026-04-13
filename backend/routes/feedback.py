@@ -568,7 +568,7 @@ async def get_public_feedback_form(
     if feedback.status == 'expired':
         raise HTTPException(status_code=400, detail="Platnost formuláře vypršela")
     
-    # Get questions
+    # Get institution-level questions
     questions_result = await db.execute(
         select(FeedbackQuestion)
         .where(
@@ -579,21 +579,40 @@ async def get_public_feedback_form(
     )
     questions = questions_result.scalars().all()
     
+    # Build questions list: institution-level questions
+    all_questions = [
+        {
+            "id": str(q.id),
+            "question_text": q.question_text,
+            "question_type": q.question_type,
+            "is_required": q.is_required
+        }
+        for q in questions
+    ]
+    
+    # Add program-level custom feedback questions (from program.feedback_questions JSONB)
+    if program and program.feedback_enabled and program.feedback_questions:
+        for pq in program.feedback_questions:
+            if pq.get("question"):
+                # Map program question types to feedback types
+                q_type = pq.get("type", "text")
+                if q_type == "scale":
+                    q_type = "rating"
+                all_questions.append({
+                    "id": f"prog_{pq.get('id', '')}",
+                    "question_text": pq["question"],
+                    "question_type": q_type,
+                    "is_required": False
+                })
+    
     return {
         "institution_name": institution.name,
         "institution_logo": institution.logo_url,
         "program_name": program.name_cs if program else None,
         "reservation_date": reservation.date,
         "school_name": reservation.school_name,
-        "questions": [
-            {
-                "id": str(q.id),
-                "question_text": q.question_text,
-                "question_type": q.question_type,
-                "is_required": q.is_required
-            }
-            for q in questions
-        ]
+        "feedback_enabled": program.feedback_enabled if program else True,
+        "questions": all_questions
     }
 
 

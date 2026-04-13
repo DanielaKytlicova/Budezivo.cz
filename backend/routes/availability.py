@@ -132,6 +132,7 @@ async def get_program_availability(
     # Get program's assigned lecturer and collision settings
     assigned_lecturer_id = program.get("assigned_lecturer_id")
     collision_resources = program.get("collision_resources") or []
+    collision_lecturer_ids = program.get("collision_lecturer_ids") or []
     has_lecturer_collision = "lecturer" in collision_resources
     
     for block in time_blocks:
@@ -154,8 +155,20 @@ async def get_program_availability(
                     )
                     if not lecturer_available:
                         block["status"] = "unavailable"
+                elif collision_lecturer_ids:
+                    # Check specific selected lecturers
+                    any_selected_available = False
+                    for lid in collision_lecturer_ids:
+                        if await check_lecturer_available_for_block(
+                            db, str(lid), institution_id,
+                            date, block["time"], program_duration
+                        ):
+                            any_selected_available = True
+                            break
+                    if not any_selected_available:
+                        block["status"] = "unavailable"
                 else:
-                    # No assigned lecturer — check if ANY team lecturer is available
+                    # No assigned lecturer, no selected lecturers — check ANY team lecturer
                     any_available = await check_any_lecturer_available_for_block(
                         db, institution_id, date, block["time"], program_duration
                     )
@@ -255,6 +268,7 @@ async def get_calendar_availability(
     # Check if program has lecturer collision settings
     has_lecturer_collision = False
     prog_assigned_lecturer = None
+    prog_collision_lecturer_ids = []
     scheduled_lecturer_ids = []
     if programs:
         prog = programs[0]
@@ -262,23 +276,29 @@ async def get_calendar_availability(
         has_lecturer_collision = "lecturer" in collision_resources
         if prog.get("assigned_lecturer_id"):
             prog_assigned_lecturer = str(prog["assigned_lecturer_id"])
+        prog_collision_lecturer_ids = prog.get("collision_lecturer_ids") or []
     
     # Pre-load scheduled lecturers for monthly check (only when needed)
     if has_lecturer_collision and program_id and not prog_assigned_lecturer:
-        from services.collision_service import get_institution_lecturers
-        from database.models import LecturerAvailability
-        from sqlalchemy import select as sa_select, and_ as sa_and
-        import uuid as _uuid
-        lecturer_ids = await get_institution_lecturers(db, institution_id)
-        for lid in lecturer_ids:
-            result = await db.execute(
-                sa_select(LecturerAvailability.id).where(sa_and(
-                    LecturerAvailability.lecturer_id == _uuid.UUID(lid),
-                    LecturerAvailability.institution_id == _uuid.UUID(institution_id)
-                )).limit(1)
-            )
-            if result.scalar_one_or_none() is not None:
-                scheduled_lecturer_ids.append(lid)
+        if prog_collision_lecturer_ids:
+            # Use the specific lecturers selected by admin
+            scheduled_lecturer_ids = [str(lid) for lid in prog_collision_lecturer_ids]
+        else:
+            # Fall back to all institution lecturers with schedules
+            from services.collision_service import get_institution_lecturers
+            from database.models import LecturerAvailability
+            from sqlalchemy import select as sa_select, and_ as sa_and
+            import uuid as _uuid
+            lecturer_ids = await get_institution_lecturers(db, institution_id)
+            for lid in lecturer_ids:
+                result = await db.execute(
+                    sa_select(LecturerAvailability.id).where(sa_and(
+                        LecturerAvailability.lecturer_id == _uuid.UUID(lid),
+                        LecturerAvailability.institution_id == _uuid.UUID(institution_id)
+                    )).limit(1)
+                )
+                if result.scalar_one_or_none() is not None:
+                    scheduled_lecturer_ids.append(lid)
     
     # Build calendar
     for day in range(1, num_days + 1):

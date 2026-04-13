@@ -93,6 +93,7 @@ class ProgramBase(BaseModel):
     # Collision & Parallel Settings
     allow_parallel: bool = False
     collision_resources: List[str] = []
+    collision_lecturer_ids: List[str] = []
     blocked_program_ids: List[str] = []
     # Assigned Lecturer
     assigned_lecturer_id: Optional[str] = None

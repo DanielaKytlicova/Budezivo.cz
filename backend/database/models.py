@@ -159,6 +159,7 @@ class Program(Base):
     # Collision & Parallel Settings
     allow_parallel = Column(Boolean, default=False)  # If True, program can run in parallel with others
     collision_resources = Column(JSON, default=[])  # ["lecturer", "room"] - resources to check for conflicts
+    collision_lecturer_ids = Column(JSON, default=[])  # List of specific lecturer IDs to check for collisions
     blocked_program_ids = Column(JSON, default=[])  # List of program IDs that cannot overlap with this one
     
     # Assigned Lecturer

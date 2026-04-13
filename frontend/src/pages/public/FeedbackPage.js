@@ -249,7 +249,7 @@ export default function FeedbackPage() {
                 {question.is_required && ' *'}
               </Label>
               
-              {question.question_type === 'rating' && (
+              {(question.question_type === 'rating' || question.question_type === 'scale') && (
                 <StarRating
                   value={answers[question.id] || 0}
                   onChange={(val) => handleAnswerChange(question.id, val)}

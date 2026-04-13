@@ -77,6 +77,10 @@ programs: + room_id (FK → rooms.id)
 
 ## Backlog
 
+### P0 - Hotovo
+- [x] Feedback questions propojeny s veřejným formulářem
+- [x] Výběr lektorů pro kolizní kontrolu
+
 ### P2 - Střední priorita
 - [ ] i18n přepínač jazyků (CZ/EN)
 
@@ -156,4 +160,12 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Tlačítka "Upravit nastavení" (vrátí na tab) / "Beru na vědomí" (uloží přesto)
 - [x] Bez varování pokud se bloky nepřekrývají
 
-*Poslední aktualizace: 12. dubna 2026*
+### Fáze 30 - Refaktoring + P0 Feedback + Kolize lektorů + Mobile fix (13.4.2026)
+- [x] Refaktoring: ProgramsPage.js rozdělena na ProgramCollisionTab, ProgramFeedbackTab, ProgramUrlModal (~1306 → 1306 + 418 + 157 + 242 řádků)
+- [x] P0: Veřejný feedback formulář nyní zobrazuje program-level feedback_questions (z JSONB sloupce programs.feedback_questions)
+- [x] Kolize lektora: nový sloupec collision_lecturer_ids (JSONB) na tabulce programs — admin může vybrat konkrétní lektory pro kontrolu kolize
+- [x] Dostupnost: denní i měsíční kalendář respektuje collision_lecturer_ids (pokud jsou vybrány, kontrolují se jen oni)
+- [x] Mobile fix: URL generator modal používá max-h-[85dvh] + overflow-y-auto pro scrollovatelný obsah
+- [x] Zpětná kompatibilita: pokud collision_lecturer_ids je prázdné, chování zůstává beze změny (kontrolují se všichni lektoři)
+
+*Poslední aktualizace: 13. dubna 2026*

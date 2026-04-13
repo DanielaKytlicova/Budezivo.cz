@@ -763,3 +763,125 @@ class OAuthState(Base):
     redirect_uri = Column(Text)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime(timezone=True), nullable=False)
+
+
+
+# ============ EVENTS MODULE (Pilot) ============
+
+class FeatureFlag(Base):
+    """Feature flags for pilot/beta features."""
+    __tablename__ = 'feature_flags'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    key = Column(Text, nullable=False, unique=True)
+    enabled = Column(Boolean, default=False)
+    allowed_institution_ids = Column(JSON, default=[])
+    description = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class Event(Base):
+    """Event / Camp / Activity."""
+    __tablename__ = 'events'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    name = Column(Text, nullable=False)
+    type = Column(Text, nullable=False, default='event')  # reservation, event, camp
+    description = Column(Text)
+    capacity = Column(Integer, default=30)
+    price = Column(Float, default=0.0)
+    currency = Column(Text, default='CZK')
+    is_active = Column(Boolean, default=True)
+    is_archived = Column(Boolean, default=False)
+    image_url = Column(Text)
+    form_fields = Column(JSON, default=[])  # [{id, type, label, required, options, order}]
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_events_institution', 'institution_id'),
+    )
+
+
+class EventDate(Base):
+    """Specific date/time for an event."""
+    __tablename__ = 'event_dates'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
+    start_datetime = Column(DateTime(timezone=True), nullable=False)
+    end_datetime = Column(DateTime(timezone=True), nullable=False)
+    capacity_override = Column(Integer)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_event_dates_event', 'event_id'),
+    )
+
+
+class EventApplication(Base):
+    """Application / registration for an event."""
+    __tablename__ = 'event_applications'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
+    event_date_id = Column(UUID(as_uuid=True), ForeignKey('event_dates.id', ondelete='SET NULL'))
+    status = Column(Text, nullable=False, default='pending')  # pending, approved, rejected
+    payment_status = Column(Text, nullable=False, default='unpaid')  # unpaid, pending, paid
+    total_amount = Column(Float, default=0.0)
+    variable_symbol = Column(Text)
+    applicant_data = Column(JSON, default={})  # form field answers
+    applicant_email = Column(Text)
+    applicant_name = Column(Text)
+    note = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_event_applications_event', 'event_id'),
+        Index('idx_event_applications_institution', 'institution_id'),
+        Index('idx_event_applications_vs', 'variable_symbol'),
+    )
+
+
+class InstitutionPaymentSettings(Base):
+    """Payment configuration per institution."""
+    __tablename__ = 'institution_payment_settings'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False, unique=True)
+    payment_mode = Column(Text, default='qr')  # qr, gateway, both
+    provider = Column(Text)  # gopay, comgate, null
+    iban = Column(Text)
+    account_number = Column(Text)
+    bank_code = Column(Text)
+    account_name = Column(Text)
+    gateway_api_key = Column(Text)
+    gateway_secret = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class EventPayment(Base):
+    """Payment tracking for event applications."""
+    __tablename__ = 'event_payments'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    application_id = Column(UUID(as_uuid=True), ForeignKey('event_applications.id', ondelete='CASCADE'), nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    provider = Column(Text, default='qr')  # qr, gopay, comgate
+    status = Column(Text, default='pending')  # pending, paid, failed
+    amount = Column(Float, nullable=False)
+    currency = Column(Text, default='CZK')
+    variable_symbol = Column(Text)
+    provider_payment_id = Column(Text)
+    qr_payload = Column(Text)
+    paid_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_event_payments_application', 'application_id'),
+    )

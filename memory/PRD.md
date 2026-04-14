@@ -77,6 +77,11 @@ programs: + room_id (FK → rooms.id)
 
 ## Backlog
 
+### P0 - Hotovo
+- [x] Feedback questions propojeny s veřejným formulářem
+- [x] Výběr lektorů pro kolizní kontrolu
+- [x] Pilotní modul Události a přihlášky + QR platby
+
 ### P2 - Střední priorita
 - [ ] i18n přepínač jazyků (CZ/EN)
 
@@ -86,12 +91,16 @@ programs: + room_id (FK → rooms.id)
 
 ### P4 - Budoucnost
 - [ ] Pokročilá analytika, Stripe/Fakturoid, PWA, 2FA, Alembic
+- [ ] Události: automatické párování plateb z banky
+- [ ] Události: Apple Pay / Google Pay (přes gateway)
+- [ ] Události: zálohy a doplatky, fakturace
+- [ ] Události: QR check-in účastníků, exporty
 
 ---
 
 ## Důležitá poznámka k OAuth
 Pro testování na preview prostředí je potřeba v Azure Portal přidat Redirect URI:
-`https://gdpr-crm-hub.preview.emergentagent.com/api/auth/microsoft/callback`
+`https://audit-enhance-fix.preview.emergentagent.com/api/auth/microsoft/callback`
 
 Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 
@@ -156,4 +165,39 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Tlačítka "Upravit nastavení" (vrátí na tab) / "Beru na vědomí" (uloží přesto)
 - [x] Bez varování pokud se bloky nepřekrývají
 
-*Poslední aktualizace: 12. dubna 2026*
+### Fáze 30 - Refaktoring + P0 Feedback + Kolize lektorů + Mobile fix (13.4.2026)
+- [x] Refaktoring: ProgramsPage.js rozdělena na ProgramCollisionTab, ProgramFeedbackTab, ProgramUrlModal (~1306 → 1306 + 418 + 157 + 242 řádků)
+- [x] P0: Veřejný feedback formulář nyní zobrazuje program-level feedback_questions (z JSONB sloupce programs.feedback_questions)
+- [x] Kolize lektora: nový sloupec collision_lecturer_ids (JSONB) na tabulce programs — admin může vybrat konkrétní lektory pro kontrolu kolize
+- [x] Dostupnost: denní i měsíční kalendář respektuje collision_lecturer_ids (pokud jsou vybrány, kontrolují se jen oni)
+- [x] Mobile fix: URL generator modal používá max-h-[85dvh] + overflow-y-auto pro scrollovatelný obsah
+- [x] Zpětná kompatibilita: pokud collision_lecturer_ids je prázdné, chování zůstává beze změny (kontrolují se všichni lektoři)
+
+### Fáze 31 - Pilotní modul Události a přihlášky + Platby (13.4.2026)
+- [x] Feature flag systém: tabulka feature_flags s key/allowed_institution_ids, služba is_feature_enabled
+- [x] Feature flag seeded: events_module pro demo účet (669e71b2-...)
+- [x] Modely: Event, EventDate, EventApplication, EventPayment, InstitutionPaymentSettings, FeatureFlag
+- [x] Events CRUD API: GET/POST/PUT/DELETE /api/events, s feature flag guardem
+- [x] Event dates: POST/DELETE /api/events/{id}/dates
+- [x] Přihlášky: POST /api/events/public/{institution_id}/apply (veřejný, bez auth)
+- [x] QR platba: SPD formát (SPD*1.0*ACC:...*AM:...*CC:CZK*X-VS:...*MSG:...)
+- [x] Platební nastavení: GET/PUT /api/events/settings/payment per instituce
+- [x] Admin UI: EventsPage s taby (Detail, Termíny, Formulář, Přihlášky, Platby)
+- [x] Admin UI: Navigační položka "Události" viditelná jen pro whitelistované účty
+- [x] Admin UI: Správa přihlášek (schválit/zamítnout/označit zaplaceno)
+- [x] Admin UI: Formulářový builder (dynamické pole text/email/number/select/checkbox)
+- [x] Veřejný flow: PublicEventsPage — seznam → detail → výběr termínu → formulář → QR success
+- [x] Izolace: modul neovlivňuje stávající programy/rezervace, oddělený routing /events
+- [x] Příprava gateway: InstitutionPaymentSettings s payment_mode (qr/gateway/both), provider pole
+
+### DB Schema (nové tabulky - Fáze 31)
+```
+feature_flags: id, key, enabled, allowed_institution_ids, description
+events: id, institution_id, name, type, description, capacity, price, currency, is_active, is_archived, image_url, form_fields
+event_dates: id, event_id, start_datetime, end_datetime, capacity_override
+event_applications: id, institution_id, event_id, event_date_id, status, payment_status, total_amount, variable_symbol, applicant_data, applicant_email, applicant_name
+institution_payment_settings: id, institution_id, payment_mode, provider, iban, account_number, bank_code, account_name, gateway_api_key, gateway_secret
+event_payments: id, application_id, institution_id, provider, status, amount, currency, variable_symbol, provider_payment_id, qr_payload, paid_at
+```
+
+*Poslední aktualizace: 13. dubna 2026*

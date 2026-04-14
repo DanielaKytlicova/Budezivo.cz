@@ -10,11 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
 import { Checkbox } from '../../components/ui/checkbox';
-import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, ExternalLink, Mail, ShieldAlert, Info, User, SlidersHorizontal, Star, MessageSquare, Lock, AlertTriangle } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, Mail, ShieldAlert, Star, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { ProgramMailingTab } from '../../components/admin/ProgramMailingTab.jsx';
+import { ProgramCollisionTab } from '../../components/admin/ProgramCollisionTab';
+import { ProgramFeedbackTab } from '../../components/admin/ProgramFeedbackTab';
+import { ProgramUrlModal } from '../../components/admin/ProgramUrlModal';
 import { API } from '../../config/api';
 
 const DAYS = [
@@ -73,6 +76,7 @@ const getDefaultFormData = () => ({
   room_id: null,
   feedback_enabled: true,
   feedback_questions: [],
+  collision_lecturer_ids: [],
 });
 
 export const ProgramsPage = () => {
@@ -86,9 +90,6 @@ export const ProgramsPage = () => {
   const [formData, setFormData] = useState(getDefaultFormData());
   const [openMenu, setOpenMenu] = useState(null);
   const [showUrlModal, setShowUrlModal] = useState(false);
-  const [urlData, setUrlData] = useState(null);
-  const [selectedProgramForUrl, setSelectedProgramForUrl] = useState('all');
-  const [urlAgeFilters, setUrlAgeFilters] = useState([]);
   const [institutionData, setInstitutionData] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [newRoomName, setNewRoomName] = useState('');
@@ -96,20 +97,14 @@ export const ProgramsPage = () => {
   const [isPro, setIsPro] = useState(false);
   const [validationWarnings, setValidationWarnings] = useState([]);
   const [showValidationDialog, setShowValidationDialog] = useState(false);
-
-  const URL_AGE_OPTIONS = [
-    { code: 'MS', label: 'MŠ (3-6 let)' },
-    { code: 'ZS1', label: 'I. stupeň ZŠ (7-12 let)' },
-    { code: 'ZS2', label: 'II. stupeň ZŠ (12-15 let)' },
-    { code: 'SS', label: 'SŠ (14-18 let)' },
-    { code: 'GYM', label: 'Gymnázium (14-18 let)' },
-  ];
+  const [teamMembers, setTeamMembers] = useState([]);
 
   useEffect(() => {
     fetchPrograms();
     fetchInstitutionData();
     fetchRooms();
     fetchPlanStatus();
+    fetchTeamMembers();
   }, []);
 
   const fetchPrograms = async () => {
@@ -151,6 +146,15 @@ export const ProgramsPage = () => {
     }
   };
 
+  const fetchTeamMembers = async () => {
+    try {
+      const response = await axios.get(`${API}/team`);
+      setTeamMembers(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Failed to fetch team members');
+    }
+  };
+
 
   const createRoom = async () => {
     if (!newRoomName.trim()) return;
@@ -179,66 +183,7 @@ export const ProgramsPage = () => {
   };
 
   const openUrlGenerator = () => {
-    setSelectedProgramForUrl('all');
-    setUrlAgeFilters([]);
-    setUrlData(null);
     setShowUrlModal(true);
-  };
-
-  const generateUrl = (programId = 'all', ageFilters = []) => {
-    if (!institutionData) return;
-    
-    const baseUrl = "https://budezivo.cz";
-    const previewBase = window.location.origin;
-    const institutionId = institutionData.institution_id;
-    const institutionName = institutionData.institution_name || 'Vaše instituce';
-    
-    // Build query params
-    const params = new URLSearchParams();
-    if (programId !== 'all') params.set('program', programId);
-    if (ageFilters.length > 0) params.set('age', ageFilters.join(','));
-    const queryStr = params.toString() ? `?${params.toString()}` : '';
-    const path = `/booking/${institutionId}${queryStr}`;
-    
-    if (programId === 'all') {
-      const url = `${baseUrl}${path}`;
-      const filterLabel = ageFilters.length > 0 ? ` (${ageFilters.join(', ')})` : '';
-      setUrlData({
-        url,
-        previewUrl: `${previewBase}${path}`,
-        program_name: `Všechny programy${filterLabel}`,
-        institution_name: institutionName,
-        embed_code: `<a href="${url}" target="_blank">Rezervovat program v ${institutionName}</a>`
-      });
-    } else {
-      const program = programs.find(p => p.id === programId);
-      const url = `${baseUrl}${path}`;
-      setUrlData({
-        url,
-        previewUrl: `${previewBase}${path}`,
-        program_name: program?.name_cs || 'Program',
-        institution_name: institutionName,
-        embed_code: `<a href="${url}" target="_blank">Rezervovat: ${program?.name_cs || 'Program'}</a>`
-      });
-    }
-  };
-
-  const handleProgramSelectForUrl = (programId) => {
-    setSelectedProgramForUrl(programId);
-    generateUrl(programId, urlAgeFilters);
-  };
-
-  const toggleUrlAgeFilter = (code) => {
-    const newFilters = urlAgeFilters.includes(code)
-      ? urlAgeFilters.filter(c => c !== code)
-      : [...urlAgeFilters, code];
-    setUrlAgeFilters(newFilters);
-    generateUrl(selectedProgramForUrl, newFilters);
-  };
-
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Zkopírováno do schránky');
   };
 
   // --- Time Block Validation ---
@@ -426,6 +371,7 @@ export const ProgramsPage = () => {
       room_id: program.room_id || null,
       feedback_enabled: program.feedback_enabled !== false,
       feedback_questions: program.feedback_questions || [],
+      collision_lecturer_ids: program.collision_lecturer_ids || [],
     });
     setActiveTab('detail');
     setShowDialog(true);
@@ -1122,485 +1068,7 @@ export const ProgramsPage = () => {
   );
 
 
-  const toggleCollisionResource = (resource) => {
-    setFormData(prev => ({
-      ...prev,
-      collision_resources: prev.collision_resources.includes(resource)
-        ? prev.collision_resources.filter(r => r !== resource)
-        : [...prev.collision_resources, resource]
-    }));
-  };
 
-  const toggleBlockedProgram = (programId) => {
-    setFormData(prev => ({
-      ...prev,
-      blocked_program_ids: prev.blocked_program_ids.includes(programId)
-        ? prev.blocked_program_ids.filter(id => id !== programId)
-        : [...prev.blocked_program_ids, programId]
-    }));
-  };
-
-  const renderCollisionTab = () => {
-    const otherPrograms = programs.filter(p => 
-      p.id !== editingProgram?.id && p.status !== 'archived'
-    );
-
-    return (
-      <div className="space-y-6">
-        {/* Section 1: Basic toggle */}
-        <Card className="p-4 md:p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <h3 className="font-semibold text-slate-900">Paralelní provoz</h3>
-              <p className="text-sm text-gray-500 mt-1">
-                Určuje, zda se tento program může časově překrývat s jinými programy.
-              </p>
-            </div>
-            <div className="relative group ml-4">
-              <Info className="w-4 h-4 text-gray-400 cursor-help" />
-              <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                Pokud je paralelní provoz zakázán, program blokuje celý svůj časový slot a žádný jiný program se nemůže v tomto čase rezervovat.
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
-            <div>
-              <p className="font-medium text-slate-900 text-sm">
-                {!formData.allow_parallel 
-                  ? 'Nelze paralelně provozovat (překryv zakázán)' 
-                  : 'Paralelní provoz povolen'
-                }
-              </p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                {!formData.allow_parallel
-                  ? 'Program blokuje svůj časový slot globálně'
-                  : 'Program se může překrývat s jinými programy (s omezením)'
-                }
-              </p>
-            </div>
-            <Switch
-              checked={formData.allow_parallel}
-              onCheckedChange={(checked) => setFormData({ ...formData, allow_parallel: checked })}
-              data-testid="collision-allow-parallel-toggle"
-            />
-          </div>
-        </Card>
-
-        {/* Sections 2 & 3: Only visible when parallel is allowed */}
-        {formData.allow_parallel && (
-          <>
-            {/* Section 2: Affected resources */}
-            <Card className="p-4 md:p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-slate-900">Ovlivněné zdroje</h3>
-                <div className="relative group">
-                  <Info className="w-4 h-4 text-gray-400 cursor-help" />
-                  <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                    Zaškrtněte zdroje, u kterých chcete kontrolovat kolize. Pokud nezaškrtnete nic, program nemá žádná omezení.
-                  </div>
-                </div>
-              </div>
-              <p className="text-sm text-gray-500">
-                Vyberte, které zdroje chcete kontrolovat při překryvu s jinými programy.
-              </p>
-
-              <div className="space-y-3">
-                <label 
-                  className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${
-                    formData.collision_resources.includes('lecturer')
-                      ? 'border-[#4A6FA5] bg-[#4A6FA5]/5'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  data-testid="collision-resource-lecturer"
-                >
-                  <Checkbox
-                    checked={formData.collision_resources.includes('lecturer')}
-                    onCheckedChange={() => toggleCollisionResource('lecturer')}
-                  />
-                  <User className="w-5 h-5 text-[#4A6FA5]" />
-                  <div className="flex-1">
-                    <p className="font-medium text-slate-900 text-sm">Lektor</p>
-                    <p className="text-xs text-gray-500">
-                      Kontrola, zda stejný lektor není přiřazen k překrývající se rezervaci
-                    </p>
-                  </div>
-                  <div className="relative group">
-                    <Info className="w-4 h-4 text-gray-400 cursor-help" />
-                    <div className="absolute right-0 bottom-full mb-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                      Pokud je lektor přiřazen k jinému programu ve stejném čase, nová rezervace bude odmítnuta.
-                    </div>
-                  </div>
-                </label>
-
-                <label 
-                  className={`flex items-center gap-3 p-4 border rounded-lg cursor-pointer transition-colors ${
-                    formData.collision_resources.includes('room')
-                      ? 'border-[#4A6FA5] bg-[#4A6FA5]/5'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  data-testid="collision-resource-room"
-                >
-                  <Checkbox
-                    checked={formData.collision_resources.includes('room')}
-                    onCheckedChange={() => toggleCollisionResource('room')}
-                  />
-                  <ShieldAlert className="w-5 h-5 text-[#C4AB86]" />
-                  <div className="flex-1">
-                    <p className="font-medium text-slate-900 text-sm">Místnost</p>
-                    <p className="text-xs text-gray-500">
-                      Kontrola, zda není překryv s jinou rezervací ve stejné místnosti
-                    </p>
-                  </div>
-                  <div className="relative group">
-                    <Info className="w-4 h-4 text-gray-400 cursor-help" />
-                    <div className="absolute right-0 bottom-full mb-2 w-56 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                      Pokud je místnost rezervována pro jiný program ve stejném čase, nová rezervace nebude povolena.
-                    </div>
-                  </div>
-                </label>
-              </div>
-
-              {formData.collision_resources.length === 0 && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-sm text-amber-700">
-                    Žádný zdroj není vybrán — program se může překrývat se vším bez omezení.
-                  </p>
-                </div>
-              )}
-
-              {/* Room assignment - visible when room collision is checked */}
-              {formData.collision_resources.includes('room') && (
-                <div className="space-y-3 pt-3 border-t">
-                  <Label className="text-sm font-medium text-slate-700">Přiřazená místnost</Label>
-                  <Select 
-                    value={formData.room_id || 'none'} 
-                    onValueChange={(val) => setFormData({ ...formData, room_id: val === 'none' ? null : val })}
-                  >
-                    <SelectTrigger data-testid="room-select">
-                      <SelectValue placeholder="Vyberte místnost..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Žádná místnost</SelectItem>
-                      {rooms.filter(r => r.is_active).map(room => (
-                        <SelectItem key={room.id} value={room.id}>
-                          {room.name}{room.capacity ? ` (${room.capacity} míst)` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {rooms.length === 0 && (
-                    <p className="text-xs text-gray-500">Zatím nemáte žádné místnosti. Vytvořte je níže.</p>
-                  )}
-
-                  {/* Inline room creation */}
-                  <div className="flex gap-2 items-end">
-                    <div className="flex-1">
-                      <Input
-                        placeholder="Název místnosti..."
-                        value={newRoomName}
-                        onChange={(e) => setNewRoomName(e.target.value)}
-                        className="text-sm"
-                        data-testid="new-room-name"
-                      />
-                    </div>
-                    <div className="w-24">
-                      <Input
-                        placeholder="Kapacita"
-                        type="number"
-                        value={newRoomCapacity}
-                        onChange={(e) => setNewRoomCapacity(e.target.value)}
-                        className="text-sm"
-                        data-testid="new-room-capacity"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={createRoom}
-                      disabled={!newRoomName.trim()}
-                      data-testid="create-room-btn"
-                    >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-
-                  {/* Existing rooms list */}
-                  {rooms.length > 0 && (
-                    <div className="space-y-1">
-                      {rooms.map(room => (
-                        <div key={room.id} className="flex items-center justify-between text-xs text-gray-600 px-2 py-1 bg-gray-50 rounded">
-                          <span>{room.name}{room.capacity ? ` · ${room.capacity} míst` : ''}</span>
-                          <button
-                            type="button"
-                            onClick={() => deleteRoom(room.id)}
-                            className="text-red-400 hover:text-red-600"
-                            data-testid={`delete-room-${room.id}`}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </Card>
-
-            {/* Section 3: Manual program exclusions */}
-            <Card className="p-4 md:p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-slate-900">Ruční omezení mezi programy</h3>
-                <div className="relative group">
-                  <Info className="w-4 h-4 text-gray-400 cursor-help" />
-                  <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                    Vyberte programy, které se nesmí časově překrývat s tímto programem, bez ohledu na zdroje.
-                  </div>
-                </div>
-              </div>
-              <p className="text-sm text-gray-500">
-                Nesmí se překrývat s těmito programy:
-              </p>
-
-              {otherPrograms.length > 0 ? (
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {otherPrograms.map(prog => {
-                    const isBlocked = formData.blocked_program_ids.includes(prog.id);
-                    return (
-                      <label
-                        key={prog.id}
-                        className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                          isBlocked
-                            ? 'border-red-300 bg-red-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
-                        data-testid={`collision-block-program-${prog.id}`}
-                      >
-                        <Checkbox
-                          checked={isBlocked}
-                          onCheckedChange={() => toggleBlockedProgram(prog.id)}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-slate-900 text-sm truncate">{prog.name_cs}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className={`px-1.5 py-0.5 text-xs rounded ${
-                              prog.status === 'active' ? 'bg-slate-800 text-white' : 'bg-gray-200 text-gray-600'
-                            }`}>
-                              {prog.status === 'active' ? 'aktivní' : 'koncept'}
-                            </span>
-                            <span className="text-xs text-gray-400">{prog.duration} min</span>
-                          </div>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <p className="text-sm text-gray-500">Žádné další programy k dispozici.</p>
-                </div>
-              )}
-
-              {formData.blocked_program_ids.length > 0 && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-700">
-                    <strong>{formData.blocked_program_ids.length}</strong> {formData.blocked_program_ids.length === 1 ? 'program' : 'programů'} nesmí běžet současně s tímto programem.
-                  </p>
-                </div>
-              )}
-            </Card>
-          </>
-        )}
-
-        {/* Summary card */}
-        <Card className="p-4 md:p-6 bg-slate-50 border-slate-200">
-          <h3 className="font-semibold text-slate-900 mb-3">Shrnutí nastavení</h3>
-          <div className="space-y-2 text-sm">
-            {!formData.allow_parallel ? (
-              <p className="text-slate-700">
-                Program <strong>blokuje</strong> svůj časový slot globálně. Žádný jiný program se nemůže časově překrývat.
-              </p>
-            ) : (
-              <>
-                <p className="text-slate-700">
-                  Program <strong>umožňuje</strong> paralelní provoz.
-                </p>
-                {formData.collision_resources.length > 0 && (
-                  <p className="text-slate-600">
-                    Kontrola kolizí: {formData.collision_resources.map(r => 
-                      r === 'lecturer' ? 'Lektor' : 'Místnost'
-                    ).join(', ')}
-                  </p>
-                )}
-                {formData.blocked_program_ids.length > 0 && (
-                  <p className="text-slate-600">
-                    Ručně blokované programy: {formData.blocked_program_ids.length}
-                  </p>
-                )}
-                {formData.collision_resources.length === 0 && formData.blocked_program_ids.length === 0 && (
-                  <p className="text-amber-600">
-                    Bez omezení — program se může překrývat se vším.
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-        </Card>
-      </div>
-    );
-  };
-
-  const renderFeedbackTab = () => {
-    const questionTypes = [
-      { value: 'text', label: 'Textová odpověď' },
-      { value: 'scale', label: 'Škála 1-5' },
-      { value: 'yesno', label: 'Ano / Ne' },
-    ];
-
-    const addQuestion = () => {
-      if (formData.feedback_questions.length >= 5) {
-        toast.error('Maximální počet otázek je 5');
-        return;
-      }
-      setFormData(prev => ({
-        ...prev,
-        feedback_questions: [
-          ...prev.feedback_questions,
-          { id: Date.now().toString(), question: '', type: 'text' }
-        ]
-      }));
-    };
-
-    const updateQuestion = (id, field, value) => {
-      setFormData(prev => ({
-        ...prev,
-        feedback_questions: prev.feedback_questions.map(q =>
-          q.id === id ? { ...q, [field]: value } : q
-        )
-      }));
-    };
-
-    const removeQuestion = (id) => {
-      setFormData(prev => ({
-        ...prev,
-        feedback_questions: prev.feedback_questions.filter(q => q.id !== id)
-      }));
-    };
-
-    return (
-      <div className="space-y-4 md:space-y-6">
-        {/* Default feedback toggle */}
-        <Card className="p-4 md:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="font-semibold text-slate-900">Zpětná vazba</h3>
-              <p className="text-sm text-gray-500 mt-1">Povolit sběr zpětné vazby po dokončení programu</p>
-            </div>
-            <Switch
-              checked={formData.feedback_enabled}
-              onCheckedChange={(checked) => setFormData(prev => ({ ...prev, feedback_enabled: checked }))}
-              data-testid="feedback-enabled-toggle"
-            />
-          </div>
-
-          {formData.feedback_enabled && (
-            <div className="border-t border-gray-100 pt-4 mt-4">
-              <h4 className="text-sm font-medium text-slate-700 mb-3">Výchozí zpětná vazba (vždy přítomná)</h4>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <Star className="w-4 h-4 text-amber-500" />
-                  <span className="text-sm text-slate-700">Hodnocení hvězdičkami (1-5)</span>
-                  <span className="ml-auto text-xs text-gray-400">povinné</span>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <MessageSquare className="w-4 h-4 text-blue-500" />
-                  <span className="text-sm text-slate-700">Doporučuji / Nedoporučuji</span>
-                  <span className="ml-auto text-xs text-gray-400">povinné</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </Card>
-
-        {/* Custom questions - PRO only */}
-        {formData.feedback_enabled && (
-          <Card className="p-4 md:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
-                  Individuální otázky
-                  {!isPro && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">PRO</span>}
-                </h3>
-                <p className="text-sm text-gray-500 mt-1">Vlastní otázky specifické pro tento program (max 5)</p>
-              </div>
-            </div>
-
-            {!isPro ? (
-              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
-                <Lock className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600 mb-2">Individuální otázky jsou dostupné v PRO verzi</p>
-                <button
-                  type="button"
-                  onClick={() => window.location.href = '/admin/settings'}
-                  className="text-sm text-slate-800 underline hover:text-slate-600"
-                >
-                  Aktivovat PRO verzi
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {formData.feedback_questions.map((q, index) => (
-                  <div key={q.id} className="flex gap-3 items-start p-3 bg-gray-50 rounded-lg" data-testid={`feedback-question-${index}`}>
-                    <span className="text-xs text-gray-400 mt-2 font-mono w-5 shrink-0">{index + 1}.</span>
-                    <div className="flex-1 space-y-2">
-                      <Input
-                        value={q.question}
-                        onChange={(e) => updateQuestion(q.id, 'question', e.target.value)}
-                        placeholder="Zadejte otázku..."
-                        className="text-sm"
-                        data-testid={`feedback-question-input-${index}`}
-                      />
-                      <select
-                        value={q.type}
-                        onChange={(e) => updateQuestion(q.id, 'type', e.target.value)}
-                        className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white w-full md:w-auto"
-                        data-testid={`feedback-question-type-${index}`}
-                      >
-                        {questionTypes.map(t => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeQuestion(q.id)}
-                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded shrink-0"
-                      data-testid={`feedback-question-remove-${index}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-
-                {formData.feedback_questions.length < 5 && (
-                  <button
-                    type="button"
-                    onClick={addQuestion}
-                    className="flex items-center gap-2 text-sm text-slate-600 hover:text-slate-800 px-3 py-2 border border-dashed border-gray-300 rounded-lg hover:border-gray-400 w-full justify-center"
-                    data-testid="feedback-add-question-btn"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Přidat otázku ({formData.feedback_questions.length}/5)
-                  </button>
-                )}
-              </div>
-            )}
-          </Card>
-        )}
-      </div>
-    );
-  };
 
   const renderProgramForm = () => (
     <div className="space-y-4">
@@ -1689,8 +1157,29 @@ export const ProgramsPage = () => {
       <div className="max-h-[60vh] overflow-y-auto pb-20">
         {activeTab === 'detail' && renderDetailTab()}
         {activeTab === 'settings' && renderSettingsTab()}
-        {activeTab === 'collision' && renderCollisionTab()}
-        {activeTab === 'feedback' && renderFeedbackTab()}
+        {activeTab === 'collision' && (
+          <ProgramCollisionTab
+            formData={formData}
+            setFormData={setFormData}
+            programs={programs}
+            editingProgram={editingProgram}
+            rooms={rooms}
+            newRoomName={newRoomName}
+            setNewRoomName={setNewRoomName}
+            newRoomCapacity={newRoomCapacity}
+            setNewRoomCapacity={setNewRoomCapacity}
+            createRoom={createRoom}
+            deleteRoom={deleteRoom}
+            teamMembers={teamMembers}
+          />
+        )}
+        {activeTab === 'feedback' && (
+          <ProgramFeedbackTab
+            formData={formData}
+            setFormData={setFormData}
+            isPro={isPro}
+          />
+        )}
         {activeTab === 'mailing' && editingProgram && (
           <ProgramMailingTab 
             programId={editingProgram.id} 
@@ -1744,151 +1233,12 @@ export const ProgramsPage = () => {
       )}
 
       {/* URL Generator Modal */}
-      <Dialog open={showUrlModal} onOpenChange={setShowUrlModal}>
-        <DialogContent className="max-w-lg" aria-describedby="url-description">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <LinkIcon className="w-5 h-5" />
-              URL pro vložení na web
-            </DialogTitle>
-            <p id="url-description" className="text-sm text-gray-500 mt-2">
-              Vyberte program a zkopírujte URL pro vložení na webové stránky.
-            </p>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Program Selection */}
-            <div>
-              <Label className="text-sm font-medium text-slate-700 mb-2 block">Vyberte program</Label>
-              <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">
-                <button
-                  type="button"
-                  onClick={() => handleProgramSelectForUrl('all')}
-                  className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                    selectedProgramForUrl === 'all' 
-                      ? 'bg-slate-800 text-white' 
-                      : 'hover:bg-gray-100'
-                  }`}
-                  data-testid="url-select-all"
-                >
-                  Všechny programy
-                </button>
-                {Array.isArray(programs) && programs.filter(p => p.status === 'active').map(program => (
-                  <button
-                    key={program.id}
-                    type="button"
-                    onClick={() => handleProgramSelectForUrl(program.id)}
-                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                      selectedProgramForUrl === program.id 
-                        ? 'bg-slate-800 text-white' 
-                        : 'hover:bg-gray-100'
-                    }`}
-                    data-testid={`url-select-${program.id}`}
-                  >
-                    {program.name_cs}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Age Filter for URL */}
-            <div>
-              <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4" />
-                Filtr věkové skupiny (volitelné)
-              </Label>
-              <p className="text-xs text-gray-500 mb-2">Vyberte cílovou skupinu — učitelé uvidí jen relevantní programy</p>
-              <div className="flex flex-wrap gap-2">
-                {URL_AGE_OPTIONS.map(opt => {
-                  const isActive = urlAgeFilters.includes(opt.code);
-                  return (
-                    <button
-                      key={opt.code}
-                      type="button"
-                      onClick={() => toggleUrlAgeFilter(opt.code)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all border ${
-                        isActive 
-                          ? 'bg-slate-800 text-white border-slate-800' 
-                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
-                      }`}
-                      data-testid={`url-age-filter-${opt.code}`}
-                    >
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Generated URL */}
-            {urlData && (
-              <>
-                <div>
-                  <Label className="text-xs text-gray-500">Vybraný program</Label>
-                  <p className="font-medium">{urlData.program_name}</p>
-                </div>
-
-                <div>
-                  <Label className="text-xs text-gray-500">URL pro rezervaci</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      value={urlData.url}
-                      readOnly
-                      className="flex-1 text-sm font-mono"
-                      data-testid="external-url-input"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => copyToClipboard(urlData.url)}
-                      className="bg-slate-800 text-white"
-                      data-testid="copy-url-btn"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-xs text-gray-500">HTML kód pro vložení</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      value={urlData.embed_code}
-                      readOnly
-                      className="flex-1 text-sm font-mono"
-                      data-testid="embed-code-input"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyToClipboard(urlData.embed_code)}
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    onClick={() => window.open(urlData.previewUrl, '_blank')}
-                    className="flex-1"
-                    data-testid="preview-url-btn"
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    Náhled
-                  </Button>
-                  <Button
-                    onClick={() => setShowUrlModal(false)}
-                    className="flex-1 bg-slate-800 text-white"
-                  >
-                    Zavřít
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ProgramUrlModal
+        open={showUrlModal}
+        onOpenChange={setShowUrlModal}
+        programs={programs}
+        institutionData={institutionData}
+      />
 
       {/* Time Block Validation Warning Dialog */}
       <Dialog open={showValidationDialog} onOpenChange={setShowValidationDialog}>

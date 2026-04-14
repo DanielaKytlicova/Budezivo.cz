@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../i18n/useTranslation';
 import { AuthContext } from '../../context/AuthContext';
-import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, Clock, FileText } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, Clock, FileText, CalendarDays } from 'lucide-react';
 
 // Logo Budeživo.cz - oficiální SVG
 const BudezivoLogo = ({ showText = true }) => (
@@ -52,6 +52,22 @@ export const AdminLayout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = React.useContext(AuthContext);
+  const [eventsEnabled, setEventsEnabled] = React.useState(false);
+
+  React.useEffect(() => {
+    // Check feature flag for events module
+    const checkEventsFlag = async () => {
+      try {
+        const API = process.env.REACT_APP_BACKEND_URL;
+        const res = await fetch(`${API}/api/events/check-access`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setEventsEnabled(data.enabled);
+        }
+      } catch { /* silent */ }
+    };
+    checkEventsFlag();
+  }, []);
 
   // Role-based navigation - nové role podle wireframu
   const getNavItems = () => {
@@ -66,6 +82,13 @@ export const AdminLayout = ({ children }) => {
       { path: '/admin/team', icon: Users, label: 'Tým', testId: 'nav-team', roles: ['admin', 'spravce'] },
       { path: '/admin/settings', icon: Settings, label: 'Nastavení', testId: 'nav-settings', roles: ['admin', 'spravce'] },
     ];
+
+    // Add events module only when feature flag is enabled
+    if (eventsEnabled) {
+      baseItems.splice(3, 0, {
+        path: '/admin/events', icon: CalendarDays, label: 'Události', testId: 'nav-events', roles: ['admin', 'spravce', 'edukator', 'staff']
+      });
+    }
 
     const userRole = user?.role || 'viewer';
     return baseItems.filter(item => item.roles.includes(userRole));

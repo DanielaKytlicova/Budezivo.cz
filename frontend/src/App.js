@@ -33,6 +33,8 @@ import FeedbackAdminPage from './pages/admin/FeedbackAdminPage';
 import { LecturerAvailabilityPage } from './pages/admin/LecturerAvailabilityPage';
 import { ArchivePage } from './pages/admin/ArchivePage';
 import { AuditLogPage } from './pages/admin/AuditLogPage';
+import { EventsPage } from './pages/admin/EventsPage';
+import PublicEventsPage from './pages/public/PublicEventsPage';
 
 import './App.css';
 
@@ -69,6 +71,7 @@ function App() {
               <Route path="/accept-invite" element={<AcceptInvitePage />} />
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/obchodni-podminky" element={<VopPage />} />
+              <Route path="/events/:institutionId" element={<PublicEventsPage />} />
 
               {/* Admin routes */}
               <Route
@@ -164,6 +167,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <AuditLogPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/events"
+                element={
+                  <ProtectedRoute>
+                    <EventsPage />
                   </ProtectedRoute>
                 }
               />

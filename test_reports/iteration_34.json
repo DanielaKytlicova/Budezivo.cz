@@ -111,7 +111,7 @@
       "status": "PASS"
     },
     "monthly_calendar_april_2026": {
-      "endpoint": "GET /api/calendar/669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5/2026/4?program_id=128d6178-e199-4cc5-b247-0e42fe1955d7",
+      "endpoint": "GET /api/calendar/669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5/2026/4?program_id=audit-enhance-fix",
       "response_summary": "Weekdays from April 15+ show has_availability=true, weekends show has_availability=false",
       "status": "PASS"
     }

@@ -885,3 +885,27 @@ class EventPayment(Base):
     __table_args__ = (
         Index('idx_event_payments_application', 'application_id'),
     )
+
+
+
+# ============ AVAILABILITY EXCEPTIONS ============
+
+class AvailabilityException(Base):
+    """One-off availability exceptions (closures) for programs or lecturers."""
+    __tablename__ = 'availability_exceptions'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    scope_type = Column(Text, nullable=False)  # 'program' or 'lecturer'
+    scope_id = Column(UUID(as_uuid=True), nullable=False)  # program_id or lecturer_id
+    date = Column(Text, nullable=False)  # "2026-05-15"
+    start_time = Column(Text)  # "09:00" (null = all day)
+    end_time = Column(Text)  # "12:00" (null = all day)
+    reason = Column(Text)
+    created_by = Column(UUID(as_uuid=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_avail_exc_scope', 'scope_type', 'scope_id', 'date'),
+        Index('idx_avail_exc_institution', 'institution_id'),
+    )

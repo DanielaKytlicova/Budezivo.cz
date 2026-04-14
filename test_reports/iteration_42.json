@@ -1,0 +1,147 @@
+{
+  "summary": "Iteration 42: Unified Availability System - All features tested and working. Backend: 17/17 tests passed. Frontend: All UI elements functional.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_unified_availability.py",
+    "/app/test_reports/pytest/pytest_unified_availability.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: GET /api/availability-unified/program/{id}/slots returns slots with detailed status (available, booked, blocked_exception, blocked_parallel, etc.)",
+    "VERIFIED: GET /api/availability-unified/lecturer/{id}/slots returns lecturer slots",
+    "VERIFIED: POST /api/availability-unified/exceptions creates one-off exception",
+    "VERIFIED: DELETE /api/availability-unified/exceptions/{id} removes exception",
+    "VERIFIED: Exception blocks slot - after creating exception, slot status changes from 'available' to 'blocked_exception'",
+    "VERIFIED: Exception check integrated into check_booking_collision - booking creation blocked when program has exception",
+    "VERIFIED: Exception check integrated into check_lecturer_collision_for_assignment",
+    "VERIFIED: Admin UI - Unified Availability page loads with auto-selected first program",
+    "VERIFIED: Admin UI - Weekly calendar shows color-coded slots (green=available, orange=parallel block, red=exception)",
+    "VERIFIED: Admin UI - Click available slot → exception dialog → create exception → slot turns red",
+    "VERIFIED: Admin UI - Click blocked_exception slot → restore dialog → delete exception → slot turns green",
+    "VERIFIED: Admin UI - Program/Personal toggle switches between views",
+    "VERIFIED: Collision tab in ProgramsPage still works (not removed)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_unified_availability.py"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17 tests passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_user": "demo@budezivo.cz",
+    "admin_password": "Demo2026!",
+    "institution_id": "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
+  },
+  "seed_data_creation": "None - used existing test data",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Unified Availability System fully implemented and tested. Route prefix is /api/availability-unified. Program 'Čteme obrazy' (128d6178-e199-4cc5-b247-0e42fe1955d7) returns 2 slots per weekday (09:00-10:00, 09:30-10:30). The availability_exceptions table stores one-off blocks. Auth uses httpOnly cookies. Collision tab in ProgramsPage preserved.",
+  "verified_features": [
+    {
+      "feature": "GET /api/availability-unified/program/{id}/slots?date= returns slots with detailed status",
+      "status": "VERIFIED",
+      "evidence": "API returns {program_id, date, slots: [{time, status, reason}]}"
+    },
+    {
+      "feature": "GET /api/availability-unified/lecturer/{id}/slots?date= returns lecturer slots",
+      "status": "VERIFIED",
+      "evidence": "API returns {lecturer_id, date, slots: []}"
+    },
+    {
+      "feature": "POST /api/availability-unified/exceptions creates one-off exception",
+      "status": "VERIFIED",
+      "evidence": "Returns created exception with id, scope_type, scope_id, date, start_time, end_time, reason"
+    },
+    {
+      "feature": "DELETE /api/availability-unified/exceptions/{id} removes exception",
+      "status": "VERIFIED",
+      "evidence": "Returns {message: 'Výjimka odstraněna'}"
+    },
+    {
+      "feature": "Exception blocks slot: after creating exception, slot status changes to 'blocked_exception'",
+      "status": "VERIFIED",
+      "evidence": "Backend test test_exception_changes_slot_to_blocked passed"
+    },
+    {
+      "feature": "Exception check integrated into check_booking_collision",
+      "status": "VERIFIED",
+      "evidence": "Backend test test_booking_blocked_when_program_has_exception passed"
+    },
+    {
+      "feature": "Admin UI: Unified Availability page loads with auto-selected first program",
+      "status": "VERIFIED",
+      "evidence": "Screenshot shows 'Čteme obrazy' auto-selected in program dropdown"
+    },
+    {
+      "feature": "Admin UI: Weekly calendar shows color-coded slots",
+      "status": "VERIFIED",
+      "evidence": "Screenshot shows green (available), orange (parallel block) slots"
+    },
+    {
+      "feature": "Admin UI: Click available slot → exception dialog → create exception → slot turns red",
+      "status": "VERIFIED",
+      "evidence": "Screenshot shows 'Uzavřít slot' dialog with reason input and 'Uzavřít' button"
+    },
+    {
+      "feature": "Admin UI: Click blocked_exception slot → restore dialog → delete exception → slot turns green",
+      "status": "VERIFIED",
+      "evidence": "Screenshot shows 'Obnovit dostupnost' dialog with 'Obnovit dostupnost' button"
+    },
+    {
+      "feature": "Admin UI: Program/Personal toggle switches between views",
+      "status": "VERIFIED",
+      "evidence": "Screenshot shows 'Programová'/'Osobní' toggle buttons, lecturer selector appears in Personal view"
+    },
+    {
+      "feature": "Collision tab in ProgramsPage still works",
+      "status": "VERIFIED",
+      "evidence": "Screenshot shows Kolize tab with Paralelní provoz, Lektor, Místnost options"
+    }
+  ],
+  "backend_test_results": {
+    "test_file": "/app/backend/tests/test_unified_availability.py",
+    "total_tests": 17,
+    "passed": 17,
+    "failed": 0,
+    "tests": [
+      "TestProgramSlotsAPI::test_get_program_slots_returns_200 - PASSED",
+      "TestProgramSlotsAPI::test_program_slots_have_required_fields - PASSED",
+      "TestProgramSlotsAPI::test_program_slots_valid_status_values - PASSED",
+      "TestProgramSlotsAPI::test_program_slots_weekday_returns_slots - PASSED",
+      "TestProgramSlotsAPI::test_program_slots_invalid_program_returns_empty - PASSED",
+      "TestLecturerSlotsAPI::test_get_lecturer_slots_returns_200 - PASSED",
+      "TestExceptionsAPI::test_list_exceptions_returns_200 - PASSED",
+      "TestExceptionsAPI::test_list_exceptions_with_filters - PASSED",
+      "TestExceptionsAPI::test_create_exception_returns_created - PASSED",
+      "TestExceptionsAPI::test_create_exception_invalid_scope_type - PASSED",
+      "TestExceptionsAPI::test_delete_exception_returns_success - PASSED",
+      "TestExceptionsAPI::test_delete_nonexistent_exception_returns_404 - PASSED",
+      "TestExceptionBlocksSlot::test_exception_changes_slot_to_blocked - PASSED",
+      "TestExceptionBlocksSlot::test_removing_exception_restores_slot - PASSED",
+      "TestCollisionServiceExceptionIntegration::test_booking_blocked_when_program_has_exception - PASSED",
+      "TestProgramPersonalToggle::test_program_view_uses_program_endpoint - PASSED",
+      "TestProgramPersonalToggle::test_personal_view_uses_lecturer_endpoint - PASSED"
+    ]
+  },
+  "ui_test_results": {
+    "login": "PASS",
+    "availability_page_load": "PASS - Page title 'Dostupnost'",
+    "program_personal_toggle": "PASS - Both buttons visible and functional",
+    "program_selector": "PASS - Auto-selects first program 'Čteme obrazy'",
+    "weekly_calendar": "PASS - 7 days, 10 slots displayed",
+    "color_coded_slots": "PASS - Green (available), Orange (parallel), Red (exception)",
+    "legend": "PASS - All status types shown",
+    "exception_create_dialog": "PASS - Opens on available slot click",
+    "exception_restore_dialog": "PASS - Opens on blocked slot click",
+    "collision_tab": "PASS - Present in ProgramsPage with all options"
+  }
+}

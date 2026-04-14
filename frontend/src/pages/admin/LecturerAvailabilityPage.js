@@ -38,7 +38,7 @@ function timeToMinutes(t) {
   return h * 60 + (m || 0);
 }
 
-export const LecturerAvailabilityPage = () => {
+export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle }) => {
   const { user, token } = useContext(AuthContext);
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const [recurring, setRecurring] = useState([]);
@@ -487,30 +487,42 @@ export const LecturerAvailabilityPage = () => {
           </div>
         </div>
 
-        {/* Lecturer selector for admins */}
-        {isAdmin && teamMembers.length > 0 && (
-          <Card className="p-4">
-            <div className="flex items-center gap-4">
-              <Label className="text-sm font-medium whitespace-nowrap">Lektor:</Label>
-              <Select
-                value={selectedLecturer || 'self'}
-                onValueChange={(val) => setSelectedLecturer(val === 'self' ? null : val)}
-              >
-                <SelectTrigger className="w-64" data-testid="lecturer-selector">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="self">Můj kalendář</SelectItem>
-                  {teamMembers.map(m => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name || m.email} ({m.role})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </Card>
-        )}
+        {/* Lecturer selector + View toggle */}
+        <Card className="p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            {onViewToggle && (
+              <div className="flex items-center gap-2 border border-gray-200 rounded-lg p-1 shrink-0" data-testid="view-toggle">
+                <button onClick={() => onViewToggle('program')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewToggle === 'program' ? 'bg-slate-800 text-white' : 'text-gray-500 hover:text-gray-700'}`} data-testid="view-mode-program">
+                  Programová
+                </button>
+                <button onClick={() => onViewToggle('personal')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewToggle === 'personal' ? 'bg-slate-800 text-white' : 'text-gray-500 hover:text-gray-700'}`} data-testid="view-mode-personal">
+                  Osobní
+                </button>
+              </div>
+            )}
+            {isAdmin && teamMembers.length > 0 && (
+              <div className="flex items-center gap-2 flex-1">
+                <Label className="text-sm font-medium whitespace-nowrap">Lektor:</Label>
+                <Select
+                  value={selectedLecturer || 'self'}
+                  onValueChange={(val) => setSelectedLecturer(val === 'self' ? null : val)}
+                >
+                  <SelectTrigger className="w-64" data-testid="lecturer-selector">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="self">Můj kalendář</SelectItem>
+                    {teamMembers.map(m => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.name || m.email} ({m.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+        </Card>
 
         {/* Outlook Integration Card */}
         <Card className="p-4 border border-slate-200" data-testid="outlook-integration-card">

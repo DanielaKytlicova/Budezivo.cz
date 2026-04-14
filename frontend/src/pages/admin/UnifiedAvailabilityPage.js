@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { AdminLayout } from '../../components/layout/AdminLayout';
 import { AuthContext } from '../../context/AuthContext';
 import { Card } from '../../components/ui/card';
@@ -7,14 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { ChevronLeft, ChevronRight, Ban, CheckCircle, Clock, Users, X, AlertTriangle, Lock, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Ban, CheckCircle, Clock, Users, AlertTriangle, Lock, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
-
 import { API } from '../../config/api';
+import { LecturerAvailabilityPage } from './LecturerAvailabilityPage';
 
-const DAY_NAMES = ['Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek', 'Sobota', 'Neděle'];
 const DAY_SHORT = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 7); // 7:00 - 18:00
 
 function getMonday(d) {
   const date = new Date(d);
@@ -23,19 +23,23 @@ function getMonday(d) {
   return new Date(date.setDate(diff));
 }
 
-function formatDate(d) {
+function fmtDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function timeToMin(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
 const STATUS_COLORS = {
-  available: 'bg-green-100 border-green-300 text-green-800 hover:bg-green-200',
-  booked: 'bg-slate-200 border-slate-400 text-slate-700',
-  blocked_exception: 'bg-red-100 border-red-300 text-red-700 hover:bg-red-200',
-  blocked_lecturer: 'bg-amber-100 border-amber-300 text-amber-800',
-  blocked_room: 'bg-purple-100 border-purple-300 text-purple-800',
-  blocked_parallel: 'bg-orange-100 border-orange-300 text-orange-800',
-  blocked_program: 'bg-rose-100 border-rose-300 text-rose-800',
-  outside_base_availability: 'bg-gray-50 border-gray-200 text-gray-400',
+  available: 'bg-emerald-100 border-emerald-200',
+  booked: 'bg-slate-200 border-slate-300',
+  blocked_exception: 'bg-red-100 border-red-200',
+  blocked_lecturer: 'bg-amber-100 border-amber-300',
+  blocked_room: 'bg-purple-100 border-purple-200',
+  blocked_parallel: 'bg-orange-100 border-orange-200',
+  blocked_program: 'bg-rose-100 border-rose-200',
 };
 
 const STATUS_LABELS = {
@@ -46,330 +50,280 @@ const STATUS_LABELS = {
   blocked_room: 'Místnost obsazena',
   blocked_parallel: 'Paralelní blokace',
   blocked_program: 'Blokace programu',
-  outside_base_availability: 'Mimo rozvrh',
-};
-
-const STATUS_ICONS = {
-  available: CheckCircle,
-  booked: CalendarDays,
-  blocked_exception: Ban,
-  blocked_lecturer: Users,
-  blocked_room: Lock,
-  blocked_parallel: AlertTriangle,
-  blocked_program: AlertTriangle,
-  outside_base_availability: Clock,
 };
 
 export const UnifiedAvailabilityPage = () => {
   const { user } = useContext(AuthContext);
-  const [viewMode, setViewMode] = useState('program'); // 'program' | 'personal'
+  const [viewMode, setViewMode] = useState('personal'); // 'program' | 'personal'
+
+  // If personal view, render the original LecturerAvailabilityPage with view toggle
+  if (viewMode === 'personal') {
+    return <LecturerAvailabilityPage viewToggle={viewMode} onViewToggle={setViewMode} />;
+  }
+
+  return <ProgramAvailabilityView viewMode={viewMode} onViewModeChange={setViewMode} />;
+};
+
+// ============ Program Availability View ============
+const ProgramAvailabilityView = ({ viewMode, onViewModeChange }) => {
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const [programs, setPrograms] = useState([]);
-  const [teamMembers, setTeamMembers] = useState([]);
   const [selectedProgram, setSelectedProgram] = useState(null);
-  const [selectedLecturer, setSelectedLecturer] = useState(null);
-  const [weekSlots, setWeekSlots] = useState({}); // { "2026-04-14": [...slots] }
+  const [weekSlots, setWeekSlots] = useState({});
   const [loading, setLoading] = useState(false);
-  const [slotDetail, setSlotDetail] = useState(null); // {date, slot}
+  const [slotDetail, setSlotDetail] = useState(null);
   const [showExceptionDialog, setShowExceptionDialog] = useState(false);
   const [exceptionReason, setExceptionReason] = useState('');
   const [exceptions, setExceptions] = useState([]);
 
-  useEffect(() => { fetchPrograms(); fetchTeam(); }, []);
+  useEffect(() => { fetchPrograms(); }, []);
+  useEffect(() => {
+    if (selectedProgram) doFetchWeek(selectedProgram, weekStart);
+  }, [weekStart, selectedProgram]);
 
   const fetchPrograms = async () => {
     try {
       const res = await axios.get(`${API}/programs`);
       const active = (res.data || []).filter(p => p.status !== 'archived');
       setPrograms(active);
-      if (active.length > 0) {
-        setSelectedProgram(active[0].id);
-      }
+      if (active.length > 0) setSelectedProgram(active[0].id);
     } catch { /* */ }
   };
 
-  const fetchTeam = async () => {
-    try {
-      const res = await axios.get(`${API}/team`);
-      setTeamMembers(res.data || []);
-    } catch { /* */ }
-  };
-
-  // Fetch week data when dependencies change — use a ref to get latest values
-  const selectedProgramRef = React.useRef(selectedProgram);
-  const selectedLecturerRef = React.useRef(selectedLecturer);
-  const viewModeRef = React.useRef(viewMode);
-  const weekStartRef = React.useRef(weekStart);
-  
-  React.useEffect(() => { selectedProgramRef.current = selectedProgram; }, [selectedProgram]);
-  React.useEffect(() => { selectedLecturerRef.current = selectedLecturer; }, [selectedLecturer]);
-  React.useEffect(() => { viewModeRef.current = viewMode; }, [viewMode]);
-  React.useEffect(() => { weekStartRef.current = weekStart; }, [weekStart]);
-
-  useEffect(() => {
-    if (viewMode === 'program' && selectedProgram) doFetchWeek(selectedProgram, null, viewMode, weekStart);
-    else if (viewMode === 'personal' && selectedLecturer) doFetchWeek(null, selectedLecturer, viewMode, weekStart);
-  }, [weekStart, selectedProgram, selectedLecturer, viewMode]);
-
-  const doFetchWeek = async (prog, lect, mode, ws) => {
+  const doFetchWeek = async (prog, ws) => {
     setLoading(true);
     const data = {};
     const promises = [];
-
     for (let i = 0; i < 7; i++) {
       const d = new Date(ws);
       d.setDate(d.getDate() + i);
-      const dateStr = formatDate(d);
-
-      if (mode === 'program' && prog) {
-        promises.push(
-          axios.get(`${API}/availability-unified/program/${prog}/slots?date=${dateStr}`)
-            .then(res => { data[dateStr] = res.data.slots || []; })
-            .catch(() => { data[dateStr] = []; })
-        );
-      } else if (mode === 'personal' && lect) {
-        promises.push(
-          axios.get(`${API}/availability-unified/lecturer/${lect}/slots?date=${dateStr}`)
-            .then(res => { data[dateStr] = res.data.slots || []; })
-            .catch(() => { data[dateStr] = []; })
-        );
-      }
+      const dateStr = fmtDate(d);
+      promises.push(
+        axios.get(`${API}/availability-unified/program/${prog}/slots?date=${dateStr}`)
+          .then(res => { data[dateStr] = res.data.slots || []; })
+          .catch(() => { data[dateStr] = []; })
+      );
     }
-
     await Promise.all(promises);
     setWeekSlots(data);
     setLoading(false);
-
-    const scopeType = mode === 'program' ? 'program' : 'lecturer';
-    const scopeId = mode === 'program' ? prog : lect;
-    if (scopeId) {
-      try {
-        const res = await axios.get(`${API}/availability-unified/exceptions?scope_type=${scopeType}&scope_id=${scopeId}`);
-        setExceptions(res.data || []);
-      } catch { setExceptions([]); }
-    }
+    try {
+      const res = await axios.get(`${API}/availability-unified/exceptions?scope_type=program&scope_id=${prog}`);
+      setExceptions(res.data || []);
+    } catch { setExceptions([]); }
   };
 
   const prevWeek = () => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d); };
   const nextWeek = () => { const d = new Date(weekStart); d.setDate(d.getDate() + 7); setWeekStart(d); };
   const goToday = () => setWeekStart(getMonday(new Date()));
 
-  const handleSlotClick = (dateStr, slot) => {
+  const getWeekDays = () => Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return d; });
+  const weekDays = getWeekDays();
+  const isToday = (d) => fmtDate(d) === fmtDate(new Date());
+
+  // Build a lookup: dateStr -> hour -> slot
+  const getSlotForCell = (dateStr, hour) => {
+    const slots = weekSlots[dateStr] || [];
+    return slots.find(s => {
+      if (s.status === 'outside_base_availability') return false;
+      const [startStr] = s.time.split('-');
+      const startMin = timeToMin(startStr);
+      const startHour = Math.floor(startMin / 60);
+      return startHour === hour;
+    });
+  };
+
+  // Check if hour falls within any slot range for this date
+  const getCellStatus = (dateStr, hour) => {
+    const slots = weekSlots[dateStr] || [];
+    const cellStart = hour * 60;
+    const cellEnd = cellStart + 60;
+    for (const s of slots) {
+      if (s.status === 'outside_base_availability') continue;
+      const parts = s.time.split('-');
+      if (parts.length !== 2) continue;
+      const sStart = timeToMin(parts[0]);
+      const sEnd = timeToMin(parts[1]);
+      if (cellStart < sEnd && cellEnd > sStart) {
+        return s;
+      }
+    }
+    return null;
+  };
+
+  const handleCellClick = (dateStr, slot) => {
+    if (!slot) return;
     setSlotDetail({ date: dateStr, slot });
-    if (slot.status === 'available') {
+    if (slot.status === 'available' || slot.status === 'blocked_exception') {
       setExceptionReason('');
       setShowExceptionDialog(true);
-    } else if (slot.status === 'blocked_exception') {
-      // Show option to remove exception
-      setShowExceptionDialog(true);
-      setExceptionReason('');
     }
   };
 
   const createException = async () => {
-    if (!slotDetail) return;
-    const scopeType = viewMode === 'program' ? 'program' : 'lecturer';
-    const scopeId = viewMode === 'program' ? selectedProgram : selectedLecturer;
+    if (!slotDetail || !selectedProgram) return;
     const [startTime, endTime] = slotDetail.slot.time.split('-');
     try {
       await axios.post(`${API}/availability-unified/exceptions`, {
-        scope_type: scopeType,
-        scope_id: scopeId,
-        date: slotDetail.date,
-        start_time: startTime,
-        end_time: endTime,
+        scope_type: 'program', scope_id: selectedProgram,
+        date: slotDetail.date, start_time: startTime, end_time: endTime,
         reason: exceptionReason || null,
       });
       toast.success('Slot uzavřen');
       setShowExceptionDialog(false);
-      doFetchWeek(selectedProgram, selectedLecturer, viewMode, weekStart);
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Chyba');
-    }
+      doFetchWeek(selectedProgram, weekStart);
+    } catch (err) { toast.error(err.response?.data?.detail || 'Chyba'); }
   };
 
   const removeException = async () => {
     if (!slotDetail) return;
     const [startTime] = slotDetail.slot.time.split('-');
-    // Find the matching exception
-    const match = exceptions.find(e =>
-      e.date === slotDetail.date && e.start_time === startTime
-    );
+    const match = exceptions.find(e => e.date === slotDetail.date && e.start_time === startTime);
     if (!match) { toast.error('Výjimka nenalezena'); return; }
     try {
       await axios.delete(`${API}/availability-unified/exceptions/${match.id}`);
-      toast.success('Výjimka odstraněna — slot obnoven');
+      toast.success('Slot obnoven');
       setShowExceptionDialog(false);
-      doFetchWeek(selectedProgram, selectedLecturer, viewMode, weekStart);
-    } catch { toast.error('Chyba při odstraňování'); }
+      doFetchWeek(selectedProgram, weekStart);
+    } catch { toast.error('Chyba'); }
   };
 
-  const getDaysOfWeek = () => {
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(weekStart);
-      d.setDate(d.getDate() + i);
-      days.push({ date: d, dateStr: formatDate(d), dayName: DAY_SHORT[i], dayFull: DAY_NAMES[i] });
+  const renderCalendarCell = (dayIndex, hour) => {
+    const dateStr = fmtDate(weekDays[dayIndex]);
+    const slot = getCellStatus(dateStr, hour);
+
+    if (!slot) {
+      return <div className="h-8 bg-gray-50 border border-gray-100" />;
     }
-    return days;
-  };
 
-  const weekDays = getDaysOfWeek();
-  const isToday = (dateStr) => formatDate(new Date()) === dateStr;
+    const bg = STATUS_COLORS[slot.status] || 'bg-gray-50';
+    const canClick = slot.status === 'available' || slot.status === 'blocked_exception';
+
+    return (
+      <div
+        className={`h-8 border ${bg} relative group ${canClick ? 'cursor-pointer hover:opacity-80' : 'cursor-default'} transition-colors`}
+        title={slot.reason || STATUS_LABELS[slot.status] || slot.status}
+        onClick={() => canClick && handleCellClick(dateStr, slot)}
+        data-testid={`pcal-cell-${dayIndex}-${hour}`}
+      >
+        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+          {STATUS_LABELS[slot.status] || slot.status}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <AdminLayout>
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h1 className="text-2xl font-bold text-slate-900">Dostupnost</h1>
-          <div className="flex gap-2">
-            <Button
-              variant={viewMode === 'program' ? 'default' : 'outline'}
-              onClick={() => setViewMode('program')}
-              className={viewMode === 'program' ? 'bg-slate-800 text-white' : ''}
-              size="sm"
-              data-testid="view-mode-program"
-            >
-              Programová
-            </Button>
-            <Button
-              variant={viewMode === 'personal' ? 'default' : 'outline'}
-              onClick={() => setViewMode('personal')}
-              className={viewMode === 'personal' ? 'bg-slate-800 text-white' : ''}
-              size="sm"
-              data-testid="view-mode-personal"
-            >
-              Osobní
-            </Button>
+      <div className="space-y-6" data-testid="program-availability-page">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Dostupnost</h1>
+            <p className="text-sm text-gray-500 mt-1">Programová dostupnost a jednorázové výjimky</p>
           </div>
         </div>
 
-        {/* Selector */}
+        {/* Selector + View toggle in one row */}
         <Card className="p-4">
-          {viewMode === 'program' ? (
-            <div>
-              <Label className="text-sm text-gray-500 mb-1 block">Program</Label>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-2 border border-gray-200 rounded-lg p-1 shrink-0" data-testid="view-toggle">
+              <button onClick={() => onViewModeChange('program')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'program' ? 'bg-slate-800 text-white' : 'text-gray-500 hover:text-gray-700'}`} data-testid="view-mode-program">
+                Programová
+              </button>
+              <button onClick={() => onViewModeChange('personal')} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${viewMode === 'personal' ? 'bg-slate-800 text-white' : 'text-gray-500 hover:text-gray-700'}`} data-testid="view-mode-personal">
+                Osobní
+              </button>
+            </div>
+            <div className="flex items-center gap-2 flex-1">
+              <Label className="text-sm font-medium whitespace-nowrap">Program:</Label>
               <Select value={selectedProgram || 'none'} onValueChange={v => v !== 'none' && setSelectedProgram(v)}>
-                <SelectTrigger data-testid="select-program"><SelectValue placeholder="Vyberte program..." /></SelectTrigger>
+                <SelectTrigger className="w-64" data-testid="select-program"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name_cs}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-          ) : (
-            <div>
-              <Label className="text-sm text-gray-500 mb-1 block">Lektor</Label>
-              <Select value={selectedLecturer || ''} onValueChange={setSelectedLecturer}>
-                <SelectTrigger data-testid="select-lecturer"><SelectValue placeholder="Vyberte lektora..." /></SelectTrigger>
-                <SelectContent>
-                  {teamMembers.filter(m => ['lektor', 'edukator', 'admin', 'spravce'].includes(m.role) && m.status === 'active').map(m => (
-                    <SelectItem key={m.id} value={m.id}>{m.first_name} {m.last_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          </div>
         </Card>
 
-        {/* Week navigation */}
-        <div className="flex items-center justify-between">
-          <Button variant="outline" size="sm" onClick={prevWeek}><ChevronLeft className="w-4 h-4" /></Button>
-          <div className="text-center">
-            <p className="text-sm font-medium text-slate-900">
-              {weekDays[0].date.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long' })} — {weekDays[6].date.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })}
-            </p>
-            <button onClick={goToday} className="text-xs text-[#4A6FA5] hover:underline">Dnes</button>
-          </div>
-          <Button variant="outline" size="sm" onClick={nextWeek}><ChevronRight className="w-4 h-4" /></Button>
-        </div>
-
         {/* Legend */}
-        <div className="flex flex-wrap gap-2 text-xs">
-          {Object.entries(STATUS_LABELS).filter(([k]) => k !== 'outside_base_availability').map(([key, label]) => (
-            <span key={key} className={`px-2 py-1 rounded border ${STATUS_COLORS[key]}`}>{label}</span>
+        <div className="flex items-center gap-4 text-xs flex-wrap">
+          {Object.entries(STATUS_LABELS).map(([key, label]) => (
+            <div key={key} className="flex items-center gap-1.5">
+              <div className={`w-4 h-4 rounded border ${STATUS_COLORS[key]}`} />
+              <span className="text-gray-600">{label}</span>
+            </div>
           ))}
         </div>
 
-        {/* Calendar grid */}
-        {loading ? (
-          <div className="text-center py-12"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-800 mx-auto" /></div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-2">
-            {weekDays.map(day => {
-              const slots = weekSlots[day.dateStr] || [];
-              const hasSlots = slots.length > 0 && !(slots.length === 1 && slots[0].status === 'outside_base_availability');
-              return (
-                <Card key={day.dateStr} className={`p-2 min-h-[120px] ${isToday(day.dateStr) ? 'ring-2 ring-[#4A6FA5]' : ''}`} data-testid={`day-${day.dateStr}`}>
-                  <div className="text-center mb-2">
-                    <p className="text-xs font-medium text-gray-500">{day.dayName}</p>
-                    <p className={`text-sm font-bold ${isToday(day.dateStr) ? 'text-[#4A6FA5]' : 'text-slate-900'}`}>
-                      {day.date.getDate()}.{day.date.getMonth() + 1}.
-                    </p>
-                  </div>
-                  {!hasSlots ? (
-                    <p className="text-xs text-gray-400 text-center py-2">Žádné bloky</p>
-                  ) : (
-                    <div className="space-y-1">
-                      {slots.filter(s => s.status !== 'outside_base_availability').map((slot, idx) => {
-                        const Icon = STATUS_ICONS[slot.status] || Clock;
-                        const canClick = slot.status === 'available' || slot.status === 'blocked_exception';
-                        return (
-                          <button
-                            key={idx}
-                            onClick={() => canClick && handleSlotClick(day.dateStr, slot)}
-                            className={`w-full text-left px-1.5 py-1 rounded border text-xs transition-colors ${STATUS_COLORS[slot.status]} ${canClick ? 'cursor-pointer' : 'cursor-default'}`}
-                            title={slot.reason || STATUS_LABELS[slot.status]}
-                            data-testid={`slot-${day.dateStr}-${idx}`}
-                          >
-                            <div className="flex items-center gap-1">
-                              <Icon className="w-3 h-3 shrink-0" />
-                              <span className="truncate">{slot.time.split('-')[0]}</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </Card>
-              );
-            })}
+        {/* Week Calendar */}
+        <Card className="p-0 overflow-hidden" data-testid="program-week-calendar">
+          <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
+            <Button variant="ghost" size="sm" onClick={prevWeek}><ChevronLeft className="w-4 h-4" /></Button>
+            <div className="flex items-center gap-3">
+              <h3 className="text-sm font-semibold text-slate-900">
+                {weekDays[0].toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long' })} – {weekDays[6].toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </h3>
+              <Button variant="outline" size="sm" onClick={goToday} className="text-xs h-7">
+                <CalendarDays className="w-3 h-3 mr-1" /> Dnes
+              </Button>
+            </div>
+            <Button variant="ghost" size="sm" onClick={nextWeek}><ChevronRight className="w-4 h-4" /></Button>
           </div>
-        )}
+
+          {loading ? (
+            <div className="text-center py-12"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-800 mx-auto" /></div>
+          ) : (
+            <div className="overflow-x-auto">
+              <div className="min-w-[640px]">
+                {/* Day headers */}
+                <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b">
+                  <div className="p-2 text-xs text-gray-400 text-center" />
+                  {weekDays.map((d, i) => {
+                    const today = isToday(d);
+                    return (
+                      <div key={i} className={`p-2 text-center border-l ${today ? 'bg-slate-800 text-white' : ''}`}>
+                        <div className="text-xs font-medium">{DAY_SHORT[i]}</div>
+                        <div className={`text-lg font-bold ${today ? 'text-white' : 'text-slate-900'}`}>{d.getDate()}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Hour rows */}
+                {HOURS.map(hour => (
+                  <div key={hour} className="grid grid-cols-[60px_repeat(7,1fr)]">
+                    <div className="p-1 text-xs text-gray-400 text-right pr-2 flex items-center justify-end">{hour}:00</div>
+                    {Array.from({ length: 7 }, (_, i) => (
+                      <div key={i} className="border-l">{renderCalendarCell(i, hour)}</div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
 
         {/* Exception dialog */}
         <Dialog open={showExceptionDialog} onOpenChange={setShowExceptionDialog}>
           <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-md" aria-describedby="exc-desc">
             <DialogHeader>
-              <DialogTitle>
-                {slotDetail?.slot?.status === 'blocked_exception' ? 'Obnovit dostupnost' : 'Uzavřít slot'}
-              </DialogTitle>
-              <p id="exc-desc" className="text-sm text-gray-500 mt-1">
-                {slotDetail?.date} {slotDetail?.slot?.time}
-              </p>
+              <DialogTitle>{slotDetail?.slot?.status === 'blocked_exception' ? 'Obnovit dostupnost' : 'Uzavřít slot'}</DialogTitle>
+              <p id="exc-desc" className="text-sm text-gray-500 mt-1">{slotDetail?.date} {slotDetail?.slot?.time}</p>
             </DialogHeader>
-
             {slotDetail?.slot?.status === 'available' && (
               <div className="space-y-3 py-2">
-                <p className="text-sm text-gray-600">Označit tento slot jako jednorázově nedostupný?</p>
+                <p className="text-sm text-gray-600">Označit slot jako jednorázově nedostupný?</p>
                 <div>
                   <Label className="text-sm text-gray-500">Důvod (volitelné)</Label>
-                  <Input
-                    value={exceptionReason}
-                    onChange={e => setExceptionReason(e.target.value)}
-                    placeholder="Např. údržba, svátek..."
-                    className="mt-1"
-                    data-testid="exception-reason"
-                  />
+                  <Input value={exceptionReason} onChange={e => setExceptionReason(e.target.value)} placeholder="Např. údržba, svátek..." className="mt-1" data-testid="exception-reason" />
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={createException} className="flex-1 bg-red-600 hover:bg-red-700 text-white" data-testid="confirm-exception">
-                    <Ban className="w-4 h-4 mr-2" /> Uzavřít
-                  </Button>
+                  <Button onClick={createException} className="flex-1 bg-red-600 hover:bg-red-700 text-white" data-testid="confirm-exception"><Ban className="w-4 h-4 mr-2" /> Uzavřít</Button>
                   <Button variant="outline" onClick={() => setShowExceptionDialog(false)} className="flex-1">Zrušit</Button>
                 </div>
               </div>
             )}
-
             {slotDetail?.slot?.status === 'blocked_exception' && (
               <div className="space-y-3 py-2">
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -377,19 +331,8 @@ export const UnifiedAvailabilityPage = () => {
                   {slotDetail.slot.reason && <p className="text-xs text-red-600 mt-1">{slotDetail.slot.reason}</p>}
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={removeException} className="flex-1 bg-green-600 hover:bg-green-700 text-white" data-testid="restore-slot">
-                    <CheckCircle className="w-4 h-4 mr-2" /> Obnovit dostupnost
-                  </Button>
+                  <Button onClick={removeException} className="flex-1 bg-green-600 hover:bg-green-700 text-white" data-testid="restore-slot"><CheckCircle className="w-4 h-4 mr-2" /> Obnovit</Button>
                   <Button variant="outline" onClick={() => setShowExceptionDialog(false)} className="flex-1">Zrušit</Button>
-                </div>
-              </div>
-            )}
-
-            {slotDetail?.slot?.status && !['available', 'blocked_exception'].includes(slotDetail.slot.status) && (
-              <div className="space-y-3 py-2">
-                <div className="p-3 bg-gray-50 border rounded-lg">
-                  <p className="text-sm font-medium">{STATUS_LABELS[slotDetail.slot.status]}</p>
-                  {slotDetail.slot.reason && <p className="text-xs text-gray-600 mt-1">{slotDetail.slot.reason}</p>}
                 </div>
               </div>
             )}

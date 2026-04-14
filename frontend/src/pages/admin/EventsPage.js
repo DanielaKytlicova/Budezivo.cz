@@ -8,7 +8,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
-import { Plus, ArrowLeft, Calendar, Users, Trash2, Eye, CreditCard, ClipboardList, MoreVertical, Tag } from 'lucide-react';
+import { Plus, ArrowLeft, Calendar, Users, Trash2, Eye, CreditCard, ClipboardList, MoreVertical, Tag, ChevronUp, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
@@ -190,6 +190,16 @@ export const EventsPage = () => {
       ...prev,
       form_fields: prev.form_fields.filter((_, i) => i !== index),
     }));
+  };
+
+  const moveFormField = (index, direction) => {
+    setFormData(prev => {
+      const fields = [...prev.form_fields];
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= fields.length) return prev;
+      [fields[index], fields[targetIndex]] = [fields[targetIndex], fields[index]];
+      return { ...prev, form_fields: fields.map((f, i) => ({ ...f, order: i })) };
+    });
   };
 
   const updateApplicationStatus = async (appId, status, paymentStatus) => {
@@ -448,19 +458,35 @@ export const EventsPage = () => {
                 {formData.form_fields.map((field, idx) => (
                   <div key={field.id || idx} className="p-3 bg-gray-50 rounded-lg space-y-2" data-testid={`form-field-${idx}`}>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400 font-mono w-6">{idx + 1}.</span>
+                      <div className="flex flex-col shrink-0">
+                        <button type="button" onClick={() => moveFormField(idx, -1)} disabled={idx === 0} className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30" data-testid={`move-field-up-${idx}`}>
+                          <ChevronUp className="w-4 h-4" />
+                        </button>
+                        <button type="button" onClick={() => moveFormField(idx, 1)} disabled={idx === formData.form_fields.length - 1} className="p-0.5 text-gray-400 hover:text-gray-700 disabled:opacity-30" data-testid={`move-field-down-${idx}`}>
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </div>
                       <Input value={field.label} onChange={e => updateFormField(idx, 'label', e.target.value)} placeholder="Název pole..." className="flex-1 text-sm" data-testid={`form-field-label-${idx}`} />
                       <select value={field.type} onChange={e => updateFormField(idx, 'type', e.target.value)} className="text-sm border rounded px-2 py-1.5 bg-white" data-testid={`form-field-type-${idx}`}>
                         {FIELD_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                       </select>
-                      <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                      <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer whitespace-nowrap">
                         <input type="checkbox" checked={field.required} onChange={e => updateFormField(idx, 'required', e.target.checked)} className="rounded" />
                         Povinné
                       </label>
-                      <button onClick={() => removeFormField(idx)} className="p-1 text-red-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => removeFormField(idx)} className="p-1 text-red-400 hover:text-red-600 shrink-0"><Trash2 className="w-4 h-4" /></button>
                     </div>
                     {field.type === 'select' && (
-                      <Input value={(field.options || []).join(', ')} onChange={e => updateFormField(idx, 'options', e.target.value.split(',').map(o => o.trim()))} placeholder="Možnosti oddělené čárkou..." className="text-sm" />
+                      <div className="space-y-1.5 pl-8">
+                        <label className="text-xs text-gray-500">Možnosti výběru (každá na novém řádku):</label>
+                        <textarea
+                          value={(field.options || []).join('\n')}
+                          onChange={e => updateFormField(idx, 'options', e.target.value.split('\n').filter(o => o.length > 0))}
+                          placeholder={"Možnost 1\nMožnost 2\nMožnost 3"}
+                          className="w-full text-sm border rounded-md px-3 py-2 bg-white min-h-[80px] resize-y"
+                          data-testid={`form-field-options-${idx}`}
+                        />
+                      </div>
                     )}
                   </div>
                 ))}

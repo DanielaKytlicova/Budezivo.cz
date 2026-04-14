@@ -1,0 +1,89 @@
+{
+  "summary": "Iteration 40: UI bug fixes for Events module verified. All 6 features tested and working correctly: (1) Checkbox field no longer duplicates label - renders once with label next to checkbox, (2) Select field renders as dropdown with proper options, (3) BookingHeader with institution branding visible on all public pages, (4) Admin form builder up/down arrows work for reordering fields, (5) Select field options use textarea (line-by-line) instead of comma-separated, (6) Public form submission flow works end-to-end with QR payment.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "EventsPage Form Builder & PublicEventsPage",
+        "issues": ["Console warning: 'In HTML, <span> cannot be a child of <option>' - React hydration warning in select elements, does not affect functionality"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_40.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: Checkbox field renders correctly - label appears only once next to checkbox (no duplication)",
+    "VERIFIED: Select field renders as native dropdown with proper options",
+    "VERIFIED: BookingHeader component visible on all public event pages (list, detail, form, success)",
+    "VERIFIED: Admin form builder has ChevronUp/ChevronDown arrows for field reordering - tested and working",
+    "VERIFIED: Select field options in admin use textarea with line-by-line input (label: 'Možnosti výběru (každá na novém řádku)')",
+    "VERIFIED: Number type field uses type='tel' to avoid browser spinner",
+    "VERIFIED: End-to-end form submission flow works - form filled, submitted, QR code displayed with payment details"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend-only testing)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_user": "demo@budezivo.cz",
+    "admin_password": "Demo2026!",
+    "institution_id": "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
+  },
+  "seed_data_creation": "Test application created during e2e testing for 'Za uměním do Lázní' event",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "UI bug fixes verified. Events module working correctly. Two events exist: 'Za uměním do Lázní' (with checkboxes, selects, text fields) and 'Příměstský tábor Léto 2026' (simple form with 3 text fields). BookingHeader shows institution logo and 'Powered by Budeživo.cz'. Form field reordering in admin works with up/down arrows. Select options use textarea for line-by-line input.",
+  "verified_features": [
+    {
+      "feature": "Checkbox field NOT duplicating label on public form",
+      "status": "VERIFIED",
+      "test_case": "Playwright test - checkbox label appears only once, no separate Label component"
+    },
+    {
+      "feature": "Select field renders as dropdown with proper options",
+      "status": "VERIFIED",
+      "test_case": "Playwright test - native select element with options from textarea"
+    },
+    {
+      "feature": "Institution header (BookingHeader) visible on all public pages",
+      "status": "VERIFIED",
+      "test_case": "Playwright test - header visible on list, detail, form, and success pages"
+    },
+    {
+      "feature": "Admin form builder up/down arrows for reordering fields",
+      "status": "VERIFIED",
+      "test_case": "Playwright test - 8 up arrows and 8 down arrows found, field reorder working (fields swapped positions)"
+    },
+    {
+      "feature": "Select field options use textarea (line-by-line) in admin",
+      "status": "VERIFIED",
+      "test_case": "Playwright test - textarea found with label 'Možnosti výběru (každá na novém řádku)'"
+    },
+    {
+      "feature": "Public form submission flow with QR payment",
+      "status": "VERIFIED",
+      "test_case": "Playwright test - full flow completed: event list → detail → date selection → form fill → submit → QR success page"
+    }
+  ],
+  "ui_test_results": {
+    "public_events_list": "PASS - 2 events displayed with BookingHeader",
+    "public_event_detail": "PASS - date selection working, BookingHeader visible",
+    "public_form_page": "PASS - all field types rendering correctly (text, email, tel, checkbox, select)",
+    "checkbox_no_duplication": "PASS - label appears only once next to checkbox",
+    "select_dropdown": "PASS - native select with options",
+    "form_submission": "PASS - submitted successfully",
+    "qr_payment_success": "PASS - QR code displayed with account 1234567890/0100, amount 1700 Kč, VS displayed",
+    "admin_events_list": "PASS - 2 event cards displayed",
+    "admin_form_builder": "PASS - all tabs working (Detail, Termíny, Formulář, Přihlášky, Platby)",
+    "admin_field_reorder": "PASS - up/down arrows working, fields swap positions",
+    "admin_select_options_textarea": "PASS - textarea for line-by-line options input"
+  }
+}

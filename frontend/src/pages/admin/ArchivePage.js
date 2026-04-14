@@ -138,7 +138,7 @@ export const ArchivePage = () => {
 
       {/* Report dialog */}
       <Dialog open={!!reportDialog} onOpenChange={() => setReportDialog(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" aria-describedby="report-desc">
+        <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-2xl max-h-[85vh] overflow-y-auto" aria-describedby="report-desc">
           <DialogHeader>
             <DialogTitle>
               Archivní report: {reportDialog?.name_cs || reportDialog?.name_en}

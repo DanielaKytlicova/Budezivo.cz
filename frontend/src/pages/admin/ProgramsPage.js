@@ -1085,11 +1085,11 @@ export const ProgramsPage = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b overflow-x-auto">
+      <div className="flex border-b overflow-x-auto -mx-1 scrollbar-hide">
         <button
           type="button"
           onClick={() => setActiveTab('detail')}
-          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+          className={`px-3 sm:px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === 'detail'
               ? 'border-slate-800 text-slate-900'
               : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -1101,7 +1101,7 @@ export const ProgramsPage = () => {
         <button
           type="button"
           onClick={() => setActiveTab('settings')}
-          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+          className={`px-3 sm:px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === 'settings'
               ? 'border-slate-800 text-slate-900'
               : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -1113,41 +1113,41 @@ export const ProgramsPage = () => {
         <button
           type="button"
           onClick={() => setActiveTab('collision')}
-          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+          className={`px-3 sm:px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
             activeTab === 'collision'
               ? 'border-slate-800 text-slate-900'
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
           data-testid="program-tab-collision"
         >
-          <ShieldAlert className="w-4 h-4" />
+          <ShieldAlert className="w-4 h-4 hidden sm:block" />
           Kolize
         </button>
         <button
           type="button"
           onClick={() => setActiveTab('feedback')}
-          className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+          className={`px-3 sm:px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
             activeTab === 'feedback'
               ? 'border-slate-800 text-slate-900'
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
           data-testid="program-tab-feedback"
         >
-          <Star className="w-4 h-4" />
+          <Star className="w-4 h-4 hidden sm:block" />
           Zpětná vazba
         </button>
         {editingProgram && (
           <button
             type="button"
             onClick={() => setActiveTab('mailing')}
-            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-2 ${
+            className={`px-3 sm:px-6 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === 'mailing'
                 ? 'border-slate-800 text-slate-900'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
             data-testid="program-tab-mailing"
           >
-            <Mail className="w-4 h-4" />
+            <Mail className="w-4 h-4 hidden sm:block" />
             Mailing
           </button>
         )}
@@ -1221,11 +1221,11 @@ export const ProgramsPage = () => {
         renderProgramList()
       ) : (
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
-          <DialogContent className="max-w-2xl max-h-[95vh] overflow-hidden p-0">
+          <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-2xl max-h-[90dvh] sm:max-h-[95vh] overflow-hidden p-0">
             <DialogHeader className="sr-only">
               <DialogTitle>{editingProgram ? 'Upravit program' : 'Nový program'}</DialogTitle>
             </DialogHeader>
-            <div className="p-6">
+            <div className="p-3 sm:p-6 overflow-y-auto max-h-[85dvh] sm:max-h-[90vh]">
               {renderProgramForm()}
             </div>
           </DialogContent>

@@ -190,6 +190,16 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Izolace: modul neovlivňuje stávající programy/rezervace, oddělený routing /events
 - [x] Příprava gateway: InstitutionPaymentSettings s payment_mode (qr/gateway/both), provider pole
 
+### Fáze 31b - UI opravy Události + Platební nastavení v Settings (14.4.2026)
+- [x] Přihlášky: field_ID nahrazeny lidsky čitelnými labely z form_fields (Jméno, Mail, Telefonní číslo...)
+- [x] Boolean hodnoty zobrazeny jako "Ano"/"Ne" místo "true"/"false"
+- [x] Platební nastavení přesunuto do Nastavení → Platební nastavení (PRO badge)
+- [x] Platební nastavení viditelné jen pokud je events_module povolený (feature flag)
+- [x] Formulářový builder: select options po řádcích (textarea) místo čárkou
+- [x] Formulářový builder: šipky nahoru/dolů pro řazení polí
+- [x] Veřejná stránka: BookingHeader s logem instituce
+- [x] Checkbox: single render bez zdvojení labelu
+
 ### DB Schema (nové tabulky - Fáze 31)
 ```
 feature_flags: id, key, enabled, allowed_institution_ids, description

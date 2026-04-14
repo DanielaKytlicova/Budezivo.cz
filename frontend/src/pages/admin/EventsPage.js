@@ -505,7 +505,12 @@ export const EventsPage = () => {
                 <h3 className="font-semibold text-slate-900">Přihlášky ({applications.length})</h3>
                 {!editingEvent && <p className="text-sm text-amber-600">Nejprve uložte událost.</p>}
                 {editingEvent && applications.length === 0 && <p className="text-sm text-gray-500">Zatím žádné přihlášky.</p>}
-                {applications.map(app => (
+                {applications.map(app => {
+                  // Map field IDs to their labels from form_fields
+                  const fieldLabelMap = {};
+                  (formData.form_fields || []).forEach(f => { fieldLabelMap[f.id] = f.label; });
+
+                  return (
                   <div key={app.id} className="p-3 border rounded-lg space-y-2" data-testid={`application-${app.id}`}>
                     <div className="flex items-center justify-between">
                       <div className="min-w-0">
@@ -518,10 +523,17 @@ export const EventsPage = () => {
                       </div>
                     </div>
                     {app.applicant_data && Object.keys(app.applicant_data).length > 0 && (
-                      <div className="text-xs text-gray-600 bg-gray-50 rounded p-2">
-                        {Object.entries(app.applicant_data).map(([k, v]) => (
-                          <span key={k} className="mr-3"><strong>{k}:</strong> {String(v)}</span>
-                        ))}
+                      <div className="text-xs text-gray-600 bg-gray-50 rounded p-2 space-y-1">
+                        {Object.entries(app.applicant_data).map(([k, v]) => {
+                          const label = fieldLabelMap[k] || k;
+                          const displayValue = typeof v === 'boolean' ? (v ? 'Ano' : 'Ne') : String(v);
+                          return (
+                            <div key={k} className="flex gap-2">
+                              <span className="text-gray-400 shrink-0">{label}:</span>
+                              <span className="font-medium text-gray-700">{displayValue}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     <div className="flex gap-2 pt-1">
@@ -536,7 +548,8 @@ export const EventsPage = () => {
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </Card>
             </div>
           )}

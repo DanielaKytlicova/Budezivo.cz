@@ -33,8 +33,10 @@ import {
   Square,
   Filter,
   Download,
-  CalendarPlus
+  CalendarPlus,
+  Bell
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { API } from '../../config/api';
 
 // Helper to download ICS with signed token
@@ -75,6 +77,7 @@ const PERMISSIONS = {
 export const BookingsPage = () => {
   const { t } = useTranslation();
   const { user } = useContext(AuthContext);
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -830,6 +833,15 @@ export const BookingsPage = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Rezervace</h1>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/admin/waitlist')}
+              data-testid="bookings-waitlist-btn"
+            >
+              <Bell className="w-4 h-4 mr-1.5" />
+              <span className="hidden sm:inline">Zájemci</span>
+            </Button>
             <Button
               variant="outline"
               size="sm"

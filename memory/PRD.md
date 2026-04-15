@@ -219,6 +219,9 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Potvrzovací email: šablona waitlist_confirmation s údaji programu, datumu, preferencí
 - [x] Edge cases: duplikáty blokované (409), minulá data odmítnuta, nevalidní rozsah
 - [x] Fáze 2 skeleton: waitlist_service.py s find_matching_entries() a notify_candidates() (loguje, neposílá)
+- [x] Fáze 2 IMPLEMENTOVÁNA: Semi-automatické párování — hooky v bookings.py (zrušení rezervace) a unified_availability.py (odstranění výjimky)
+- [x] Fáze 2: notify_candidates() odesílá email "Uvolnil se termín" a mění status na 'contacted'
+- [x] Fáze 2: find_matching_entries() filtruje podle preferred_time_of_day (morning/midday/afternoon/any)
 - [x] PDF diakritika opravena: DejaVuSans font embedován místo Helvetica
 - [x] Přihlášky: skládací detail (collapsed/expanded)
 - [x] Auto-výběr termínu při jednom dostupném

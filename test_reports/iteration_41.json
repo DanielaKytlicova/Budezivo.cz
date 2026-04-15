@@ -1,0 +1,98 @@
+{
+  "summary": "Iteration 41: Bug fixes verified for Applications tab field labels and Payment settings. All 6 features tested and working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_events_applications.py",
+    "/app/test_reports/iteration_41.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: Applications tab shows human-readable field labels (e.g., 'Jméno a Příjmení' instead of 'field_1776161309549')",
+    "VERIFIED: Boolean values in applicant_data display as 'Ano'/'Ne' instead of 'true'/'false'",
+    "VERIFIED: Settings page shows 'Platební nastavení' menu item with PRO badge when events module is enabled",
+    "VERIFIED: Payment settings page loads saved data (account_number, bank_code, account_name)",
+    "VERIFIED: Payment settings can be saved and persisted via PUT /api/events/settings/payment",
+    "VERIFIED: Payment settings section visibility controlled by /api/events/check-access feature flag"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_events_applications.py"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 tests passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_user": "demo@budezivo.cz",
+    "admin_password": "Demo2026!",
+    "institution_id": "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
+  },
+  "seed_data_creation": "None - used existing test data",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bug fixes verified. Applications tab now correctly maps field IDs to human-readable labels using fieldLabelMap built from formData.form_fields. Boolean values display as 'Ano'/'Ne'. Payment settings section in Settings page is visible only when events module is enabled (checked via /api/events/check-access). Two events exist with applications: 'Za uměním do Lázní' (2 applications) and 'Příměstský tábor Léto 2026' (4 applications).",
+  "verified_features": [
+    {
+      "feature": "Applications tab shows human-readable field labels instead of field IDs",
+      "status": "VERIFIED",
+      "evidence": "Screenshot shows 'Jméno a Příjmení:', 'Mail:', 'Telefonní číslo:' instead of 'field_xxx'"
+    },
+    {
+      "feature": "Boolean values in applicant_data display as 'Ano'/'Ne'",
+      "status": "VERIFIED",
+      "evidence": "Screenshot shows 'Souhlasím s podmínkami GDPR...: Ano' instead of 'true'"
+    },
+    {
+      "feature": "Settings page shows 'Platební nastavení' menu item with PRO badge",
+      "status": "VERIFIED",
+      "evidence": "Screenshot shows 'Platební nastavení PRO' in settings menu"
+    },
+    {
+      "feature": "Payment settings page loads saved data",
+      "status": "VERIFIED",
+      "evidence": "Account number '1234567890', bank code '0100', account name 'Test Muzeum' loaded"
+    },
+    {
+      "feature": "Payment settings can be saved via PUT /api/events/settings/payment",
+      "status": "VERIFIED",
+      "evidence": "Backend test test_update_payment_settings passed"
+    },
+    {
+      "feature": "Payment settings visibility controlled by events module feature flag",
+      "status": "VERIFIED",
+      "evidence": "/api/events/check-access returns {enabled: true} for whitelisted institution"
+    }
+  ],
+  "backend_test_results": {
+    "test_file": "/app/backend/tests/test_events_applications.py",
+    "total_tests": 8,
+    "passed": 8,
+    "failed": 0,
+    "tests": [
+      "TestEventsCheckAccess::test_check_access_returns_enabled_status - PASSED",
+      "TestPaymentSettingsAPI::test_get_payment_settings - PASSED",
+      "TestPaymentSettingsAPI::test_update_payment_settings - PASSED",
+      "TestEventsListAndApplications::test_list_events - PASSED",
+      "TestEventsListAndApplications::test_get_event_with_form_fields - PASSED",
+      "TestEventsListAndApplications::test_get_applications_with_data - PASSED",
+      "TestPublicEventsAPI::test_public_events_list - PASSED",
+      "TestPublicEventsAPI::test_public_event_detail - PASSED"
+    ]
+  },
+  "ui_test_results": {
+    "login": "PASS",
+    "events_page": "PASS - 2 events displayed",
+    "applications_tab": "PASS - 2 applications with human-readable labels",
+    "field_labels_mapping": "PASS - No raw field IDs visible",
+    "boolean_display": "PASS - Shows 'Ano' instead of 'true'",
+    "settings_menu": "PASS - Payment settings visible with PRO badge",
+    "payment_settings_page": "PASS - All fields loaded with saved values"
+  }
+}

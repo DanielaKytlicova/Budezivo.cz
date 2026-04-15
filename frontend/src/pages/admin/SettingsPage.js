@@ -27,7 +27,8 @@ import {
   CheckCircle,
   Lock,
   FileText,
-  ClipboardList
+  ClipboardList,
+  CreditCard
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { API } from '../../config/api';
@@ -84,6 +85,13 @@ const SETTINGS_MENU = [
     title: 'Audit log',
     description: 'Historie všech změn a akcí v systému',
     link: '/admin/audit-log',
+  },
+  {
+    id: 'payment',
+    icon: CreditCard,
+    title: 'Platební nastavení',
+    description: 'Bankovní účet pro příjem plateb za události',
+    isPro: true,
   },
 ];
 
@@ -201,12 +209,22 @@ export const SettingsPage = () => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
 
+  // Payment settings state
+  const [paymentSettings, setPaymentSettings] = useState({
+    payment_mode: 'qr', account_number: '', bank_code: '', account_name: '', iban: '',
+    provider: null, gateway_api_key: '', gateway_secret: '',
+  });
+  const [eventsEnabled, setEventsEnabled] = useState(false);
+
   useEffect(() => {
     if (activeSection === 'institution') {
       fetchInstitutionData();
     } else if (activeSection === 'pro') {
       fetchProSettings();
       fetchPlanStatus();
+    } else if (activeSection === 'payment') {
+      fetchPaymentSettings();
+      fetchEventsFlag();
     } else if (activeSection === 'vop' && !vopData) {
       const fetchVop = async () => {
         setVopLoading(true);
@@ -230,6 +248,30 @@ export const SettingsPage = () => {
       setIsPro(response.data.is_pro);
     } catch (error) {
       console.error('Error fetching plan status:', error);
+    }
+  };
+
+  const fetchPaymentSettings = async () => {
+    try {
+      const res = await axios.get(`${API}/events/settings/payment`);
+      setPaymentSettings(prev => ({ ...prev, ...res.data }));
+    } catch { /* events module might not be enabled */ }
+  };
+
+  const fetchEventsFlag = async () => {
+    try {
+      const res = await axios.get(`${API}/events/check-access`);
+      setEventsEnabled(res.data?.enabled || false);
+    } catch { setEventsEnabled(false); }
+  };
+
+  const savePaymentSettings = async () => {
+    try {
+      const res = await axios.put(`${API}/events/settings/payment`, paymentSettings);
+      setPaymentSettings(prev => ({ ...prev, ...res.data }));
+      toast.success('Platební nastavení uloženo');
+    } catch {
+      toast.error('Chyba při ukládání platebního nastavení');
     }
   };
 
@@ -381,7 +423,24 @@ export const SettingsPage = () => {
   };
 
   // Render hlavní menu nastavení
-  const renderMainMenu = () => (
+  // Check events flag on mount for menu visibility
+  useEffect(() => {
+    const checkFlag = async () => {
+      try {
+        const res = await axios.get(`${API}/events/check-access`);
+        setEventsEnabled(res.data?.enabled || false);
+      } catch { setEventsEnabled(false); }
+    };
+    checkFlag();
+  }, []);
+
+  const renderMainMenu = () => {
+    const visibleMenu = SETTINGS_MENU.filter(item => {
+      if (item.id === 'payment') return eventsEnabled;
+      return true;
+    });
+
+    return (
     <div className="space-y-4">
       <div className="flex items-center gap-4 mb-6">
         <button onClick={() => navigate('/admin')} className="p-2 hover:bg-gray-100 rounded-lg">
@@ -391,7 +450,7 @@ export const SettingsPage = () => {
       </div>
 
       <div className="space-y-3">
-        {SETTINGS_MENU.map((item) => {
+        {visibleMenu.map((item) => {
           const Icon = item.icon;
           return (
             <Card
@@ -449,7 +508,8 @@ export const SettingsPage = () => {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   // Render Správa instituce
   const renderInstitutionSettings = () => (
@@ -1446,12 +1506,133 @@ export const SettingsPage = () => {
         return renderGdprSettings();
       case 'vop':
         return renderVopSection();
+      case 'payment':
+        return renderPaymentSettings();
       case 'delete-account':
         return renderDeleteAccountSection();
       default:
         return renderMainMenu();
     }
   };
+
+  const renderPaymentSettings = () => (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4 mb-4">
+        <button onClick={() => setActiveSection(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">Platební nastavení</h2>
+          <p className="text-sm text-gray-500">Bankovní účet pro příjem plateb za události a akce</p>
+        </div>
+      </div>
+
+      {!eventsEnabled ? (
+        <Card className="p-6 text-center">
+          <Lock className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+          <h3 className="font-semibold text-slate-900 mb-1">Platební nastavení vyžaduje PRO balíček</h3>
+          <p className="text-sm text-gray-500 mb-4">Platební funkce jsou součástí modulu Události, který je dostupný v nejvyšším PRO balíčku.</p>
+          <Button onClick={() => setActiveSection('pro')} variant="outline">
+            <Crown className="w-4 h-4 mr-2" /> Zobrazit PRO funkce
+          </Button>
+        </Card>
+      ) : (
+        <>
+          <Card className="p-4 md:p-6 space-y-4">
+            <h3 className="font-semibold text-slate-900">Bankovní účet</h3>
+            <p className="text-sm text-gray-500">Údaje pro generování QR plateb a variabilních symbolů.</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-gray-500 text-sm">Číslo účtu</Label>
+                <Input
+                  value={paymentSettings.account_number || ''}
+                  onChange={e => setPaymentSettings(p => ({ ...p, account_number: e.target.value }))}
+                  placeholder="1234567890"
+                  className="mt-1"
+                  data-testid="settings-payment-account"
+                />
+              </div>
+              <div>
+                <Label className="text-gray-500 text-sm">Kód banky</Label>
+                <Input
+                  value={paymentSettings.bank_code || ''}
+                  onChange={e => setPaymentSettings(p => ({ ...p, bank_code: e.target.value }))}
+                  placeholder="0100"
+                  className="mt-1"
+                  data-testid="settings-payment-bank-code"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-gray-500 text-sm">Název účtu / příjemce</Label>
+              <Input
+                value={paymentSettings.account_name || ''}
+                onChange={e => setPaymentSettings(p => ({ ...p, account_name: e.target.value }))}
+                placeholder="Název vaší organizace"
+                className="mt-1"
+                data-testid="settings-payment-account-name"
+              />
+            </div>
+
+            <div>
+              <Label className="text-gray-500 text-sm">IBAN (volitelné)</Label>
+              <Input
+                value={paymentSettings.iban || ''}
+                onChange={e => setPaymentSettings(p => ({ ...p, iban: e.target.value }))}
+                placeholder="CZ6508000000192000145399"
+                className="mt-1"
+                data-testid="settings-payment-iban"
+              />
+            </div>
+          </Card>
+
+          <Card className="p-4 md:p-6 space-y-4">
+            <h3 className="font-semibold text-slate-900">Režim platby</h3>
+            <Select
+              value={paymentSettings.payment_mode || 'qr'}
+              onValueChange={v => setPaymentSettings(p => ({ ...p, payment_mode: v }))}
+            >
+              <SelectTrigger data-testid="settings-payment-mode">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="qr">QR platba (bankovní převod)</SelectItem>
+                <SelectItem value="gateway">Platební brána</SelectItem>
+                <SelectItem value="both">QR + platební brána</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {(paymentSettings.payment_mode === 'gateway' || paymentSettings.payment_mode === 'both') && (
+              <Card className="p-4 bg-blue-50 border-blue-200 space-y-3">
+                <p className="text-sm font-medium text-blue-800">Platební brána (připraveno)</p>
+                <p className="text-xs text-blue-600">Integrace s GoPay/Comgate bude dostupná v další fázi. Nyní můžete předvyplnit přihlašovací údaje.</p>
+                <div>
+                  <Label className="text-gray-500 text-sm">Poskytovatel</Label>
+                  <Select
+                    value={paymentSettings.provider || 'none'}
+                    onValueChange={v => setPaymentSettings(p => ({ ...p, provider: v === 'none' ? null : v }))}
+                  >
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nevybráno</SelectItem>
+                      <SelectItem value="gopay">GoPay</SelectItem>
+                      <SelectItem value="comgate">Comgate</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </Card>
+            )}
+          </Card>
+
+          <Button onClick={savePaymentSettings} className="bg-slate-800 text-white w-full" data-testid="settings-save-payment">
+            Uložit platební nastavení
+          </Button>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <AdminLayout>

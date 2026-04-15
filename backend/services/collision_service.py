@@ -81,6 +81,14 @@ async def check_booking_collision(
     lock_key = _advisory_lock_key(institution_id, date)
     await db.execute(text(f"SELECT pg_advisory_xact_lock({lock_key})"))
 
+    # ── Check availability exceptions (one-off blocks) ──
+    from services.availability_service import check_exception_blocks_slot
+    exc_reason = await check_exception_blocks_slot(
+        db, institution_id, 'program', program_id, date, time_block, 60
+    )
+    if exc_reason:
+        return f"Slot je jednorázově uzavřen: {exc_reason}"
+
     # Get the program being booked
     result = await db.execute(
         select(Program).where(and_(
@@ -323,6 +331,14 @@ async def check_lecturer_collision_for_assignment(
             f"Lektor není dostupný dne {booking.date} v čase {booking.time_block} "
             f"(mimo pracovní dobu nebo má blokaci)."
         )
+
+    # Check lecturer availability exceptions
+    from services.availability_service import check_exception_blocks_slot
+    lect_exc = await check_exception_blocks_slot(
+        db, institution_id, 'lecturer', lecturer_id, str(booking.date), booking.time_block, booking_duration
+    )
+    if lect_exc:
+        return f"Lektor má jednorázovou nedostupnost: {lect_exc}"
 
     # Check Outlook / manual availability blocks
     block_error = await check_availability_blocks(

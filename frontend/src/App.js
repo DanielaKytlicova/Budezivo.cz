@@ -30,7 +30,7 @@ import { SettingsPage } from './pages/admin/SettingsPage';
 import { PlanPage } from './pages/admin/PlanPage';
 import { TeamPage } from './pages/admin/TeamPage';
 import FeedbackAdminPage from './pages/admin/FeedbackAdminPage';
-import { LecturerAvailabilityPage } from './pages/admin/LecturerAvailabilityPage';
+import { UnifiedAvailabilityPage } from './pages/admin/UnifiedAvailabilityPage';
 import { ArchivePage } from './pages/admin/ArchivePage';
 import { AuditLogPage } from './pages/admin/AuditLogPage';
 import { EventsPage } from './pages/admin/EventsPage';
@@ -150,7 +150,7 @@ function App() {
                 path="/admin/availability"
                 element={
                   <ProtectedRoute>
-                    <LecturerAvailabilityPage />
+                    <UnifiedAvailabilityPage />
                   </ProtectedRoute>
                 }
               />

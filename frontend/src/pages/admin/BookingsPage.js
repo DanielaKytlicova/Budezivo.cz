@@ -353,7 +353,7 @@ export const BookingsPage = () => {
 
     return (
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby="booking-detail-description">
+        <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-2xl max-h-[85dvh] sm:max-h-[90vh] overflow-y-auto" aria-describedby="booking-detail-description">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>{selectedBooking.program_name || 'Detail rezervace'}</span>

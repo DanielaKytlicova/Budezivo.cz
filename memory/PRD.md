@@ -190,6 +190,31 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Izolace: modul neovlivňuje stávající programy/rezervace, oddělený routing /events
 - [x] Příprava gateway: InstitutionPaymentSettings s payment_mode (qr/gateway/both), provider pole
 
+### Fáze 31b - UI opravy Události + Platební nastavení v Settings (14.4.2026)
+- [x] Přihlášky: field_ID nahrazeny lidsky čitelnými labely z form_fields (Jméno, Mail, Telefonní číslo...)
+- [x] Boolean hodnoty zobrazeny jako "Ano"/"Ne" místo "true"/"false"
+- [x] Platební nastavení přesunuto do Nastavení → Platební nastavení (PRO badge)
+- [x] Platební nastavení viditelné jen pokud je events_module povolený (feature flag)
+- [x] Formulářový builder: select options po řádcích (textarea) místo čárkou
+- [x] Formulářový builder: šipky nahoru/dolů pro řazení polí
+- [x] Veřejná stránka: BookingHeader s logem instituce
+- [x] Checkbox: single render bez zdvojení labelu
+
+### Fáze 32 - Sjednocený systém Dostupnosti (14.4.2026)
+- [x] Centrální `availability_service.py` — `evaluate_program_slots()` a `evaluate_lecturer_slots()` jako single source of truth
+- [x] Dvouvrstvá architektura: Vrstva 1 (base availability + exceptions) → Vrstva 2 (kolize)
+- [x] Detailní slot statusy: available / booked / blocked_exception / blocked_lecturer / blocked_room / blocked_parallel / blocked_program / outside_base_availability
+- [x] Nová tabulka `availability_exceptions` (scope_type, scope_id, date, start_time, end_time, reason, created_by)
+- [x] API: GET/POST/DELETE `/api/availability-unified/exceptions`
+- [x] API: GET `/api/availability-unified/program/{id}/slots?date=` a `/lecturer/{id}/slots?date=`
+- [x] Exception kontrola integrována do `check_booking_collision()` — rezervace blokována při aktivní výjimce
+- [x] Exception kontrola integrována do `check_lecturer_collision_for_assignment()` — přiřazení lektora blokováno
+- [x] Frontend: `UnifiedAvailabilityPage.js` s přepínačem Programová/Osobní
+- [x] Frontend: Týdenní kalendář s barevně odlišenými sloty + legenda
+- [x] Frontend: Kliknutí na dostupný slot → dialog "Uzavřít" s důvodem
+- [x] Frontend: Kliknutí na uzavřený slot → dialog "Obnovit dostupnost"
+- [x] Záložka Kolize v ProgramsPage zachována beze změny (nadřazená vrstva)
+
 ### DB Schema (nové tabulky - Fáze 31)
 ```
 feature_flags: id, key, enabled, allowed_institution_ids, description

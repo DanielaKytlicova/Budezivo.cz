@@ -200,6 +200,15 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Veřejná stránka: BookingHeader s logem instituce
 - [x] Checkbox: single render bez zdvojení labelu
 
+### Fáze 33 - Export přihlášek (15.4.2026)
+- [x] XLSX export: stylovaný Excel s barevným záhlavím, podmíněným formátováním (zelená=zaplaceno, červená=nezaplaceno), české názvy sloupců, sumární řádek
+- [x] CSV export: UTF-8 BOM, středníkový oddělovač, české labely polí (ne field_ID)
+- [x] PDF potvrzení: hlavička s názvem instituce, údaje události + termínu, údaje účastníka z formuláře, QR platba, status přihlášky
+- [x] Veřejný PDF endpoint: automaticky generovaný při přihlášení, ke stažení bez autentifikace
+- [x] Admin UI: XLSX/CSV tlačítka v záložce Přihlášky, PDF u každé přihlášky
+- [x] Veřejný UI: tlačítko "Stáhnout potvrzení (PDF)" na success stránce po přihlášení
+- [x] Oprava diakritiky: 155+ textů v emailových šablonách opraveno (Dobrý den, Připomínka, zpětná vazba...)
+
 ### Fáze 32 - Sjednocený systém Dostupnosti (14.4.2026)
 - [x] Centrální `availability_service.py` — `evaluate_program_slots()` a `evaluate_lecturer_slots()` jako single source of truth
 - [x] Dvouvrstvá architektura: Vrstva 1 (base availability + exceptions) → Vrstva 2 (kolize)

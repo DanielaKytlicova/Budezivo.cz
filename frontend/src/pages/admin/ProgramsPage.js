@@ -614,18 +614,20 @@ export const ProgramsPage = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleDuplicate(program)}
+                  onClick={() => navigate(`/admin/mailings?program=${program.id}&name=${encodeURIComponent(program.name_cs)}`)}
                   className="flex-1"
+                  data-testid={`send-offer-${program.id}`}
                 >
-                  Duplikovat
+                  <Mail className="w-4 h-4 mr-1" />
+                  Rozeslat nabídku
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleArchive(program)}
+                  onClick={() => handleDuplicate(program)}
                   className="flex-1"
                 >
-                  Archivovat
+                  Duplikovat
                 </Button>
               </div>
             </Card>

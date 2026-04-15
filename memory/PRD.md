@@ -251,4 +251,30 @@ institution_payment_settings: id, institution_id, payment_mode, provider, iban, 
 event_payments: id, application_id, institution_id, provider, status, amount, currency, variable_symbol, provider_payment_id, qr_payload, paid_at
 ```
 
-*Poslední aktualizace: 13. dubna 2026*
+*Poslední aktualizace: 15. dubna 2026*
+
+### Fáze 35 - Propagační mailingy / Kampanový modul (15.4.2026)
+- [x] DB modely: MailingCampaign, MailingCampaignProgram, MailingCampaignRecipient, MailingRecipientProgram
+- [x] Alembic migrace pro 4 nové tabulky
+- [x] Backend CRUD: POST/GET/PUT/DELETE /api/mailings, včetně draft managementu
+- [x] Relevance engine: párování program.target_groups (ms_3_6, zs1_7_12...) ↔ school.tags (MŠ, ZŠ, SŠ...)
+- [x] 4 režimy výběru příjemců: relevant_only, all, manual, relevant_plus_manual
+- [x] Preview endpoint: /api/mailings/preview-recipients (statistiky, varování, seznam příjemců)
+- [x] Výchozí české šablony pro MŠ/ZŠ/SŠ/obecné publikum
+- [x] Background odesílání emailů přes BackgroundTasks (ne v HTTP requestu)
+- [x] Snapshoty: content_snapshot, selection_snapshot, programs_snapshot při odeslání
+- [x] Per-příjemce: matching_reason (proč vybrán), relevantní programy (MailingRecipientProgram)
+- [x] Frontend: stránka /admin/mailings s archivem kampaní
+- [x] Frontend: 4-krokový průvodce (Programy → Příjemci → Text emailu → Odeslání)
+- [x] Frontend: detail kampaně s příjemci, programy, snapshoty
+- [x] Frontend: tlačítko "Rozeslat nabídku" na kartě programu v ProgramsPage
+- [x] Frontend: navigace "Mailingy" v sidebar pod "Školy"
+- [x] UI fix: "Zájemci" přesunuto ze sidebaru do hlavičky stránky Rezervace
+
+### DB Schema (nové tabulky - Fáze 35)
+```
+mailing_campaigns: id, institution_id, created_by, name, type, status, recipient_mode, subject, greeting, intro_text, closing_text, signature, content_snapshot, selection_snapshot, programs_snapshot, total_recipients, sent_count, failed_count, sent_at
+mailing_campaign_programs: id, campaign_id, program_id, display_order
+mailing_campaign_recipients: id, campaign_id, school_id, contact_id, email, school_name, contact_name, status, sent_at, failure_reason, email_provider_id, matching_reason
+mailing_recipient_programs: id, recipient_id, program_id, program_name, program_target_groups
+```

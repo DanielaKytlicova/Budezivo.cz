@@ -1220,6 +1220,63 @@ TEMPLATE_REGISTRY = {
     "team_invitation": team_invitation,
 }
 
+def waitlist_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
+    """Confirmation email for waitlist entry."""
+    program_name = data.get('program_name', 'Program')
+    teacher_name = data.get('teacher_name', '')
+    request_type = data.get('request_type', 'specific_date')
+    participant_count = data.get('participant_count', 1)
+
+    time_labels = {'morning': 'Dopoledne', 'midday': 'Kolem poledne', 'afternoon': 'Odpoledne', 'any': 'Kdykoliv'}
+    preferred = time_labels.get(data.get('preferred_time', 'any'), 'Kdykoliv')
+
+    if request_type == 'specific_date':
+        date_info = f"Konkrétní datum: <strong>{data.get('requested_date', '')}</strong>"
+    else:
+        date_info = f"Období: <strong>{data.get('range_start_date', '')} – {data.get('range_end_date', '')}</strong>"
+
+    return {
+        'subject': f"Potvrzení zájmu o termín: {program_name}",
+        'html': f"""
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #F8FAFC;">
+            <div style="background: {theme['primary']}; padding: 24px; border-radius: 8px 8px 0 0;">
+                <h1 style="color: white; margin: 0; font-size: 20px;">Potvrzení zájmu o termín</h1>
+            </div>
+            <div style="padding: 24px; background: white; border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 8px 8px;">
+                <p style="color: #475569; font-size: 15px;">
+                    Dobrý den, {teacher_name},
+                </p>
+                <p style="color: #475569; font-size: 15px;">
+                    zařadili jsme vás mezi zájemce o program <strong>{program_name}</strong>. Jakmile se uvolní vhodný termín, dáme vám vědět.
+                </p>
+                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px; margin: 16px 0;">
+                    <p style="margin: 4px 0; color: #334155; font-size: 14px;">
+                        <strong>Program:</strong> {program_name}
+                    </p>
+                    <p style="margin: 4px 0; color: #334155; font-size: 14px;">
+                        {date_info}
+                    </p>
+                    <p style="margin: 4px 0; color: #334155; font-size: 14px;">
+                        <strong>Preferovaný čas:</strong> {preferred}
+                    </p>
+                    <p style="margin: 4px 0; color: #334155; font-size: 14px;">
+                        <strong>Počet žáků:</strong> {participant_count}
+                    </p>
+                </div>
+                <p style="color: #64748B; font-size: 13px;">
+                    Pokud se situace změní, nemusíte nic dělat — váš zájem automaticky vyprší po uplynutí zvoleného období.
+                </p>
+                <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 20px 0;">
+                <p style="color: #94A3B8; font-size: 12px; text-align: center;">
+                    Odesláno systémem Budeživo.cz
+                </p>
+            </div>
+        </div>
+        """
+    }
+
+
+
 
 def get_template(template_name: str, data: Dict[str, Any]) -> Dict[str, str]:
     """Get rendered template by name."""

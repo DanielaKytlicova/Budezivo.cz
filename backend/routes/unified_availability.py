@@ -160,6 +160,21 @@ async def delete_exception(
     if not exc:
         raise HTTPException(status_code=404, detail="Výjimka nenalezena")
 
+    # Save info before deletion for waitlist hook
+    scope_type = exc.scope_type
+    scope_id = str(exc.scope_id)
+    exc_date = exc.date
+    exc_time = exc.start_time or ''
+
     await db.delete(exc)
     await db.commit()
+
+    # Waitlist Phase 2: if program exception removed, notify waitlist
+    if scope_type == 'program':
+        try:
+            from services.waitlist_service import on_slot_freed
+            await on_slot_freed(db, scope_id, exc_date, exc_time)
+        except Exception as e:
+            logger.warning(f"Waitlist on_slot_freed failed: {e}")
+
     return {"message": "Výjimka odstraněna"}

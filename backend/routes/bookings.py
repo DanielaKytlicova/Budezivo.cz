@@ -310,6 +310,19 @@ async def update_booking_status(
                     cancellation_reason="",
                 )
                 template_name = "reservation_cancelled"
+                
+                # Waitlist Phase 2: notify candidates about freed slot
+                try:
+                    from services.waitlist_service import on_booking_cancelled
+                    await on_booking_cancelled(
+                        db,
+                        program_id=booking.get("program_id", ""),
+                        date=booking.get("date", ""),
+                        time_block=booking.get("time_block", ""),
+                        institution_id=current_user["institution_id"],
+                    )
+                except Exception as wl_err:
+                    logger.warning(f"Waitlist notify on cancel failed: {wl_err}")
             
             # Log email if sent
             if email_result and template_name:
@@ -526,6 +539,19 @@ async def bulk_update_booking_status(
                             institution_data=institution, cancellation_reason="",
                         )
                         template_name = "reservation_cancelled"
+                        
+                        # Waitlist Phase 2: notify candidates about freed slot
+                        try:
+                            from services.waitlist_service import on_booking_cancelled
+                            await on_booking_cancelled(
+                                db,
+                                program_id=booking.get("program_id", ""),
+                                date=booking.get("date", ""),
+                                time_block=booking.get("time_block", ""),
+                                institution_id=current_user["institution_id"],
+                            )
+                        except Exception as wl_err:
+                            logger.warning(f"Waitlist notify on cancel failed: {wl_err}")
                     
                     if email_result and template_name:
                         await log_repo.create({

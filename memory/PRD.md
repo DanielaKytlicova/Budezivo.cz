@@ -251,7 +251,7 @@ institution_payment_settings: id, institution_id, payment_mode, provider, iban, 
 event_payments: id, application_id, institution_id, provider, status, amount, currency, variable_symbol, provider_payment_id, qr_payload, paid_at
 ```
 
-*Poslední aktualizace: 13. dubna 2026*
+*Poslední aktualizace: 15. dubna 2026*
 
 ### Fáze 35 - Propagační mailingy / Kampanový modul (15.4.2026)
 - [x] DB modely: MailingCampaign, MailingCampaignProgram, MailingCampaignRecipient, MailingRecipientProgram

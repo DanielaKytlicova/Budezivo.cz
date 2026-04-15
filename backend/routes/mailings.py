@@ -17,7 +17,7 @@ from database.supabase import get_db
 from database.models import (
     MailingCampaign, MailingCampaignProgram,
     MailingCampaignRecipient, MailingRecipientProgram,
-    Program, Institution,
+    Program, Institution, SchoolContact,
 )
 from services.mailing_service import (
     resolve_recipients, DEFAULT_TEMPLATES, get_default_signature,
@@ -107,6 +107,187 @@ async def list_campaigns(
         })
 
     return {"campaigns": items, "count": len(items)}
+
+
+# ---- Static path endpoints MUST be before /{campaign_id} ----
+
+@router.get("/delivery-health")
+async def get_delivery_health(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Aggregate delivery failures per email across all campaigns."""
+    institution_id = current_user["institution_id"]
+
+    result = await db.execute(
+        select(
+            MailingCampaignRecipient.email,
+            MailingCampaignRecipient.school_name,
+            MailingCampaignRecipient.contact_name,
+            MailingCampaignRecipient.contact_id,
+            MailingCampaignRecipient.school_id,
+            MailingCampaignRecipient.status,
+            MailingCampaignRecipient.failure_reason,
+            MailingCampaignRecipient.sent_at,
+            MailingCampaign.name.label("campaign_name"),
+        )
+        .join(MailingCampaign, MailingCampaignRecipient.campaign_id == MailingCampaign.id)
+        .where(MailingCampaign.institution_id == institution_id)
+        .order_by(MailingCampaignRecipient.email)
+    )
+    rows = result.all()
+
+    email_stats = {}
+    for row in rows:
+        email = row.email
+        if email not in email_stats:
+            email_stats[email] = {
+                "email": email,
+                "school_name": row.school_name,
+                "contact_name": row.contact_name,
+                "contact_id": str(row.contact_id) if row.contact_id else None,
+                "school_id": str(row.school_id) if row.school_id else None,
+                "total_sends": 0,
+                "successful": 0,
+                "failed": 0,
+                "last_failure_reason": None,
+                "last_sent_at": None,
+                "campaigns": [],
+            }
+        stats = email_stats[email]
+        stats["total_sends"] += 1
+        if row.status == "sent":
+            stats["successful"] += 1
+            if row.sent_at:
+                stats["last_sent_at"] = row.sent_at.isoformat()
+        elif row.status == "failed":
+            stats["failed"] += 1
+            stats["last_failure_reason"] = row.failure_reason
+        stats["campaigns"].append({
+            "name": row.campaign_name,
+            "status": row.status,
+            "failure_reason": row.failure_reason,
+        })
+
+    problematic = []
+    healthy = []
+    for stats in email_stats.values():
+        failure_rate = stats["failed"] / stats["total_sends"] if stats["total_sends"] > 0 else 0
+        stats["failure_rate"] = round(failure_rate * 100, 1)
+        if stats["failed"] >= 2:
+            stats["recommendation"] = "invalid"
+            stats["recommendation_label"] = "Neplatný kontakt — doporučeno smazat"
+            problematic.append(stats)
+        elif stats["failed"] >= 1:
+            stats["recommendation"] = "warning"
+            stats["recommendation_label"] = "Potenciální problém — sledujte"
+            problematic.append(stats)
+        else:
+            stats["recommendation"] = "ok"
+            healthy.append(stats)
+
+    problematic.sort(key=lambda x: x["failed"], reverse=True)
+
+    result = await db.execute(
+        select(SchoolContact).where(
+            and_(
+                SchoolContact.institution_id == institution_id,
+                SchoolContact.status == 'invalid',
+            )
+        )
+    )
+    already_invalid = result.scalars().all()
+
+    return {
+        "problematic_contacts": problematic,
+        "healthy_count": len(healthy),
+        "already_invalid_count": len(already_invalid),
+        "already_invalid": [
+            {"id": str(c.id), "email": c.email, "name": c.name, "school_id": str(c.school_id), "email_validation_error": c.email_validation_error}
+            for c in already_invalid
+        ],
+        "summary": {
+            "total_emails_tracked": len(email_stats),
+            "problematic": len(problematic),
+            "recommended_invalid": sum(1 for p in problematic if p["recommendation"] == "invalid"),
+            "recommended_warning": sum(1 for p in problematic if p["recommendation"] == "warning"),
+        },
+    }
+
+
+@router.post("/flag-invalid-contacts")
+async def flag_invalid_contacts(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    contact_ids: Optional[List[str]] = None,
+    auto: bool = False,
+):
+    """Flag contacts as invalid based on delivery failures."""
+    institution_id = current_user["institution_id"]
+    flagged = 0
+
+    if auto:
+        health = await get_delivery_health(current_user, db)
+        to_flag = [p["contact_id"] for p in health["problematic_contacts"] if p["recommendation"] == "invalid" and p.get("contact_id")]
+    elif contact_ids:
+        to_flag = contact_ids
+    else:
+        return {"message": "Žádné kontakty k označení", "flagged": 0}
+
+    for cid in to_flag:
+        result = await db.execute(
+            select(SchoolContact).where(and_(SchoolContact.id == cid, SchoolContact.institution_id == institution_id))
+        )
+        contact = result.scalar_one_or_none()
+        if contact and contact.status != 'invalid':
+            contact.status = 'invalid'
+            contact.email_validation_error = 'Opakovaně neúspěšné doručení z propagačních kampaní'
+            flagged += 1
+
+    await db.commit()
+    return {"message": f"Označeno {flagged} kontaktů jako neplatných", "flagged": flagged}
+
+
+@router.delete("/remove-invalid-contacts")
+async def remove_invalid_contacts(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    contact_ids: Optional[List[str]] = None,
+):
+    """Permanently delete invalid contacts."""
+    institution_id = current_user["institution_id"]
+
+    if contact_ids:
+        conditions = and_(SchoolContact.id.in_([uuid.UUID(cid) for cid in contact_ids]), SchoolContact.institution_id == institution_id)
+    else:
+        conditions = and_(SchoolContact.status == 'invalid', SchoolContact.institution_id == institution_id)
+
+    result = await db.execute(select(SchoolContact).where(conditions))
+    contacts = result.scalars().all()
+    deleted = 0
+    for c in contacts:
+        await db.delete(c)
+        deleted += 1
+
+    await db.commit()
+    return {"message": f"Smazáno {deleted} neplatných kontaktů", "deleted": deleted}
+
+
+@router.get("/templates/defaults")
+async def get_all_default_templates(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get all default email templates."""
+    institution_id = current_user["institution_id"]
+    result = await db.execute(select(Institution).where(Institution.id == institution_id))
+    institution = result.scalar_one_or_none()
+    inst_name = institution.name if institution else "Instituce"
+
+    templates = {}
+    for key, tpl in DEFAULT_TEMPLATES.items():
+        templates[key] = {**tpl, "signature": get_default_signature(inst_name)}
+    return {"templates": templates}
 
 
 @router.get("/{campaign_id}")
@@ -539,24 +720,3 @@ async def send_campaign(
         "total_recipients": len(recipients),
     }
 
-
-@router.get("/templates/defaults")
-async def get_all_default_templates(
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get all default email templates."""
-    institution_id = current_user["institution_id"]
-    result = await db.execute(
-        select(Institution).where(Institution.id == institution_id)
-    )
-    institution = result.scalar_one_or_none()
-    inst_name = institution.name if institution else "Instituce"
-
-    templates = {}
-    for key, tpl in DEFAULT_TEMPLATES.items():
-        templates[key] = {
-            **tpl,
-            "signature": get_default_signature(inst_name),
-        }
-    return {"templates": templates}

@@ -159,6 +159,9 @@ export const MailingsPage = () => {
           />
         )}
 
+        {/* Delivery Health Panel */}
+        {!loading && <DeliveryHealthPanel />}
+
         {/* Campaign wizard */}
         {showWizard && (
           <CampaignWizard
@@ -170,6 +173,150 @@ export const MailingsPage = () => {
         )}
       </div>
     </AdminLayout>
+  );
+};
+
+/* ==================== DELIVERY HEALTH PANEL ==================== */
+const DeliveryHealthPanel = () => {
+  const [health, setHealth] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [flagging, setFlagging] = useState(false);
+
+  const fetchHealth = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get(`${API}/mailings/delivery-health`, { withCredentials: true });
+      setHealth(res.data);
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchHealth(); }, []);
+
+  const handleFlagInvalid = async () => {
+    if (!window.confirm('Označit kontakty s opakovaným selháním jako neplatné?')) return;
+    setFlagging(true);
+    try {
+      const res = await axios.post(`${API}/mailings/flag-invalid-contacts?auto=true`, {}, { withCredentials: true });
+      toast.success(res.data.message);
+      fetchHealth();
+    } catch { toast.error('Chyba při označování'); }
+    finally { setFlagging(false); }
+  };
+
+  const handleRemoveInvalid = async () => {
+    if (!window.confirm('Opravdu trvale smazat všechny neplatné kontakty?')) return;
+    try {
+      const res = await axios.delete(`${API}/mailings/remove-invalid-contacts`, { withCredentials: true });
+      toast.success(res.data.message);
+      fetchHealth();
+    } catch { toast.error('Chyba při mazání'); }
+  };
+
+  if (!health || health.summary.total_emails_tracked === 0) return null;
+
+  const hasProblem = health.summary.problematic > 0 || health.already_invalid_count > 0;
+
+  return (
+    <Card className={`p-4 ${hasProblem ? 'border-amber-200 bg-amber-50/30' : 'border-green-200 bg-green-50/30'}`} data-testid="delivery-health-panel">
+      <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpanded(!expanded)}>
+        <div className="flex items-center gap-2">
+          {hasProblem ? (
+            <AlertTriangle className="w-5 h-5 text-amber-500" />
+          ) : (
+            <CheckCircle className="w-5 h-5 text-green-500" />
+          )}
+          <h3 className="font-semibold text-slate-800">Doručitelnost kontaktů</h3>
+          <span className="text-sm text-slate-500">
+            {health.summary.total_emails_tracked} sledovaných emailů
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          {health.summary.recommended_invalid > 0 && (
+            <Badge className="bg-red-100 text-red-700">{health.summary.recommended_invalid} neplatných</Badge>
+          )}
+          {health.summary.recommended_warning > 0 && (
+            <Badge className="bg-amber-100 text-amber-700">{health.summary.recommended_warning} s varováním</Badge>
+          )}
+          {!hasProblem && <Badge className="bg-green-100 text-green-700">Vše v pořádku</Badge>}
+          <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="mt-4 space-y-3">
+          {/* Problematic contacts */}
+          {health.problematic_contacts.length > 0 && (
+            <div className="border rounded-lg overflow-hidden">
+              <div className="bg-white px-4 py-2 border-b font-medium text-sm text-slate-700">
+                Problémové kontakty ({health.problematic_contacts.length})
+              </div>
+              <div className="max-h-[250px] overflow-y-auto">
+                {health.problematic_contacts.map((p, i) => (
+                  <div key={i} className="flex items-center justify-between px-4 py-2 border-b last:border-0 text-sm bg-white">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        {p.recommendation === 'invalid' ? (
+                          <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                        ) : (
+                          <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                        )}
+                        <span className="font-medium truncate">{p.school_name}</span>
+                        <span className="text-slate-500">{p.email}</span>
+                      </div>
+                      <div className="text-xs text-slate-400 ml-6 mt-0.5">
+                        {p.failed}x selhání z {p.total_sends} odeslaných
+                        {p.last_failure_reason && <span> — {p.last_failure_reason}</span>}
+                      </div>
+                    </div>
+                    <Badge className={p.recommendation === 'invalid' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}>
+                      {p.recommendation === 'invalid' ? 'Smazat' : 'Sledovat'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Already invalid contacts */}
+          {health.already_invalid_count > 0 && (
+            <div className="border rounded-lg overflow-hidden">
+              <div className="bg-white px-4 py-2 border-b font-medium text-sm text-slate-700">
+                Již označené jako neplatné ({health.already_invalid_count})
+              </div>
+              <div className="max-h-[150px] overflow-y-auto">
+                {health.already_invalid.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2 px-4 py-1.5 border-b last:border-0 text-sm bg-white">
+                    <XCircle className="w-4 h-4 text-red-400 shrink-0" />
+                    <span>{c.email}</span>
+                    <span className="text-slate-400">— {c.email_validation_error}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-2 pt-2">
+            {health.summary.recommended_invalid > 0 && (
+              <Button variant="outline" size="sm" onClick={handleFlagInvalid} disabled={flagging} className="text-red-600 border-red-200 hover:bg-red-50" data-testid="flag-invalid-btn">
+                {flagging ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <XCircle className="w-4 h-4 mr-1" />}
+                Označit neplatné ({health.summary.recommended_invalid})
+              </Button>
+            )}
+            {health.already_invalid_count > 0 && (
+              <Button variant="outline" size="sm" onClick={handleRemoveInvalid} className="text-red-600 border-red-200 hover:bg-red-50" data-testid="remove-invalid-btn">
+                <Trash2 className="w-4 h-4 mr-1" /> Smazat neplatné ({health.already_invalid_count})
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={fetchHealth} disabled={loading}>
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Obnovit'}
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
   );
 };
 

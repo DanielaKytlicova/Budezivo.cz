@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import (
@@ -339,6 +339,10 @@ async def send_campaign_emails(campaign_id: str):
             await db.commit()
             logger.info(f"Campaign {campaign_id} sending complete: {sent} sent, {failed} failed")
 
+            # Auto-flag contacts with repeated failures
+            if failed > 0:
+                await _auto_flag_failed_contacts(db, campaign.institution_id)
+
         except Exception as e:
             logger.error(f"Campaign {campaign_id} sending error: {e}")
             try:
@@ -426,3 +430,53 @@ def _format_target_groups(tg: list) -> str:
         "all": "Všechny skupiny",
     }
     return ", ".join(labels.get(t, t) for t in tg) if tg else ""
+
+
+
+async def _auto_flag_failed_contacts(db, institution_id):
+    """Auto-flag school contacts with >=2 delivery failures as 'invalid'."""
+    from database.models import SchoolContact
+    try:
+        # Find emails with multiple failures across campaigns
+        result = await db.execute(
+            select(
+                MailingCampaignRecipient.email,
+                MailingCampaignRecipient.contact_id,
+                func.count().label('fail_count'),
+            )
+            .join(MailingCampaign, MailingCampaignRecipient.campaign_id == MailingCampaign.id)
+            .where(
+                and_(
+                    MailingCampaign.institution_id == institution_id,
+                    MailingCampaignRecipient.status == 'failed',
+                    MailingCampaignRecipient.contact_id.isnot(None),
+                )
+            )
+            .group_by(MailingCampaignRecipient.email, MailingCampaignRecipient.contact_id)
+            .having(func.count() >= 2)
+        )
+        repeated_failures = result.all()
+
+        flagged = 0
+        for row in repeated_failures:
+            contact_id = row.contact_id
+            if contact_id:
+                contact_result = await db.execute(
+                    select(SchoolContact).where(
+                        and_(
+                            SchoolContact.id == contact_id,
+                            SchoolContact.status != 'invalid',
+                        )
+                    )
+                )
+                contact = contact_result.scalar_one_or_none()
+                if contact:
+                    contact.status = 'invalid'
+                    contact.email_validation_error = f'Opakovaně neúspěšné doručení ({row.fail_count}x)'
+                    flagged += 1
+
+        if flagged > 0:
+            await db.commit()
+            logger.info(f"Auto-flagged {flagged} contacts as invalid for institution {institution_id}")
+    except Exception as e:
+        logger.error(f"Auto-flag contacts error: {e}")

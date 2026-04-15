@@ -231,16 +231,16 @@ def user_registration_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
         <h1 style="{BASE_STYLES['h1']}">Vitejte v Budezivo.cz!</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('user_name', '')},
+            Dobrý den, {data.get('user_name', '')},
         </p>
 
         <p style="{BASE_STYLES['text']}">
             dekujeme za registraci instituce <strong>{data.get('institution_name', '')}</strong>
-            v rezervacnim systemu Budezivo.cz.
+            v rezervacnim systému Budezivo.cz.
         </p>
 
         <p style="{BASE_STYLES['text']}">
-            Vas ucet byl uspesne vytvoren a muzete se nyni prihlasit a zacit spravovat
+            Váš účet byl úspěšně vytvořen a můžete se nyní přihlásit a začít spravovat
             sve vzdelavaci programy.
         </p>
 
@@ -251,7 +251,7 @@ def user_registration_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
         </div>
 
         <div style="{BASE_STYLES['info_box']}">
-            <h2 style="{BASE_STYLES['h2']}; margin-top: 0;">Co muzete delat dal?</h2>
+            <h2 style="{BASE_STYLES['h2']}; margin-top: 0;">Co můžete delat dal?</h2>
             <ul style="color: #475569; padding-left: 20px; margin: 0;">
                 <li style="margin-bottom: 8px;">Vytvorit sve prvni vzdelavaci programy</li>
                 <li style="margin-bottom: 8px;">Nastavit dostupne terminy</li>
@@ -263,11 +263,11 @@ def user_registration_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
     plain = f"""
 Vitejte v Budezivo.cz!
 
-Dobry den, {data.get('user_name', '')},
+Dobrý den, {data.get('user_name', '')},
 
-dekujeme za registraci instituce {data.get('institution_name', '')} v rezervacnim systemu Budezivo.cz.
+dekujeme za registraci instituce {data.get('institution_name', '')} v rezervacnim systému Budezivo.cz.
 
-Vas ucet byl uspesne vytvoren. Prihlaste se zde: {data.get('dashboard_url', 'https://www.budezivo.cz/admin')}
+Vas účet byl úspěšně vytvoren. Prihlaste se zde: {data.get('dashboard_url', 'https://www.budezivo.cz/admin')}
 """
 
     return {
@@ -280,24 +280,24 @@ Vas ucet byl uspesne vytvoren. Prihlaste se zde: {data.get('dashboard_url', 'htt
 def account_activation(data: Dict[str, Any]) -> Dict[str, str]:
     """Account activation email."""
     content = f"""
-        <h1 style="{BASE_STYLES['h1']}">Aktivujte svuj ucet</h1>
+        <h1 style="{BASE_STYLES['h1']}">Aktivujte svůj účet</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('user_name', '')},
+            Dobrý den, {data.get('user_name', '')},
         </p>
 
         <p style="{BASE_STYLES['text']}">
-            pro aktivaci vaseho uctu v systemu Budezivo.cz kliknete na tlacitko nize.
+            pro aktivaci vašeho účtu v systému Budeživo.cz klikněte na tlačítko níže.
         </p>
 
         <div style="text-align: center; margin: 32px 0;">
             <a href="{data.get('activation_link', '#')}" style="{_button_style(_build_theme(data))}">
-                Aktivovat ucet
+                Aktivovat účet
             </a>
         </div>
 
         <p style="{BASE_STYLES['text']}; font-size: 13px; color: #64748B;">
-            Pokud tlacitko nefunguje, zkopirujte tento odkaz do prohlizece:<br>
+            Pokud tlačítko nefunguje, zkopirujte tento odkaz do prohlizece:<br>
             <a href="{data.get('activation_link', '#')}" style="color: #1E293B; word-break: break-all;">
                 {data.get('activation_link', '#')}
             </a>
@@ -306,23 +306,23 @@ def account_activation(data: Dict[str, Any]) -> Dict[str, str]:
         <hr style="{BASE_STYLES['divider']}">
 
         <p style="{BASE_STYLES['text']}; font-size: 13px; color: #64748B;">
-            Pokud jste si ucet nezakladali, tento email ignorujte.
+            Pokud jste si účet nezakládali, tento email ignorujte.
         </p>
     """
 
     plain = f"""
-Aktivujte svuj ucet
+Aktivujte svůj účet
 
-Dobry den, {data.get('user_name', '')},
+Dobrý den, {data.get('user_name', '')},
 
-pro aktivaci vaseho uctu v systemu Budezivo.cz prejdete na tento odkaz:
+pro aktivaci vašeho účtu v systému Budeživo.cz přejděte na tento odkaz:
 {data.get('activation_link', '#')}
 
-Pokud jste si ucet nezakladali, tento email ignorujte.
+Pokud jste si účet nezakládali, tento email ignorujte.
 """
 
     return {
-        "subject": "Aktivujte svuj ucet - Budezivo.cz",
+        "subject": "Aktivujte svůj účet - Budezivo.cz",
         "html": _base_template(content, data),
         "text": _plain_text_base(plain)
     }
@@ -331,14 +331,14 @@ Pokud jste si ucet nezakladali, tento email ignorujte.
 def password_reset(data: Dict[str, Any]) -> Dict[str, str]:
     """Password reset request email."""
     content = f"""
-        <h1 style="{BASE_STYLES['h1']}">Obnoveni hesla</h1>
+        <h1 style="{BASE_STYLES['h1']}">Obnovení hesla</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den,
+            Dobrý den,
         </p>
 
         <p style="{BASE_STYLES['text']}">
-            obdrzeli jsme zadost o obnoveni hesla pro ucet spojeny s emailem
+            obdrželi jsme žádost o obnovení hesla pro účet spojený s emailem
             <strong>{data.get('user_email', '')}</strong>.
         </p>
 
@@ -349,7 +349,7 @@ def password_reset(data: Dict[str, Any]) -> Dict[str, str]:
         </div>
 
         <p style="{BASE_STYLES['text']}; font-size: 13px; color: #64748B;">
-            Odkaz je platny po dobu 1 hodiny. Pokud tlacitko nefunguje, zkopirujte tento odkaz:<br>
+            Odkaz je platny po dobu 1 hodiny. Pokud tlačítko nefunguje, zkopirujte tento odkaz:<br>
             <a href="{data.get('reset_link', '#')}" style="color: #1E293B; word-break: break-all;">
                 {data.get('reset_link', '#')}
             </a>
@@ -357,25 +357,25 @@ def password_reset(data: Dict[str, Any]) -> Dict[str, str]:
 
         <div style="{BASE_STYLES['alert_warning']}">
             <strong>Bezpecnostni upozorneni:</strong><br>
-            Pokud jste o obnoveni hesla nezadali, tento email ignorujte. Vase heslo zustane nezmenene.
+            Pokud jste o obnovení hesla nežádali, tento email ignorujte. Vaše heslo zůstane nezměněné.
         </div>
     """
 
     plain = f"""
-Obnoveni hesla
+Obnovení hesla
 
-Dobry den,
+Dobrý den,
 
-obdrzeli jsme zadost o obnoveni hesla pro ucet spojeny s emailem {data.get('user_email', '')}.
+obdrželi jsme žádost o obnovení hesla pro účet spojený s emailem {data.get('user_email', '')}.
 
-Pro obnoveni hesla prejdete na tento odkaz (platny 1 hodinu):
+Pro obnovení hesla prejdete na tento odkaz (platny 1 hodinu):
 {data.get('reset_link', '#')}
 
-Pokud jste o obnoveni hesla nezadali, tento email ignorujte.
+Pokud jste o obnovení hesla nezadali, tento email ignorujte.
 """
 
     return {
-        "subject": "Obnoveni hesla - Budezivo.cz",
+        "subject": "Obnovení hesla - Budezivo.cz",
         "html": _base_template(content, data),
         "text": _plain_text_base(plain)
     }
@@ -384,15 +384,15 @@ Pokud jste o obnoveni hesla nezadali, tento email ignorujte.
 def password_changed(data: Dict[str, Any]) -> Dict[str, str]:
     """Password changed confirmation email."""
     content = f"""
-        <h1 style="{BASE_STYLES['h1']}">Heslo bylo zmeneno</h1>
+        <h1 style="{BASE_STYLES['h1']}">Heslo bylo změněno</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('user_name', '')},
+            Dobrý den, {data.get('user_name', '')},
         </p>
 
         <div style="{BASE_STYLES['alert_success']}">
-            <strong>Heslo uspesne zmeneno</strong><br>
-            Vase heslo k uctu {data.get('user_email', '')} bylo prave zmeneno.
+            <strong>Heslo úspěšně změněno</strong><br>
+            Vaše heslo k účtu {data.get('user_email', '')} bylo právě změněno.
         </div>
 
         <p style="{BASE_STYLES['text']}">
@@ -402,17 +402,17 @@ def password_changed(data: Dict[str, Any]) -> Dict[str, str]:
     """
 
     plain = f"""
-Heslo bylo zmeneno
+Heslo bylo změněno
 
-Dobry den, {data.get('user_name', '')},
+Dobrý den, {data.get('user_name', '')},
 
-vase heslo k uctu {data.get('user_email', '')} bylo prave zmeneno.
+vaše heslo k účtu {data.get('user_email', '')} bylo právě změněno.
 
 Pokud jste tuto zmenu neprovedli, okamzite nas kontaktujte na info@budezivo.cz.
 """
 
     return {
-        "subject": "Heslo bylo zmeneno - Budezivo.cz",
+        "subject": "Heslo bylo změněno - Budezivo.cz",
         "html": _base_template(content, data),
         "text": _plain_text_base(plain)
     }
@@ -428,23 +428,23 @@ def reservation_created_teacher(data: Dict[str, Any]) -> Dict[str, str]:
         <h1 style="{BASE_STYLES['h1']}">Rezervace byla prijata</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('teacher_name', '')},
+            Dobrý den, {data.get('teacher_name', '')},
         </p>
 
         <p style="{BASE_STYLES['text']}">
             dekujeme za vytvoreni rezervace v instituci <strong>{data.get('institution_name', '')}</strong>.
-            Vase rezervace byla prijata a ceka na potvrzeni.
+            Vaše rezervace byla prijata a čeká na potvrzení.
         </p>
 
         {_reservation_details_box(data)}
 
         <div style="{BASE_STYLES['alert_warning']}">
-            <strong>Ceka na potvrzeni</strong><br>
-            O potvrzeni rezervace vas budeme informovat emailem.
+            <strong>Ceka na potvrzení</strong><br>
+            O potvrzení rezervace vás budeme informovat emailem.
         </div>
 
         <p style="{BASE_STYLES['text']}">
-            V pripade dotazu nas kontaktujte na {data.get('institution_email', '')}
+            V případě dotazů nás kontaktujte na {data.get('institution_email', '')}
             nebo {data.get('institution_phone', '')}.
         </p>
 
@@ -454,7 +454,7 @@ def reservation_created_teacher(data: Dict[str, Any]) -> Dict[str, str]:
     plain = f"""
 Rezervace byla prijata
 
-Dobry den, {data.get('teacher_name', '')},
+Dobrý den, {data.get('teacher_name', '')},
 
 dekujeme za vytvoreni rezervace v instituci {data.get('institution_name', '')}.
 
@@ -465,7 +465,7 @@ Detail rezervace:
 - Skola: {data.get('school_name', '')}
 - Pocet deti: {data.get('children_count', 0)}
 
-Vase rezervace ceka na potvrzeni.
+Vaše rezervace čeká na potvrzení.
 
 Kontakt: {data.get('institution_email', '')} / {data.get('institution_phone', '')}
 """
@@ -482,14 +482,14 @@ def reservation_created_institution(data: Dict[str, Any]) -> Dict[str, str]:
     theme = _build_theme(data)
 
     content = f"""
-        <h1 style="{BASE_STYLES['h1']}">Nova rezervace k potvrzeni</h1>
+        <h1 style="{BASE_STYLES['h1']}">Nová rezervace k potvrzení</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den,
+            Dobrý den,
         </p>
 
         <p style="{BASE_STYLES['text']}">
-            byla vytvorena nova rezervace, ktera ceka na vase potvrzeni.
+            byla vytvorena nová rezervace, ktera čeká na vase potvrzení.
         </p>
 
         {_reservation_details_box(data)}
@@ -502,20 +502,20 @@ def reservation_created_institution(data: Dict[str, Any]) -> Dict[str, str]:
     """
 
     plain = f"""
-Nova rezervace k potvrzeni
+Nová rezervace k potvrzení
 
-Byla vytvorena nova rezervace:
+Byla vytvorena nová rezervace:
 - Program: {data.get('program_name', '')}
 - Datum: {data.get('reservation_date', '')}
 - Cas: {data.get('reservation_time', '')}
 - Skola: {data.get('school_name', '')}
 - Kontakt: {data.get('teacher_name', '')} ({data.get('teacher_email', '')})
 
-Prejdete do administrace pro potvrzeni: {data.get('dashboard_url', 'https://www.budezivo.cz/admin')}/bookings
+Prejdete do administrace pro potvrzení: {data.get('dashboard_url', 'https://www.budezivo.cz/admin')}/bookings
 """
 
     return {
-        "subject": f"Nova rezervace - {data.get('school_name', '')} ({data.get('reservation_date', '')})",
+        "subject": f"Nová rezervace - {data.get('school_name', '')} ({data.get('reservation_date', '')})",
         "html": _base_template(content, data),
         "text": _plain_text_base(plain)
     }
@@ -529,22 +529,22 @@ def reservation_confirmed(data: Dict[str, Any]) -> Dict[str, str]:
         <h1 style="{BASE_STYLES['h1']}">Rezervace potvrzena!</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('teacher_name', '')},
+            Dobrý den, {data.get('teacher_name', '')},
         </p>
 
         <div style="{BASE_STYLES['alert_success']}">
             <strong>Rezervace potvrzena</strong><br>
-            Vase rezervace v instituci {data.get('institution_name', '')} byla potvrzena.
+            Vaše rezervace v instituci {data.get('institution_name', '')} byla potvrzena.
         </div>
 
         {_reservation_details_box(data)}
 
         <p style="{BASE_STYLES['text']}">
-            Dostavte se prosim 10 minut pred zacatkem. V pripade nemoci nas kontaktujte 2 dny predem.
+            Dostavte se prosím 10 minut před začátkem. V případě nemoci nás kontaktujte 2 dny předem.
         </p>
 
         <p style="{BASE_STYLES['text']}">
-            Tesime se na vasi navstevu!
+            Těšíme se na vaši návštěvu!
         </p>
 
         <p style="{BASE_STYLES['text']}">
@@ -559,7 +559,7 @@ def reservation_confirmed(data: Dict[str, Any]) -> Dict[str, str]:
     plain = f"""
 Rezervace potvrzena!
 
-Dobry den, {data.get('teacher_name', '')},
+Dobrý den, {data.get('teacher_name', '')},
 
 vase rezervace v instituci {data.get('institution_name', '')} byla potvrzena.
 
@@ -568,7 +568,7 @@ Detail:
 - Datum: {data.get('reservation_date', '')}
 - Cas: {data.get('reservation_time', '')}
 
-Dostavte se prosim 10 minut pred zacatkem.
+Dostavte se prosím 10 minut před začátkem.
 
 {data.get('institution_name', '')}
 {data.get('institution_email', '')} | {data.get('institution_phone', '')}
@@ -589,12 +589,12 @@ def reservation_rejected(data: Dict[str, Any]) -> Dict[str, str]:
         <h1 style="{BASE_STYLES['h1']}">Rezervace nebyla potvrzena</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('teacher_name', '')},
+            Dobrý den, {data.get('teacher_name', '')},
         </p>
 
         <div style="{BASE_STYLES['alert_error']}">
             <strong>Rezervace odmitnuta</strong><br>
-            Vase rezervace bohuzel nemohla byt potvrzena.
+            Vaše rezervace bohuzel nemohla byt potvrzena.
         </div>
 
         {_reservation_details_box(data)}
@@ -618,7 +618,7 @@ def reservation_rejected(data: Dict[str, Any]) -> Dict[str, str]:
     plain = f"""
 Rezervace nebyla potvrzena
 
-Dobry den, {data.get('teacher_name', '')},
+Dobrý den, {data.get('teacher_name', '')},
 
 vase rezervace bohuzel nemohla byt potvrzena.
 
@@ -644,7 +644,7 @@ def reservation_updated(data: Dict[str, Any]) -> Dict[str, str]:
         <h1 style="{BASE_STYLES['h1']}">Rezervace byla aktualizovana</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('teacher_name', '')},
+            Dobrý den, {data.get('teacher_name', '')},
         </p>
 
         <p style="{BASE_STYLES['text']}">
@@ -655,14 +655,14 @@ def reservation_updated(data: Dict[str, Any]) -> Dict[str, str]:
         {_reservation_details_box(data)}
 
         <p style="{BASE_STYLES['text']}">
-            V pripade dotazu nas kontaktujte na {data.get('institution_email', '')}.
+            V případě dotazů nás kontaktujte na {data.get('institution_email', '')}.
         </p>
     """
 
     plain = f"""
 Rezervace byla aktualizovana
 
-Dobry den, {data.get('teacher_name', '')},
+Dobrý den, {data.get('teacher_name', '')},
 
 vase rezervace v instituci {data.get('institution_name', '')} byla aktualizovana.
 
@@ -689,12 +689,12 @@ def reservation_cancelled(data: Dict[str, Any]) -> Dict[str, str]:
         <h1 style="{BASE_STYLES['h1']}">Rezervace byla zrusena</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('teacher_name', '')},
+            Dobrý den, {data.get('teacher_name', '')},
         </p>
 
         <div style="{BASE_STYLES['alert_error']}">
-            <strong>Rezervace zrusena</strong><br>
-            Vase rezervace v instituci {data.get('institution_name', '')} byla zrusena.
+            <strong>Rezervace zrušena</strong><br>
+            Vaše rezervace v instituci {data.get('institution_name', '')} byla zrusena.
         </div>
 
         {_reservation_details_box(data)}
@@ -705,7 +705,7 @@ def reservation_cancelled(data: Dict[str, Any]) -> Dict[str, str]:
         </p>
 
         <p style="{BASE_STYLES['text']}">
-            Pokud mate zajem o jiny termin, muzete vytvorit novou rezervaci.
+            Pokud mate zajem o jiny termin, můžete vytvorit novou rezervaci.
         </p>
 
         <div style="text-align: center; margin: 32px 0;">
@@ -718,7 +718,7 @@ def reservation_cancelled(data: Dict[str, Any]) -> Dict[str, str]:
     plain = f"""
 Rezervace byla zrusena
 
-Dobry den, {data.get('teacher_name', '')},
+Dobrý den, {data.get('teacher_name', '')},
 
 vase rezervace v instituci {data.get('institution_name', '')} byla zrusena.
 
@@ -732,7 +732,7 @@ Pro vytvoreni nove rezervace navstivte: {data.get('booking_url', '#')}
 """
 
     return {
-        "subject": f"Rezervace zrusena - {data.get('program_name', '')}",
+        "subject": f"Rezervace zrušena - {data.get('program_name', '')}",
         "html": _base_template(content, data),
         "text": _plain_text_base(plain)
     }
@@ -746,12 +746,12 @@ def reservation_rescheduled(data: Dict[str, Any]) -> Dict[str, str]:
         <h1 style="{BASE_STYLES['h1']}">Termin rezervace byl zmenen</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('teacher_name', '')},
+            Dobrý den, {data.get('teacher_name', '')},
         </p>
 
         <p style="{BASE_STYLES['text']}">
-            Vase rezervace programu <strong>{data.get('program_name', '')}</strong> v instituci
-            <strong>{data.get('institution_name', '')}</strong> byla presunuta na novy termin.
+            Vaše rezervace programu <strong>{data.get('program_name', '')}</strong> v instituci
+            <strong>{data.get('institution_name', '')}</strong> byla presunuta na nový termín.
         </p>
 
         <div style="margin: 24px 0; padding: 16px; background-color: #FEF3C7; border-radius: 8px; border-left: 4px solid #F59E0B;">
@@ -771,7 +771,7 @@ def reservation_rescheduled(data: Dict[str, Any]) -> Dict[str, str]:
         {_reservation_details_box(data)}
 
         <p style="{BASE_STYLES['text']}">
-            V pripade, ze vam novy termin nevyhovuje, kontaktujte nas prosim na
+            V případě, že vám nový termín nevyhovuje, kontaktujte nás prosím na
             {data.get('institution_email', '')} nebo {data.get('institution_phone', '')}.
         </p>
 
@@ -781,7 +781,7 @@ def reservation_rescheduled(data: Dict[str, Any]) -> Dict[str, str]:
     plain = f"""
 Termin rezervace byl zmenen
 
-Dobry den, {data.get('teacher_name', '')},
+Dobrý den, {data.get('teacher_name', '')},
 
 vase rezervace programu {data.get('program_name', '')} v instituci {data.get('institution_name', '')} byla presunuta.
 
@@ -793,7 +793,7 @@ Detail:
 - Skola: {data.get('school_name', '')}
 - Pocet deti: {data.get('children_count', 0)}
 
-Pokud vam novy termin nevyhovuje, kontaktujte nas: {data.get('institution_email', '')} / {data.get('institution_phone', '')}
+Pokud vam novy termín nevyhovuje, kontaktujte nás: {data.get('institution_email', '')} / {data.get('institution_phone', '')}
 """
 
     return {
@@ -808,23 +808,23 @@ Pokud vam novy termin nevyhovuje, kontaktujte nas: {data.get('institution_email'
 def reservation_reminder_teacher(data: Dict[str, Any]) -> Dict[str, str]:
     """Reminder email sent to teacher before reservation."""
     content = f"""
-        <h1 style="{BASE_STYLES['h1']}">Pripominka rezervace</h1>
+        <h1 style="{BASE_STYLES['h1']}">Připomínka rezervace</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('teacher_name', '')},
+            Dobrý den, {data.get('teacher_name', '')},
         </p>
 
         <div style="{BASE_STYLES['alert_warning']}">
             <strong>Blizi se vas program!</strong><br>
-            Vase rezervace se kona <strong>{data.get('reservation_date', '')}</strong> v <strong>{data.get('reservation_time', '')}</strong>.
+            Vaše rezervace se kona <strong>{data.get('reservation_date', '')}</strong> v <strong>{data.get('reservation_time', '')}</strong>.
         </div>
 
         {_reservation_details_box(data)}
 
         <h2 style="{BASE_STYLES['h2']}">Nezapomente</h2>
         <ul style="color: #475569; padding-left: 20px;">
-            <li style="margin-bottom: 8px;">Dostavte se 10 minut pred zacatkem</li>
-            <li style="margin-bottom: 8px;">Ujistete se, ze mate potvrzeny pocet ucastniku</li>
+            <li style="margin-bottom: 8px;">Dostavte se 10 minut před začátkem</li>
+            <li style="margin-bottom: 8px;">Ujistete se, ze mate potvrzeny pocet učastniku</li>
         </ul>
 
         <p style="{BASE_STYLES['text']}">
@@ -834,22 +834,22 @@ def reservation_reminder_teacher(data: Dict[str, Any]) -> Dict[str, str]:
     """
 
     plain = f"""
-Pripominka rezervace
+Připomínka rezervace
 
-Dobry den, {data.get('teacher_name', '')},
+Dobrý den, {data.get('teacher_name', '')},
 
-pripominame vasi nadchazejici rezervaci:
+pripominame vaší nadchazejici rezervaci:
 
 - Program: {data.get('program_name', '')}
 - Datum: {data.get('reservation_date', '')}
 - Cas: {data.get('reservation_time', '')}
 - Misto: {data.get('institution_name', '')}, {data.get('institution_address', '')}
 
-Dostavte se prosim 10 minut pred zacatkem.
+Dostavte se prosím 10 minut před začátkem.
 """
 
     return {
-        "subject": f"Pripominka: {data.get('program_name', '')} - {data.get('reservation_date', '')}",
+        "subject": f"Připomínka: {data.get('program_name', '')} - {data.get('reservation_date', '')}",
         "html": _base_template(content, data),
         "text": _plain_text_base(plain)
     }
@@ -863,11 +863,11 @@ def reservation_reminder_institution(data: Dict[str, Any]) -> Dict[str, str]:
         <h1 style="{BASE_STYLES['h1']}">Nadchazejici rezervace</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den,
+            Dobrý den,
         </p>
 
         <div style="{BASE_STYLES['alert_warning']}">
-            <strong>Zitra mate naplanovany program</strong>
+            <strong>Zítra mate naplanovany program</strong>
         </div>
 
         {_reservation_details_box(data)}
@@ -882,7 +882,7 @@ def reservation_reminder_institution(data: Dict[str, Any]) -> Dict[str, str]:
     plain = f"""
 Nadchazejici rezervace
 
-Zitra mate naplanovany program:
+Zítra mate naplanovany program:
 
 - Program: {data.get('program_name', '')}
 - Datum: {data.get('reservation_date', '')}
@@ -892,7 +892,7 @@ Zitra mate naplanovany program:
 """
 
     return {
-        "subject": f"Zitra: {data.get('program_name', '')} - {data.get('school_name', '')}",
+        "subject": f"Zítra: {data.get('program_name', '')} - {data.get('school_name', '')}",
         "html": _base_template(content, data),
         "text": _plain_text_base(plain)
     }
@@ -908,22 +908,22 @@ def feedback_request(data: Dict[str, Any]) -> Dict[str, str]:
         <h1 style="{BASE_STYLES['h1']}">Zpetna vazba</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('recipient_name', data.get('teacher_name', ''))},
+            Dobrý den, {data.get('recipient_name', data.get('teacher_name', ''))},
         </p>
 
         <p style="{BASE_STYLES['text']}">
-            dekujeme za navstevu programu <strong>{data.get('program_name', '')}</strong> v instituci
+            dekujeme za návštěvu programu <strong>{data.get('program_name', '')}</strong> v instituci
             <strong>{data.get('institution_name', '')}</strong> dne {data.get('formatted_date', data.get('reservation_date', ''))}.
         </p>
 
         <p style="{BASE_STYLES['text']}">
-            Budeme radi, pokud si najdete chvilku na vyplneni kratkeho dotazniku.
-            Vase zpetna vazba nam pomaha zlepsovat nase programy.
+            Budeme radi, pokud si najdete chvilku na vyplnění kratkeho dotazníku.
+            Vaše zpětná vazba nám pomáhá zlepšovat naše programy.
         </p>
 
         <div style="text-align: center; margin: 32px 0;">
             <a href="{data.get('feedback_url', '#')}" style="{_button_style(theme)}">
-                Vyplnit dotaznik
+                Vyplnit dotazník
             </a>
         </div>
 
@@ -935,11 +935,11 @@ def feedback_request(data: Dict[str, Any]) -> Dict[str, str]:
     plain = f"""
 Zpetna vazba
 
-Dobry den, {data.get('recipient_name', data.get('teacher_name', ''))},
+Dobrý den, {data.get('recipient_name', data.get('teacher_name', ''))},
 
-dekujeme za navstevu programu {data.get('program_name', '')} v instituci {data.get('institution_name', '')} dne {data.get('formatted_date', data.get('reservation_date', ''))}.
+dekujeme za návštěvu programu {data.get('program_name', '')} v instituci {data.get('institution_name', '')} dne {data.get('formatted_date', data.get('reservation_date', ''))}.
 
-Budeme radi za vasi zpetnou vazbu:
+Budeme rádi za vaši zpětnou vazbu:
 {data.get('feedback_url', '#')}
 
 Dotaznik zabere pouze 2 minuty a je zcela anonymni.
@@ -957,50 +957,50 @@ def feedback_reminder(data: Dict[str, Any]) -> Dict[str, str]:
     theme = _build_theme(data)
 
     content = f"""
-        <h1 style="{BASE_STYLES['h1']}">Pripominka: zpetna vazba</h1>
+        <h1 style="{BASE_STYLES['h1']}">Připomínka: zpětná vazba</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('recipient_name', data.get('teacher_name', ''))},
+            Dobrý den, {data.get('recipient_name', data.get('teacher_name', ''))},
         </p>
 
         <p style="{BASE_STYLES['text']}">
-            pred tydnem jsme vam poslali zadost o zpetnou vazbu na program
+            před týdnem jsme vám poslali žádost o zpětnou vazbu na program
             <strong>{data.get('program_name', '')}</strong>, ktery jste navstivili dne {data.get('formatted_date', data.get('reservation_date', ''))}
             v instituci <strong>{data.get('institution_name', '')}</strong>.
         </p>
 
         <p style="{BASE_STYLES['text']}">
-            Pokud jste dotaznik jeste nevyplnili, budeme velmi radi za vasi zpetnou vazbu.
-            Zabere vam to pouze 2 minuty.
+            Pokud jste dotazník ještě nevyplnili, budeme velmi rádi za vaši zpětnou vazbu.
+            Zabere vám to pouze 2 minuty.
         </p>
 
         <div style="text-align: center; margin: 32px 0;">
             <a href="{data.get('feedback_url', '#')}" style="{_button_style(theme, 'secondary')}">
-                Vyplnit dotaznik
+                Vyplnit dotazník
             </a>
         </div>
 
         <p style="{BASE_STYLES['text']}; font-size: 14px; color: #64748B;">
-            Toto je posledni pripominka. Dekujeme za vas cas!
+            Toto je poslední připomínka. Děkujeme za váš čas!
         </p>
     """
 
     plain = f"""
-Pripominka: zpetna vazba
+Připomínka: zpětná vazba
 
-Dobry den, {data.get('recipient_name', data.get('teacher_name', ''))},
+Dobrý den, {data.get('recipient_name', data.get('teacher_name', ''))},
 
-pred tydnem jsme vam poslali zadost o zpetnou vazbu na program {data.get('program_name', '')},
+před týdnem jsme vám poslali žádost o zpětnou vazbu na program {data.get('program_name', '')},
 ktery jste navstivili dne {data.get('formatted_date', data.get('reservation_date', ''))} v instituci {data.get('institution_name', '')}.
 
-Pokud jste dotaznik jeste nevyplnili, budeme velmi radi za vasi zpetnou vazbu:
+Pokud jste dotazník ještě nevyplnili, budeme velmi rádi za vaši zpětnou vazbu:
 {data.get('feedback_url', '#')}
 
-Toto je posledni pripominka. Dekujeme za vas cas!
+Toto je poslední připomínka. Děkujeme za váš čas!
 """
 
     return {
-        "subject": f"Pripominka: Vase zpetna vazba na program {data.get('program_name', '')}",
+        "subject": f"Připomínka: Vaše zpětná vazba na program {data.get('program_name', '')}",
         "html": _base_template(content, data),
         "text": _plain_text_base(plain)
     }
@@ -1014,7 +1014,7 @@ def new_institution_registration(data: Dict[str, Any]) -> Dict[str, str]:
         <h1 style="{BASE_STYLES['h1']}">Nova registrace instituce</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Byla zaregistrovana nova instituce v systemu Budezivo.cz.
+            Byla zaregistrovana nova instituce v systému Budezivo.cz.
         </p>
 
         <div style="{BASE_STYLES['info_box']}">
@@ -1126,15 +1126,15 @@ def team_invitation(data: Dict[str, Any]) -> Dict[str, str]:
     theme = _build_theme(data)
 
     content = f"""
-        <h1 style="{BASE_STYLES['h1']}">Pozvanka do tymu</h1>
+        <h1 style="{BASE_STYLES['h1']}">Pozvánka do týmu</h1>
 
         <p style="{BASE_STYLES['text']}">
-            Dobry den, {data.get('invitee_name', '')},
+            Dobrý den, {data.get('invitee_name', '')},
         </p>
 
         <p style="{BASE_STYLES['text']}">
-            <strong>{data.get('inviter_name', '')}</strong> vas zve, abyste se pripojili k tymu instituce
-            <strong>{data.get('institution_name', '')}</strong> v systemu Budezivo.cz.
+            <strong>{data.get('inviter_name', '')}</strong> vás zve, abyste se pripojili k tymu instituce
+            <strong>{data.get('institution_name', '')}</strong> v systému Budezivo.cz.
         </p>
 
         <div style="{BASE_STYLES['info_box']}">
@@ -1144,7 +1144,7 @@ def team_invitation(data: Dict[str, Any]) -> Dict[str, str]:
                     <td style="padding: 8px 0; color: #1E293B; font-weight: 500;">{data.get('institution_name', '')}</td>
                 </tr>
                 <tr>
-                    <td style="padding: 8px 0; color: #64748B; border-top: 1px solid #E2E8F0;">Vase role:</td>
+                    <td style="padding: 8px 0; color: #64748B; border-top: 1px solid #E2E8F0;">Vaše role:</td>
                     <td style="padding: 8px 0; color: #1E293B; font-weight: 500; border-top: 1px solid #E2E8F0;">{data.get('role_name', '')}</td>
                 </tr>
                 <tr>
@@ -1156,12 +1156,12 @@ def team_invitation(data: Dict[str, Any]) -> Dict[str, str]:
 
         <div style="text-align: center; margin: 32px 0;">
             <a href="{data.get('invite_link', '#')}" style="{_button_style(theme)}">
-                Prijmout pozvanku
+                Přijmout pozvánku
             </a>
         </div>
 
         <p style="{BASE_STYLES['text']}; font-size: 13px; color: #64748B;">
-            Pokud tlacitko nefunguje, zkopirujte tento odkaz do prohlizece:<br>
+            Pokud tlačítko nefunguje, zkopirujte tento odkaz do prohlizece:<br>
             <a href="{data.get('invite_link', '#')}" style="color: #1E293B; word-break: break-all;">
                 {data.get('invite_link', '#')}
             </a>
@@ -1170,28 +1170,28 @@ def team_invitation(data: Dict[str, Any]) -> Dict[str, str]:
         <hr style="{BASE_STYLES['divider']}">
 
         <p style="{BASE_STYLES['text']}; font-size: 13px; color: #64748B;">
-            Pokud jste tuto pozvanku neocekavali, muzete tento email ignorovat.
+            Pokud jste tuto pozvánku neočekávali, můžete tento email ignorovat.
         </p>
     """
 
     plain = f"""
-Pozvanka do tymu - Budezivo.cz
+Pozvánka do týmu - Budezivo.cz
 
-Dobry den, {data.get('invitee_name', '')},
+Dobrý den, {data.get('invitee_name', '')},
 
-{data.get('inviter_name', '')} vas zve, abyste se pripojili k tymu instituce {data.get('institution_name', '')} v systemu Budezivo.cz.
+{data.get('inviter_name', '')} vás zve, abyste se pripojili k tymu instituce {data.get('institution_name', '')} v systému Budezivo.cz.
 
-Vase role: {data.get('role_name', '')}
+Vaše role: {data.get('role_name', '')}
 Platnost pozvanky: {data.get('expires_hours', 48)} hodin
 
 Pro prijeti pozvanky prejdete na tento odkaz:
 {data.get('invite_link', '#')}
 
-Pokud jste tuto pozvanku neocekavali, muzete tento email ignorovat.
+Pokud jste tuto pozvánku neočekávali, můžete tento email ignorovat.
 """
 
     return {
-        "subject": f"Pozvanka do tymu - {data.get('institution_name', 'Budezivo.cz')}",
+        "subject": f"Pozvánka do týmu - {data.get('institution_name', 'Budezivo.cz')}",
         "html": _base_template(content, data),
         "text": _plain_text_base(plain)
     }

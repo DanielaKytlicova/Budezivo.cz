@@ -8,11 +8,12 @@ import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
-import { Plus, ArrowLeft, Calendar, Users, Trash2, Eye, CreditCard, ClipboardList, MoreVertical, Tag, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, ArrowLeft, Calendar, Users, Trash2, Eye, CreditCard, ClipboardList, MoreVertical, Tag, ChevronUp, ChevronDown, Link as LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
 import { AuthContext } from '../../context/AuthContext';
+import { EventUrlModal } from '../../components/admin/EventUrlModal';
 
 const EVENT_TYPES = [
   { value: 'event', label: 'Jednorázová akce' },
@@ -54,6 +55,7 @@ export const EventsPage = () => {
   const [showAppDialog, setShowAppDialog] = useState(false);
   const [selectedApp, setSelectedApp] = useState(null);
   const [paymentSettings, setPaymentSettings] = useState(null);
+  const [showUrlModal, setShowUrlModal] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -268,21 +270,37 @@ export const EventsPage = () => {
             </Button>
           </div>
 
-          {/* Payment settings banner */}
-          {(!paymentSettings || !paymentSettings.account_number) && (
-            <Card className="p-4 bg-amber-50 border-amber-200">
-              <div className="flex items-center gap-3">
-                <CreditCard className="w-5 h-5 text-amber-600" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-amber-800">Platební nastavení není dokončeno</p>
-                  <p className="text-xs text-amber-600">Nastavte bankovní účet pro příjem plateb za události.</p>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => { handleCreate(); setActiveTab('payment'); }} data-testid="setup-payment-btn">
-                  Nastavit
+          {/* URL generator banner + payment warning */}
+          <Card className="p-4 bg-gray-50 border-gray-200">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                {(!paymentSettings || !paymentSettings.account_number) ? (
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-amber-600" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-800">Platební nastavení není dokončeno</p>
+                      <p className="text-xs text-amber-600">Nastavte bankovní účet v Nastavení.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-600">
+                    <span className="font-semibold">{events.length}</span> {events.length === 1 ? 'událost' : 'událostí'}
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowUrlModal(true)}
+                  className="shrink-0"
+                  data-testid="generate-event-url-btn"
+                >
+                  <LinkIcon className="w-4 h-4 mr-2" />
+                  Generovat URL pro web
                 </Button>
               </div>
-            </Card>
-          )}
+            </div>
+          </Card>
 
           {loading ? (
             <div className="text-center py-12"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-800 mx-auto" /></div>
@@ -317,19 +335,13 @@ export const EventsPage = () => {
             </div>
           )}
 
-          {/* Public URL */}
-          {events.length > 0 && (
-            <Card className="p-4 bg-gray-50">
-              <div className="flex items-center gap-3">
-                <Eye className="w-4 h-4 text-gray-500" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-500">Veřejná stránka událostí</p>
-                  <p className="text-sm font-mono text-slate-700 truncate">{getPublicUrl()}</p>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(getPublicUrl()); toast.success('Zkopírováno'); }}>Kopírovat</Button>
-              </div>
-            </Card>
-          )}
+          {/* URL Generator Modal */}
+          <EventUrlModal
+            open={showUrlModal}
+            onOpenChange={setShowUrlModal}
+            events={events}
+            institutionId={user?.institution_id}
+          />
         </div>
       </AdminLayout>
     );

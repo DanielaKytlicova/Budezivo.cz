@@ -7,7 +7,9 @@ import random
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List
+from urllib.parse import quote as url_quote
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, delete
@@ -448,6 +450,128 @@ async def update_application_status(
     return _to_dict(app)
 
 
+# ============ Exports ============
+
+@router.get("/{event_id}/export/xlsx")
+async def export_applications_xlsx(
+    event_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Export applications as styled XLSX."""
+    await require_events_module(db, current_user["institution_id"])
+    inst_uuid = uuid.UUID(current_user["institution_id"])
+
+    result = await db.execute(
+        select(Event).where(and_(Event.id == uuid.UUID(event_id), Event.institution_id == inst_uuid))
+    )
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Událost nenalezena")
+
+    apps_result = await db.execute(
+        select(EventApplication).where(EventApplication.event_id == event.id).order_by(EventApplication.created_at.desc())
+    )
+    applications = [_to_dict(a) for a in apps_result.scalars().all()]
+
+    from services.export_service import generate_xlsx
+    buffer = generate_xlsx(_to_dict(event), applications)
+
+    filename = f"prihlasky_{event.name[:30]}_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    return StreamingResponse(
+        buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{url_quote(filename)}"},
+    )
+
+
+@router.get("/{event_id}/export/csv")
+async def export_applications_csv(
+    event_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Export applications as CSV."""
+    await require_events_module(db, current_user["institution_id"])
+    inst_uuid = uuid.UUID(current_user["institution_id"])
+
+    result = await db.execute(
+        select(Event).where(and_(Event.id == uuid.UUID(event_id), Event.institution_id == inst_uuid))
+    )
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Událost nenalezena")
+
+    apps_result = await db.execute(
+        select(EventApplication).where(EventApplication.event_id == event.id).order_by(EventApplication.created_at.desc())
+    )
+    applications = [_to_dict(a) for a in apps_result.scalars().all()]
+
+    from services.export_service import generate_csv
+    buffer = generate_csv(_to_dict(event), applications)
+
+    filename = f"prihlasky_{event.name[:30]}_{datetime.now().strftime('%Y%m%d')}.csv"
+    return StreamingResponse(
+        buffer,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{url_quote(filename)}"},
+    )
+
+
+@router.get("/applications/{application_id}/pdf")
+async def export_application_pdf(
+    application_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Generate PDF confirmation for a single application."""
+    await require_events_module(db, current_user["institution_id"])
+    inst_uuid = uuid.UUID(current_user["institution_id"])
+
+    app_result = await db.execute(
+        select(EventApplication).where(and_(
+            EventApplication.id == uuid.UUID(application_id),
+            EventApplication.institution_id == inst_uuid,
+        ))
+    )
+    application = app_result.scalar_one_or_none()
+    if not application:
+        raise HTTPException(status_code=404, detail="Přihláška nenalezena")
+
+    event_result = await db.execute(select(Event).where(Event.id == application.event_id))
+    event = event_result.scalar_one_or_none()
+
+    event_date = None
+    if application.event_date_id:
+        ed_result = await db.execute(select(EventDate).where(EventDate.id == application.event_date_id))
+        event_date = ed_result.scalar_one_or_none()
+
+    pay_result = await db.execute(
+        select(InstitutionPaymentSettings).where(InstitutionPaymentSettings.institution_id == inst_uuid)
+    )
+    pay_settings = pay_result.scalar_one_or_none()
+
+    from database.models import Institution
+    inst_result = await db.execute(select(Institution).where(Institution.id == inst_uuid))
+    institution = inst_result.scalar_one_or_none()
+
+    from services.export_service import generate_pdf_confirmation
+    buffer = generate_pdf_confirmation(
+        _to_dict(application),
+        _to_dict(event) if event else {},
+        _to_dict(event_date) if event_date else None,
+        {"name": institution.name if institution else "Instituce"},
+        _to_dict(pay_settings) if pay_settings else None,
+    )
+
+    filename = f"potvrzeni_{application.applicant_name or 'prihlaska'}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{url_quote(filename)}"},
+    )
+
+
 # ============ Public Endpoints ============
 
 @router.get("/public/{institution_id}")
@@ -646,8 +770,64 @@ async def submit_application(
         "bank_code": pay_settings.bank_code if pay_settings else None,
         "account_name": pay_settings.account_name if pay_settings else None,
     } if pay_settings else None
+    resp["pdf_url"] = f"/api/events/public/{institution_id}/application/{str(application.id)}/pdf"
 
     return resp
+
+
+@router.get("/public/{institution_id}/application/{application_id}/pdf")
+async def public_application_pdf(
+    institution_id: str,
+    application_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Public PDF download for application confirmation (no auth)."""
+    enabled = await is_feature_enabled(db, FEATURE_KEY, institution_id)
+    if not enabled:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    inst_uuid = uuid.UUID(institution_id)
+    app_result = await db.execute(
+        select(EventApplication).where(and_(
+            EventApplication.id == uuid.UUID(application_id),
+            EventApplication.institution_id == inst_uuid,
+        ))
+    )
+    application = app_result.scalar_one_or_none()
+    if not application:
+        raise HTTPException(status_code=404, detail="Přihláška nenalezena")
+
+    event_result = await db.execute(select(Event).where(Event.id == application.event_id))
+    event = event_result.scalar_one_or_none()
+
+    event_date = None
+    if application.event_date_id:
+        ed_result = await db.execute(select(EventDate).where(EventDate.id == application.event_date_id))
+        event_date = ed_result.scalar_one_or_none()
+
+    pay_result = await db.execute(
+        select(InstitutionPaymentSettings).where(InstitutionPaymentSettings.institution_id == inst_uuid)
+    )
+    pay_settings = pay_result.scalar_one_or_none()
+
+    from database.models import Institution
+    inst_result = await db.execute(select(Institution).where(Institution.id == inst_uuid))
+    institution = inst_result.scalar_one_or_none()
+
+    from services.export_service import generate_pdf_confirmation
+    buffer = generate_pdf_confirmation(
+        _to_dict(application),
+        _to_dict(event) if event else {},
+        _to_dict(event_date) if event_date else None,
+        {"name": institution.name if institution else "Instituce"},
+        _to_dict(pay_settings) if pay_settings else None,
+    )
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=potvrzeni.pdf"},
+    )
 
 
 # ============ Payment Settings ============

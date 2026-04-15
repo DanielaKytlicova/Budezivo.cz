@@ -8,7 +8,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
-import { Plus, ArrowLeft, Calendar, Users, Trash2, Eye, CreditCard, ClipboardList, MoreVertical, Tag, ChevronUp, ChevronDown, Link as LinkIcon } from 'lucide-react';
+import { Plus, ArrowLeft, Calendar, Users, Trash2, Eye, CreditCard, ClipboardList, MoreVertical, Tag, ChevronUp, ChevronDown, Link as LinkIcon, Download, FileText, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
@@ -514,7 +514,19 @@ export const EventsPage = () => {
           {activeTab === 'applications' && (
             <div className="space-y-6">
               <Card className="p-4 md:p-6 space-y-4">
-                <h3 className="font-semibold text-slate-900">Přihlášky ({applications.length})</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-slate-900">Přihlášky ({applications.length})</h3>
+                  {editingEvent && applications.length > 0 && (
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => window.open(`${API}/events/${editingEvent.id}/export/xlsx`, '_blank')} data-testid="export-xlsx">
+                        <FileSpreadsheet className="w-4 h-4 mr-1" /> XLSX
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => window.open(`${API}/events/${editingEvent.id}/export/csv`, '_blank')} data-testid="export-csv">
+                        <Download className="w-4 h-4 mr-1" /> CSV
+                      </Button>
+                    </div>
+                  )}
+                </div>
                 {!editingEvent && <p className="text-sm text-amber-600">Nejprve uložte událost.</p>}
                 {editingEvent && applications.length === 0 && <p className="text-sm text-gray-500">Zatím žádné přihlášky.</p>}
                 {applications.map(app => {
@@ -558,6 +570,9 @@ export const EventsPage = () => {
                       {app.payment_status !== 'paid' && app.total_amount > 0 && (
                         <Button size="sm" variant="outline" className="text-slate-600" onClick={() => updateApplicationStatus(app.id, null, 'paid')} data-testid={`mark-paid-${app.id}`}>Označit zaplaceno</Button>
                       )}
+                      <Button size="sm" variant="outline" onClick={() => window.open(`${API}/events/applications/${app.id}/pdf`, '_blank')} data-testid={`pdf-${app.id}`}>
+                        <FileText className="w-3.5 h-3.5 mr-1" /> PDF
+                      </Button>
                     </div>
                   </div>
                   );

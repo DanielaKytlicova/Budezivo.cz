@@ -943,3 +943,107 @@ class WaitlistEntry(Base):
         Index('idx_waitlist_status', 'status'),
         Index('idx_waitlist_email_program', 'email', 'program_id'),
     )
+
+
+# ============ MAILING CAMPAIGNS ============
+
+class MailingCampaign(Base):
+    """Promotional mailing campaign."""
+    __tablename__ = 'mailing_campaigns'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
+
+    # Campaign metadata
+    name = Column(Text, nullable=False)
+    type = Column(Text, nullable=False, default='single_program')  # single_program | seasonal | custom
+    status = Column(Text, nullable=False, default='draft')  # draft | sending | sent | partial | failed
+
+    # Recipient selection mode
+    recipient_mode = Column(Text, nullable=False, default='relevant_only')  # relevant_only | all | manual | relevant_plus_manual
+
+    # Email content blocks
+    subject = Column(Text, nullable=False, default='')
+    greeting = Column(Text, nullable=False, default='')
+    intro_text = Column(Text, nullable=False, default='')
+    closing_text = Column(Text, nullable=False, default='')
+    signature = Column(Text, nullable=False, default='')
+
+    # Snapshots at send time
+    content_snapshot = Column(JSON, default={})  # snapshot of email content
+    selection_snapshot = Column(JSON, default={})  # snapshot of selection criteria
+    programs_snapshot = Column(JSON, default=[])  # snapshot of programs data
+
+    # Stats
+    total_recipients = Column(Integer, default=0)
+    sent_count = Column(Integer, default=0)
+    failed_count = Column(Integer, default=0)
+
+    # Timestamps
+    sent_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_mailing_campaigns_institution', 'institution_id'),
+        Index('idx_mailing_campaigns_status', 'status'),
+    )
+
+
+class MailingCampaignProgram(Base):
+    """Programs included in a mailing campaign."""
+    __tablename__ = 'mailing_campaign_programs'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey('mailing_campaigns.id', ondelete='CASCADE'), nullable=False)
+    program_id = Column(UUID(as_uuid=True), ForeignKey('programs.id', ondelete='SET NULL'))
+    display_order = Column(Integer, default=0)
+
+    __table_args__ = (
+        Index('idx_mcp_campaign', 'campaign_id'),
+    )
+
+
+class MailingCampaignRecipient(Base):
+    """Individual recipient of a mailing campaign."""
+    __tablename__ = 'mailing_campaign_recipients'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    campaign_id = Column(UUID(as_uuid=True), ForeignKey('mailing_campaigns.id', ondelete='CASCADE'), nullable=False)
+    school_id = Column(UUID(as_uuid=True), ForeignKey('schools.id', ondelete='SET NULL'))
+    contact_id = Column(UUID(as_uuid=True), ForeignKey('school_contacts.id', ondelete='SET NULL'))
+    email = Column(Text, nullable=False)
+    school_name = Column(Text)
+    contact_name = Column(Text)
+
+    # Delivery status
+    status = Column(Text, nullable=False, default='pending')  # pending | sent | failed | skipped
+    sent_at = Column(DateTime(timezone=True))
+    failure_reason = Column(Text)
+    email_provider_id = Column(Text)  # Resend email ID
+
+    # Why this recipient was selected
+    matching_reason = Column(JSON, default={})  # {selection_mode, matched_segments, manual_override}
+
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_mcr_campaign', 'campaign_id'),
+        Index('idx_mcr_status', 'status'),
+    )
+
+
+class MailingRecipientProgram(Base):
+    """Which specific programs each recipient actually received."""
+    __tablename__ = 'mailing_recipient_programs'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    recipient_id = Column(UUID(as_uuid=True), ForeignKey('mailing_campaign_recipients.id', ondelete='CASCADE'), nullable=False)
+    program_id = Column(UUID(as_uuid=True), ForeignKey('programs.id', ondelete='SET NULL'))
+    program_name = Column(Text)  # snapshot
+    program_target_groups = Column(JSON, default=[])  # snapshot
+
+    __table_args__ = (
+        Index('idx_mrp_recipient', 'recipient_id'),
+    )

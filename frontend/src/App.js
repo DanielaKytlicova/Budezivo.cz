@@ -35,6 +35,7 @@ import { ArchivePage } from './pages/admin/ArchivePage';
 import { AuditLogPage } from './pages/admin/AuditLogPage';
 import { EventsPage } from './pages/admin/EventsPage';
 import { WaitlistPage } from './pages/admin/WaitlistPage';
+import { MailingsPage } from './pages/admin/MailingsPage';
 import PublicEventsPage from './pages/public/PublicEventsPage';
 
 import './App.css';
@@ -184,6 +185,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <WaitlistPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/mailings"
+                element={
+                  <ProtectedRoute>
+                    <MailingsPage />
                   </ProtectedRoute>
                 }
               />

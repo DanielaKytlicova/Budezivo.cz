@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../i18n/useTranslation';
 import { AuthContext } from '../../context/AuthContext';
-import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, Clock, FileText, CalendarDays } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, Clock, FileText, CalendarDays, Mail } from 'lucide-react';
 
 // Logo Budeživo.cz - oficiální SVG
 const BudezivoLogo = ({ showText = true }) => (
@@ -76,6 +76,7 @@ export const AdminLayout = ({ children }) => {
       { path: '/admin/programs', icon: Calendar, label: 'Programy', testId: 'nav-programs', roles: ['admin', 'spravce', 'edukator', 'staff', 'viewer'] },
       { path: '/admin/bookings', icon: BookOpen, label: 'Rezervace', testId: 'nav-bookings', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'staff', 'viewer'] },
       { path: '/admin/schools', icon: School, label: 'Školy', testId: 'nav-schools', roles: ['admin', 'spravce', 'edukator', 'staff'] },
+      { path: '/admin/mailings', icon: Mail, label: 'Mailingy', testId: 'nav-mailings', roles: ['admin', 'spravce', 'edukator', 'staff'] },
       { path: '/admin/feedback', icon: MessageSquare, label: 'Zpětná vazba', testId: 'nav-feedback', roles: ['admin', 'spravce', 'edukator', 'staff'] },
       { path: '/admin/availability', icon: Clock, label: 'Dostupnost', testId: 'nav-availability', roles: ['admin', 'spravce', 'edukator', 'lektor'] },
       { path: '/admin/statistics', icon: BarChart3, label: 'Statistiky', testId: 'nav-statistics', roles: ['admin', 'spravce', 'edukator', 'staff'] },

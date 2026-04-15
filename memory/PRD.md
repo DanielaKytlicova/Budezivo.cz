@@ -209,6 +209,20 @@ Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 - [x] Veřejný UI: tlačítko "Stáhnout potvrzení (PDF)" na success stránce po přihlášení
 - [x] Oprava diakritiky: 155+ textů v emailových šablonách opraveno (Dobrý den, Připomínka, zpětná vazba...)
 
+### Fáze 34 - Hlídání volného termínu / Waitlist (15.4.2026)
+- [x] Nová tabulka `waitlist_entries` (teacher_name, school_name, email, phone, participant_count, request_type, dates, preferred_time, status, admin_note)
+- [x] API: POST /api/waitlist (veřejný, bez auth) — validace programu, datumů, duplikátů
+- [x] API: GET /api/waitlist (admin, filtry program_id/status), PATCH /api/waitlist/{id} (status + admin_note)
+- [x] API: GET /api/waitlist/count/{program_id} (veřejný count aktivních zájemců)
+- [x] Admin UI: WaitlistPage — navigace "Zájemci" (Bell ikona), skládací seznam, filtry, detail s kontakty, dialog pro změnu statusu
+- [x] Veřejný UI: WaitlistModal v BookingPage — zobrazí se při obsazených slotech ("Hlídat volný termín"), formulář s typem požadavku (konkrétní datum / rozsah), potvrzení
+- [x] Potvrzovací email: šablona waitlist_confirmation s údaji programu, datumu, preferencí
+- [x] Edge cases: duplikáty blokované (409), minulá data odmítnuta, nevalidní rozsah
+- [x] Fáze 2 skeleton: waitlist_service.py s find_matching_entries() a notify_candidates() (loguje, neposílá)
+- [x] PDF diakritika opravena: DejaVuSans font embedován místo Helvetica
+- [x] Přihlášky: skládací detail (collapsed/expanded)
+- [x] Auto-výběr termínu při jednom dostupném
+
 ### Fáze 32 - Sjednocený systém Dostupnosti (14.4.2026)
 - [x] Centrální `availability_service.py` — `evaluate_program_slots()` a `evaluate_lecturer_slots()` jako single source of truth
 - [x] Dvouvrstvá architektura: Vrstva 1 (base availability + exceptions) → Vrstva 2 (kolize)

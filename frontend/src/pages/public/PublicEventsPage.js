@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
-import { Calendar, Users, ArrowRight, CheckCircle, Loader2, AlertCircle, CreditCard, Copy } from 'lucide-react';
+import { Calendar, Users, ArrowRight, CheckCircle, Loader2, AlertCircle, CreditCard, Copy, Download } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -63,6 +63,11 @@ export default function PublicEventsPage() {
     try {
       const res = await axios.get(`${API_URL}/api/events/public/${institutionId}/${eventId}`);
       setSelectedEvent(res.data);
+      // Auto-select date if only one available
+      const availableDates = (res.data.dates || []).filter(d => d.spots_left > 0);
+      if (availableDates.length === 1) {
+        setSelectedDate(availableDates[0]);
+      }
       setStep('detail');
     } catch { toast.error('Nepodařilo se načíst detail události'); }
   };
@@ -208,6 +213,20 @@ export default function PublicEventsPage() {
               )}
               {(!result.qr_payload || result.total_amount === 0) && (
                 <p className="text-sm text-gray-500">Organizátor vás bude kontaktovat s dalšími informacemi.</p>
+              )}
+
+              {/* PDF Download */}
+              {result.pdf_url && (
+                <div className="border-t pt-4 mt-4">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => window.open(`${API_URL}${result.pdf_url}`, '_blank')}
+                    data-testid="download-pdf-btn"
+                  >
+                    <Download className="w-4 h-4 mr-2" /> Stáhnout potvrzení (PDF)
+                  </Button>
+                </div>
               )}
             </Card>
           </div>

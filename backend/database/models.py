@@ -909,3 +909,37 @@ class AvailabilityException(Base):
         Index('idx_avail_exc_scope', 'scope_type', 'scope_id', 'date'),
         Index('idx_avail_exc_institution', 'institution_id'),
     )
+
+
+
+# ============ WAITLIST / TERM WATCHING ============
+
+class WaitlistEntry(Base):
+    """Waitlist entry for watching available program slots."""
+    __tablename__ = 'waitlist_entries'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    program_id = Column(UUID(as_uuid=True), ForeignKey('programs.id', ondelete='CASCADE'), nullable=False)
+    teacher_name = Column(Text, nullable=False)
+    school_name = Column(Text, nullable=False)
+    email = Column(Text, nullable=False)
+    phone = Column(Text)
+    participant_count = Column(Integer, nullable=False, default=1)
+    request_type = Column(Text, nullable=False, default='specific_date')  # specific_date, date_range
+    requested_date = Column(Text)  # "2026-05-15"
+    range_start_date = Column(Text)
+    range_end_date = Column(Text)
+    preferred_time_of_day = Column(Text, default='any')  # morning, midday, afternoon, any
+    notes = Column(Text)
+    status = Column(Text, nullable=False, default='active')  # active, contacted, booked, cancelled, expired
+    admin_note = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_waitlist_institution', 'institution_id'),
+        Index('idx_waitlist_program', 'program_id'),
+        Index('idx_waitlist_status', 'status'),
+        Index('idx_waitlist_email_program', 'email', 'program_id'),
+    )

@@ -10,9 +10,10 @@ import { Textarea } from '../../components/ui/textarea';
 import { Card } from '../../components/ui/card';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { ChevronLeft, ChevronRight, CheckCircle, SlidersHorizontal, X, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, SlidersHorizontal, X, Download, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
+import { WaitlistModal } from '../../components/public/WaitlistModal';
 import { API } from '../../config/api';
 
 const AGE_GROUPS = {
@@ -68,6 +69,8 @@ export const BookingPage = () => {
   });
   const [durationFilter, setDurationFilter] = useState(() => searchParams.get('duration') || 'all');
   const preselectedProgramId = searchParams.get('program') || null;
+  const [showWaitlist, setShowWaitlist] = useState(false);
+  const [waitlistDate, setWaitlistDate] = useState(null);
   
   // Data instituce pro header a theme
   const [institutionData, setInstitutionData] = useState({
@@ -729,6 +732,20 @@ export const BookingPage = () => {
                 );
               })}
             </div>
+            
+            {/* Waitlist CTA - when no available slots or all booked */}
+            {timeBlocks.length > 0 && timeBlocks.every(b => b.status !== 'available') && (
+              <button
+                onClick={() => { setWaitlistDate(formData.date); setShowWaitlist(true); }}
+                className="w-full mt-4 p-3 border-2 border-dashed rounded-lg text-sm text-center transition-colors hover:bg-gray-50"
+                style={{ borderColor: `${institutionData.primaryColor}40`, color: institutionData.primaryColor }}
+                data-testid="waitlist-no-slots-btn"
+              >
+                <Bell className="w-4 h-4 inline mr-2" />
+                Nenašli jste vhodný termín? <strong>Hlídat volný termín</strong>
+              </button>
+            )}
+            
             <div 
               className="mt-6 p-4 rounded-md border"
               style={{ 
@@ -964,6 +981,16 @@ export const BookingPage = () => {
           </form>
         )}
       </div>
+
+      {/* Waitlist Modal */}
+      <WaitlistModal
+        open={showWaitlist}
+        onOpenChange={setShowWaitlist}
+        institutionId={institutionId}
+        programId={selectedProgram?.id}
+        programName={selectedProgram?.name_cs || selectedProgram?.name_en}
+        prefilledDate={waitlistDate}
+      />
     </div>
   );
 };

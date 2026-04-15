@@ -727,6 +727,24 @@ export const SettingsPage = () => {
               <Trash2 className="w-4 h-4 mr-1" /> Odstranit logo
             </Button>
           )}
+
+          {/* URL option */}
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs text-gray-400">nebo</span>
+              <span className="flex-1 h-px bg-gray-100" />
+            </div>
+            <Label className="text-gray-600 text-xs">Zadat URL loga</Label>
+            <div className="flex gap-2 mt-1">
+              <Input
+                value={institutionData.logo_url?.startsWith('/api') ? '' : (institutionData.logo_url || '')}
+                onChange={(e) => setInstitutionData({ ...institutionData, logo_url: e.target.value })}
+                placeholder="https://example.com/logo.png"
+                className="flex-1 text-sm"
+                data-testid="logo-url-input"
+              />
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

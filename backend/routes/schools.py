@@ -1307,3 +1307,90 @@ async def send_propagation(
         "sent_count": sent_count,
         "contacts": [c[0] for c in contacts]
     }
+
+
+
+# ============ Auto-Tagging ============
+
+# Patterns for detecting school type from name
+AUTO_TAG_PATTERNS = [
+    (r'\bMŠ\b|[Mm]ateřsk', 'MŠ'),
+    (r'\bZŠ\b|[Zz]ákladní\s+škol', 'ZŠ'),
+    (r'\bSŠ\b|[Ss]třední\s+škol|[Ss]trojírenská|[Ss]tředoškolsk|[Oo]bchodní\s+akademi', 'SŠ'),
+    (r'[Gg]ymnázi', 'Gymnázium'),
+    (r'\bZUŠ\b|[Zz]ákladní\s+uměleck', 'ZUŠ'),
+    (r'\bVOŠ\b|[Vv]yšší\s+odborn', 'VOŠ'),
+    (r'\bDDM\b|[Dd]ům\s+dětí', 'DDM'),
+    (r'[Ww]aldorf', 'ZŠ'),
+    (r'[Mm]alotřídk', 'ZŠ'),
+    (r'[Kk]onzervatoř', 'SŠ'),
+]
+
+
+def detect_tags_from_name(name: str) -> list:
+    """Auto-detect school type tags from school name."""
+    if not name:
+        return []
+    tags = set()
+    for pattern, tag in AUTO_TAG_PATTERNS:
+        if re.search(pattern, name):
+            tags.add(tag)
+    return sorted(tags)
+
+
+@router.post("/auto-tag", tags=["Schools"])
+async def auto_tag_schools(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    overwrite: bool = False,
+):
+    """Auto-detect and apply tags to schools based on their names.
+    By default only fills in schools with empty tags. Set overwrite=true to re-detect all.
+    """
+    institution_id = current_user["institution_id"]
+
+    result = await db.execute(
+        text("""
+            SELECT id, name, tags FROM schools
+            WHERE institution_id = :iid AND deleted_at IS NULL
+        """),
+        {"iid": institution_id},
+    )
+    rows = result.fetchall()
+
+    updated = 0
+    skipped = 0
+    results = []
+
+    for row in rows:
+        school_id, name, existing_tags = row
+        existing_tags = existing_tags or []
+
+        if existing_tags and not overwrite:
+            skipped += 1
+            continue
+
+        detected = detect_tags_from_name(name)
+        if not detected:
+            skipped += 1
+            results.append({"name": name, "detected": [], "action": "no_match"})
+            continue
+
+        # Merge with existing (union)
+        merged = sorted(set(existing_tags) | set(detected))
+
+        await db.execute(
+            text("UPDATE schools SET tags = :tags, updated_at = NOW() WHERE id = :sid"),
+            {"tags": json_lib.dumps(merged), "sid": str(school_id)},
+        )
+        updated += 1
+        results.append({"name": name, "detected": detected, "merged": merged, "action": "updated"})
+
+    await db.commit()
+
+    return {
+        "message": f"Automatické tagování dokončeno: {updated} škol aktualizováno, {skipped} přeskočeno",
+        "updated": updated,
+        "skipped": skipped,
+        "details": results,
+    }

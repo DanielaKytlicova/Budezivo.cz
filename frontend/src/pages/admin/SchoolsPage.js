@@ -491,6 +491,20 @@ export const SchoolsPage = () => {
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
+              onClick={async () => {
+                try {
+                  const res = await axios.post(`${API}/schools/auto-tag`, {}, { withCredentials: true });
+                  toast.success(res.data.message);
+                  fetchData();
+                } catch { toast.error('Chyba při auto-tagování'); }
+              }}
+              data-testid="auto-tag-schools-btn"
+            >
+              <Tag className="w-4 h-4 mr-2" />
+              Auto-tag
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => setShowImportModal(true)}
               data-testid="import-schools-btn"
             >

@@ -219,6 +219,18 @@ def generate_pdf_confirmation(
     """Generate PDF confirmation for a single application with QR payment."""
     buffer = io.BytesIO()
     
+    # Register DejaVuSans for Czech diacritics
+    import os
+    font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+    font_bold_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
+    if os.path.exists(font_path):
+        pdfmetrics.registerFont(TTFont('DejaVuSans', font_path))
+    if os.path.exists(font_bold_path):
+        pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', font_bold_path))
+    
+    base_font = 'DejaVuSans' if os.path.exists(font_path) else 'Helvetica'
+    bold_font = 'DejaVuSans-Bold' if os.path.exists(font_bold_path) else 'Helvetica-Bold'
+    
     doc = SimpleDocTemplate(
         buffer, pagesize=A4,
         leftMargin=20*mm, rightMargin=20*mm,
@@ -227,35 +239,36 @@ def generate_pdf_confirmation(
     
     styles = getSampleStyleSheet()
     
-    # Custom styles
     styles.add(ParagraphStyle(
         name='InstitutionName',
         fontSize=18, leading=22, spaceAfter=4,
         textColor=colors.HexColor('#1E293B'),
-        fontName='Helvetica-Bold',
+        fontName=bold_font,
     ))
     styles.add(ParagraphStyle(
         name='DocTitle',
         fontSize=14, leading=18, spaceAfter=12, spaceBefore=8,
         textColor=colors.HexColor('#334155'),
-        fontName='Helvetica-Bold',
+        fontName=bold_font,
     ))
     styles.add(ParagraphStyle(
         name='SectionTitle',
         fontSize=11, leading=14, spaceAfter=6, spaceBefore=12,
         textColor=colors.HexColor('#1E293B'),
-        fontName='Helvetica-Bold',
+        fontName=bold_font,
     ))
     styles.add(ParagraphStyle(
         name='BodyText2',
         fontSize=10, leading=14, spaceAfter=4,
         textColor=colors.HexColor('#475569'),
+        fontName=base_font,
     ))
     styles.add(ParagraphStyle(
         name='Footer',
         fontSize=8, leading=10,
         textColor=colors.HexColor('#94A3B8'),
         alignment=1,
+        fontName=base_font,
     ))
     
     elements = []
@@ -293,9 +306,10 @@ def generate_pdf_confirmation(
     event_table = Table(event_data, colWidths=[35*mm, 135*mm])
     event_table.setStyle(TableStyle([
         ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTNAME', (0, 0), (0, -1), base_font),
         ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748B')),
+        ('FONTNAME', (1, 0), (1, -1), bold_font),
         ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#1E293B')),
-        ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         ('TOPPADDING', (0, 0), (-1, -1), 3),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
@@ -325,7 +339,9 @@ def generate_pdf_confirmation(
         app_table = Table(applicant_rows, colWidths=[45*mm, 125*mm])
         app_table.setStyle(TableStyle([
             ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('FONTNAME', (0, 0), (0, -1), base_font),
             ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748B')),
+            ('FONTNAME', (1, 0), (1, -1), base_font),
             ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#1E293B')),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('TOPPADDING', (0, 0), (-1, -1), 2),
@@ -356,9 +372,10 @@ def generate_pdf_confirmation(
         pay_table = Table(pay_rows, colWidths=[45*mm, 125*mm])
         pay_table.setStyle(TableStyle([
             ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('FONTNAME', (0, 0), (0, -1), base_font),
             ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#64748B')),
+            ('FONTNAME', (1, 0), (1, -1), bold_font),
             ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#1E293B')),
-            ('FONTNAME', (1, 0), (1, -1), 'Helvetica-Bold'),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ('TOPPADDING', (0, 0), (-1, -1), 3),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 3),

@@ -63,6 +63,11 @@ export default function PublicEventsPage() {
     try {
       const res = await axios.get(`${API_URL}/api/events/public/${institutionId}/${eventId}`);
       setSelectedEvent(res.data);
+      // Auto-select date if only one available
+      const availableDates = (res.data.dates || []).filter(d => d.spots_left > 0);
+      if (availableDates.length === 1) {
+        setSelectedDate(availableDates[0]);
+      }
       setStep('detail');
     } catch { toast.error('Nepodařilo se načíst detail události'); }
   };

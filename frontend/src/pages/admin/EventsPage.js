@@ -56,6 +56,7 @@ export const EventsPage = () => {
   const [selectedApp, setSelectedApp] = useState(null);
   const [paymentSettings, setPaymentSettings] = useState(null);
   const [showUrlModal, setShowUrlModal] = useState(false);
+  const [expandedApp, setExpandedApp] = useState(null);
 
   useEffect(() => {
     fetchEvents();
@@ -530,51 +531,71 @@ export const EventsPage = () => {
                 {!editingEvent && <p className="text-sm text-amber-600">Nejprve uložte událost.</p>}
                 {editingEvent && applications.length === 0 && <p className="text-sm text-gray-500">Zatím žádné přihlášky.</p>}
                 {applications.map(app => {
-                  // Map field IDs to their labels from form_fields
                   const fieldLabelMap = {};
                   (formData.form_fields || []).forEach(f => { fieldLabelMap[f.id] = f.label; });
+                  const isExpanded = expandedApp === app.id;
 
                   return (
-                  <div key={app.id} className="p-3 border rounded-lg space-y-2" data-testid={`application-${app.id}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{app.applicant_name || 'Bez jména'}</p>
-                        <p className="text-xs text-gray-500">{app.applicant_email} | VS: {app.variable_symbol}</p>
+                  <div key={app.id} className="border rounded-lg overflow-hidden" data-testid={`application-${app.id}`}>
+                    {/* Collapsed header — always visible */}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedApp(isExpanded ? null : app.id)}
+                      className="w-full text-left p-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                      data-testid={`toggle-app-${app.id}`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{app.applicant_name || 'Bez jména'}</p>
+                          <p className="text-xs text-gray-500 truncate">{app.applicant_email}</p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        {app.total_amount > 0 && <span className="text-xs text-gray-500">{app.total_amount} Kč</span>}
                         {statusBadge(app.status)}
                         {payBadge(app.payment_status)}
                       </div>
-                    </div>
-                    {app.applicant_data && Object.keys(app.applicant_data).length > 0 && (
-                      <div className="text-xs text-gray-600 bg-gray-50 rounded p-2 space-y-1">
-                        {Object.entries(app.applicant_data).map(([k, v]) => {
-                          const label = fieldLabelMap[k] || k;
-                          const displayValue = typeof v === 'boolean' ? (v ? 'Ano' : 'Ne') : String(v);
-                          return (
-                            <div key={k} className="flex gap-2">
-                              <span className="text-gray-400 shrink-0">{label}:</span>
-                              <span className="font-medium text-gray-700">{displayValue}</span>
-                            </div>
-                          );
-                        })}
+                    </button>
+
+                    {/* Expanded detail */}
+                    {isExpanded && (
+                      <div className="border-t px-3 pb-3 space-y-3">
+                        <div className="pt-3 flex items-center gap-4 text-xs text-gray-500">
+                          <span>VS: {app.variable_symbol}</span>
+                          <span>{app.created_at ? new Date(app.created_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                        </div>
+                        {app.applicant_data && Object.keys(app.applicant_data).length > 0 && (
+                          <div className="text-xs text-gray-600 bg-gray-50 rounded p-2.5 space-y-1.5">
+                            {Object.entries(app.applicant_data).map(([k, v]) => {
+                              const label = fieldLabelMap[k] || k;
+                              const displayValue = typeof v === 'boolean' ? (v ? 'Ano' : 'Ne') : String(v);
+                              return (
+                                <div key={k} className="flex gap-2">
+                                  <span className="text-gray-400 shrink-0">{label}:</span>
+                                  <span className="font-medium text-gray-700">{displayValue}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {app.status === 'pending' && (
+                            <>
+                              <Button size="sm" variant="outline" className="text-green-600" onClick={() => updateApplicationStatus(app.id, 'approved')} data-testid={`approve-app-${app.id}`}>Schválit</Button>
+                              <Button size="sm" variant="outline" className="text-red-600" onClick={() => updateApplicationStatus(app.id, 'rejected')} data-testid={`reject-app-${app.id}`}>Zamítnout</Button>
+                            </>
+                          )}
+                          {app.payment_status !== 'paid' && app.total_amount > 0 && (
+                            <Button size="sm" variant="outline" className="text-slate-600" onClick={() => updateApplicationStatus(app.id, null, 'paid')} data-testid={`mark-paid-${app.id}`}>Označit zaplaceno</Button>
+                          )}
+                          <Button size="sm" variant="outline" onClick={() => window.open(`${API}/events/applications/${app.id}/pdf`, '_blank')} data-testid={`pdf-${app.id}`}>
+                            <FileText className="w-3.5 h-3.5 mr-1" /> PDF
+                          </Button>
+                        </div>
                       </div>
                     )}
-                    <div className="flex gap-2 pt-1">
-                      {app.status === 'pending' && (
-                        <>
-                          <Button size="sm" variant="outline" className="text-green-600" onClick={() => updateApplicationStatus(app.id, 'approved')} data-testid={`approve-app-${app.id}`}>Schválit</Button>
-                          <Button size="sm" variant="outline" className="text-red-600" onClick={() => updateApplicationStatus(app.id, 'rejected')} data-testid={`reject-app-${app.id}`}>Zamítnout</Button>
-                        </>
-                      )}
-                      {app.payment_status !== 'paid' && app.total_amount > 0 && (
-                        <Button size="sm" variant="outline" className="text-slate-600" onClick={() => updateApplicationStatus(app.id, null, 'paid')} data-testid={`mark-paid-${app.id}`}>Označit zaplaceno</Button>
-                      )}
-                      <Button size="sm" variant="outline" onClick={() => window.open(`${API}/events/applications/${app.id}/pdf`, '_blank')} data-testid={`pdf-${app.id}`}>
-                        <FileText className="w-3.5 h-3.5 mr-1" /> PDF
-                      </Button>
                     </div>
-                  </div>
                   );
                 })}
               </Card>

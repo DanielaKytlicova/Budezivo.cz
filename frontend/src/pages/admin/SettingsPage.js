@@ -1014,7 +1014,7 @@ export const SettingsPage = () => {
               ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-white' 
               : 'bg-gray-100 text-gray-600'
           }`} data-testid="plan-badge">
-            {planData.is_pro ? 'PRO' : 'FREE'}
+            {planData.plan_label || (planData.is_pro ? 'PRO' : 'FREE')}
           </span>
         </div>
         
@@ -1029,36 +1029,31 @@ export const SettingsPage = () => {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <p className="text-blue-800 font-medium">Odemkněte plný potenciál</p>
               <p className="text-blue-700 text-sm mt-1">
-                PRO verze zahrnuje CSV export, hromadné emaily, pokročilé statistiky a neomezený počet programů.
+                Vyšší plány zahrnují CSV export, hromadné emaily, pokročilé statistiky a neomezený počet programů.
               </p>
             </div>
             <Button
-              onClick={() => setShowUpgradeModal(true)}
+              onClick={() => window.location.href = '/admin/plan'}
               className="w-full bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white h-12 font-semibold"
               data-testid="upgrade-button"
             >
               <Crown className="w-5 h-5 mr-2" />
-              Aktivovat PRO
+              Zobrazit plány
             </Button>
           </div>
         ) : (
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-green-600">
               <CheckCircle className="w-5 h-5" />
-              <span className="font-medium">PRO verze je aktivní</span>
+              <span className="font-medium">{planData.plan === 'pro_plus' ? 'PRO+ verze je aktivní' : 'PRO verze je aktivní'}</span>
             </div>
             <p className="text-sm text-gray-500">
-              Máte přístup ke všem PRO funkcím včetně CSV exportu, hromadných emailů a pokročilých statistik.
+              Máte přístup ke všem funkcím vašeho plánu.
+              {planData.plan_status === 'pending' && ' (Čeká na potvrzení platby)'}
             </p>
-            {user?.role === 'spravce' || user?.role === 'admin' ? (
-              <button 
-                onClick={handleDowngradePlan}
-                className="text-xs text-gray-400 hover:text-red-500 underline"
-                data-testid="downgrade-link"
-              >
-                Přejít zpět na FREE verzi
-              </button>
-            ) : null}
+            <Button variant="outline" size="sm" onClick={() => window.location.href = '/admin/plan'}>
+              Spravovat plán
+            </Button>
           </div>
         )}
       </Card>
@@ -1141,57 +1136,23 @@ export const SettingsPage = () => {
       </Button>
 
       {/* Upgrade Modal */}
+      {/* Upgrade modal → redirect to plans page */}
       <Dialog open={showUpgradeModal} onOpenChange={setShowUpgradeModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Crown className="w-5 h-5 text-amber-500" />
-              Aktivovat PRO verzi
+              Vyšší plán potřeba
             </DialogTitle>
           </DialogHeader>
-          
-          <div className="py-4">
-            <p className="text-gray-700 mb-4">
-              Opravdu chcete aktivovat PRO verzi? Získáte přístup k:
-            </p>
-            <ul className="space-y-2 text-sm">
-              <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                CSV export škol a rezervací
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                Hromadné emaily pro propagaci
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                Pokročilé statistiky a reporty
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-500" />
-                Neomezený počet programů
-              </li>
-            </ul>
-          </div>
-
+          <p className="text-sm text-slate-600 py-2">
+            Tato funkce vyžaduje vyšší plán. Podívejte se na dostupné plány a vyberte ten správný.
+          </p>
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowUpgradeModal(false)}>
-              Zrušit
-            </Button>
-            <Button
-              onClick={handleUpgradePlan}
-              disabled={upgrading}
-              className="bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white"
-              data-testid="confirm-upgrade-button"
-            >
-              {upgrading ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Aktivuji...
-                </>
-              ) : (
-                'Aktivovat PRO'
-              )}
+            <Button variant="outline" onClick={() => setShowUpgradeModal(false)}>Zavřít</Button>
+            <Button onClick={() => { setShowUpgradeModal(false); window.location.href = '/admin/plan'; }}
+              className="bg-gradient-to-r from-yellow-400 to-amber-500 text-white" data-testid="confirm-upgrade-button">
+              <Crown className="w-4 h-4 mr-1" /> Zobrazit plány
             </Button>
           </DialogFooter>
         </DialogContent>

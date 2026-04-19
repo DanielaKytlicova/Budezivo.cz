@@ -42,7 +42,10 @@ class Institution(Base):
     secondary_color = Column(Text, default='#84A98C')
     
     # Plan & Limits
-    plan = Column(Text, nullable=False, default='free')
+    plan = Column(Text, nullable=False, default='free')  # free, start, pro, pro_plus
+    plan_status = Column(Text, nullable=False, default='active')  # inactive, pending, active, expired
+    plan_activated_by = Column(Text)  # payment, admin, migration
+    plan_expires_at = Column(DateTime(timezone=True))
     plan_updated_at = Column(DateTime(timezone=True))
     programs_limit = Column(Integer, nullable=False, default=3)
     bookings_monthly_limit = Column(Integer, nullable=False, default=50)

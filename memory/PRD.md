@@ -253,7 +253,17 @@ institution_payment_settings: id, institution_id, payment_mode, provider, iban, 
 event_payments: id, application_id, institution_id, provider, status, amount, currency, variable_symbol, provider_payment_id, qr_payload, paid_at
 ```
 
-*Poslední aktualizace: 15. dubna 2026*
+### Fáze 36 - Hierarchický plánový systém (19.4.2026)
+- [x] Přepis plan_service.py: FEATURES s plan_level, automatický výpočet PLAN_FEATURES (kumulativní) a PLAN_DELTAS (delta)
+- [x] 3 placené plány: Start (490 Kč, 9 features), PRO (990 Kč, +10 features), PRO+ (1990 Kč, +7 features)
+- [x] Žádná duplikace features — UI generováno z configu ("Vše z X +")
+- [x] Delta view modal: gained/lost features při přepínání plánu
+- [x] events_basic (PRO) vs events_payments (PRO+) split
+- [x] require_feature() FastAPI dependency pro backend enforcement
+- [x] Přímá aktivace PRO trvale zablokována (HTTP 400)
+- [x] Request flow: objednávka → pending → platba → admin aktivace
+
+*Poslední aktualizace: 19. dubna 2026*
 
 ### Fáze 35 - Propagační mailingy / Kampanový modul (15.4.2026)
 - [x] DB modely: MailingCampaign, MailingCampaignProgram, MailingCampaignRecipient, MailingRecipientProgram

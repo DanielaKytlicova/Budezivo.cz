@@ -279,6 +279,14 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] Settings: "Zobrazit plány" místo "Aktivovat PRO"
 - [x] Testováno: 100% frontend (iteration_50.json)
 
+### Fáze 39 - Superadmin + Billing + Usage Metrics (19.4.2026)
+- [x] DB: billing_orders, usage_metrics tabulky + billing fields na institutions
+- [x] Billing: BillingProviderInterface (Manual + Fakturoid placeholder)
+- [x] Usage tracking: track_usage(), get_institution_usage()
+- [x] Superadmin dashboard: overview, instituce, detail, plan control, billing orders
+- [x] Plan request → automatický billing order
+- [x] Testováno: 18/18 (iteration_51.json)
+
 ### Fáze 35 - Propagační mailingy / Kampanový modul (15.4.2026)
 - [x] DB modely: MailingCampaign, MailingCampaignProgram, MailingCampaignRecipient, MailingRecipientProgram
 - [x] Alembic migrace pro 4 nové tabulky

@@ -265,6 +265,13 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 
 *Poslední aktualizace: 19. dubna 2026*
 
+### Fáze 37 - Backend Feature Enforcement (19.4.2026)
+- [x] require_feature() dependency aplikován na všechny chráněné endpointy
+- [x] Router-level: mailings, audit-log, rooms, microsoft-calendar
+- [x] Per-endpoint: events, waitlist, statistics, schools export
+- [x] Chybové zprávy v češtině: "Tato funkce vyžaduje plán PRO"
+- [x] Testováno: 24/24 backend testů (iteration_49.json)
+
 ### Fáze 35 - Propagační mailingy / Kampanový modul (15.4.2026)
 - [x] DB modely: MailingCampaign, MailingCampaignProgram, MailingCampaignRecipient, MailingRecipientProgram
 - [x] Alembic migrace pro 4 nové tabulky

@@ -21,6 +21,7 @@ from database.models import (
 )
 from core.security import get_current_user
 from services.feature_flags import is_feature_enabled
+from services.plan_service import require_feature
 
 router = APIRouter(prefix="/events", tags=["Events"])
 logger = logging.getLogger(__name__)
@@ -167,6 +168,7 @@ async def list_events(
     include_archived: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_feature("events_basic")),
 ):
     """List all events for institution."""
     await require_events_module(db, current_user["institution_id"])
@@ -202,6 +204,7 @@ async def create_event(
     data: EventCreate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_feature("events_basic")),
 ):
     """Create a new event."""
     await require_events_module(db, current_user["institution_id"])
@@ -457,6 +460,7 @@ async def export_applications_xlsx(
     event_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_feature("data_export")),
 ):
     """Export applications as styled XLSX."""
     await require_events_module(db, current_user["institution_id"])
@@ -490,6 +494,7 @@ async def export_applications_csv(
     event_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_feature("data_export")),
 ):
     """Export applications as CSV."""
     await require_events_module(db, current_user["institution_id"])
@@ -836,6 +841,7 @@ async def public_application_pdf(
 async def get_payment_settings(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_feature("events_payments")),
 ):
     """Get payment settings for institution."""
     await require_events_module(db, current_user["institution_id"])
@@ -862,6 +868,7 @@ async def update_payment_settings(
     data: PaymentSettingsUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_feature("events_payments")),
 ):
     """Update payment settings for institution."""
     await require_events_module(db, current_user["institution_id"])

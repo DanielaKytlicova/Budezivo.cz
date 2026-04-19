@@ -14,8 +14,9 @@ from core.security import get_current_user
 from database.supabase import get_db
 from database.models import Room
 from routes.audit import log_action
+from services.plan_service import require_feature
 
-router = APIRouter(prefix="/rooms", tags=["Rooms"])
+router = APIRouter(prefix="/rooms", tags=["Rooms"], dependencies=[Depends(require_feature("collision_system"))])
 logger = logging.getLogger(__name__)
 
 

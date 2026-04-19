@@ -23,8 +23,9 @@ from services.mailing_service import (
     resolve_recipients, DEFAULT_TEMPLATES, get_default_signature,
     send_campaign_emails,
 )
+from services.plan_service import require_feature
 
-router = APIRouter(prefix="/mailings", tags=["Mailings"])
+router = APIRouter(prefix="/mailings", tags=["Mailings"], dependencies=[Depends(require_feature("mailing"))])
 logger = logging.getLogger(__name__)
 
 

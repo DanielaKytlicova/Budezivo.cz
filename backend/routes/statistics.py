@@ -17,6 +17,7 @@ from core.security import get_current_user
 from database.supabase import get_db
 from database.models import Reservation, Program, Institution
 from database.supabase_repositories import InstitutionRepositorySupabase
+from services.plan_service import require_feature
 
 router = APIRouter(prefix="/statistics", tags=["Statistics"])
 logger = logging.getLogger(__name__)
@@ -387,6 +388,7 @@ async def export_statistics_csv(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
     export_type: str = Query("reservations", description="reservations, summary, programs"),
+    _guard=Depends(require_feature("data_export")),
 ):
     """
     Export statistics to CSV.
@@ -582,7 +584,8 @@ async def export_statistics_csv(
 @router.get("/bookings-over-time")
 async def get_bookings_over_time(
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _guard=Depends(require_feature("advanced_stats")),
 ):
     """Get bookings over time data for charts (last 6 months)."""
     import uuid
@@ -622,7 +625,8 @@ async def get_bookings_over_time(
 @router.get("/popular-programs")
 async def get_popular_programs(
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _guard=Depends(require_feature("advanced_stats")),
 ):
     """Get popular programs data for charts."""
     import uuid
@@ -668,6 +672,7 @@ async def get_heatmap(
     db: AsyncSession = Depends(get_db),
     year: int = Query(default=None),
     month: int = Query(default=None),
+    _guard=Depends(require_feature("advanced_stats")),
 ):
     """Heatmap: count of bookings by day-of-week x time_block."""
     from sqlalchemy import text as sql_text
@@ -725,6 +730,7 @@ async def get_trends(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     year: int = Query(default=None),
+    _guard=Depends(require_feature("advanced_stats")),
 ):
     """Trend: monthly booking counts for current vs previous year."""
     institution_id = current_user["institution_id"]
@@ -779,6 +785,7 @@ async def get_top_schools(
     year: int = Query(default=None),
     month: int = Query(default=None),
     limit: int = Query(default=10, le=50),
+    _guard=Depends(require_feature("advanced_stats")),
 ):
     """Top schools by booking count in given period."""
     from sqlalchemy import text as sql_text
@@ -836,6 +843,7 @@ async def get_conversion_rate(
     db: AsyncSession = Depends(get_db),
     year: int = Query(default=None),
     month: int = Query(default=None),
+    _guard=Depends(require_feature("advanced_stats")),
 ):
     """Conversion rate: created vs confirmed vs cancelled bookings."""
     institution_id = current_user["institution_id"]

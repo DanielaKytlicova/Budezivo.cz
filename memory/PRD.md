@@ -272,6 +272,13 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] Chybové zprávy v češtině: "Tato funkce vyžaduje plán PRO"
 - [x] Testováno: 24/24 backend testů (iteration_49.json)
 
+### Fáze 38 - Frontend Feature Gating + Landing Page Pricing (19.4.2026)
+- [x] usePlanFeatures hook + UpgradeModal pro zamčené funkce
+- [x] Admin sidebar: lock ikony na zamčených navigacích
+- [x] Landing page: tarify aktualizovány na 4 plány s hierarchií
+- [x] Settings: "Zobrazit plány" místo "Aktivovat PRO"
+- [x] Testováno: 100% frontend (iteration_50.json)
+
 ### Fáze 35 - Propagační mailingy / Kampanový modul (15.4.2026)
 - [x] DB modely: MailingCampaign, MailingCampaignProgram, MailingCampaignRecipient, MailingRecipientProgram
 - [x] Alembic migrace pro 4 nové tabulky

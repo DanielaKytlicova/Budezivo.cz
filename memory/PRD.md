@@ -81,6 +81,8 @@ programs: + room_id (FK → rooms.id)
 - [x] Feedback questions propojeny s veřejným formulářem
 - [x] Výběr lektorů pro kolizní kontrolu
 - [x] Pilotní modul Události a přihlášky + QR platby
+- [x] Propagační mailingy (kampaně) s relevance engine
+- [x] 4-úrovňový plán (Free/Start/PRO/PRO+) s hard-lock feature gating
 
 ### P2 - Střední priorita
 - [ ] i18n přepínač jazyků (CZ/EN)

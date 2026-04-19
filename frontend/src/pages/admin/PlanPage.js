@@ -1,199 +1,274 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { useTranslation } from '../../i18n/useTranslation';
 import { AdminLayout } from '../../components/layout/AdminLayout';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
+import { Badge } from '../../components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { AuthContext } from '../../context/AuthContext';
-import { Check } from 'lucide-react';
+import { Check, Crown, Lock, ArrowRight, ArrowUp, ArrowDown, Loader2, AlertTriangle, Info, Mail, X, Minus } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
 
+const PLAN_STYLE = {
+  free:     { accent: '#64748B', bg: 'bg-slate-50',  border: 'border-slate-200', badge: 'bg-slate-100 text-slate-700' },
+  start:    { accent: '#3B82F6', bg: 'bg-blue-50',   border: 'border-blue-300',  badge: 'bg-blue-100 text-blue-700' },
+  pro:      { accent: '#F59E0B', bg: 'bg-amber-50',  border: 'border-amber-300', badge: 'bg-amber-100 text-amber-800' },
+  pro_plus: { accent: '#8B5CF6', bg: 'bg-purple-50', border: 'border-purple-300',badge: 'bg-purple-100 text-purple-800' },
+};
+
+const PLAN_PRICES = {
+  free: { monthly: 0, yearly: 0 },
+  start: { monthly: 490, yearly: 4900 },
+  pro: { monthly: 990, yearly: 9900 },
+  pro_plus: { monthly: 1990, yearly: 19900 },
+};
+
 export const PlanPage = () => {
-  const { t } = useTranslation();
   const { user } = useContext(AuthContext);
+  const [plans, setPlans] = useState([]);
+  const [currentPlan, setCurrentPlan] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [billingCycle, setBillingCycle] = useState('monthly');
-  const [processing, setProcessing] = useState(false);
+
+  // Switch modal
+  const [switchTarget, setSwitchTarget] = useState(null);
+  const [diff, setDiff] = useState(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+  const [requesting, setRequesting] = useState(false);
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const sessionId = urlParams.get('session_id');
-    
-    if (sessionId) {
-      checkPaymentStatus(sessionId);
-    }
+    const load = async () => {
+      try {
+        const [statusRes, plansRes] = await Promise.all([
+          axios.get(`${API}/plan/status`, { withCredentials: true }),
+          axios.get(`${API}/plan/plans`, { withCredentials: true }),
+        ]);
+        setCurrentPlan(statusRes.data);
+        setPlans(plansRes.data.plans || []);
+      } catch { toast.error('Nepodařilo se načíst plány'); }
+      finally { setLoading(false); }
+    };
+    load();
   }, []);
 
-  const checkPaymentStatus = async (sessionId, attempts = 0) => {
-    const maxAttempts = 5;
-    
-    if (attempts >= maxAttempts) {
-      toast.error('Payment status check timeout');
-      return;
-    }
+  const openSwitchModal = async (targetKey) => {
+    if (!currentPlan) return;
+    if (targetKey === 'free') return;
+    if (targetKey === currentPlan.plan && currentPlan.plan_status === 'active') return;
 
+    setSwitchTarget(targetKey);
+    setDiffLoading(true);
     try {
-      const response = await axios.get(`${API}/payments/status/${sessionId}`);
-      
-      if (response.data.payment_status === 'paid') {
-        toast.success(t('common.success') + ' - Payment completed!');
-        window.history.replaceState({}, document.title, '/admin/plan');
-        return;
-      }
-      
-      if (response.data.status === 'expired') {
-        toast.error('Payment session expired');
-        return;
-      }
-
-      setTimeout(() => checkPaymentStatus(sessionId, attempts + 1), 2000);
-    } catch (error) {
-      console.error('Error checking payment status:', error);
-    }
+      const res = await axios.get(`${API}/plan/diff?from_plan=${currentPlan.plan}&to_plan=${targetKey}`, { withCredentials: true });
+      setDiff(res.data);
+    } catch { setDiff(null); }
+    finally { setDiffLoading(false); }
   };
 
-  const handleUpgrade = async (packageName) => {
-    setProcessing(true);
-
+  const handleConfirmSwitch = async () => {
+    if (!switchTarget) return;
+    setRequesting(true);
     try {
-      const response = await axios.post(`${API}/payments/create-session`, {
-        package: packageName,
-        billing_cycle: billingCycle,
-      });
-
-      window.location.href = response.data.url;
-    } catch (error) {
-      toast.error(t('common.error'));
-      setProcessing(false);
-    }
+      const res = await axios.post(`${API}/plan/request`, { target_plan: switchTarget }, { withCredentials: true });
+      toast.success(res.data.message);
+      setSwitchTarget(null);
+      setDiff(null);
+      const statusRes = await axios.get(`${API}/plan/status`, { withCredentials: true });
+      setCurrentPlan(statusRes.data);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Chyba'); }
+    finally { setRequesting(false); }
   };
 
-  const plans = [
-    {
-      name: 'basic',
-      price: billingCycle === 'monthly' ? '990' : '9900',
-      features: [
-        'Up to 200 bookings per month',
-        'Unlimited programs',
-        'Advanced statistics',
-        'Priority email support',
-        'Data export',
-      ],
-    },
-    {
-      name: 'standard',
-      price: billingCycle === 'monthly' ? '1990' : '19900',
-      recommended: true,
-      features: [
-        'Up to 500 bookings per month',
-        'Unlimited programs',
-        'Advanced statistics and reports',
-        'Bulk actions',
-        'Multi-user management',
-        'Phone support',
-      ],
-    },
-    {
-      name: 'premium',
-      price: billingCycle === 'monthly' ? '3990' : '39900',
-      features: [
-        'Unlimited bookings',
-        'Unlimited programs',
-        'Dedicated account manager',
-        'Custom branding',
-        'API access',
-        'Priority 24/7 support',
-      ],
-    },
-  ];
+  if (loading) return <AdminLayout><div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div></AdminLayout>;
+
+  const isActive = (k) => currentPlan?.plan === k && currentPlan?.plan_status === 'active';
+  const isPending = (k) => currentPlan?.plan === k && currentPlan?.plan_status === 'pending';
+  const targetPlanData = plans.find(p => p.key === switchTarget);
 
   return (
     <AdminLayout>
       <div className="space-y-6">
+        {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">{t('plan.title')}</h1>
-          <p className="text-muted-foreground mt-1">{t('plan.currentPlan')}: Free</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900" data-testid="plan-page-title">Plány a fakturace</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-slate-500">Aktuální plán:</span>
+            <Badge className={PLAN_STYLE[currentPlan?.plan]?.badge || ''}>{currentPlan?.plan_label}</Badge>
+            {currentPlan?.plan_status === 'pending' && <Badge className="bg-yellow-100 text-yellow-800">Čeká na platbu</Badge>}
+            {currentPlan?.plan_status === 'active' && currentPlan?.plan !== 'free' && <Badge className="bg-green-100 text-green-700">Aktivní</Badge>}
+          </div>
         </div>
 
-        <Card className="p-6">
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">{t('plan.usage')}</h2>
-            <p className="text-sm text-muted-foreground">{t('plan.bookingsUsed')}: 0 / 50</p>
-            <div className="mt-4 w-full bg-muted rounded-full h-2">
-              <div className="bg-[#84A98C] h-2 rounded-full" style={{ width: '0%' }}></div>
+        {/* Pending notice */}
+        {currentPlan?.plan_status === 'pending' && (
+          <Card className="p-4 bg-yellow-50 border-yellow-300">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium text-yellow-800">Čeká na potvrzení platby</p>
+                <p className="text-sm text-yellow-700 mt-1">Plán {currentPlan?.plan_label} bude aktivován po uhrazení faktury.</p>
+                <Button size="sm" variant="outline" className="mt-2 border-yellow-400 text-yellow-800" onClick={() => window.open('mailto:info@budezivo.cz?subject=Aktivace plánu ' + currentPlan?.plan_label)}>
+                  <Mail className="w-4 h-4 mr-1" /> Kontaktovat nás
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Billing toggle */}
+        <div className="flex justify-center">
+          <div className="inline-flex rounded-lg border p-1 bg-slate-100">
+            <button className={`px-6 py-2 rounded-md text-sm font-medium transition ${billingCycle === 'monthly' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+              onClick={() => setBillingCycle('monthly')} data-testid="plan-billing-monthly">Měsíčně</button>
+            <button className={`px-6 py-2 rounded-md text-sm font-medium transition ${billingCycle === 'yearly' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}
+              onClick={() => setBillingCycle('yearly')} data-testid="plan-billing-yearly">Ročně <span className="ml-1 text-xs text-green-600">-17%</span></button>
+          </div>
+        </div>
+
+        {/* Plan cards — hierarchical, no duplication */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {plans.filter(p => p.key !== 'free').map(p => {
+            const style = PLAN_STYLE[p.key] || PLAN_STYLE.start;
+            const prices = PLAN_PRICES[p.key] || { monthly: 0, yearly: 0 };
+            const price = billingCycle === 'monthly' ? prices.monthly : prices.yearly;
+            const active = isActive(p.key);
+            const pending = isPending(p.key);
+            const isRecommended = p.key === 'pro';
+
+            return (
+              <Card key={p.key} className={`p-5 relative ${style.border} border-2 ${active ? 'ring-2 ring-offset-2 ring-green-400' : ''}`} data-testid={`plan-card-${p.key}`}>
+                {isRecommended && !active && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2"><Badge className="bg-amber-400 text-slate-900 font-semibold">Doporučeno</Badge></div>
+                )}
+                {active && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2"><Badge className="bg-green-500 text-white font-semibold">Aktivní</Badge></div>
+                )}
+
+                <h3 className="text-xl font-bold text-slate-900">{p.label}</h3>
+                <div className="mt-2 mb-3">
+                  <span className="text-3xl font-bold text-slate-900">{price.toLocaleString('cs-CZ')}</span>
+                  <span className="text-slate-500 ml-1 text-sm">{billingCycle === 'monthly' ? 'Kč/měs.' : 'Kč/rok'}</span>
+                </div>
+
+                {/* Limits */}
+                <div className="text-xs text-slate-500 mb-3 space-y-0.5">
+                  <div>Programů: <strong>{p.limits.programs_limit === -1 ? 'Neomezeně' : p.limits.programs_limit}</strong></div>
+                  <div>Rezervací/měs.: <strong>{p.limits.bookings_monthly_limit === -1 ? 'Neomezeně' : p.limits.bookings_monthly_limit}</strong></div>
+                </div>
+
+                {/* Hierarchical features — delta only */}
+                {p.inherits_from_label && (
+                  <p className="text-xs font-medium text-slate-500 mb-1.5 uppercase tracking-wide">Vše z {p.inherits_from_label} +</p>
+                )}
+                <ul className="space-y-1 mb-4">
+                  {p.own_features.map(f => (
+                    <li key={f.key} className="flex items-start gap-1.5 text-sm">
+                      <Check className="w-4 h-4 shrink-0 mt-0.5" style={{ color: style.accent }} />
+                      <span>{f.label}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Action */}
+                {active ? (
+                  <Button variant="outline" className="w-full border-green-300 text-green-700" disabled><Check className="w-4 h-4 mr-1" /> Aktivní</Button>
+                ) : pending ? (
+                  <Button variant="outline" className="w-full border-yellow-300 text-yellow-700" disabled><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Čeká na platbu</Button>
+                ) : (
+                  <Button className="w-full text-white" style={{ backgroundColor: style.accent }} onClick={() => openSwitchModal(p.key)} data-testid={`select-plan-${p.key}`}>
+                    <Crown className="w-4 h-4 mr-1" /> Vybrat plán
+                  </Button>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Info */}
+        <Card className="p-4 bg-blue-50 border-blue-200">
+          <div className="flex items-start gap-2 text-sm text-blue-800">
+            <Info className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium">Jak funguje aktivace?</p>
+              <p className="mt-1">Po výběru plánu vám zašleme fakturu. Po uhrazení bude plán aktivován do 24 hodin. Pro okamžitou aktivaci kontaktujte <strong>info@budezivo.cz</strong>.</p>
             </div>
           </div>
         </Card>
 
-        <div className="flex justify-center mb-8">
-          <div className="inline-flex rounded-md border border-border p-1 bg-muted">
-            <button
-              data-testid="plan-billing-monthly"
-              className={`px-6 py-2 rounded text-sm font-medium transition-colors ${
-                billingCycle === 'monthly' ? 'bg-white shadow-sm' : 'text-muted-foreground'
-              }`}
-              onClick={() => setBillingCycle('monthly')}
-            >
-              {t('pricing.monthly')}
-            </button>
-            <button
-              data-testid="plan-billing-yearly"
-              className={`px-6 py-2 rounded text-sm font-medium transition-colors ${
-                billingCycle === 'yearly' ? 'bg-white shadow-sm' : 'text-muted-foreground'
-              }`}
-              onClick={() => setBillingCycle('yearly')}
-            >
-              {t('pricing.yearly')}
-              <span className="ml-2 text-xs text-[#84A98C]">{t('pricing.save')}</span>
-            </button>
-          </div>
-        </div>
+        {/* ===== Switch modal (delta view) ===== */}
+        {switchTarget && (
+          <Dialog open onOpenChange={() => { setSwitchTarget(null); setDiff(null); }}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  {diff?.is_upgrade ? 'Upgrade' : 'Změna'} na {targetPlanData?.label}
+                </DialogTitle>
+              </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {Array.isArray(plans) && plans.map((plan) => (
-            <Card
-              key={plan.name}
-              data-testid={`plan-card-${plan.name}`}
-              className={`p-6 relative ${plan.recommended ? 'border-[#E9C46A] border-2 shadow-lg' : ''}`}
-            >
-              {plan.recommended && (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                  <span className="bg-[#E9C46A] text-slate-900 text-xs font-semibold px-3 py-1 rounded-full">
-                    Nejčastější volba
-                  </span>
+              {diffLoading ? (
+                <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin" /></div>
+              ) : diff ? (
+                <div className="space-y-4 py-2">
+                  {/* Price */}
+                  <div className="bg-slate-50 rounded-lg p-3 text-sm flex justify-between">
+                    <span>Cena:</span>
+                    <strong>{(PLAN_PRICES[switchTarget]?.[billingCycle] || 0).toLocaleString('cs-CZ')} Kč / {billingCycle === 'monthly' ? 'měsíc' : 'rok'}</strong>
+                  </div>
+
+                  {/* Gained */}
+                  {diff.gained.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-green-700 mb-1.5 flex items-center gap-1">
+                        <ArrowUp className="w-4 h-4" /> Získáte navíc:
+                      </p>
+                      <ul className="space-y-1">
+                        {diff.gained.map(f => (
+                          <li key={f.key} className="flex items-center gap-2 text-sm text-green-800 bg-green-50 rounded px-2 py-1">
+                            <Check className="w-4 h-4 text-green-500 shrink-0" /> {f.label}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Lost */}
+                  {diff.lost.length > 0 && (
+                    <div>
+                      <p className="text-sm font-semibold text-red-700 mb-1.5 flex items-center gap-1">
+                        <ArrowDown className="w-4 h-4" /> Přijdete o:
+                      </p>
+                      <ul className="space-y-1">
+                        {diff.lost.map(f => (
+                          <li key={f.key} className="flex items-center gap-2 text-sm text-red-800 bg-red-50 rounded px-2 py-1">
+                            <Minus className="w-4 h-4 text-red-400 shrink-0" /> {f.label}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Payment note */}
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                    <AlertTriangle className="w-4 h-4 inline mr-1" />
+                    Po potvrzení vám bude zaslána faktura. Plán bude aktivován po přijetí platby.
+                  </div>
                 </div>
-              )}
-              <h3 className="text-2xl font-semibold text-slate-900 mb-4">{t(`pricing.${plan.name}.name`)}</h3>
-              <div className="mb-6">
-                <span className="text-4xl font-bold text-slate-900">{plan.price}</span>
-                <span className="text-muted-foreground ml-2">
-                  {billingCycle === 'monthly' ? 'Kč / měsíc' : 'Kč / rok'}
-                </span>
-              </div>
-              <ul className="space-y-3 mb-6">
-                {Array.isArray(plan.features) && plan.features.map((feature, idx) => (
-                  <li key={idx} className="flex items-start">
-                    <Check className="w-5 h-5 text-[#84A98C] mr-2 flex-shrink-0 mt-0.5" />
-                    <span className="text-sm text-slate-700">{feature}</span>
-                  </li>
-                ))}
-              </ul>
-              <Button
-                data-testid={`upgrade-to-${plan.name}`}
-                onClick={() => handleUpgrade(plan.name)}
-                disabled={processing}
-                className={`w-full ${
-                  plan.recommended
-                    ? 'bg-[#E9C46A] text-slate-900 hover:bg-[#E9C46A]/90'
-                    : 'bg-slate-800 text-white hover:bg-slate-700'
-                }`}
-              >
-                {processing ? t('common.loading') : t('plan.upgrade')}
-              </Button>
-            </Card>
-          ))}
-        </div>
+              ) : null}
+
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={() => { setSwitchTarget(null); setDiff(null); }}>Zrušit</Button>
+                <Button onClick={handleConfirmSwitch} disabled={requesting || diffLoading} data-testid="confirm-plan-request-btn">
+                  {requesting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <ArrowRight className="w-4 h-4 mr-1" />}
+                  Objednat
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </AdminLayout>
   );
 };
+
+export default PlanPage;

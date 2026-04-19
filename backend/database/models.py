@@ -42,8 +42,19 @@ class Institution(Base):
     secondary_color = Column(Text, default='#84A98C')
     
     # Plan & Limits
-    plan = Column(Text, nullable=False, default='free')
+    plan = Column(Text, nullable=False, default='free')  # free, start, pro, pro_plus
+    plan_status = Column(Text, nullable=False, default='active')  # inactive, pending, active, expired, cancelled
+    plan_activated_by = Column(Text)  # payment, admin, migration, system
+    plan_activated_at = Column(DateTime(timezone=True))
+    plan_expires_at = Column(DateTime(timezone=True))
     plan_updated_at = Column(DateTime(timezone=True))
+    requested_plan_type = Column(Text)  # pending plan request
+    plan_changed_by_user_id = Column(UUID(as_uuid=True))
+    plan_changed_by_superadmin_id = Column(UUID(as_uuid=True))
+    auto_renew = Column(Boolean, default=False)
+    billing_provider = Column(Text)  # manual, fakturoid, stripe
+    billing_external_id = Column(Text)  # external invoice/subscription ID
+    billing_note = Column(Text)  # internal admin note
     programs_limit = Column(Integer, nullable=False, default=3)
     bookings_monthly_limit = Column(Integer, nullable=False, default=50)
     
@@ -1046,4 +1057,55 @@ class MailingRecipientProgram(Base):
 
     __table_args__ = (
         Index('idx_mrp_recipient', 'recipient_id'),
+    )
+
+
+
+# ============ BILLING ORDERS ============
+
+class BillingOrder(Base):
+    """Billing order for plan activation. Tracks payment lifecycle."""
+    __tablename__ = 'billing_orders'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    requested_plan_type = Column(Text, nullable=False)
+    status = Column(Text, nullable=False, default='pending')  # pending, paid, cancelled, failed, refunded
+    provider = Column(Text, nullable=False, default='manual')  # manual, fakturoid, stripe
+    provider_invoice_id = Column(Text)
+    provider_payment_id = Column(Text)
+    amount = Column(Integer)  # in smallest currency unit (CZK haléře)
+    currency = Column(Text, default='CZK')
+    note = Column(Text)
+    created_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
+    paid_at = Column(DateTime(timezone=True))
+    cancelled_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_billing_orders_institution', 'institution_id'),
+        Index('idx_billing_orders_status', 'status'),
+        Index('idx_billing_orders_provider', 'provider'),
+    )
+
+
+# ============ USAGE METRICS ============
+
+class UsageMetric(Base):
+    """Institution-level feature usage tracking for product analytics."""
+    __tablename__ = 'usage_metrics'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    feature_key = Column(Text, nullable=False)
+    usage_count = Column(Integer, nullable=False, default=0)
+    first_used_at = Column(DateTime(timezone=True))
+    last_used_at = Column(DateTime(timezone=True))
+    metadata_json = Column(JSON, default={})
+
+    __table_args__ = (
+        Index('idx_usage_metrics_institution', 'institution_id'),
+        Index('idx_usage_metrics_feature', 'feature_key'),
+        Index('idx_usage_metrics_inst_feature', 'institution_id', 'feature_key', unique=True),
     )

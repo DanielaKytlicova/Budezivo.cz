@@ -1,0 +1,201 @@
+{
+  "summary": "Iteration 49: Feature Guards Testing - All 24 backend tests passed. require_feature() guards correctly enforce plan-based access control on all protected endpoints.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_feature_guards.py",
+    "/app/test_reports/pytest/pytest_feature_guards.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: Router-level guards applied to mailings.py (line 28), audit.py (line 17), microsoft_calendar.py (line 24), rooms.py (line 19)",
+    "VERIFIED: Per-endpoint guards applied to events.py, waitlist.py, statistics.py, schools.py",
+    "VERIFIED: GET /api/mailings returns 403 for FREE user, 200 for PRO+ user",
+    "VERIFIED: GET /api/statistics/bookings-over-time returns 403 for FREE, 200 for PRO+",
+    "VERIFIED: GET /api/statistics returns 200 for ALL users (basic stats, no guard)",
+    "VERIFIED: GET /api/audit-log returns 403 for FREE, 200 for PRO+",
+    "VERIFIED: GET /api/rooms returns 403 for FREE, 200 for PRO+",
+    "VERIFIED: GET /api/waitlist returns 403 for FREE, 200 for PRO+",
+    "VERIFIED: POST /api/waitlist (public, no auth) still works without feature guard",
+    "VERIFIED: GET /api/events/settings/payment returns 403 for PRO (only PRO+ has events_payments)",
+    "VERIFIED: GET /api/schools/export-csv returns 403 for FREE, 200 for PRO+",
+    "VERIFIED: GET /api/microsoft-calendar/status returns 403 for FREE, 200 for PRO+",
+    "VERIFIED: Error message includes plan name: 'Tato funkce vyžaduje plán PRO'",
+    "VERIFIED: GET /api/plan/status shows correct features for PRO+ user (26 features with has_access=true)",
+    "VERIFIED: Frontend /admin/plan page shows 3 plan cards with hierarchical features",
+    "VERIFIED: Frontend /admin/mailings accessible for PRO+ user"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_feature_guards.py"
+  ],
+  "success_rate": {
+    "backend": "100% (24/24 passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_user": "demo@budezivo.cz",
+    "admin_password": "Demo2026!",
+    "institution_id": "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
+  },
+  "seed_data_creation": "Demo institution restored to PRO+ active status after testing",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature guards fully implemented and tested. Key findings: (1) Router-level guards on mailings, audit, rooms, microsoft-calendar routes, (2) Per-endpoint guards on events, waitlist, statistics, schools routes, (3) FREE users get 403 with Czech error message mentioning required plan, (4) PRO users get 403 on PRO+ only features (events_payments, outlook_sync), (5) Public endpoints (POST /api/waitlist) have no feature guard, (6) Basic stats endpoint has no guard (accessible to all).",
+  "verified_features": [
+    {
+      "feature": "mailing → mailings routes (router-level guard)",
+      "status": "VERIFIED",
+      "evidence": "FREE: 403, PRO: 200, PRO+: 200"
+    },
+    {
+      "feature": "events_basic → events CRUD (per-endpoint guards)",
+      "status": "VERIFIED",
+      "evidence": "Guards on GET /api/events, POST /api/events"
+    },
+    {
+      "feature": "events_payments → payment settings (PRO+ only)",
+      "status": "VERIFIED",
+      "evidence": "PRO: 403, PRO+: 200 (or 404 if events module disabled)"
+    },
+    {
+      "feature": "waitlist → admin waitlist (per-endpoint guards)",
+      "status": "VERIFIED",
+      "evidence": "FREE: 403, PRO: 200, PRO+: 200"
+    },
+    {
+      "feature": "audit_log → audit routes (router-level guard)",
+      "status": "VERIFIED",
+      "evidence": "FREE: 403, PRO: 200, PRO+: 200"
+    },
+    {
+      "feature": "outlook_sync → microsoft calendar (router-level guard)",
+      "status": "VERIFIED",
+      "evidence": "FREE: 403, PRO+: 200"
+    },
+    {
+      "feature": "collision_system → rooms (router-level guard)",
+      "status": "VERIFIED",
+      "evidence": "FREE: 403, PRO: 200, PRO+: 200"
+    },
+    {
+      "feature": "advanced_stats → advanced statistics (per-endpoint guards)",
+      "status": "VERIFIED",
+      "evidence": "FREE: 403, PRO: 200, PRO+: 200"
+    },
+    {
+      "feature": "data_export → CSV/XLSX exports (per-endpoint guards)",
+      "status": "VERIFIED",
+      "evidence": "FREE: 403, PRO: 200, PRO+: 200"
+    },
+    {
+      "feature": "Basic stats (no guard)",
+      "status": "VERIFIED",
+      "evidence": "FREE: 200, PRO: 200, PRO+: 200"
+    },
+    {
+      "feature": "Public waitlist POST (no guard)",
+      "status": "VERIFIED",
+      "evidence": "No auth required, no 403 returned"
+    },
+    {
+      "feature": "Error message format",
+      "status": "VERIFIED",
+      "evidence": "Contains 'Tato funkce vyžaduje plán PRO' or similar"
+    }
+  ],
+  "backend_test_results": {
+    "test_file": "/app/backend/tests/test_feature_guards.py",
+    "total_tests": 24,
+    "passed": 24,
+    "skipped": 0,
+    "failed": 0,
+    "tests": [
+      "TestProPlusAccess::test_plan_status_shows_pro_plus - PASSED",
+      "TestProPlusAccess::test_mailings_accessible_for_pro_plus - PASSED",
+      "TestProPlusAccess::test_audit_log_accessible_for_pro_plus - PASSED",
+      "TestProPlusAccess::test_rooms_accessible_for_pro_plus - PASSED",
+      "TestProPlusAccess::test_microsoft_calendar_status_accessible_for_pro_plus - PASSED",
+      "TestProPlusAccess::test_waitlist_admin_accessible_for_pro_plus - PASSED",
+      "TestProPlusAccess::test_advanced_stats_accessible_for_pro_plus - PASSED",
+      "TestProPlusAccess::test_basic_stats_accessible_for_all - PASSED",
+      "TestProPlusAccess::test_schools_export_csv_accessible_for_pro_plus - PASSED",
+      "TestProPlusAccess::test_events_payment_settings_accessible_for_pro_plus - PASSED",
+      "TestFreeUserAccess::test_mailings_returns_403_for_free - PASSED",
+      "TestFreeUserAccess::test_audit_log_returns_403_for_free - PASSED",
+      "TestFreeUserAccess::test_rooms_returns_403_for_free - PASSED",
+      "TestFreeUserAccess::test_microsoft_calendar_returns_403_for_free - PASSED",
+      "TestFreeUserAccess::test_waitlist_returns_403_for_free - PASSED",
+      "TestFreeUserAccess::test_advanced_stats_returns_403_for_free - PASSED",
+      "TestFreeUserAccess::test_schools_export_csv_returns_403_for_free - PASSED",
+      "TestFreeUserAccess::test_basic_stats_still_accessible_for_free - PASSED",
+      "TestProUserAccess::test_events_payment_settings_returns_403_for_pro - PASSED",
+      "TestProUserAccess::test_mailings_accessible_for_pro - PASSED",
+      "TestProUserAccess::test_audit_log_accessible_for_pro - PASSED",
+      "TestPublicEndpoints::test_waitlist_post_public_no_guard - PASSED",
+      "TestErrorMessages::test_error_message_includes_plan_name - PASSED",
+      "TestPlanStatusFeatures::test_plan_status_shows_correct_features_for_pro_plus - PASSED"
+    ]
+  },
+  "ui_test_results": {
+    "login": "PASS",
+    "plan_page_loads": "PASS - Title 'Plány a fakturace' displayed",
+    "three_plan_cards": "PASS - Start, PRO, PRO+ cards visible",
+    "pro_plus_active_badge": "PASS - Green 'Aktivní' badge on PRO+ card",
+    "mailings_page_accessible": "PASS - /admin/mailings loads with campaigns list",
+    "sidebar_pro_features": "PASS - Mailingy, Statistiky visible in sidebar"
+  },
+  "feature_guard_mapping": {
+    "mailing": {
+      "routes": "/api/mailings/*",
+      "guard_type": "router-level",
+      "min_plan": "pro"
+    },
+    "events_basic": {
+      "routes": "GET /api/events, POST /api/events",
+      "guard_type": "per-endpoint",
+      "min_plan": "pro"
+    },
+    "events_payments": {
+      "routes": "GET/PUT /api/events/settings/payment",
+      "guard_type": "per-endpoint",
+      "min_plan": "pro_plus"
+    },
+    "waitlist": {
+      "routes": "GET /api/waitlist, PATCH /api/waitlist/{id}",
+      "guard_type": "per-endpoint",
+      "min_plan": "pro"
+    },
+    "audit_log": {
+      "routes": "/api/audit-log/*",
+      "guard_type": "router-level",
+      "min_plan": "pro"
+    },
+    "outlook_sync": {
+      "routes": "/api/microsoft-calendar/*",
+      "guard_type": "router-level",
+      "min_plan": "pro_plus"
+    },
+    "collision_system": {
+      "routes": "/api/rooms/*",
+      "guard_type": "router-level",
+      "min_plan": "pro"
+    },
+    "advanced_stats": {
+      "routes": "/api/statistics/bookings-over-time, /api/statistics/heatmap, etc.",
+      "guard_type": "per-endpoint",
+      "min_plan": "pro"
+    },
+    "data_export": {
+      "routes": "/api/schools/export-csv, /api/statistics/export/csv, /api/events/{id}/export/*",
+      "guard_type": "per-endpoint",
+      "min_plan": "pro"
+    }
+  }
+}

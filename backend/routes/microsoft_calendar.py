@@ -19,8 +19,9 @@ from sqlalchemy import select, and_, delete
 from core.security import get_current_user
 from database.supabase import get_db
 from database.models import UserCalendarIntegration, AvailabilityBlock, OAuthState, Program
+from services.plan_service import require_feature
 
-router = APIRouter(prefix="/microsoft-calendar", tags=["Microsoft Calendar"])
+router = APIRouter(prefix="/microsoft-calendar", tags=["Microsoft Calendar"], dependencies=[Depends(require_feature("outlook_sync"))])
 logger = logging.getLogger(__name__)
 
 # ── Config ──────────────────────────────────────────────────────────

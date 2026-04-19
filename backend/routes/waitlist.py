@@ -15,6 +15,7 @@ from sqlalchemy import select, and_, func
 from database.supabase import get_db
 from database.models import WaitlistEntry, Program
 from core.security import get_current_user
+from services.plan_service import require_feature
 
 router = APIRouter(prefix="/waitlist", tags=["Waitlist"])
 logger = logging.getLogger(__name__)
@@ -162,6 +163,7 @@ async def list_waitlist(
     status: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_feature("waitlist")),
 ):
     """List waitlist entries for admin."""
     inst_uuid = uuid.UUID(current_user["institution_id"])
@@ -208,6 +210,7 @@ async def update_waitlist_entry(
     data: WaitlistStatusUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_feature("waitlist")),
 ):
     """Update waitlist entry status (admin)."""
     inst_uuid = uuid.UUID(current_user["institution_id"])

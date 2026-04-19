@@ -36,84 +36,73 @@
   },
   "pricing": {
     "title": "Jednoduché a transparentní tarify",
-    "monthly": "Měsíčně",
-    "yearly": "Ročně",
-    "perMonth": "Kč / měsíc",
-    "perYear": "Kč / rok",
-    "save": "Ušetřete 20%",
     "free": {
       "name": "Zdarma",
-      "price": "0",
-      "priceLabel": "0 Kč / navždy",
-      "description": "Pro začátek",
-      "cta": "Začít zdarma",
-      "highlight": "Ideální pro malé instituce na vyzkoušení",
       "features": [
-        "Max. 40 rezervací měsíčně",
-        "3 aktivní doprovodné programy",
+        "Max. 50 rezervací měsíčně",
+        "Až 3 aktivní programy",
         "Základní přehled rezervací",
         "E-mailová podpora"
       ],
       "limitations": [
-        "Bez paralelních termínů (programy se nepřekrývají)",
-        "Bez vlastního brandingu (zobrazeno logo Budeživo)",
-        "Bez úprav vzhledu formuláře a e-mailů"
-      ]
+        "Bez exportu dat",
+        "Bez propagačních mailingů",
+        "Bez pokročilých statistik"
+      ],
+      "highlight": "Ideální pro vyzkoušení systému",
+      "cta": "Začít zdarma"
     },
     "start": {
       "name": "Start",
-      "price": "790",
-      "priceYearly": "7580",
-      "description": "Nejčastější volba",
-      "cta": "Vybrat Start",
-      "highlight": "Klíčová hodnota: profesionální komunikace směrem ke školám",
       "features": [
-        "Až 150 rezervací měsíčně",
-        "Neomezený počet programů",
-        "Paralelně běžící programy",
-        "Vlastní branding (logo, barvy)",
-        "Úprava rezervačního formuláře",
-        "Vlastní e-mailové šablony",
-        "Základní statistiky",
-        "E-mailová podpora"
+        "Až 200 rezervací měsíčně",
+        "Až 10 aktivních programů",
+        "Kalendář dostupnosti",
+        "Správa programů",
+        "Branding instituce (logo, barvy)",
+        "Editace formulářů",
+        "Emailové šablony",
+        "Bloky dostupnosti",
+        "Získávání kontaktů z rezervací"
       ],
-      "limitations": []
+      "limitations": [],
+      "highlight": "Základní provoz pro menší instituce",
+      "cta": "Vybrat Start"
     },
     "pro": {
-      "name": "Pro",
-      "price": "1490",
-      "priceYearly": "14300",
-      "description": "Pro aktivní instituce",
-      "cta": "Vybrat Pro",
-      "highlight": "Ideální pro aktivní instituce s větším provozem",
+      "name": "PRO",
+      "inherits": "Vše ze Start +",
       "features": [
-        "Až 400 rezervací měsíčně",
-        "Vše ze Start +",
-        "Pokročilé statistiky a vytíženost",
-        "Export / import dat (hromadně)",
-        "Mailing na školy (propagace programů)",
-        "Přehled obsazenosti (kalendář / reporty)",
-        "Prioritní e-mailová podpora"
+        "Paralelní programy",
+        "Pokročilé statistiky",
+        "Export dat (CSV/XLSX)",
+        "Propagační mailing na školy",
+        "Přehled vytíženosti",
+        "Náhradníci (Waitlist)",
+        "Události (tábory, akce)",
+        "Kolizní systém",
+        "Vlastní otázky zpětné vazby",
+        "Audit log"
       ],
-      "limitations": []
+      "limitations": [],
+      "highlight": "Pro instituce s širší nabídkou programů",
+      "cta": "Vybrat PRO"
     },
-    "enterprise": {
-      "name": "Pro+ / Enterprise",
-      "price": "2990",
-      "priceYearly": "28700",
-      "description": "Pro velké organizace",
-      "cta": "Kontaktujte nás",
-      "highlight": "Pro velké organizace, města, sítě institucí",
+    "pro_plus": {
+      "name": "PRO+",
+      "inherits": "Vše z PRO +",
       "features": [
+        "Události vč. online plateb",
+        "Automatické párování plateb",
         "Neomezené rezervace",
-        "Vše z Pro +",
-        "Správa více uživatelů",
-        "Hromadné akce / blokace",
-        "API (napojení na web / systémy)",
-        "Prioritní podpora (rychlá reakce)",
-        "Možnost individuálních úprav"
+        "API přístup",
+        "Outlook synchronizace",
+        "Prioritní podpora (SLA)",
+        "Automatické potvrzení po zaplacení"
       ],
-      "limitations": []
+      "limitations": [],
+      "highlight": "Kompletní řešení pro velké instituce",
+      "cta": "Vybrat PRO+"
     }
   },
   "faq": {

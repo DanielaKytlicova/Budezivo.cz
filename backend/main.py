@@ -49,6 +49,7 @@ from routes.events import router as events_router
 from routes.unified_availability import router as unified_availability_router
 from routes.waitlist import router as waitlist_router
 from routes.mailings import router as mailings_router
+from routes.superadmin import router as superadmin_router
 from models.schemas import ContactFormData, InstitutionSettings
 
 # Configure logging
@@ -131,6 +132,7 @@ api_router.include_router(events_router)
 api_router.include_router(unified_availability_router)
 api_router.include_router(waitlist_router)
 api_router.include_router(mailings_router)
+api_router.include_router(superadmin_router)
 
 
 # ============ Additional Routes ============

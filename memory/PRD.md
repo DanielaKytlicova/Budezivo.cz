@@ -81,6 +81,8 @@ programs: + room_id (FK → rooms.id)
 - [x] Feedback questions propojeny s veřejným formulářem
 - [x] Výběr lektorů pro kolizní kontrolu
 - [x] Pilotní modul Události a přihlášky + QR platby
+- [x] Propagační mailingy (kampaně) s relevance engine
+- [x] 4-úrovňový plán (Free/Start/PRO/PRO+) s hard-lock feature gating
 
 ### P2 - Střední priorita
 - [ ] i18n přepínač jazyků (CZ/EN)
@@ -251,7 +253,39 @@ institution_payment_settings: id, institution_id, payment_mode, provider, iban, 
 event_payments: id, application_id, institution_id, provider, status, amount, currency, variable_symbol, provider_payment_id, qr_payload, paid_at
 ```
 
-*Poslední aktualizace: 15. dubna 2026*
+### Fáze 36 - Hierarchický plánový systém (19.4.2026)
+- [x] Přepis plan_service.py: FEATURES s plan_level, automatický výpočet PLAN_FEATURES (kumulativní) a PLAN_DELTAS (delta)
+- [x] 3 placené plány: Start (490 Kč, 9 features), PRO (990 Kč, +10 features), PRO+ (1990 Kč, +7 features)
+- [x] Žádná duplikace features — UI generováno z configu ("Vše z X +")
+- [x] Delta view modal: gained/lost features při přepínání plánu
+- [x] events_basic (PRO) vs events_payments (PRO+) split
+- [x] require_feature() FastAPI dependency pro backend enforcement
+- [x] Přímá aktivace PRO trvale zablokována (HTTP 400)
+- [x] Request flow: objednávka → pending → platba → admin aktivace
+
+*Poslední aktualizace: 19. dubna 2026*
+
+### Fáze 37 - Backend Feature Enforcement (19.4.2026)
+- [x] require_feature() dependency aplikován na všechny chráněné endpointy
+- [x] Router-level: mailings, audit-log, rooms, microsoft-calendar
+- [x] Per-endpoint: events, waitlist, statistics, schools export
+- [x] Chybové zprávy v češtině: "Tato funkce vyžaduje plán PRO"
+- [x] Testováno: 24/24 backend testů (iteration_49.json)
+
+### Fáze 38 - Frontend Feature Gating + Landing Page Pricing (19.4.2026)
+- [x] usePlanFeatures hook + UpgradeModal pro zamčené funkce
+- [x] Admin sidebar: lock ikony na zamčených navigacích
+- [x] Landing page: tarify aktualizovány na 4 plány s hierarchií
+- [x] Settings: "Zobrazit plány" místo "Aktivovat PRO"
+- [x] Testováno: 100% frontend (iteration_50.json)
+
+### Fáze 39 - Superadmin + Billing + Usage Metrics (19.4.2026)
+- [x] DB: billing_orders, usage_metrics tabulky + billing fields na institutions
+- [x] Billing: BillingProviderInterface (Manual + Fakturoid placeholder)
+- [x] Usage tracking: track_usage(), get_institution_usage()
+- [x] Superadmin dashboard: overview, instituce, detail, plan control, billing orders
+- [x] Plan request → automatický billing order
+- [x] Testováno: 18/18 (iteration_51.json)
 
 ### Fáze 35 - Propagační mailingy / Kampanový modul (15.4.2026)
 - [x] DB modely: MailingCampaign, MailingCampaignProgram, MailingCampaignRecipient, MailingRecipientProgram

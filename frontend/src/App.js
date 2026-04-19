@@ -36,6 +36,7 @@ import { AuditLogPage } from './pages/admin/AuditLogPage';
 import { EventsPage } from './pages/admin/EventsPage';
 import { WaitlistPage } from './pages/admin/WaitlistPage';
 import { MailingsPage } from './pages/admin/MailingsPage';
+import { SuperadminPage } from './pages/admin/SuperadminPage';
 import PublicEventsPage from './pages/public/PublicEventsPage';
 
 import './App.css';
@@ -193,6 +194,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <MailingsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/superadmin"
+                element={
+                  <ProtectedRoute>
+                    <SuperadminPage />
                   </ProtectedRoute>
                 }
               />

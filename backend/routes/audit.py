@@ -12,8 +12,9 @@ from sqlalchemy import select, func, desc
 from core.security import get_current_user
 from database.supabase import get_db
 from database.models import AuditLog
+from services.plan_service import require_feature
 
-router = APIRouter(prefix="/audit-log", tags=["AuditLog"])
+router = APIRouter(prefix="/audit-log", tags=["AuditLog"], dependencies=[Depends(require_feature("audit_log"))])
 logger = logging.getLogger(__name__)
 
 

@@ -20,6 +20,7 @@ from sqlalchemy import text
 
 from models.schemas import School, PropagationRequest
 from core.security import get_current_user
+from services.plan_service import require_feature
 from database.supabase import get_db
 from database.supabase_repositories import (
     SchoolRepositorySupabase,
@@ -582,14 +583,13 @@ async def download_import_template():
 @router.get("/export-csv")
 async def export_schools_csv(
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    _guard=Depends(require_feature("data_export")),
 ):
-    """Export schools with contacts to CSV - PRO feature only."""
+    """Export schools with contacts to CSV."""
     institution_repo = InstitutionRepositorySupabase(db)
     
     institution = await institution_repo.find_by_id(current_user["institution_id"])
-    if not institution or institution.get("plan") not in ["standard", "premium"]:
-        raise HTTPException(status_code=403, detail="Tato funkce je dostupná pouze v PRO verzi")
     
     # Get schools with contacts
     result = await db.execute(text("""

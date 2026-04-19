@@ -1,310 +1,290 @@
 """
 Plan management routes for Budeživo.cz
-Handles PRO plan upgrades and feature gating.
+4-tier subscription system: free → start → pro → pro_plus (hierarchical).
+Hard-locked feature gating with payment/admin activation only.
 """
 import logging
 from datetime import datetime, timezone
+from typing import Optional, List
 from pydantic import BaseModel
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from core.security import get_current_user
 from database.supabase import get_db
 from database.supabase_repositories import InstitutionRepositorySupabase, UserRepositorySupabase
-from sqlalchemy import text
+from services.plan_service import (
+    PLAN_ORDER, PLAN_LIMITS, PLAN_FEATURES, PLAN_LABELS,
+    FEATURE_LABELS, FEATURE_MIN_PLAN,
+    has_feature_access, get_plan_features_full, get_plan_limits,
+    get_plan_hierarchy, compute_plan_diff,
+)
+from services.billing_service import create_billing_order
 
 router = APIRouter(prefix="/plan", tags=["Plan Management"])
 logger = logging.getLogger(__name__)
 
 
-# ============ Pydantic Models ============
+# ---- Pydantic models ----
 
-class PlanStatusResponse(BaseModel):
-    plan: str
-    is_pro: bool
-    plan_updated_at: Optional[str] = None
-    features: dict
+class RequestPlanChange(BaseModel):
+    target_plan: str
 
-
-class UpgradePlanRequest(BaseModel):
-    confirm: bool = True
-
-
-class DowngradePlanRequest(BaseModel):
-    confirm: bool = True
-    admin_key: Optional[str] = None  # Optional admin override key
+class AdminPlanChange(BaseModel):
+    institution_id: str
+    target_plan: str
+    target_status: str = "active"
+    activated_by: str = "admin"
 
 
-# ============ Feature Definitions ============
+# ---- Static routes (before /{dynamic}) ----
 
-FREE_FEATURES = {
-    "csv_export": False,
-    "bulk_email": False,
-    "advanced_statistics": False,
-    "sms_notifications": False,
-    "custom_email_templates": False,
-    "programs_limit": 3,
-    "monthly_bookings_limit": 50
-}
-
-PRO_FEATURES = {
-    "csv_export": True,
-    "bulk_email": True,
-    "advanced_statistics": True,
-    "sms_notifications": True,
-    "custom_email_templates": True,
-    "programs_limit": -1,  # Unlimited
-    "monthly_bookings_limit": -1  # Unlimited
-}
-
-
-def get_features_for_plan(plan: str) -> dict:
-    """Get feature set for a given plan."""
-    if plan == "pro":
-        return PRO_FEATURES
-    return FREE_FEATURES
-
-
-# ============ Routes ============
-
-@router.get("/status", response_model=PlanStatusResponse)
+@router.get("/status")
 async def get_plan_status(
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get current plan status and available features.
-    """
-    institution_repo = InstitutionRepositorySupabase(db)
-    institution = await institution_repo.find_by_id(current_user["institution_id"])
-    
-    if not institution:
+    """Current plan status, features, and limits."""
+    inst_repo = InstitutionRepositorySupabase(db)
+    inst = await inst_repo.find_by_id(current_user["institution_id"])
+    if not inst:
         raise HTTPException(status_code=404, detail="Instituce nenalezena")
-    
-    plan = institution.get("plan", "free")
-    plan_updated_at = institution.get("plan_updated_at")
-    
-    # Handle plan_updated_at - it might be a datetime object or already a string
-    plan_updated_at_str = None
-    if plan_updated_at:
-        if isinstance(plan_updated_at, str):
-            plan_updated_at_str = plan_updated_at
-        else:
-            plan_updated_at_str = plan_updated_at.isoformat()
-    
-    return PlanStatusResponse(
-        plan=plan,
-        is_pro=plan == "pro",
-        plan_updated_at=plan_updated_at_str,
-        features=get_features_for_plan(plan)
-    )
+
+    plan = inst.get("plan", "free")
+    plan_status = inst.get("plan_status", "active")
+    plan_updated = inst.get("plan_updated_at")
+    plan_expires = inst.get("plan_expires_at")
+    plan_activated_by = inst.get("plan_activated_by")
+    plan_activated_at = inst.get("plan_activated_at")
+
+    return {
+        "plan": plan,
+        "plan_status": plan_status,
+        "plan_label": PLAN_LABELS.get(plan, plan),
+        "is_pro": plan in ("pro", "pro_plus") and plan_status == "active",
+        "plan_activated_by": plan_activated_by,
+        "plan_activated_at": plan_activated_at.isoformat() if plan_activated_at and hasattr(plan_activated_at, 'isoformat') else plan_activated_at,
+        "plan_updated_at": plan_updated.isoformat() if plan_updated and hasattr(plan_updated, 'isoformat') else plan_updated,
+        "plan_expires_at": plan_expires.isoformat() if plan_expires and hasattr(plan_expires, 'isoformat') else plan_expires,
+        "features": get_plan_features_full(plan, plan_status),
+        "limits": get_plan_limits(plan, plan_status),
+    }
 
 
-@router.put("/upgrade")
-async def upgrade_to_pro(
-    request: UpgradePlanRequest,
-    current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+@router.get("/plans")
+async def get_available_plans():
+    """All plans with hierarchical features (no duplication)."""
+    return {"plans": get_plan_hierarchy()}
+
+
+@router.get("/diff")
+async def get_plan_diff(
+    from_plan: str,
+    to_plan: str,
 ):
-    """
-    Upgrade institution to PRO plan.
-    Only admins/spravce can perform this action.
-    """
-    # Check if user is admin
+    """Compute gained/lost features between two plans (for switch modal)."""
+    if from_plan not in PLAN_ORDER or to_plan not in PLAN_ORDER:
+        raise HTTPException(status_code=400, detail="Neplatný plán")
+    return compute_plan_diff(from_plan, to_plan)
+
+
+@router.get("/check-feature/{feature_key}")
+async def check_feature(
+    feature_key: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Check if current institution has access to a specific feature."""
+    inst_repo = InstitutionRepositorySupabase(db)
+    inst = await inst_repo.find_by_id(current_user["institution_id"])
+    if not inst:
+        raise HTTPException(status_code=404, detail="Instituce nenalezena")
+
+    plan = inst.get("plan", "free")
+    plan_status = inst.get("plan_status", "active")
+    access = has_feature_access(plan, plan_status, feature_key)
+    min_plan = FEATURE_MIN_PLAN.get(feature_key)
+
+    return {
+        "feature": feature_key,
+        "has_access": access,
+        "plan": plan,
+        "plan_status": plan_status,
+        "min_plan": min_plan,
+        "min_plan_label": PLAN_LABELS.get(min_plan) if min_plan else None,
+        "message": None if access else f"Tato funkce je dostupná od plánu {PLAN_LABELS.get(min_plan, 'Start')}",
+    }
+
+
+# ---- Mutation routes ----
+
+@router.post("/request")
+async def request_plan_change(
+    data: RequestPlanChange,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Request a plan change. Creates billing order + sets pending state."""
+    if data.target_plan not in PLAN_ORDER or data.target_plan == "free":
+        raise HTTPException(status_code=400, detail="Neplatný cílový plán")
+
     user_repo = UserRepositorySupabase(db)
     user = await user_repo.find_by_id(current_user["user_id"])
-    
-    if user.get("role") not in ["admin", "spravce"]:
-        raise HTTPException(status_code=403, detail="Pouze administrátoři mohou upgradovat plán")
-    
-    if not request.confirm:
-        raise HTTPException(status_code=400, detail="Je vyžadováno potvrzení")
-    
-    institution_repo = InstitutionRepositorySupabase(db)
-    institution = await institution_repo.find_by_id(current_user["institution_id"])
-    
-    if not institution:
-        raise HTTPException(status_code=404, detail="Instituce nenalezena")
-    
-    current_plan = institution.get("plan", "free")
-    if current_plan == "pro":
-        return {
-            "message": "Instituce již má aktivní PRO verzi",
-            "plan": "pro",
-            "upgraded": False
-        }
-    
-    # Upgrade to PRO
+    if user.get("role") not in ("admin", "spravce"):
+        raise HTTPException(status_code=403, detail="Pouze správci mohou změnit plán")
+
+    inst_repo = InstitutionRepositorySupabase(db)
     now = datetime.now(timezone.utc)
-    await institution_repo.update(current_user["institution_id"], {
-        "plan": "pro",
+
+    # Create billing order
+    prices = {"start": 49000, "pro": 99000, "pro_plus": 199000}
+    order_result = await create_billing_order(
+        db=db,
+        institution_id=current_user["institution_id"],
+        requested_plan=data.target_plan,
+        provider="manual",
+        amount=prices.get(data.target_plan, 0),
+        currency="CZK",
+        created_by=current_user["user_id"],
+    )
+
+    await inst_repo.update(current_user["institution_id"], {
+        "requested_plan_type": data.target_plan,
+        "plan_status": "pending",
         "plan_updated_at": now,
-        "programs_limit": -1,
-        "bookings_monthly_limit": -1
+        "plan_changed_by_user_id": current_user["user_id"],
     })
-    
-    logger.info(f"Institution {current_user['institution_id']} upgraded to PRO by user {current_user['email']}")
-    
+
+    logger.info(f"Plan change requested: {current_user['institution_id']} → {data.target_plan} (pending, order={order_result['order_id']})")
+
     return {
-        "message": "PRO verze byla úspěšně aktivována",
-        "plan": "pro",
-        "upgraded": True,
-        "upgraded_at": now.isoformat(),
-        "features": PRO_FEATURES
+        "message": f"Žádost o plán {PLAN_LABELS.get(data.target_plan, data.target_plan)} přijata. Čeká na potvrzení platby.",
+        "plan": data.target_plan,
+        "plan_status": "pending",
+        "order_id": order_result["order_id"],
     }
+
+
+@router.post("/confirm-payment")
+async def confirm_payment(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Confirm payment and activate the pending plan."""
+    inst_repo = InstitutionRepositorySupabase(db)
+    inst = await inst_repo.find_by_id(current_user["institution_id"])
+    if not inst:
+        raise HTTPException(status_code=404, detail="Instituce nenalezena")
+
+    if inst.get("plan_status") != "pending":
+        raise HTTPException(status_code=400, detail="Žádný plán nečeká na potvrzení")
+
+    plan = inst.get("plan", "free")
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+    now = datetime.now(timezone.utc)
+
+    await inst_repo.update(current_user["institution_id"], {
+        "plan_status": "active",
+        "plan_activated_by": "payment",
+        "plan_updated_at": now,
+        "programs_limit": limits["programs_limit"],
+        "bookings_monthly_limit": limits["bookings_monthly_limit"],
+    })
+
+    return {"message": f"Plán {PLAN_LABELS.get(plan, plan)} byl aktivován", "plan": plan, "plan_status": "active"}
+
+
+@router.put("/admin-change")
+async def admin_change_plan(
+    data: AdminPlanChange,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin endpoint to manually change any institution's plan."""
+    user_repo = UserRepositorySupabase(db)
+    user = await user_repo.find_by_id(current_user["user_id"])
+    if user.get("role") not in ("admin", "spravce"):
+        raise HTTPException(status_code=403, detail="Nedostatečná oprávnění")
+
+    if data.target_plan not in PLAN_ORDER:
+        raise HTTPException(status_code=400, detail="Neplatný plán")
+
+    inst_repo = InstitutionRepositorySupabase(db)
+    inst = await inst_repo.find_by_id(data.institution_id)
+    if not inst:
+        raise HTTPException(status_code=404, detail="Instituce nenalezena")
+
+    limits = PLAN_LIMITS.get(data.target_plan, PLAN_LIMITS["free"])
+    now = datetime.now(timezone.utc)
+
+    await inst_repo.update(data.institution_id, {
+        "plan": data.target_plan,
+        "plan_status": data.target_status,
+        "plan_activated_by": data.activated_by,
+        "plan_updated_at": now,
+        "programs_limit": limits["programs_limit"],
+        "bookings_monthly_limit": limits["bookings_monthly_limit"],
+    })
+
+    logger.info(f"Admin plan change: {data.institution_id} → {data.target_plan}/{data.target_status} by {current_user['email']}")
+    return {"message": f"Plán změněn na {PLAN_LABELS.get(data.target_plan)}", "plan": data.target_plan, "plan_status": data.target_status}
 
 
 @router.put("/downgrade")
 async def downgrade_to_free(
-    request: DowngradePlanRequest,
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Downgrade institution to FREE plan.
-    This is a hidden admin/dev feature.
-    Only admins can perform this action.
-    """
-    # Check if user is admin
+    """Downgrade to free plan."""
     user_repo = UserRepositorySupabase(db)
     user = await user_repo.find_by_id(current_user["user_id"])
-    
-    if user.get("role") not in ["admin", "spravce"]:
-        raise HTTPException(status_code=403, detail="Pouze administrátoři mohou změnit plán")
-    
-    if not request.confirm:
-        raise HTTPException(status_code=400, detail="Je vyžadováno potvrzení")
-    
-    institution_repo = InstitutionRepositorySupabase(db)
-    institution = await institution_repo.find_by_id(current_user["institution_id"])
-    
-    if not institution:
-        raise HTTPException(status_code=404, detail="Instituce nenalezena")
-    
-    current_plan = institution.get("plan", "free")
-    if current_plan == "free":
-        return {
-            "message": "Instituce již má FREE verzi",
-            "plan": "free",
-            "downgraded": False
-        }
-    
-    # Downgrade to FREE
+    if user.get("role") not in ("admin", "spravce"):
+        raise HTTPException(status_code=403, detail="Pouze správci mohou změnit plán")
+
+    inst_repo = InstitutionRepositorySupabase(db)
+    limits = PLAN_LIMITS["free"]
     now = datetime.now(timezone.utc)
-    await institution_repo.update(current_user["institution_id"], {
+
+    await inst_repo.update(current_user["institution_id"], {
         "plan": "free",
+        "plan_status": "active",
+        "plan_activated_by": None,
         "plan_updated_at": now,
-        "programs_limit": 3,
-        "bookings_monthly_limit": 50
+        "programs_limit": limits["programs_limit"],
+        "bookings_monthly_limit": limits["bookings_monthly_limit"],
     })
-    
-    logger.info(f"Institution {current_user['institution_id']} downgraded to FREE by user {current_user['email']}")
-    
-    return {
-        "message": "Plán byl změněn na FREE verzi",
-        "plan": "free",
-        "downgraded": True,
-        "downgraded_at": now.isoformat(),
-        "features": FREE_FEATURES
-    }
+
+    return {"message": "Plán změněn na Free", "plan": "free", "plan_status": "active"}
 
 
-@router.get("/check-feature/{feature_name}")
-async def check_feature_access(
-    feature_name: str,
+@router.put("/upgrade")
+async def legacy_upgrade(
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Check if current institution has access to a specific feature.
-    """
-    institution_repo = InstitutionRepositorySupabase(db)
-    institution = await institution_repo.find_by_id(current_user["institution_id"])
-    
-    if not institution:
-        raise HTTPException(status_code=404, detail="Instituce nenalezena")
-    
-    plan = institution.get("plan", "free")
-    features = get_features_for_plan(plan)
-    
-    if feature_name not in features:
-        raise HTTPException(status_code=400, detail="Neznámá funkce")
-    
-    has_access = features[feature_name]
-    if isinstance(has_access, int):
-        has_access = has_access != 0  # -1 (unlimited) or positive = has access
-    
-    return {
-        "feature": feature_name,
-        "has_access": has_access,
-        "plan": plan,
-        "message": None if has_access else "Tato funkce je dostupná pouze v PRO verzi"
-    }
-
+    """BLOCKED: No direct activation."""
+    raise HTTPException(status_code=400, detail="Přímá aktivace není dostupná. Použijte stránku Plány pro objednání.")
 
 
 @router.post("/setup-columns")
-async def setup_plan_columns(
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Add plan_updated_at column to institutions table.
-    Also adds terms columns to reservations table.
-    Public endpoint for initial setup.
-    """
+async def setup_plan_columns(db: AsyncSession = Depends(get_db)):
+    """Add new plan columns + migrate PRO → PRO+."""
     results = []
-    
+    for col, ctype in [("plan_status", "TEXT NOT NULL DEFAULT 'active'"), ("plan_activated_by", "TEXT"), ("plan_expires_at", "TIMESTAMPTZ")]:
+        try:
+            await db.execute(text(f"ALTER TABLE institutions ADD COLUMN IF NOT EXISTS {col} {ctype}"))
+            await db.commit()
+            results.append(f"{col}: ok")
+        except Exception as e:
+            await db.rollback()
+            results.append(f"{col}: {e}")
     try:
-        # Add plan_updated_at to institutions
-        try:
-            await db.execute(text("""
-                ALTER TABLE institutions 
-                ADD COLUMN IF NOT EXISTS plan_updated_at TIMESTAMPTZ
-            """))
-            await db.commit()
-            results.append("plan_updated_at added to institutions")
-        except Exception as e:
-            await db.rollback()
-            results.append(f"plan_updated_at: {str(e)}")
-        
-        # Add terms columns to reservations
-        try:
-            await db.execute(text("""
-                ALTER TABLE reservations 
-                ADD COLUMN IF NOT EXISTS terms_accepted BOOLEAN DEFAULT FALSE
-            """))
-            await db.commit()
-            results.append("terms_accepted added to reservations")
-        except Exception as e:
-            await db.rollback()
-            results.append(f"terms_accepted: {str(e)}")
-        
-        try:
-            await db.execute(text("""
-                ALTER TABLE reservations 
-                ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ
-            """))
-            await db.commit()
-            results.append("terms_accepted_at added to reservations")
-        except Exception as e:
-            await db.rollback()
-            results.append(f"terms_accepted_at: {str(e)}")
-        
-        try:
-            await db.execute(text("""
-                ALTER TABLE reservations 
-                ADD COLUMN IF NOT EXISTS terms_accepted_text_version TEXT DEFAULT 'v1'
-            """))
-            await db.commit()
-            results.append("terms_accepted_text_version added to reservations")
-        except Exception as e:
-            await db.rollback()
-            results.append(f"terms_accepted_text_version: {str(e)}")
-        
-        return {"message": "Migrace dokončena", "results": results}
-        
+        r = await db.execute(text("UPDATE institutions SET plan='pro_plus', plan_status='active', plan_activated_by='migration' WHERE plan='pro' RETURNING id"))
+        results.append(f"Migrated {len(r.fetchall())} PRO→PRO+")
+        await db.commit()
     except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=500, detail=f"Chyba: {str(e)}")
+        results.append(f"Migration: {e}")
+    return {"message": "Setup dokončen", "results": results}

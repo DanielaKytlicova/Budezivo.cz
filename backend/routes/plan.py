@@ -1,6 +1,6 @@
 """
 Plan management routes for Budeživo.cz
-4-tier subscription system: free, start, pro, pro_plus
+4-tier subscription system: free → start → pro → pro_plus (hierarchical).
 Hard-locked feature gating with payment/admin activation only.
 """
 import logging
@@ -18,7 +18,8 @@ from database.supabase_repositories import InstitutionRepositorySupabase, UserRe
 from services.plan_service import (
     PLAN_ORDER, PLAN_LIMITS, PLAN_FEATURES, PLAN_LABELS,
     FEATURE_LABELS, FEATURE_MIN_PLAN,
-    has_feature_access, get_plan_features, get_plan_limits,
+    has_feature_access, get_plan_features_full, get_plan_limits,
+    get_plan_hierarchy, compute_plan_diff,
 )
 
 router = APIRouter(prefix="/plan", tags=["Plan Management"])
@@ -27,21 +28,8 @@ logger = logging.getLogger(__name__)
 
 # ---- Pydantic models ----
 
-class PlanStatusResponse(BaseModel):
-    plan: str
-    plan_status: str
-    plan_label: str
-    is_pro: bool
-    plan_activated_by: Optional[str] = None
-    plan_updated_at: Optional[str] = None
-    plan_expires_at: Optional[str] = None
-    features: dict
-    limits: dict
-
-
 class RequestPlanChange(BaseModel):
-    target_plan: str  # start, pro, pro_plus
-
+    target_plan: str
 
 class AdminPlanChange(BaseModel):
     institution_id: str
@@ -50,14 +38,14 @@ class AdminPlanChange(BaseModel):
     activated_by: str = "admin"
 
 
-# ---- Routes ----
+# ---- Static routes (before /{dynamic}) ----
 
 @router.get("/status")
 async def get_plan_status(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get current plan status, features, and limits."""
+    """Current plan status, features, and limits."""
     inst_repo = InstitutionRepositorySupabase(db)
     inst = await inst_repo.find_by_id(current_user["institution_id"])
     if not inst:
@@ -69,9 +57,6 @@ async def get_plan_status(
     plan_expires = inst.get("plan_expires_at")
     plan_activated_by = inst.get("plan_activated_by")
 
-    features = get_plan_features(plan, plan_status)
-    limits = get_plan_limits(plan, plan_status)
-
     return {
         "plan": plan,
         "plan_status": plan_status,
@@ -80,9 +65,26 @@ async def get_plan_status(
         "plan_activated_by": plan_activated_by,
         "plan_updated_at": plan_updated.isoformat() if plan_updated and hasattr(plan_updated, 'isoformat') else plan_updated,
         "plan_expires_at": plan_expires.isoformat() if plan_expires and hasattr(plan_expires, 'isoformat') else plan_expires,
-        "features": features,
-        "limits": limits,
+        "features": get_plan_features_full(plan, plan_status),
+        "limits": get_plan_limits(plan, plan_status),
     }
+
+
+@router.get("/plans")
+async def get_available_plans():
+    """All plans with hierarchical features (no duplication)."""
+    return {"plans": get_plan_hierarchy()}
+
+
+@router.get("/diff")
+async def get_plan_diff(
+    from_plan: str,
+    to_plan: str,
+):
+    """Compute gained/lost features between two plans (for switch modal)."""
+    if from_plan not in PLAN_ORDER or to_plan not in PLAN_ORDER:
+        raise HTTPException(status_code=400, detail="Neplatný plán")
+    return compute_plan_diff(from_plan, to_plan)
 
 
 @router.get("/check-feature/{feature_key}")
@@ -108,31 +110,12 @@ async def check_feature(
         "plan": plan,
         "plan_status": plan_status,
         "min_plan": min_plan,
-        "min_plan_label": PLAN_LABELS.get(min_plan, min_plan) if min_plan else None,
+        "min_plan_label": PLAN_LABELS.get(min_plan) if min_plan else None,
         "message": None if access else f"Tato funkce je dostupná od plánu {PLAN_LABELS.get(min_plan, 'Start')}",
     }
 
 
-@router.get("/plans")
-async def get_available_plans():
-    """Get all available plans with their features and pricing."""
-    plans = []
-    for plan_key in PLAN_ORDER:
-        features_set = PLAN_FEATURES.get(plan_key, set())
-        feature_list = []
-        for fk, label in FEATURE_LABELS.items():
-            if fk in features_set:
-                feature_list.append({"key": fk, "label": label})
-
-        plans.append({
-            "key": plan_key,
-            "label": PLAN_LABELS[plan_key],
-            "limits": PLAN_LIMITS[plan_key],
-            "features": feature_list,
-            "feature_keys": list(features_set),
-        })
-    return {"plans": plans}
-
+# ---- Mutation routes ----
 
 @router.post("/request")
 async def request_plan_change(
@@ -140,27 +123,18 @@ async def request_plan_change(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Request a plan upgrade. Creates pending state — requires payment or admin confirmation.
-    
-    This does NOT activate the plan directly. It sets plan_status=pending.
-    """
+    """Request a plan change. Sets pending state — requires payment or admin confirmation."""
     if data.target_plan not in PLAN_ORDER or data.target_plan == "free":
         raise HTTPException(status_code=400, detail="Neplatný cílový plán")
 
-    # Only admin/spravce can request
     user_repo = UserRepositorySupabase(db)
     user = await user_repo.find_by_id(current_user["user_id"])
     if user.get("role") not in ("admin", "spravce"):
         raise HTTPException(status_code=403, detail="Pouze správci mohou změnit plán")
 
     inst_repo = InstitutionRepositorySupabase(db)
-    inst = await inst_repo.find_by_id(current_user["institution_id"])
-    if not inst:
-        raise HTTPException(status_code=404, detail="Instituce nenalezena")
-
     now = datetime.now(timezone.utc)
 
-    # Set pending state
     await inst_repo.update(current_user["institution_id"], {
         "plan": data.target_plan,
         "plan_status": "pending",
@@ -181,17 +155,13 @@ async def confirm_payment(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Confirm payment and activate the pending plan.
-    In MVP this is called after manual payment confirmation.
-    Future: will be called by Stripe webhook.
-    """
+    """Confirm payment and activate the pending plan."""
     inst_repo = InstitutionRepositorySupabase(db)
     inst = await inst_repo.find_by_id(current_user["institution_id"])
     if not inst:
         raise HTTPException(status_code=404, detail="Instituce nenalezena")
 
-    plan_status = inst.get("plan_status", "active")
-    if plan_status != "pending":
+    if inst.get("plan_status") != "pending":
         raise HTTPException(status_code=400, detail="Žádný plán nečeká na potvrzení")
 
     plan = inst.get("plan", "free")
@@ -206,13 +176,7 @@ async def confirm_payment(
         "bookings_monthly_limit": limits["bookings_monthly_limit"],
     })
 
-    logger.info(f"Plan activated via payment: {current_user['institution_id']} → {plan}")
-
-    return {
-        "message": f"Plán {PLAN_LABELS.get(plan, plan)} byl aktivován",
-        "plan": plan,
-        "plan_status": "active",
-    }
+    return {"message": f"Plán {PLAN_LABELS.get(plan, plan)} byl aktivován", "plan": plan, "plan_status": "active"}
 
 
 @router.put("/admin-change")
@@ -221,9 +185,7 @@ async def admin_change_plan(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Admin endpoint to manually change any institution's plan.
-    Only superadmin (budezivo team) can use this.
-    """
+    """Admin endpoint to manually change any institution's plan."""
     user_repo = UserRepositorySupabase(db)
     user = await user_repo.find_by_id(current_user["user_id"])
     if user.get("role") not in ("admin", "spravce"):
@@ -250,12 +212,7 @@ async def admin_change_plan(
     })
 
     logger.info(f"Admin plan change: {data.institution_id} → {data.target_plan}/{data.target_status} by {current_user['email']}")
-
-    return {
-        "message": f"Plán instituce změněn na {PLAN_LABELS.get(data.target_plan, data.target_plan)}",
-        "plan": data.target_plan,
-        "plan_status": data.target_status,
-    }
+    return {"message": f"Plán změněn na {PLAN_LABELS.get(data.target_plan)}", "plan": data.target_plan, "plan_status": data.target_status}
 
 
 @router.put("/downgrade")
@@ -285,55 +242,32 @@ async def downgrade_to_free(
     return {"message": "Plán změněn na Free", "plan": "free", "plan_status": "active"}
 
 
-# ---- Legacy compatibility: /upgrade redirects to /request ----
-
 @router.put("/upgrade")
 async def legacy_upgrade(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """DEPRECATED: Redirect to plan request flow. No direct activation."""
-    raise HTTPException(
-        status_code=400,
-        detail="Přímá aktivace není dostupná. Použijte stránku Plány pro výběr a objednání plánu."
-    )
+    """BLOCKED: No direct activation."""
+    raise HTTPException(status_code=400, detail="Přímá aktivace není dostupná. Použijte stránku Plány pro objednání.")
 
-
-# ---- DB migration endpoint ----
 
 @router.post("/setup-columns")
-async def setup_plan_columns(
-    db: AsyncSession = Depends(get_db),
-):
-    """Add new plan columns to institutions table."""
+async def setup_plan_columns(db: AsyncSession = Depends(get_db)):
+    """Add new plan columns + migrate PRO → PRO+."""
     results = []
-    cols = [
-        ("plan_status", "TEXT NOT NULL DEFAULT 'active'"),
-        ("plan_activated_by", "TEXT"),
-        ("plan_expires_at", "TIMESTAMPTZ"),
-    ]
-    for col_name, col_type in cols:
+    for col, ctype in [("plan_status", "TEXT NOT NULL DEFAULT 'active'"), ("plan_activated_by", "TEXT"), ("plan_expires_at", "TIMESTAMPTZ")]:
         try:
-            await db.execute(text(f"ALTER TABLE institutions ADD COLUMN IF NOT EXISTS {col_name} {col_type}"))
+            await db.execute(text(f"ALTER TABLE institutions ADD COLUMN IF NOT EXISTS {col} {ctype}"))
             await db.commit()
-            results.append(f"{col_name}: added")
+            results.append(f"{col}: ok")
         except Exception as e:
             await db.rollback()
-            results.append(f"{col_name}: {e}")
-
-    # Migrate existing PRO → PRO+
+            results.append(f"{col}: {e}")
     try:
-        r = await db.execute(text("""
-            UPDATE institutions 
-            SET plan = 'pro_plus', plan_status = 'active', plan_activated_by = 'migration'
-            WHERE plan = 'pro'
-            RETURNING id
-        """))
-        migrated = len(r.fetchall())
+        r = await db.execute(text("UPDATE institutions SET plan='pro_plus', plan_status='active', plan_activated_by='migration' WHERE plan='pro' RETURNING id"))
+        results.append(f"Migrated {len(r.fetchall())} PRO→PRO+")
         await db.commit()
-        results.append(f"Migrated {migrated} PRO institutions to PRO+")
     except Exception as e:
         await db.rollback()
         results.append(f"Migration: {e}")
-
     return {"message": "Setup dokončen", "results": results}

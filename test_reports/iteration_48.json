@@ -1,0 +1,159 @@
+{
+  "summary": "Iteration 48: Hierarchical Plan System with Delta View - All tests passed. Backend: 14/14 tests passed. Frontend: All features verified working correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_plan_hierarchy.py",
+    "/app/test_reports/pytest/pytest_plan_hierarchy.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: GET /api/plan/plans returns hierarchical plan data with own_features (delta, no duplication) and inherits_from labels",
+    "VERIFIED: GET /api/plan/diff?from_plan=pro_plus&to_plan=start returns 17 lost features correctly",
+    "VERIFIED: GET /api/plan/diff?from_plan=start&to_plan=pro returns 10 gained features and is_upgrade=true",
+    "VERIFIED: GET /api/plan/status returns plan, plan_status, plan_label, features, limits",
+    "VERIFIED: GET /api/plan/check-feature/mailing returns has_access=true for pro_plus",
+    "VERIFIED: GET /api/plan/check-feature/events_payments returns has_access=true for pro_plus only (min_plan=pro_plus)",
+    "VERIFIED: PUT /api/plan/upgrade returns 400 (blocked)",
+    "VERIFIED: Plan hierarchy: Start=9 features, PRO=19 features (cumulative), PRO+=26 features",
+    "VERIFIED: Frontend Plan page shows 3 plan cards (Start, PRO, PRO+) with NO feature duplication",
+    "VERIFIED: PRO card shows 'VŠE Z START +' header before its own features",
+    "VERIFIED: PRO+ card shows 'VŠE Z PRO +' header before its own features",
+    "VERIFIED: Clicking 'Vybrat plán' on Start shows delta modal with 'Přijdete o:' list (downgrade from PRO+)",
+    "VERIFIED: No 'a dalších X' text exists anywhere on plan page",
+    "VERIFIED: PRO+ card shows 'Aktivní' badge for demo institution",
+    "VERIFIED: events_basic is in PRO's own_features (not PRO+)",
+    "VERIFIED: events_payments is only in PRO+'s own_features"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_plan_hierarchy.py"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14 passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin_user": "demo@budezivo.cz",
+    "admin_password": "Demo2026!",
+    "institution_id": "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
+  },
+  "seed_data_creation": "Demo institution on PRO+ active status",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Hierarchical Plan System fully implemented and tested. Key features: (1) FEATURES list uses plan_level per feature, (2) PLAN_FEATURES is auto-computed cumulative, (3) PLAN_DELTAS shows only own features (delta), (4) /api/plan/plans returns own_features (no duplication) + inherits_from_label, (5) /api/plan/diff computes gained/lost between any two plans, (6) Frontend renders delta view with 'Vše z X +' headers, (7) No 'a dalších X' text anywhere, (8) require_feature() dependency defined but not yet applied to individual endpoints.",
+  "verified_features": [
+    {
+      "feature": "GET /api/plan/plans returns hierarchical plan data with own_features and inherits_from labels",
+      "status": "VERIFIED",
+      "evidence": "Backend test passed, returns 4 plans with correct structure"
+    },
+    {
+      "feature": "GET /api/plan/diff?from_plan=pro_plus&to_plan=start returns lost features correctly",
+      "status": "VERIFIED",
+      "evidence": "Backend test passed, returns 17 lost features"
+    },
+    {
+      "feature": "GET /api/plan/diff?from_plan=start&to_plan=pro returns gained features and is_upgrade=true",
+      "status": "VERIFIED",
+      "evidence": "Backend test passed, returns 10 gained features with is_upgrade=true"
+    },
+    {
+      "feature": "GET /api/plan/status returns plan, plan_status, plan_label, features, limits",
+      "status": "VERIFIED",
+      "evidence": "Backend test passed, returns all required fields"
+    },
+    {
+      "feature": "GET /api/plan/check-feature/mailing returns has_access=true for pro_plus",
+      "status": "VERIFIED",
+      "evidence": "Backend test passed, min_plan=pro"
+    },
+    {
+      "feature": "GET /api/plan/check-feature/events_payments returns has_access=true for pro_plus only",
+      "status": "VERIFIED",
+      "evidence": "Backend test passed, min_plan=pro_plus"
+    },
+    {
+      "feature": "PUT /api/plan/upgrade returns 400 (blocked)",
+      "status": "VERIFIED",
+      "evidence": "Backend test passed, returns 400 with message about direct activation blocked"
+    },
+    {
+      "feature": "Plan hierarchy: Start=9 features, PRO=19 features (cumulative), PRO+=26 features",
+      "status": "VERIFIED",
+      "evidence": "Backend tests passed: start own=9, pro own=10 total=19, pro_plus own=7 total=26"
+    },
+    {
+      "feature": "Frontend Plan page shows 3 plan cards (Start, PRO, PRO+) with NO feature duplication",
+      "status": "VERIFIED",
+      "evidence": "Playwright test passed, found 3 cards with correct feature counts"
+    },
+    {
+      "feature": "PRO card shows 'Vše z Start +' header before its own features",
+      "status": "VERIFIED",
+      "evidence": "Playwright test passed, 'VŠE Z START' found in PRO card text"
+    },
+    {
+      "feature": "PRO+ card shows 'Vše z PRO +' header before its own features",
+      "status": "VERIFIED",
+      "evidence": "Playwright test passed, 'VŠE Z PRO' found in PRO+ card text"
+    },
+    {
+      "feature": "Clicking 'Vybrat plán' on Start shows delta modal with 'Přijdete o:' list",
+      "status": "VERIFIED",
+      "evidence": "Playwright test passed, modal shows 'Přijdete o:' with 17 features"
+    },
+    {
+      "feature": "No 'a dalších X' text exists anywhere on plan page",
+      "status": "VERIFIED",
+      "evidence": "Playwright test passed, 'a dalších' not found in page content"
+    },
+    {
+      "feature": "PRO+ card shows 'Aktivní' badge for demo institution",
+      "status": "VERIFIED",
+      "evidence": "Playwright test passed, 'Aktivní' badge visible on PRO+ card"
+    }
+  ],
+  "backend_test_results": {
+    "test_file": "/app/backend/tests/test_plan_hierarchy.py",
+    "total_tests": 14,
+    "passed": 14,
+    "skipped": 0,
+    "failed": 0,
+    "tests": [
+      "TestPlanHierarchy::test_plans_endpoint_returns_hierarchical_data - PASSED",
+      "TestPlanHierarchy::test_start_plan_has_9_own_features - PASSED",
+      "TestPlanHierarchy::test_pro_plan_has_10_own_features_19_total - PASSED",
+      "TestPlanHierarchy::test_pro_plus_plan_has_7_own_features_26_total - PASSED",
+      "TestPlanHierarchy::test_events_basic_in_pro_not_pro_plus - PASSED",
+      "TestPlanHierarchy::test_events_payments_only_in_pro_plus - PASSED",
+      "TestPlanDiff::test_diff_pro_plus_to_start_shows_lost_features - PASSED",
+      "TestPlanDiff::test_diff_start_to_pro_shows_gained_features - PASSED",
+      "TestPlanDiff::test_diff_pro_to_pro_plus_shows_7_gained - PASSED",
+      "TestPlanDiff::test_diff_invalid_plan_returns_400 - PASSED",
+      "TestPlanStatusAuthenticated::test_plan_status_returns_all_fields - PASSED",
+      "TestPlanStatusAuthenticated::test_check_feature_mailing_has_access - PASSED",
+      "TestPlanStatusAuthenticated::test_check_feature_events_payments_has_access - PASSED",
+      "TestUpgradeBlocked::test_put_upgrade_returns_400 - PASSED"
+    ]
+  },
+  "ui_test_results": {
+    "login": "PASS",
+    "plan_page_loads": "PASS - Title 'Plány a fakturace' displayed",
+    "three_plan_cards": "PASS - Start, PRO, PRO+ cards visible (Free filtered out)",
+    "start_card_features": "PASS - 9 features displayed",
+    "pro_card_features": "PASS - 10 own features displayed with 'VŠE Z START +' header",
+    "pro_plus_card_features": "PASS - 7 own features displayed with 'VŠE Z PRO +' header",
+    "pro_plus_active_badge": "PASS - Green 'Aktivní' badge on PRO+ card",
+    "no_feature_duplication": "PASS - Start features NOT in PRO card, PRO features NOT in PRO+ card",
+    "no_a_dalsich_text": "PASS - No 'a dalších X' text found anywhere",
+    "delta_modal_downgrade": "PASS - 'Přijdete o:' list shown when clicking Start plan",
+    "billing_toggle": "PASS - Měsíčně/Ročně toggle visible with -17% discount"
+  }
+}

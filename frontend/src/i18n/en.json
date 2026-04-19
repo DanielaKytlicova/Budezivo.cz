@@ -36,84 +36,73 @@
   },
   "pricing": {
     "title": "Simple and transparent pricing",
-    "monthly": "Monthly",
-    "yearly": "Yearly",
-    "perMonth": "CZK / month",
-    "perYear": "CZK / year",
-    "save": "Save 20%",
     "free": {
       "name": "Free",
-      "price": "0",
-      "priceLabel": "0 CZK / forever",
-      "description": "To get started",
-      "cta": "Start for free",
-      "highlight": "Ideal for small institutions to try out",
       "features": [
-        "Max. 40 reservations per month",
-        "3 active programs",
-        "Basic reservation overview",
+        "Up to 50 bookings/month",
+        "Up to 3 active programs",
+        "Basic booking overview",
         "Email support"
       ],
       "limitations": [
-        "No parallel time slots (programs don't overlap)",
-        "No custom branding (Budezivo logo shown)",
-        "No form or email template customization"
-      ]
+        "No data export",
+        "No promotional mailings",
+        "No advanced statistics"
+      ],
+      "highlight": "Perfect to try the system",
+      "cta": "Start for free"
     },
     "start": {
       "name": "Start",
-      "price": "790",
-      "priceYearly": "7580",
-      "description": "Most popular",
-      "cta": "Choose Start",
-      "highlight": "Key value: professional communication towards schools",
       "features": [
-        "Up to 150 reservations per month",
-        "Unlimited number of programs",
-        "Parallel running programs",
-        "Custom branding (logo, colors)",
-        "Booking form customization",
-        "Custom email templates",
-        "Basic statistics",
-        "Email support"
+        "Up to 200 bookings/month",
+        "Up to 10 active programs",
+        "Availability calendar",
+        "Program management",
+        "Institution branding",
+        "Form editing",
+        "Email templates",
+        "Availability blocks",
+        "Contacts from reservations"
       ],
-      "limitations": []
+      "limitations": [],
+      "highlight": "Basic operation for smaller institutions",
+      "cta": "Choose Start"
     },
     "pro": {
-      "name": "Pro",
-      "price": "1490",
-      "priceYearly": "14300",
-      "description": "For active institutions",
-      "cta": "Choose Pro",
-      "highlight": "Ideal for active institutions with higher traffic",
+      "name": "PRO",
+      "inherits": "Everything from Start +",
       "features": [
-        "Up to 400 reservations per month",
-        "Everything from Start +",
-        "Advanced statistics and utilization",
-        "Bulk data export / import",
-        "School mailing (program promotion)",
-        "Occupancy overview (calendar / reports)",
-        "Priority email support"
+        "Parallel programs",
+        "Advanced statistics",
+        "Data export (CSV/XLSX)",
+        "Promotional mailing",
+        "Utilization overview",
+        "Waitlist",
+        "Events (camps, activities)",
+        "Collision system",
+        "Custom feedback questions",
+        "Audit log"
       ],
-      "limitations": []
+      "limitations": [],
+      "highlight": "For institutions with a broad program offer",
+      "cta": "Choose PRO"
     },
-    "enterprise": {
-      "name": "Pro+ / Enterprise",
-      "price": "2990",
-      "priceYearly": "28700",
-      "description": "For large organizations",
-      "cta": "Contact us",
-      "highlight": "For large organizations, cities, institution networks",
+    "pro_plus": {
+      "name": "PRO+",
+      "inherits": "Everything from PRO +",
       "features": [
-        "Unlimited reservations",
-        "Everything from Pro +",
-        "Multi-user management",
-        "Bulk actions / blocking",
-        "API (website / system integration)",
-        "Priority support (fast response)",
-        "Custom modifications available"
+        "Events with online payments",
+        "Automatic payment pairing",
+        "Unlimited bookings",
+        "API access",
+        "Outlook sync",
+        "Priority support (SLA)",
+        "Auto-confirm after payment"
       ],
-      "limitations": []
+      "limitations": [],
+      "highlight": "Complete solution for large institutions",
+      "cta": "Choose PRO+"
     }
   },
   "faq": {

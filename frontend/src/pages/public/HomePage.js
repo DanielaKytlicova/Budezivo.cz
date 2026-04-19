@@ -48,7 +48,7 @@ export const HomePage = () => {
     }
   };
 
-  const pricingTiers = ['free', 'start', 'pro', 'enterprise'];
+  const pricingTiers = ['free', 'start', 'pro', 'pro_plus'];
 
   // Pain points data
   const painPoints = [
@@ -391,32 +391,40 @@ export const HomePage = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {pricingTiers.map((tier) => {
-              const isStart = tier === 'start';
+              const isPro = tier === 'pro';
 
               const prices = {
                 free: { monthly: 0, yearly: 0 },
-                start: { monthly: 790, yearly: 7580 },
-                pro: { monthly: 1490, yearly: 14300 },
-                enterprise: { monthly: 2990, yearly: 28700 }
+                start: { monthly: 490, yearly: 4900 },
+                pro: { monthly: 990, yearly: 9900 },
+                pro_plus: { monthly: 1990, yearly: 19900 }
+              };
+
+              const accentColors = {
+                free: '#64748B',
+                start: '#3B82F6',
+                pro: '#F59E0B',
+                pro_plus: '#8B5CF6',
               };
 
               const price = prices[tier][billingCycle];
               const tierFeatures = t(`pricing.${tier}.features`);
               const tierLimitations = t(`pricing.${tier}.limitations`);
               const tierHighlight = t(`pricing.${tier}.highlight`);
+              const tierInherits = t(`pricing.${tier}.inherits`);
 
               return (
                 <Card
                   key={tier}
                   data-testid={`pricing-tier-${tier}`}
                   className={`p-6 bg-white rounded-2xl relative border flex flex-col ${
-                    isStart ? 'border-[#C4AB86] border-2 shadow-lg' : 'border-gray-200'
+                    isPro ? 'border-amber-400 border-2 shadow-lg' : 'border-gray-200'
                   }`}
                 >
-                  {isStart && (
+                  {isPro && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-[#C4AB86] text-white text-xs font-semibold px-4 py-1 rounded-full whitespace-nowrap">
-                        Nejčastější volba
+                      <span className="bg-amber-400 text-slate-900 text-xs font-semibold px-4 py-1 rounded-full whitespace-nowrap">
+                        Doporučeno
                       </span>
                     </div>
                   )}
@@ -439,9 +447,12 @@ export const HomePage = () => {
 
                   {/* Features */}
                   <ul className="space-y-2.5 mb-4 flex-1">
+                    {tierInherits && typeof tierInherits === 'string' && !tierInherits.includes('pricing.') && (
+                      <li className="text-xs font-semibold text-slate-500 uppercase tracking-wide pb-1">{tierInherits}</li>
+                    )}
                     {Array.isArray(tierFeatures) && tierFeatures.map((feature, idx) => (
                       <li key={idx} className="flex items-start">
-                        <Check className="w-4 h-4 text-[#4A6FA5] mr-2 flex-shrink-0 mt-0.5" />
+                        <Check className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" style={{ color: accentColors[tier] || '#4A6FA5' }} />
                         <span className="text-sm text-gray-700">{feature}</span>
                       </li>
                     ))}
@@ -464,11 +475,11 @@ export const HomePage = () => {
                   <Link to="/register" data-testid={`pricing-cta-${tier}`} className="mt-auto">
                     <Button
                       className={`w-full rounded-lg ${
-                        isStart
-                          ? 'bg-[#C4AB86] text-white hover:bg-[#b39975]'
+                        isPro
+                          ? 'bg-amber-400 text-slate-900 hover:bg-amber-500'
                           : 'border-2 border-[#4A6FA5] text-[#4A6FA5] bg-white hover:bg-[#4A6FA5]/5'
                       }`}
-                      variant={isStart ? 'default' : 'outline'}
+                      variant={isPro ? 'default' : 'outline'}
                     >
                       {t(`pricing.${tier}.cta`)}
                     </Button>

@@ -2,7 +2,9 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../i18n/useTranslation';
 import { AuthContext } from '../../context/AuthContext';
-import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, Clock, FileText, CalendarDays, Mail } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, Clock, FileText, CalendarDays, Mail, Lock } from 'lucide-react';
+import { usePlanFeatures } from '../../hooks/usePlanFeatures';
+import { UpgradeModal } from '../admin/UpgradeModal';
 
 // Logo Budeživo.cz - oficiální SVG
 const BudezivoLogo = ({ showText = true }) => (
@@ -69,6 +71,8 @@ export const AdminLayout = ({ children }) => {
     checkEventsFlag();
   }, []);
 
+  const { hasAccess, getFeatureInfo, upgradeFeature, showUpgrade, hideUpgrade } = usePlanFeatures();
+
   // Role-based navigation - nové role podle wireframu
   const getNavItems = () => {
     const baseItems = [
@@ -76,7 +80,7 @@ export const AdminLayout = ({ children }) => {
       { path: '/admin/programs', icon: Calendar, label: 'Programy', testId: 'nav-programs', roles: ['admin', 'spravce', 'edukator', 'staff', 'viewer'] },
       { path: '/admin/bookings', icon: BookOpen, label: 'Rezervace', testId: 'nav-bookings', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'staff', 'viewer'] },
       { path: '/admin/schools', icon: School, label: 'Školy', testId: 'nav-schools', roles: ['admin', 'spravce', 'edukator', 'staff'] },
-      { path: '/admin/mailings', icon: Mail, label: 'Mailingy', testId: 'nav-mailings', roles: ['admin', 'spravce', 'edukator', 'staff'] },
+      { path: '/admin/mailings', icon: Mail, label: 'Mailingy', testId: 'nav-mailings', roles: ['admin', 'spravce', 'edukator', 'staff'], featureKey: 'mailing' },
       { path: '/admin/feedback', icon: MessageSquare, label: 'Zpětná vazba', testId: 'nav-feedback', roles: ['admin', 'spravce', 'edukator', 'staff'] },
       { path: '/admin/availability', icon: Clock, label: 'Dostupnost', testId: 'nav-availability', roles: ['admin', 'spravce', 'edukator', 'lektor'] },
       { path: '/admin/statistics', icon: BarChart3, label: 'Statistiky', testId: 'nav-statistics', roles: ['admin', 'spravce', 'edukator', 'staff'] },
@@ -87,7 +91,7 @@ export const AdminLayout = ({ children }) => {
     // Add events module only when feature flag is enabled
     if (eventsEnabled) {
       baseItems.splice(3, 0, {
-        path: '/admin/events', icon: CalendarDays, label: 'Události', testId: 'nav-events', roles: ['admin', 'spravce', 'edukator', 'staff']
+        path: '/admin/events', icon: CalendarDays, label: 'Události', testId: 'nav-events', roles: ['admin', 'spravce', 'edukator', 'staff'], featureKey: 'events_basic'
       });
     }
 
@@ -144,6 +148,23 @@ export const AdminLayout = ({ children }) => {
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
+              const isLocked = item.featureKey && !hasAccess(item.featureKey);
+              
+              if (isLocked) {
+                return (
+                  <button
+                    key={item.path}
+                    data-testid={item.testId}
+                    onClick={() => showUpgrade(item.featureKey)}
+                    className="flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors text-slate-400 hover:bg-slate-50 w-full text-left"
+                  >
+                    <Icon className="mr-3 h-5 w-5 opacity-40" />
+                    <span className="flex-1">{item.label}</span>
+                    <Lock className="h-3.5 w-3.5 text-slate-300" />
+                  </button>
+                );
+              }
+
               return (
                 <Link
                   key={item.path}
@@ -240,6 +261,17 @@ export const AdminLayout = ({ children }) => {
           {children}
         </main>
       </div>
+
+      {/* Upgrade Modal */}
+      {upgradeFeature && (
+        <UpgradeModal
+          open={true}
+          onClose={hideUpgrade}
+          featureLabel={getFeatureInfo(upgradeFeature)?.label}
+          minPlan={getFeatureInfo(upgradeFeature)?.plan_level}
+          minPlanLabel={getFeatureInfo(upgradeFeature)?.plan_level_label}
+        />
+      )}
     </div>
   );
 };

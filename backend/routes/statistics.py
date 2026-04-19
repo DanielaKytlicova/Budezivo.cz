@@ -18,6 +18,7 @@ from database.supabase import get_db
 from database.models import Reservation, Program, Institution
 from database.supabase_repositories import InstitutionRepositorySupabase
 from services.plan_service import require_feature
+from services.usage_service import track_usage
 
 router = APIRouter(prefix="/statistics", tags=["Statistics"])
 logger = logging.getLogger(__name__)

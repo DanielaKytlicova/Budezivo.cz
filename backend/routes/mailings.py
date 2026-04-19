@@ -24,6 +24,7 @@ from services.mailing_service import (
     send_campaign_emails,
 )
 from services.plan_service import require_feature
+from services.usage_service import track_usage
 
 router = APIRouter(prefix="/mailings", tags=["Mailings"], dependencies=[Depends(require_feature("mailing"))])
 logger = logging.getLogger(__name__)
@@ -714,6 +715,9 @@ async def send_campaign(
 
     # Trigger background sending
     background_tasks.add_task(send_campaign_emails, str(campaign.id))
+
+    # Track usage
+    await track_usage(db, institution_id, "mailing", {"recipients": len(recipients)})
 
     return {
         "message": f"Odesílání kampaně zahájeno pro {len(recipients)} příjemců",

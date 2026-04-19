@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../i18n/useTranslation';
 import { AuthContext } from '../../context/AuthContext';
-import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, Clock, FileText, CalendarDays, Mail, Lock } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, Clock, FileText, CalendarDays, Mail, Lock, Shield } from 'lucide-react';
 import { usePlanFeatures } from '../../hooks/usePlanFeatures';
 import { UpgradeModal } from '../admin/UpgradeModal';
 
@@ -87,6 +87,13 @@ export const AdminLayout = ({ children }) => {
       { path: '/admin/team', icon: Users, label: 'Tým', testId: 'nav-team', roles: ['admin', 'spravce'] },
       { path: '/admin/settings', icon: Settings, label: 'Nastavení', testId: 'nav-settings', roles: ['admin', 'spravce'] },
     ];
+
+    // Superadmin nav item (only for platform owner)
+    if (user?.email === 'demo@budezivo.cz' || user?.email === 'admin@budezivo.cz') {
+      baseItems.push({
+        path: '/admin/superadmin', icon: Shield, label: 'Superadmin', testId: 'nav-superadmin', roles: ['admin', 'spravce']
+      });
+    }
 
     // Add events module only when feature flag is enabled
     if (eventsEnabled) {

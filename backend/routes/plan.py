@@ -21,6 +21,7 @@ from services.plan_service import (
     has_feature_access, get_plan_features_full, get_plan_limits,
     get_plan_hierarchy, compute_plan_diff,
 )
+from services.billing_service import create_billing_order
 
 router = APIRouter(prefix="/plan", tags=["Plan Management"])
 logger = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ async def get_plan_status(
     plan_updated = inst.get("plan_updated_at")
     plan_expires = inst.get("plan_expires_at")
     plan_activated_by = inst.get("plan_activated_by")
+    plan_activated_at = inst.get("plan_activated_at")
 
     return {
         "plan": plan,
@@ -63,6 +65,7 @@ async def get_plan_status(
         "plan_label": PLAN_LABELS.get(plan, plan),
         "is_pro": plan in ("pro", "pro_plus") and plan_status == "active",
         "plan_activated_by": plan_activated_by,
+        "plan_activated_at": plan_activated_at.isoformat() if plan_activated_at and hasattr(plan_activated_at, 'isoformat') else plan_activated_at,
         "plan_updated_at": plan_updated.isoformat() if plan_updated and hasattr(plan_updated, 'isoformat') else plan_updated,
         "plan_expires_at": plan_expires.isoformat() if plan_expires and hasattr(plan_expires, 'isoformat') else plan_expires,
         "features": get_plan_features_full(plan, plan_status),
@@ -123,7 +126,7 @@ async def request_plan_change(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Request a plan change. Sets pending state — requires payment or admin confirmation."""
+    """Request a plan change. Creates billing order + sets pending state."""
     if data.target_plan not in PLAN_ORDER or data.target_plan == "free":
         raise HTTPException(status_code=400, detail="Neplatný cílový plán")
 
@@ -135,18 +138,32 @@ async def request_plan_change(
     inst_repo = InstitutionRepositorySupabase(db)
     now = datetime.now(timezone.utc)
 
+    # Create billing order
+    prices = {"start": 49000, "pro": 99000, "pro_plus": 199000}
+    order_result = await create_billing_order(
+        db=db,
+        institution_id=current_user["institution_id"],
+        requested_plan=data.target_plan,
+        provider="manual",
+        amount=prices.get(data.target_plan, 0),
+        currency="CZK",
+        created_by=current_user["user_id"],
+    )
+
     await inst_repo.update(current_user["institution_id"], {
-        "plan": data.target_plan,
+        "requested_plan_type": data.target_plan,
         "plan_status": "pending",
         "plan_updated_at": now,
+        "plan_changed_by_user_id": current_user["user_id"],
     })
 
-    logger.info(f"Plan change requested: {current_user['institution_id']} → {data.target_plan} (pending)")
+    logger.info(f"Plan change requested: {current_user['institution_id']} → {data.target_plan} (pending, order={order_result['order_id']})")
 
     return {
         "message": f"Žádost o plán {PLAN_LABELS.get(data.target_plan, data.target_plan)} přijata. Čeká na potvrzení platby.",
         "plan": data.target_plan,
         "plan_status": "pending",
+        "order_id": order_result["order_id"],
     }
 
 

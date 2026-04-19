@@ -1,0 +1,145 @@
+{
+  "summary": "Iteration 51: Superadmin Dashboard & Billing System - All 18 backend tests passed. Frontend UI verified with Playwright. Fixed missing plan_activated_at in /api/plan/status response.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/plan/status",
+        "issue": "Missing plan_activated_at field in response",
+        "priority": "FIXED",
+        "fix_applied": "Added plan_activated_at to response in /app/backend/routes/plan.py"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Plan change modal",
+        "issues": ["Minor: Missing aria-describedby for DialogContent (accessibility warning in console)"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_superadmin_billing.py",
+    "/app/test_reports/pytest/pytest_superadmin_billing.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: GET /api/superadmin/overview returns total_institutions, plan_distribution, pending_billing_orders, total_programs, total_reservations, total_users",
+    "VERIFIED: GET /api/superadmin/institutions returns institution list with plan, plan_label, plan_status, programs_count, reservations_count, users_count",
+    "VERIFIED: GET /api/superadmin/institutions/{id} returns detailed view with stats, usage_metrics, billing_orders",
+    "VERIFIED: PUT /api/superadmin/institutions/{id}/plan changes plan manually with billing_note support",
+    "VERIFIED: GET /api/superadmin/billing-orders lists all orders with institution_name enrichment",
+    "VERIFIED: POST /api/superadmin/billing-orders/{id}/confirm is idempotent (returns 'Already paid' for paid orders)",
+    "VERIFIED: POST /api/superadmin/billing-orders/{id}/cancel only works for pending orders (400 for non-pending)",
+    "VERIFIED: POST /api/plan/request creates billing order + sets pending state",
+    "VERIFIED: Superadmin endpoints return 401/403 for unauthenticated requests",
+    "FIXED: GET /api/plan/status now includes plan_activated_at in response",
+    "VERIFIED: Frontend Superadmin nav item visible only for superadmin emails (demo@budezivo.cz, admin@budezivo.cz)",
+    "VERIFIED: Frontend overview cards show institutions, reservations, programs, pending orders",
+    "VERIFIED: Frontend plan distribution badges show FREE, START, PRO, PRO+ counts",
+    "VERIFIED: Frontend institution list is filterable by plan type",
+    "VERIFIED: Frontend institution detail shows stats, plan info, change plan button",
+    "VERIFIED: Frontend plan change modal has plan, status, activated_by dropdowns and billing_note textarea",
+    "VERIFIED: Frontend billing orders page shows orders with Potvrdit/Zrušit buttons for pending orders",
+    "MOCKED: FakturoidBillingProvider.create_invoice returns stub (placeholder implementation)"
+  ],
+  "updated_files": [
+    "/app/backend/routes/plan.py"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 tests passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "superadmin_email": "demo@budezivo.cz",
+    "superadmin_password": "Demo2026!",
+    "institution_id": "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
+  },
+  "seed_data_creation": "Multiple billing orders created during testing (Start, PRO, PRO+ plans with paid/cancelled/pending statuses)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Superadmin dashboard fully tested. Key findings: (1) All superadmin endpoints work correctly with proper auth guards. (2) Billing order flow: POST /api/plan/request creates order → POST /api/superadmin/billing-orders/{id}/confirm activates plan. (3) Confirm is idempotent. (4) Cancel only works for pending orders. (5) Frontend shows overview cards, plan distribution, institution list with filters, detail view with stats/usage/orders, and plan change modal. (6) FakturoidBillingProvider is a placeholder (MOCKED). (7) Fixed missing plan_activated_at in /api/plan/status.",
+  "verified_features": [
+    {
+      "feature": "GET /api/superadmin/overview",
+      "status": "PASS",
+      "evidence": "Returns total_institutions, plan_distribution (free/start/pro/pro_plus), pending_billing_orders"
+    },
+    {
+      "feature": "GET /api/superadmin/institutions",
+      "status": "PASS",
+      "evidence": "Returns institution list with plan, stats, activity data"
+    },
+    {
+      "feature": "GET /api/superadmin/institutions/{id}",
+      "status": "PASS",
+      "evidence": "Returns detailed view with stats, usage_metrics, billing_orders"
+    },
+    {
+      "feature": "PUT /api/superadmin/institutions/{id}/plan",
+      "status": "PASS",
+      "evidence": "Changes plan manually, persists billing_note"
+    },
+    {
+      "feature": "GET /api/superadmin/billing-orders",
+      "status": "PASS",
+      "evidence": "Lists all orders with institution_name enrichment"
+    },
+    {
+      "feature": "POST /api/superadmin/billing-orders/{id}/confirm",
+      "status": "PASS",
+      "evidence": "Activates plan, idempotent for already paid orders"
+    },
+    {
+      "feature": "POST /api/superadmin/billing-orders/{id}/cancel",
+      "status": "PASS",
+      "evidence": "Cancels pending orders, returns 400 for non-pending"
+    },
+    {
+      "feature": "POST /api/plan/request",
+      "status": "PASS",
+      "evidence": "Creates billing order + sets pending state"
+    },
+    {
+      "feature": "Superadmin 403 for non-superadmin",
+      "status": "PASS",
+      "evidence": "Unauthenticated requests return 401/403"
+    },
+    {
+      "feature": "GET /api/plan/status includes plan_activated_at",
+      "status": "PASS (FIXED)",
+      "evidence": "Added plan_activated_at to response"
+    },
+    {
+      "feature": "Frontend Superadmin nav item",
+      "status": "PASS",
+      "evidence": "Visible for demo@budezivo.cz"
+    },
+    {
+      "feature": "Frontend overview cards",
+      "status": "PASS",
+      "evidence": "Shows 10 institutions, 63 reservations, 13 programs, 1 pending"
+    },
+    {
+      "feature": "Frontend plan distribution badges",
+      "status": "PASS",
+      "evidence": "FREE (7), START (0), PRO (0), PRO+ (3)"
+    },
+    {
+      "feature": "Frontend institution filter",
+      "status": "PASS",
+      "evidence": "Plan filter dropdown works"
+    },
+    {
+      "feature": "Frontend institution detail",
+      "status": "PASS",
+      "evidence": "Shows stats, plan info, change plan button"
+    }
+  ],
+  "mocked_apis": {
+    "FakturoidBillingProvider": "create_invoice returns stub - placeholder for future implementation"
+  }
+}

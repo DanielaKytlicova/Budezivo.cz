@@ -439,9 +439,18 @@ async def get_current_user_info(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get current user info including role."""
+    """Get current user info including role and impersonation state."""
     user_repo = UserRepositorySupabase(db)
     user = await user_repo.find_by_id(current_user["user_id"])
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    # Surface impersonation info so the frontend can render a persistent banner
+    if current_user.get("impersonated_by_email"):
+        user["impersonation"] = {
+            "active": True,
+            "original_email": current_user["impersonated_by_email"],
+            "original_user_id": current_user.get("impersonated_by_user_id"),
+        }
+    else:
+        user["impersonation"] = {"active": False}
     return user

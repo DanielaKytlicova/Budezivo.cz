@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select, func, and_, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -70,7 +71,17 @@ async def _log_superadmin(
 # ---- Guard ----
 
 async def require_superadmin(current_user: dict = Depends(get_current_user)):
-    """Only platform owner/operator can access superadmin routes."""
+    """Only platform owner/operator can access superadmin routes.
+
+    Impersonation tokens are explicitly blocked — a superadmin who is currently
+    impersonating another user cannot make superadmin changes. They must stop
+    impersonation first (see `/impersonate/stop`).
+    """
+    if current_user.get("impersonated_by_email"):
+        raise HTTPException(
+            status_code=403,
+            detail="Superadmin akce nelze provést během impersonace. Ukončete impersonaci a zkuste znovu.",
+        )
     if current_user.get("email") not in SUPERADMIN_EMAILS:
         raise HTTPException(status_code=403, detail="Přístup pouze pro superadmina platformy")
     return current_user
@@ -847,3 +858,224 @@ async def get_superadmin_audit_log(
             for log, inst_name in rows
         ],
     }
+
+
+# ---- One-off: move superadmin users into a dedicated Platform institution ----
+
+PLATFORM_INSTITUTION_NAME = "Budeživo Platform"
+
+
+@router.post("/setup/move-to-platform")
+async def move_superadmins_to_platform_institution(
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a dedicated `Budeživo Platform` institution and move all users in
+    SUPERADMIN_EMAILS there, so that normal customer institutions (incl.
+    `Test Muzeum`) become deletable without the superadmin losing their login.
+
+    Idempotent — calling again returns summary without duplicating rows.
+    """
+    # Find or create Platform institution
+    result = await db.execute(
+        select(Institution).where(Institution.name == PLATFORM_INSTITUTION_NAME)
+    )
+    platform = result.scalar_one_or_none()
+
+    created = False
+    if not platform:
+        platform = Institution(
+            id=uuid.uuid4(),
+            name=PLATFORM_INSTITUTION_NAME,
+            type="other",
+            email="platform@budezivo.cz",
+            plan="pro_plus",
+            plan_status="active",
+            plan_activated_by="system",
+            billing_note="Interní instituce pro superadmin účty.",
+        )
+        db.add(platform)
+        await db.flush()
+        created = True
+
+    # Move all superadmin users there
+    moved = []
+    users_res = await db.execute(
+        select(User).where(User.email.in_(SUPERADMIN_EMAILS))
+    )
+    for user in users_res.scalars().all():
+        if str(user.institution_id) == str(platform.id):
+            continue
+        old_iid = str(user.institution_id)
+        user.institution_id = platform.id
+        user.role = "admin"
+        user.status = "active"
+        user.deleted_at = None  # resurrect if previously soft-deleted
+        moved.append({"email": user.email, "from": old_iid, "to": str(platform.id)})
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=str(platform.id),
+        action="setup_move_to_platform",
+        entity_type="system",
+        details={
+            "platform_created": created,
+            "platform_id": str(platform.id),
+            "moved_users": moved,
+        },
+    )
+
+    await db.commit()
+
+    return {
+        "message": (
+            "Superadmin účty přesunuty do platformní instituce. "
+            "Odhlaste se a přihlaste znovu pro obnovení session."
+            if moved else
+            "Superadmin účty již byly v platformní instituci."
+        ),
+        "platform_institution_id": str(platform.id),
+        "platform_created_now": created,
+        "moved_users": moved,
+    }
+
+
+# ---- Impersonation (Support debugging) ----
+
+IMPERSONATION_MINUTES = 30
+
+
+class ImpersonationStartRequest(BaseModel):
+    reason: Optional[str] = None
+
+
+@router.post("/impersonate/start/{user_id}")
+async def start_impersonation(
+    user_id: str,
+    body: ImpersonationStartRequest,
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Issue a short-lived JWT acting AS the target user, with a back-pointer
+    (`impersonated_by_*`) so that every subsequent request carries both identities.
+
+    Blocked: cannot impersonate another superadmin. Lifetime 30 minutes.
+    """
+    from core.security import create_jwt_token, COOKIE_NAME
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    target = result.scalar_one_or_none()
+    if not target or target.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Uživatel nenalezen")
+    if target.email in SUPERADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Nelze impersonovat jiného superadmina")
+    if target.status != "active":
+        raise HTTPException(status_code=400, detail="Uživatel není aktivní")
+
+    token = create_jwt_token(
+        user_id=str(target.id),
+        institution_id=str(target.institution_id),
+        email=target.email,
+        role=target.role,
+        impersonated_by_user_id=current_user["user_id"],
+        impersonated_by_email=current_user["email"],
+        expires_minutes=IMPERSONATION_MINUTES,
+    )
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=str(target.institution_id),
+        action="impersonation_start",
+        entity_type="user",
+        entity_id=str(target.id),
+        details={
+            "target_email": target.email,
+            "target_role": target.role,
+            "reason": body.reason,
+            "expires_in_minutes": IMPERSONATION_MINUTES,
+        },
+    )
+    await db.commit()
+
+    response = JSONResponse(content={
+        "message": f"Impersonace zahájena jako {target.email}",
+        "token": token,
+        "target_user_id": str(target.id),
+        "target_email": target.email,
+        "expires_in_minutes": IMPERSONATION_MINUTES,
+    })
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=IMPERSONATION_MINUTES * 60,
+        path="/api",
+    )
+    return response
+
+
+@router.post("/impersonate/stop")
+async def stop_impersonation(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """End the current impersonation session and restore the original superadmin
+    identity. Requires an active impersonation token."""
+    from core.security import create_jwt_token, COOKIE_NAME
+
+    original_uid = current_user.get("impersonated_by_user_id")
+    original_email = current_user.get("impersonated_by_email")
+    if not original_uid or not original_email:
+        raise HTTPException(status_code=400, detail="Žádná aktivní impersonace")
+
+    # Reload the original superadmin user (email still in SUPERADMIN_EMAILS)
+    orig_res = await db.execute(select(User).where(User.id == original_uid))
+    orig_user = orig_res.scalar_one_or_none()
+    if not orig_user or orig_user.email not in SUPERADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Původní superadmin účet je nedostupný")
+
+    token = create_jwt_token(
+        user_id=str(orig_user.id),
+        institution_id=str(orig_user.institution_id),
+        email=orig_user.email,
+        role=orig_user.role,
+    )
+
+    # Audit (log against superadmin's own institution since impersonation ended)
+    synthetic_current = {
+        "user_id": str(orig_user.id),
+        "email": orig_user.email,
+        "institution_id": str(orig_user.institution_id),
+    }
+    await _log_superadmin(
+        db,
+        current_user=synthetic_current,
+        target_institution_id=str(current_user.get("institution_id")),
+        action="impersonation_end",
+        entity_type="user",
+        entity_id=current_user["user_id"],
+        details={
+            "impersonated_email": current_user.get("email"),
+        },
+    )
+    await db.commit()
+
+    response = JSONResponse(content={
+        "message": "Impersonace ukončena",
+        "restored_email": orig_user.email,
+        "token": token,
+    })
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=30 * 60,
+        path="/api",
+    )
+    return response

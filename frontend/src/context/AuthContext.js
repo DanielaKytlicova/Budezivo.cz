@@ -131,8 +131,46 @@ export const AuthProvider = ({ children }) => {
     doLogout();
   };
 
+  // ---- Impersonation ----
+
+  const applyImpersonationToken = useCallback(async (newToken) => {
+    // Impersonation doesn't issue a fresh refresh token — we keep the existing one
+    // so that when impersonation expires, the superadmin can still refresh back
+    // into their real session seamlessly.
+    const savedRefresh = localStorage.getItem('refresh_token') || '';
+    localStorage.setItem('token', newToken);
+    setToken(newToken);
+    axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
+    // Fetch the user's full profile + impersonation flag
+    const meRes = await axios.get(`${API}/auth/me`, {
+      headers: { Authorization: `Bearer ${newToken}` },
+    });
+    setUser(meRes.data);
+    localStorage.setItem('user', JSON.stringify(meRes.data));
+    scheduleRefresh(newToken);
+    return { user: meRes.data, refreshToken: savedRefresh };
+  }, [scheduleRefresh]);
+
+  const startImpersonation = async (targetUserId, reason = '') => {
+    const res = await axios.post(
+      `${API}/superadmin/impersonate/start/${targetUserId}`,
+      { reason },
+    );
+    await applyImpersonationToken(res.data.token);
+    return res.data;
+  };
+
+  const stopImpersonation = async () => {
+    const res = await axios.post(`${API}/superadmin/impersonate/stop`, {});
+    await applyImpersonationToken(res.data.token);
+    return res.data;
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, loading }}>
+    <AuthContext.Provider value={{
+      user, token, login, register, logout, loading,
+      startImpersonation, stopImpersonation,
+    }}>
       {children}
     </AuthContext.Provider>
   );

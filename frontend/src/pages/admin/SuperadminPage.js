@@ -574,6 +574,9 @@ const AUDIT_ACTION_LABEL = {
   billing_confirm: 'Potvrzení objednávky',
   billing_cancel: 'Zrušení objednávky',
   run_expiration_job: 'Spuštění expirační úlohy',
+  impersonation_start: 'Zahájení impersonace',
+  impersonation_end: 'Ukončení impersonace',
+  setup_move_to_platform: 'Přesun superadmina do Platform instituce',
 };
 
 const AUDIT_ACTION_COLOR = {
@@ -582,6 +585,9 @@ const AUDIT_ACTION_COLOR = {
   billing_confirm: 'bg-emerald-100 text-emerald-700',
   billing_cancel: 'bg-amber-100 text-amber-700',
   run_expiration_job: 'bg-slate-100 text-slate-700',
+  impersonation_start: 'bg-orange-100 text-orange-700',
+  impersonation_end: 'bg-orange-50 text-orange-600',
+  setup_move_to_platform: 'bg-purple-100 text-purple-700',
 };
 
 const AuditEntryRow = ({ entry, showInstitution = true }) => {
@@ -619,6 +625,17 @@ const AuditEntryRow = ({ entry, showInstitution = true }) => {
         {(entry.action === 'billing_confirm' || entry.action === 'billing_cancel') && d.requested_plan && (
           <div className="text-slate-500">Plán: <span className="font-mono">{d.requested_plan}</span></div>
         )}
+        {entry.action === 'impersonation_start' && (
+          <div className="text-slate-500">
+            Cíl: <span className="font-mono">{d.target_email}</span> ({d.target_role})
+            {d.reason && <> · důvod: <span className="italic">{d.reason}</span></>}
+          </div>
+        )}
+        {entry.action === 'impersonation_end' && d.impersonated_email && (
+          <div className="text-slate-500">
+            Ukončeno pro: <span className="font-mono">{d.impersonated_email}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -644,8 +661,29 @@ const ROLE_BADGE = {
 
 const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => {
   const [usersOpen, setUsersOpen] = React.useState(false);
+  const { startImpersonation, user: me } = useContext(AuthContext);
+  const [impBusyId, setImpBusyId] = useState(null);
   const owner = inst.owner;
   const users = inst.users || [];
+
+  const doImpersonate = async (u) => {
+    const reason = window.prompt(
+      `Zahájit impersonaci uživatele ${u.email}?\n\nBudete na 30 minut vystupovat jako tento uživatel.\nAkce je zaznamenána v audit logu.\n\nDůvod (nepovinné):`,
+      ''
+    );
+    if (reason === null) return; // cancelled
+    setImpBusyId(u.id);
+    try {
+      await startImpersonation(u.id, reason || '');
+      toast.success(`Impersonace aktivní jako ${u.email}`);
+      // Navigate to the institution dashboard so the session-inheritance takes effect
+      setTimeout(() => window.location.assign('/admin'), 500);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Impersonaci se nepodařilo zahájit');
+    } finally {
+      setImpBusyId(null);
+    }
+  };
 
   return (
   <div className="space-y-4">
@@ -784,11 +822,16 @@ const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => {
                   <th className="py-2 pr-3">Role</th>
                   <th className="py-2 pr-3">Status</th>
                   <th className="py-2 pr-3">Registrace</th>
-                  <th className="py-2">Poslední přihlášení</th>
+                  <th className="py-2 pr-3">Poslední přihlášení</th>
+                  <th className="py-2 text-right">Akce</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map(u => (
+                {users.map(u => {
+                  const isSelf = me?.id === u.id;
+                  const isAnotherSuperadmin = ['demo@budezivo.cz', 'admin@budezivo.cz'].includes(u.email);
+                  const cantImpersonate = isSelf || isAnotherSuperadmin || u.status !== 'active';
+                  return (
                   <tr key={u.id} className="border-b last:border-0 hover:bg-slate-50" data-testid={`user-row-${u.id}`}>
                     <td className="py-2 pr-3">
                       <div className="flex items-center gap-2">
@@ -812,11 +855,33 @@ const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => {
                     <td className="py-2 pr-3 text-xs text-slate-500">
                       {u.created_at ? new Date(u.created_at).toLocaleDateString('cs-CZ') : '—'}
                     </td>
-                    <td className="py-2 text-xs text-slate-500">
+                    <td className="py-2 pr-3 text-xs text-slate-500">
                       {u.last_login_at ? new Date(u.last_login_at).toLocaleString('cs-CZ') : '—'}
                     </td>
+                    <td className="py-2 text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => doImpersonate(u)}
+                        disabled={cantImpersonate || impBusyId === u.id}
+                        title={
+                          isSelf ? 'Nelze impersonovat sám sebe' :
+                          isAnotherSuperadmin ? 'Nelze impersonovat jiného superadmina' :
+                          u.status !== 'active' ? 'Uživatel není aktivní' :
+                          'Zahájit impersonaci (30 min)'
+                        }
+                        className="h-7 text-xs"
+                        data-testid={`impersonate-btn-${u.id}`}
+                      >
+                        {impBusyId === u.id
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <UserCog className="w-3 h-3 mr-1" />}
+                        Impersonovat
+                      </Button>
+                    </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}

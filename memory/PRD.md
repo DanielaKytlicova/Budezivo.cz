@@ -372,6 +372,22 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 
 - [x] Relevance engine: párování program.target_groups (ms_3_6, zs1_7_12...) ↔ school.tags (MŠ, ZŠ, SŠ...)
 - [x] 4 režimy výběru příjemců: relevant_only, all, manual, relevant_plus_manual
+
+### Fáze 45 - Platform migrace + Impersonace (20.4.2026)
+- [x] Endpoint `POST /api/superadmin/setup/move-to-platform` — idempotentní, vytvoří instituci „Budeživo Platform" (type=other, PRO+, activated_by=system) a přesune všechny uživatele ze SUPERADMIN_EMAILS tam
+- [x] Po migraci už není demo@budezivo.cz vlastníkem Test Muzea, takže Test Muzeum lze volně smazat (blokace „Nelze smazat vlastní instituci" odpadla)
+- [x] `create_jwt_token` rozšířeno o parametry `impersonated_by_user_id`, `impersonated_by_email`, `expires_minutes`
+- [x] `require_superadmin` striktně odmítá impersonační tokeny (403 „Superadmin akce nelze provést během impersonace")
+- [x] Endpointy:
+  - `POST /api/superadmin/impersonate/start/{user_id}` — startuje impersonaci (odmítá self, jiné superadminy, neaktivní uživatele; lifetime 30 min)
+  - `POST /api/superadmin/impersonate/stop` — ukončí pouze s impersonačním tokenem, vrátí čerstvý token pro původního superadmina
+- [x] `/api/auth/me` vrací `impersonation: {active, original_email, original_user_id}`
+- [x] AuthContext: funkce `startImpersonation()` a `stopImpersonation()` + `applyImpersonationToken()` (neobnovuje refresh token — zůstává původní pro čistý návrat)
+- [x] `ImpersonationBanner` — sticky žlutý banner na vrchu všech admin stránek se štítkem „IMPERSONACE", emailem + rolí cílového usera, jménem skutečného superadmina a tlačítkem „Ukončit impersonaci"
+- [x] Sloupec „Akce → Impersonovat" v tabulce uživatelů instituce (disabled pro sebe, jiné superadminy, neaktivní; prompt na důvod)
+- [x] Audit log zaznamenává `impersonation_start` (s target_email, role, reason, TTL) a `impersonation_end`
+- [x] Testováno: 8/8 backend (iteration_54.json), frontend sidebar + institutions list verified screenshotem
+
 - [x] Preview endpoint: /api/mailings/preview-recipients (statistiky, varování, seznam příjemců)
 - [x] Výchozí české šablony pro MŠ/ZŠ/SŠ/obecné publikum
 - [x] Background odesílání emailů přes BackgroundTasks (ne v HTTP requestu)

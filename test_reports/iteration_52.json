@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 52: Institution soft-delete, usage analytics, plan-expiration trigger, PDF Czech font (DejaVuSans) and SPAYD IBAN QR generation. All 13 backend tests pass. Frontend Playwright verified all 4 tabs, Usage analytics view with 3 cards, institution detail delete/plan buttons, delete confirmation modal with exact-name validation, and own-institution deletion protection. Expirace button triggers scheduler with success toast.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_superadmin_delete_analytics_pdf.py",
+    "/app/test_reports/pytest/iter52_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED: GET /api/superadmin/usage-analytics returns {total_institutions, by_feature, by_plan, top_institutions} with proper structure (adoption_rate, labels, plan_label).",
+    "VERIFIED: POST /api/superadmin/run-expiration-job runs scheduler.process_plan_expiration synchronously and returns success message; frontend toast 'Expirační úloha spuštěna' displayed.",
+    "VERIFIED: DELETE /api/superadmin/institutions/{id} requires exact name match (case/whitespace trimmed); rejects own institution (400 'Nelze smazat vlastní instituci'); 404 for missing id; soft-deletes users simultaneously so they cannot log in; billing_note appended with audit trail [DELETED by {email} at {ts}].",
+    "VERIFIED: After soft delete, institution is filtered from GET /api/superadmin/institutions (deleted_at IS NULL).",
+    "VERIFIED: export_service._FONT_BASE == 'DejaVuSans' — all PDF generation (application confirmation, program exports, etc.) uses DejaVuSans for correct Czech diacritics rendering. Sample PDF generated with text 'Přihláška potvrzena žáček šílenec červené úskočný ďábel ňufák' and 'DejaVuSans' font embedded.",
+    "VERIFIED: cz_account_to_iban('295033917','0300') == 'CZ6003000000000295033917' (matches user expected value). Handles prefix-number form. Returns '' on empty input. SPAYD string now uses ACC:{IBAN} so bank apps parse it correctly.",
+    "VERIFIED: Frontend 4 tabs (Instituce, Objednávky, Usage [BarChart2], Expirace [Clock]) all render with correct data-testids.",
+    "VERIFIED: Usage tab shows 'Platform Usage Analytics' with 3 cards: Využití dle plánu, Využití dle funkce, Nejaktivnější instituce.",
+    "VERIFIED: Institution detail view shows red 'Smazat' button (data-testid: delete-inst-btn) only for NON-OWN institutions; own institution (Test Muzeum) shows only 'Změnit plán' — confirmed in screenshot.",
+    "VERIFIED: Delete modal (data-testid: delete-inst-modal) — confirm button (delete-confirm-btn) is DISABLED when input is empty OR mismatched; ENABLED only when exact institution name is typed into delete-confirm-name input.",
+    "VERIFIED: Unauth requests to superadmin endpoints return 401/403."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_superadmin_delete_analytics_pdf.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100% (all critical flows verified)"
+  },
+  "test_credentials": {
+    "superadmin_email": "demo@budezivo.cz",
+    "superadmin_password": "Demo2026!",
+    "own_institution": "Test Muzeum"
+  },
+  "seed_data_creation": "Registered ephemeral TEST_DeleteInst_* institutions via /api/auth/register to exercise soft-delete flow; they are soft-deleted at test end so DB remains clean from superadmin's POV.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 52 verified: (1) Institution soft-delete flow end-to-end with exact-name confirmation and own-institution protection. (2) Usage analytics endpoint and UI (3 cards). (3) Manual plan-expiration trigger. (4) PDF Czech font DejaVuSans registration (fixes black-square diacritics issue). (5) cz_account_to_iban correct for '295033917'/'0300' -> CZ6003000000000295033917 (fixes SPAYD QR account-number issue). Note: /api/auth/register is the signup endpoint (not /api/auth/signup). Superadmin institution list response uses key 'institutions', not 'items'. Full PDF endpoint (GET /api/events/{event_id}/applications/{app_id}/pdf) was not hit directly, but export_service was tested via direct import — _FONT_BASE constant + sample PDF generation confirmed DejaVuSans usage."
+}

@@ -3,7 +3,7 @@ import sys
 
 def test_theme_update_fix():
     """Test the theme settings update fix"""
-    base_url = "https://audit-enhance-fix.preview.emergentagent.com"
+    base_url = "https://school-crm-saas.preview.emergentagent.com"
     api_url = f"{base_url}/api"
     
     # First register a new user to get a token

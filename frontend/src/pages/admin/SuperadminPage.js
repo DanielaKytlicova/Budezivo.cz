@@ -14,7 +14,7 @@ import axios from 'axios';
 import {
   Building2, Users, BookOpen, Calendar, Mail, BarChart3, Loader2,
   Search, ChevronRight, Crown, Shield, AlertTriangle, Check, X,
-  FileText, Clock, ArrowLeft, Eye, Settings2
+  FileText, Clock, ArrowLeft, Eye, Settings2, Trash2, BarChart2
 } from 'lucide-react';
 import { API } from '../../config/api';
 
@@ -39,6 +39,7 @@ export const SuperadminPage = () => {
   const [overview, setOverview] = useState(null);
   const [institutions, setInstitutions] = useState([]);
   const [billingOrders, setBillingOrders] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
   const [selectedInst, setSelectedInst] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -48,6 +49,11 @@ export const SuperadminPage = () => {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [planForm, setPlanForm] = useState({ plan: 'free', plan_status: 'active', activated_by: 'admin', billing_note: '' });
   const [saving, setSaving] = useState(false);
+
+  // Delete institution modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteForm, setDeleteForm] = useState({ confirmation_name: '', reason: '' });
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => { loadOverview(); loadInstitutions(); }, []);
 
@@ -83,6 +89,24 @@ export const SuperadminPage = () => {
     } catch { toast.error('Chyba při načítání objednávek'); }
   };
 
+  const loadAnalytics = async () => {
+    try {
+      const res = await axios.get(`${API}/superadmin/usage-analytics`, { withCredentials: true });
+      setAnalytics(res.data);
+      setView('analytics');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Chyba při načítání analytiky'); }
+  };
+
+  const runExpirationJob = async () => {
+    if (!window.confirm('Spustit expirační úlohu nyní? Instituce s expirovaným plánem budou přepnuty do stavu expired.')) return;
+    try {
+      await axios.post(`${API}/superadmin/run-expiration-job`, {}, { withCredentials: true });
+      toast.success('Expirační úloha spuštěna');
+      loadInstitutions();
+      loadOverview();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Chyba'); }
+  };
+
   const handlePlanChange = async () => {
     if (!selectedInst) return;
     setSaving(true);
@@ -115,6 +139,25 @@ export const SuperadminPage = () => {
     } catch (e) { toast.error(e.response?.data?.detail || 'Chyba'); }
   };
 
+  const handleDeleteInstitution = async () => {
+    if (!selectedInst) return;
+    setDeleting(true);
+    try {
+      await axios.delete(`${API}/superadmin/institutions/${selectedInst.id}`, {
+        data: deleteForm,
+        withCredentials: true,
+      });
+      toast.success('Instituce byla smazána');
+      setShowDeleteModal(false);
+      setDeleteForm({ confirmation_name: '', reason: '' });
+      setSelectedInst(null);
+      setView('institutions');
+      loadInstitutions();
+      loadOverview();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Chyba při mazání'); }
+    finally { setDeleting(false); }
+  };
+
   const filtered = institutions.filter(i => {
     if (planFilter !== 'all' && i.plan !== planFilter) return false;
     if (search && !i.name?.toLowerCase().includes(search.toLowerCase()) && !i.email?.toLowerCase().includes(search.toLowerCase())) return false;
@@ -143,6 +186,13 @@ export const SuperadminPage = () => {
             <Button variant={view === 'billing' ? 'default' : 'outline'} size="sm"
               onClick={loadBilling} data-testid="tab-billing">
               <FileText className="w-4 h-4 mr-1" /> Objednávky
+            </Button>
+            <Button variant={view === 'analytics' ? 'default' : 'outline'} size="sm"
+              onClick={loadAnalytics} data-testid="tab-analytics">
+              <BarChart2 className="w-4 h-4 mr-1" /> Usage
+            </Button>
+            <Button variant="outline" size="sm" onClick={runExpirationJob} data-testid="run-expiration-btn" title="Spustit expiraci plánů nyní">
+              <Clock className="w-4 h-4 mr-1" /> Expirace
             </Button>
           </div>
         </div>
@@ -230,9 +280,14 @@ export const SuperadminPage = () => {
         {view === 'detail' && selectedInst && (
           <InstitutionDetail
             inst={selectedInst}
+            canDelete={String(selectedInst.id) !== String(user?.institution_id)}
             onPlanChange={() => {
               setPlanForm({ plan: selectedInst.plan, plan_status: selectedInst.plan_status, activated_by: 'admin', billing_note: selectedInst.billing_note || '' });
               setShowPlanModal(true);
+            }}
+            onDelete={() => {
+              setDeleteForm({ confirmation_name: '', reason: '' });
+              setShowDeleteModal(true);
             }}
           />
         )}
@@ -271,6 +326,77 @@ export const SuperadminPage = () => {
                 </div>
               </Card>
             ))}
+          </div>
+        )}
+
+        {/* Platform usage analytics */}
+        {view === 'analytics' && (
+          <div className="space-y-4" data-testid="analytics-view">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <BarChart2 className="w-5 h-5" /> Platform Usage Analytics
+            </h2>
+
+            {!analytics ? (
+              <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>
+            ) : (
+              <>
+                <Card className="p-4">
+                  <h3 className="font-semibold text-slate-800 mb-3">Využití dle plánu</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {analytics.by_plan.map(p => (
+                      <div key={p.plan} className="p-3 bg-slate-50 rounded">
+                        <Badge className={PLAN_BADGE[p.plan] || ''}>{p.plan_label}</Badge>
+                        <div className="mt-2 text-2xl font-bold">{p.total_usage.toLocaleString('cs-CZ')}</div>
+                        <div className="text-xs text-slate-500">{p.active_institutions} aktivních institucí</div>
+                      </div>
+                    ))}
+                    {analytics.by_plan.length === 0 && <p className="text-slate-500 col-span-4 text-center py-4">Zatím žádná data</p>}
+                  </div>
+                </Card>
+
+                <Card className="p-4">
+                  <h3 className="font-semibold text-slate-800 mb-3">Využití dle funkce</h3>
+                  <div className="space-y-1">
+                    {analytics.by_feature.map(f => (
+                      <div key={f.feature_key} className="grid grid-cols-12 gap-2 items-center text-sm py-1.5 border-b last:border-0" data-testid={`feature-row-${f.feature_key}`}>
+                        <div className="col-span-5">
+                          <div className="font-medium text-slate-800">{f.feature_label}</div>
+                          <div className="text-xs text-slate-400">{f.feature_key}</div>
+                        </div>
+                        <div className="col-span-2">
+                          {f.min_plan_label && <Badge className={PLAN_BADGE[f.min_plan] || ''}>{f.min_plan_label}</Badge>}
+                        </div>
+                        <div className="col-span-2 text-slate-600">{f.total_usage.toLocaleString('cs-CZ')}x</div>
+                        <div className="col-span-3 flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-purple-500 rounded-full" style={{ width: `${Math.min(100, f.adoption_rate)}%` }} />
+                          </div>
+                          <span className="text-xs text-slate-500 w-12 text-right">{f.adoption_rate}%</span>
+                        </div>
+                      </div>
+                    ))}
+                    {analytics.by_feature.length === 0 && <p className="text-slate-500 text-center py-4">Zatím žádné využití funkcí nebylo zaznamenáno</p>}
+                  </div>
+                </Card>
+
+                <Card className="p-4">
+                  <h3 className="font-semibold text-slate-800 mb-3">Nejaktivnější instituce</h3>
+                  <div className="space-y-1">
+                    {analytics.top_institutions.map((inst, idx) => (
+                      <div key={inst.institution_id} className="flex items-center justify-between py-1.5 border-b last:border-0 text-sm">
+                        <div className="flex items-center gap-3">
+                          <span className="text-slate-400 font-mono w-5 text-right">{idx + 1}.</span>
+                          <span className="font-medium text-slate-800">{inst.institution_name}</span>
+                          <Badge className={PLAN_BADGE[inst.plan] || ''}>{inst.plan_label}</Badge>
+                        </div>
+                        <span className="font-mono text-slate-600">{inst.total_usage.toLocaleString('cs-CZ')}x</span>
+                      </div>
+                    ))}
+                    {analytics.top_institutions.length === 0 && <p className="text-slate-500 text-center py-4">Žádná data</p>}
+                  </div>
+                </Card>
+              </>
+            )}
           </div>
         )}
 
@@ -334,13 +460,70 @@ export const SuperadminPage = () => {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* Delete institution modal */}
+        {showDeleteModal && selectedInst && (
+          <Dialog open onOpenChange={() => setShowDeleteModal(false)}>
+            <DialogContent className="max-w-md" data-testid="delete-inst-modal">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="w-5 h-5" /> Smazat instituci
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  <p className="font-semibold mb-1">Nevratná operace</p>
+                  <p>
+                    Instituce <strong>{selectedInst.name}</strong> a všichni její uživatelé ({selectedInst.stats?.users || 0}) budou deaktivováni.
+                    Data zůstanou v databázi pro audit, ale nebudou dostupná v aplikaci.
+                  </p>
+                </div>
+                <div>
+                  <Label>Pro potvrzení napište přesný název instituce:</Label>
+                  <div className="mt-1 text-xs text-slate-500 font-mono select-all mb-1">{selectedInst.name}</div>
+                  <Input
+                    value={deleteForm.confirmation_name}
+                    onChange={e => setDeleteForm(f => ({ ...f, confirmation_name: e.target.value }))}
+                    placeholder="Zadejte název..."
+                    data-testid="delete-confirm-name"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <Label>Důvod (nepovinné)</Label>
+                  <Textarea
+                    value={deleteForm.reason}
+                    onChange={e => setDeleteForm(f => ({ ...f, reason: e.target.value }))}
+                    rows={2}
+                    placeholder="Např. duplikát, požadavek uživatele, ukončení smlouvy..."
+                    data-testid="delete-reason"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowDeleteModal(false)} data-testid="delete-cancel-btn">
+                  Zrušit
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteInstitution}
+                  disabled={deleting || deleteForm.confirmation_name.trim() !== (selectedInst.name || '').trim()}
+                  data-testid="delete-confirm-btn"
+                >
+                  {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                  Trvale smazat
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </AdminLayout>
   );
 };
 
 /* ---- Institution detail component ---- */
-const InstitutionDetail = ({ inst, onPlanChange }) => (
+const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => (
   <div className="space-y-4">
     {/* Header */}
     <div className="flex items-center justify-between">
@@ -348,9 +531,16 @@ const InstitutionDetail = ({ inst, onPlanChange }) => (
         <h2 className="text-xl font-bold text-slate-900">{inst.name}</h2>
         <p className="text-sm text-slate-500">{inst.email} {inst.website && `| ${inst.website}`}</p>
       </div>
-      <Button onClick={onPlanChange} data-testid="change-plan-btn">
-        <Settings2 className="w-4 h-4 mr-1" /> Změnit plán
-      </Button>
+      <div className="flex gap-2">
+        <Button onClick={onPlanChange} data-testid="change-plan-btn">
+          <Settings2 className="w-4 h-4 mr-1" /> Změnit plán
+        </Button>
+        {canDelete && (
+          <Button variant="destructive" onClick={onDelete} data-testid="delete-inst-btn">
+            <Trash2 className="w-4 h-4 mr-1" /> Smazat
+          </Button>
+        )}
+      </div>
     </div>
 
     {/* Plan info */}

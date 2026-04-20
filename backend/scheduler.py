@@ -421,6 +421,80 @@ async def process_auto_archive_programs():
             await db.rollback()
 
 
+async def process_plan_expiration():
+    """
+    Subscription auto-renewal / expiration scheduler.
+    Runs daily. For every institution with plan_expires_at in the past:
+    - If auto_renew=True AND billing_provider configured → create new billing order
+      (real charge happens when billing provider implements webhook).
+    - Otherwise → mark plan_status='expired' and reset limits to Free.
+    Also sends a soft-reminder state change when plan expires within 7 days (future hook).
+    """
+    logger.info("Running plan expiration scheduler job...")
+
+    async with AsyncSessionLocal() as db:
+        try:
+            from database.models import Institution, BillingOrder
+            from services.plan_service import PLAN_LIMITS
+            from services.billing_service import create_billing_order
+
+            now = datetime.now(timezone.utc)
+
+            # Find expired institutions still marked active
+            result = await db.execute(
+                select(Institution).where(and_(
+                    Institution.plan_status == 'active',
+                    Institution.plan != 'free',
+                    Institution.plan_expires_at.isnot(None),
+                    Institution.plan_expires_at < now,
+                    Institution.deleted_at.is_(None),
+                ))
+            )
+            expired = result.scalars().all()
+
+            renewed = 0
+            expired_count = 0
+            prices = {"start": 49000, "pro": 99000, "pro_plus": 199000}
+
+            for inst in expired:
+                if inst.auto_renew and inst.billing_provider:
+                    # Auto-renewal hook: create pending order for same tier
+                    try:
+                        await create_billing_order(
+                            db=db,
+                            institution_id=str(inst.id),
+                            requested_plan=inst.plan,
+                            provider=inst.billing_provider or "manual",
+                            amount=prices.get(inst.plan, 0),
+                            currency="CZK",
+                            note="Auto-renewal scheduler",
+                        )
+                        inst.plan_status = 'pending'
+                        inst.plan_updated_at = now
+                        renewed += 1
+                        logger.info(f"Auto-renewal: created billing order for inst {inst.id} ({inst.plan})")
+                    except Exception as e:
+                        logger.error(f"Auto-renewal failed for {inst.id}: {e}")
+                        inst.plan_status = 'expired'
+                        inst.plan_updated_at = now
+                        expired_count += 1
+                else:
+                    # No auto-renew → mark expired + downgrade limits to Free
+                    inst.plan_status = 'expired'
+                    inst.plan_updated_at = now
+                    free_limits = PLAN_LIMITS['free']
+                    inst.programs_limit = free_limits['programs_limit']
+                    inst.bookings_monthly_limit = free_limits['bookings_monthly_limit']
+                    expired_count += 1
+                    logger.info(f"Plan expired: inst {inst.id} (was {inst.plan})")
+
+            await db.commit()
+            logger.info(f"Plan expiration scheduler: {renewed} renewed, {expired_count} expired")
+        except Exception as e:
+            logger.error(f"Plan expiration job failed: {e}")
+            await db.rollback()
+
+
 def start_scheduler():
     """Start the APScheduler with feedback job."""
     if scheduler.running:
@@ -460,6 +534,15 @@ def start_scheduler():
         process_auto_archive_programs,
         CronTrigger(hour=4, minute=0),
         id='auto_archive_programs',
+        replace_existing=True,
+        misfire_grace_time=3600
+    )
+
+    # Plan expiration / auto-renewal: run daily at 5:00 AM UTC
+    scheduler.add_job(
+        process_plan_expiration,
+        CronTrigger(hour=5, minute=0),
+        id='plan_expiration_scheduler',
         replace_existing=True,
         misfire_grace_time=3600
     )

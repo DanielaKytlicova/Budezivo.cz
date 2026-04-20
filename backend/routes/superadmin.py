@@ -52,6 +52,11 @@ class SuperadminBillingConfirm(BaseModel):
     order_id: str
 
 
+class SuperadminDeleteInstitution(BaseModel):
+    confirmation_name: str
+    reason: Optional[str] = None
+
+
 # ---- Institution list ----
 
 @router.get("/institutions")
@@ -294,6 +299,71 @@ async def change_institution_plan(
     }
 
 
+# ---- Institution deletion (soft delete with safety) ----
+
+@router.delete("/institutions/{institution_id}")
+async def delete_institution(
+    institution_id: str,
+    data: SuperadminDeleteInstitution,
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Soft-delete an institution. Requires exact name confirmation for safety.
+
+    Security rules:
+    - Superadmin cannot delete their own institution.
+    - `confirmation_name` must match the institution's name EXACTLY (case-sensitive).
+    - Sets `deleted_at` on institution and on all its users (prevents login).
+    - Preserves data in DB for audit/recovery.
+    """
+    result = await db.execute(
+        select(Institution).where(Institution.id == institution_id)
+    )
+    inst = result.scalar_one_or_none()
+    if not inst:
+        raise HTTPException(status_code=404, detail="Instituce nenalezena")
+    if inst.deleted_at is not None:
+        raise HTTPException(status_code=400, detail="Instituce je již smazána")
+
+    # Safety: superadmin cannot delete own institution
+    if str(inst.id) == str(current_user.get("institution_id", "")):
+        raise HTTPException(status_code=400, detail="Nelze smazat vlastní instituci")
+
+    # Safety: confirmation name must match exactly
+    if (data.confirmation_name or "").strip() != (inst.name or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Název instituce nesouhlasí. Pro potvrzení zadejte přesný název.",
+        )
+
+    now = datetime.now(timezone.utc)
+    note_suffix = f"\n[DELETED by {current_user['email']} at {now.isoformat()}]"
+    if data.reason:
+        note_suffix += f" Důvod: {data.reason}"
+
+    # Soft-delete institution
+    inst.deleted_at = now
+    inst.billing_note = (inst.billing_note or "") + note_suffix
+
+    # Soft-delete all users of this institution (so they cannot log in)
+    await db.execute(
+        text("UPDATE users SET deleted_at = :now WHERE institution_id = CAST(:iid AS uuid) AND deleted_at IS NULL")
+        .bindparams(now=now, iid=institution_id)
+    )
+
+    await db.commit()
+
+    logger.warning(
+        f"Superadmin DELETED institution {institution_id} ({inst.name}) by {current_user['email']}. Reason: {data.reason or 'n/a'}"
+    )
+
+    return {
+        "message": f"Instituce „{inst.name}“ byla smazána.",
+        "institution_id": str(inst.id),
+        "deleted_at": now.isoformat(),
+    }
+
+
 # ---- Billing order management ----
 
 @router.get("/billing-orders")
@@ -422,3 +492,120 @@ async def platform_overview(
         "total_users": total_users,
         "pending_billing_orders": pending_orders,
     }
+
+
+# ---- Platform-wide usage analytics ----
+
+@router.get("/usage-analytics")
+async def platform_usage_analytics(
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Platform-wide feature usage analytics aggregated across all institutions.
+
+    Returns:
+    - `by_feature`: total usage + institutions using each feature + adoption rate
+    - `by_plan`: feature usage grouped by institution's plan
+    - `top_institutions`: most active institutions by total usage
+    """
+    from services.plan_service import FEATURE_LABELS, PLAN_FEATURES, FEATURE_MIN_PLAN
+
+    # Total active institutions (denominator for adoption rate)
+    total_inst_result = await db.execute(
+        select(func.count()).select_from(Institution).where(Institution.deleted_at.is_(None))
+    )
+    total_inst = total_inst_result.scalar() or 1
+
+    # by_feature: sum usage + distinct institutions per feature
+    feat_result = await db.execute(
+        select(
+            UsageMetric.feature_key,
+            func.sum(UsageMetric.usage_count).label("total_usage"),
+            func.count(func.distinct(UsageMetric.institution_id)).label("inst_count"),
+        ).group_by(UsageMetric.feature_key)
+    )
+    by_feature = []
+    for row in feat_result.all():
+        key = row.feature_key
+        by_feature.append({
+            "feature_key": key,
+            "feature_label": FEATURE_LABELS.get(key, key),
+            "min_plan": FEATURE_MIN_PLAN.get(key),
+            "min_plan_label": PLAN_LABELS.get(FEATURE_MIN_PLAN.get(key, ""), ""),
+            "total_usage": int(row.total_usage or 0),
+            "institutions_using": int(row.inst_count or 0),
+            "adoption_rate": round(100.0 * (row.inst_count or 0) / total_inst, 1),
+        })
+    by_feature.sort(key=lambda x: x["total_usage"], reverse=True)
+
+    # by_plan: join usage metrics with institution plan
+    plan_result = await db.execute(
+        select(
+            Institution.plan,
+            func.sum(UsageMetric.usage_count).label("total_usage"),
+            func.count(func.distinct(UsageMetric.institution_id)).label("inst_count"),
+        )
+        .select_from(UsageMetric)
+        .join(Institution, UsageMetric.institution_id == Institution.id)
+        .where(Institution.deleted_at.is_(None))
+        .group_by(Institution.plan)
+    )
+    by_plan = []
+    for row in plan_result.all():
+        plan = row.plan or "free"
+        by_plan.append({
+            "plan": plan,
+            "plan_label": PLAN_LABELS.get(plan, plan),
+            "total_usage": int(row.total_usage or 0),
+            "active_institutions": int(row.inst_count or 0),
+        })
+
+    # top_institutions by total usage
+    top_result = await db.execute(
+        select(
+            Institution.id,
+            Institution.name,
+            Institution.plan,
+            func.sum(UsageMetric.usage_count).label("total_usage"),
+        )
+        .select_from(UsageMetric)
+        .join(Institution, UsageMetric.institution_id == Institution.id)
+        .where(Institution.deleted_at.is_(None))
+        .group_by(Institution.id, Institution.name, Institution.plan)
+        .order_by(desc(func.sum(UsageMetric.usage_count)))
+        .limit(10)
+    )
+    top_institutions = [
+        {
+            "institution_id": str(row.id),
+            "institution_name": row.name,
+            "plan": row.plan,
+            "plan_label": PLAN_LABELS.get(row.plan, row.plan),
+            "total_usage": int(row.total_usage or 0),
+        }
+        for row in top_result.all()
+    ]
+
+    return {
+        "total_institutions": total_inst,
+        "by_feature": by_feature,
+        "by_plan": by_plan,
+        "top_institutions": top_institutions,
+    }
+
+
+# ---- Manual trigger: plan expiration scheduler ----
+
+@router.post("/run-expiration-job")
+async def run_expiration_job(
+    current_user: dict = Depends(require_superadmin),
+):
+    """Manually trigger the plan expiration/auto-renewal scheduler.
+    Useful for testing or immediate processing."""
+    try:
+        from scheduler import process_plan_expiration
+        await process_plan_expiration()
+        return {"message": "Expirační úloha spuštěna"}
+    except Exception as e:
+        logger.error(f"Manual expiration job failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

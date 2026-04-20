@@ -282,12 +282,14 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {/* Social Proof Section - trust numbers + institution types + testimonials */}
+      {/* Social Proof Section — only rendered once we have meaningful real data
+          (gated by backend `show_stats`, currently ≥5 non-deleted institutions).
+          Testimonials block is kept disabled until real opt-in references land. */}
+      {stats?.show_stats && (
       <section className="py-16 bg-white border-b border-slate-100" id="social-proof" data-testid="social-proof-section">
         <div className="max-w-7xl mx-auto px-6 md:px-8">
           {/* Stats bar */}
-          {stats?.show_stats && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 mb-12" data-testid="trust-stats">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 mb-12" data-testid="trust-stats">
               <StatCard
                 value={stats.institutions}
                 suffix="+"
@@ -313,7 +315,6 @@ export const HomePage = () => {
                 color="text-[#C4AB86]"
               />
             </div>
-          )}
 
           {/* Institution types */}
           <div className="text-center mb-10">
@@ -340,32 +341,40 @@ export const HomePage = () => {
             </div>
           </div>
 
-          {/* Testimonials */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12 max-w-5xl mx-auto">
-            {TESTIMONIALS.map((t, i) => (
-              <Card
-                key={i}
-                className="p-6 md:p-8 border border-slate-200 bg-gradient-to-br from-white to-slate-50 relative"
-                data-testid={`testimonial-${i}`}
-              >
-                <Quote className="w-8 h-8 text-[#C4AB86] opacity-40 absolute top-5 right-5" />
-                <p className="text-base md:text-lg text-slate-700 leading-relaxed mb-5 italic">
-                  „{t.quote}"
-                </p>
-                <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
-                  <div className="w-10 h-10 rounded-full bg-[#4A6FA5]/10 flex items-center justify-center text-[#4A6FA5] font-semibold">
-                    {t.initials}
+          {/*
+            Testimonials are intentionally disabled until we have real, written
+            consent from customer institutions. Placeholder TESTIMONIALS array
+            is kept in this file — once references are collected, set the flag
+            SHOW_TESTIMONIALS below (or better: drive it from a CMS field).
+          */}
+          {false && TESTIMONIALS.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12 max-w-5xl mx-auto">
+              {TESTIMONIALS.map((t, i) => (
+                <Card
+                  key={i}
+                  className="p-6 md:p-8 border border-slate-200 bg-gradient-to-br from-white to-slate-50 relative"
+                  data-testid={`testimonial-${i}`}
+                >
+                  <Quote className="w-8 h-8 text-[#C4AB86] opacity-40 absolute top-5 right-5" />
+                  <p className="text-base md:text-lg text-slate-700 leading-relaxed mb-5 italic">
+                    „{t.quote}"
+                  </p>
+                  <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+                    <div className="w-10 h-10 rounded-full bg-[#4A6FA5]/10 flex items-center justify-center text-[#4A6FA5] font-semibold">
+                      {t.initials}
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-800">{t.author}</div>
+                      <div className="text-xs text-slate-500">{t.role}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-semibold text-slate-800">{t.author}</div>
-                    <div className="text-xs text-slate-500">{t.role}</div>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </section>
+      )}
 
       {/* Pain Points Section - "Znáte tuto realitu?" */}
       <section className="py-16 bg-[#F8F9FA]" id="problemy">

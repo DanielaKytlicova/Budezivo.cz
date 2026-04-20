@@ -338,6 +338,12 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] data-testid: `social-proof-section`, `trust-stats`, `type-chip-{key}`, `testimonial-{i}`
 - [x] Ověřeno screenshotem: sekce renderuje správně s 12+ institucí / 13+ programy+akce / 63+ rezervací / 98%
 
+
+### Fáze 42b - Social proof úprava: skrytí testimonials (20.4.2026)
+- [x] Testimonials karty zakomentovány (`{false && TESTIMONIALS.length > 0 ...}`) — pole `TESTIMONIALS` zůstalo v kódu jako placeholder s instrukcemi, jak je znovu aktivovat (jen přepnout flag)
+- [x] Celá Social Proof sekce zabalena do `stats?.show_stats &&` — pokud backend vrátí show_stats=false (méně než 5 institucí), sekce se automaticky ze landing page odstraní
+- [x] Akceptační kritérium: čísla a typy institucí zůstávají, ale zobrazí se pouze když máme dostatek reálných dat
+
 - [ ] BUDOUCÍ: Apple Pay — automaticky dostupné jakmile instituce povolí v Comgate dashboardu
 
 

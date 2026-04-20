@@ -16,7 +16,7 @@ from core.security import get_current_user
 from database.supabase import get_db
 from database.models import (
     Institution, User, Program, Reservation, Event, EventApplication,
-    MailingCampaign, WaitlistEntry, BillingOrder, UsageMetric,
+    MailingCampaign, WaitlistEntry, BillingOrder, UsageMetric, AuditLog,
 )
 from database.supabase_repositories import InstitutionRepositorySupabase
 from services.plan_service import PLAN_LIMITS, PLAN_LABELS
@@ -27,6 +27,44 @@ router = APIRouter(prefix="/superadmin", tags=["Superadmin"])
 logger = logging.getLogger(__name__)
 
 SUPERADMIN_EMAILS = ["demo@budezivo.cz", "admin@budezivo.cz"]
+
+
+# ---- Audit helper ----
+
+async def _log_superadmin(
+    db: AsyncSession,
+    *,
+    current_user: dict,
+    target_institution_id: Optional[str],
+    action: str,
+    entity_type: str,
+    entity_id: Optional[str] = None,
+    details: Optional[dict] = None,
+):
+    """Write a single audit entry for a superadmin mutating action.
+
+    institution_id on the row = the TARGET institution (so institution detail pages
+    can surface "who did what to us"). If no target institution (platform-level
+    action such as running the expiration job), falls back to the superadmin's
+    own institution to satisfy the NOT NULL constraint.
+    """
+    try:
+        iid = target_institution_id or current_user.get("institution_id")
+        if not iid:
+            return
+        entry = AuditLog(
+            institution_id=iid,
+            user_id=current_user["user_id"],
+            user_email=current_user.get("email", ""),
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            details={**(details or {}), "superadmin": True},
+        )
+        db.add(entry)
+        await db.flush()
+    except Exception as e:
+        logger.warning(f"Superadmin audit write failed: {e}")
 
 
 # ---- Guard ----
@@ -253,6 +291,15 @@ async def get_institution_detail(
     )
     orders = billing_result.scalars().all()
 
+    # Recent superadmin audit log for THIS institution (top 20)
+    audit_res = await db.execute(
+        select(AuditLog).where(and_(
+            AuditLog.institution_id == inst_id,
+            AuditLog.details["superadmin"].as_boolean() == True,  # noqa: E712
+        )).order_by(desc(AuditLog.created_at)).limit(20)
+    )
+    audit_entries = audit_res.scalars().all()
+
     return {
         "id": str(inst.id),
         "name": inst.name,
@@ -295,6 +342,18 @@ async def get_institution_detail(
                 "note": o.note,
             }
             for o in orders
+        ],
+        "audit_log": [
+            {
+                "id": str(a.id),
+                "user_email": a.user_email,
+                "action": a.action,
+                "entity_type": a.entity_type,
+                "entity_id": a.entity_id,
+                "details": a.details,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+            }
+            for a in audit_entries
         ],
     }
 
@@ -340,6 +399,26 @@ async def change_institution_plan(
 
     inst_repo = InstitutionRepositorySupabase(db)
     await inst_repo.update(institution_id, update_data)
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=institution_id,
+        action="plan_change",
+        entity_type="institution",
+        entity_id=institution_id,
+        details={
+            "institution_name": inst.name,
+            "from_plan": inst.plan,
+            "from_status": inst.plan_status,
+            "to_plan": data.plan,
+            "to_status": data.plan_status,
+            "activated_by": data.activated_by,
+            "billing_note": data.billing_note,
+            "expires_at": data.expires_at.isoformat() if data.expires_at else None,
+        },
+    )
+    await db.commit()
 
     logger.info(f"Superadmin plan change: {institution_id} → {data.plan}/{data.plan_status} by {current_user['email']}")
 
@@ -400,6 +479,20 @@ async def delete_institution(
     await db.execute(
         text("UPDATE users SET deleted_at = :now WHERE institution_id = CAST(:iid AS uuid) AND deleted_at IS NULL")
         .bindparams(now=now, iid=institution_id)
+    )
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=institution_id,
+        action="institution_delete",
+        entity_type="institution",
+        entity_id=institution_id,
+        details={
+            "institution_name": inst.name,
+            "reason": data.reason,
+            "confirmed_name": data.confirmation_name,
+        },
     )
 
     await db.commit()
@@ -468,9 +561,26 @@ async def confirm_order(
     db: AsyncSession = Depends(get_db),
 ):
     """Manually confirm a billing order and activate the plan."""
+    # Load order to get target institution BEFORE confirm (order state may change)
+    pre = await db.execute(select(BillingOrder).where(BillingOrder.id == order_id))
+    order = pre.scalar_one_or_none()
+    target_iid = str(order.institution_id) if order else None
+    requested_plan = order.requested_plan_type if order else None
+
     result = await confirm_billing_order(db, order_id, confirmed_by="admin")
     if result.get("error"):
         raise HTTPException(status_code=404, detail=result["error"])
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=target_iid,
+        action="billing_confirm",
+        entity_type="billing_order",
+        entity_id=order_id,
+        details={"requested_plan": requested_plan},
+    )
+    await db.commit()
     return result
 
 
@@ -492,6 +602,17 @@ async def cancel_order(
 
     order.status = "cancelled"
     order.cancelled_at = datetime.now(timezone.utc)
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=str(order.institution_id),
+        action="billing_cancel",
+        entity_type="billing_order",
+        entity_id=order_id,
+        details={"requested_plan": order.requested_plan_type},
+    )
+
     await db.commit()
 
     return {"message": "Objednávka zrušena", "order_id": str(order.id)}
@@ -650,13 +771,79 @@ async def platform_usage_analytics(
 @router.post("/run-expiration-job")
 async def run_expiration_job(
     current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
 ):
     """Manually trigger the plan expiration/auto-renewal scheduler.
     Useful for testing or immediate processing."""
     try:
         from scheduler import process_plan_expiration
         await process_plan_expiration()
+        await _log_superadmin(
+            db,
+            current_user=current_user,
+            target_institution_id=None,
+            action="run_expiration_job",
+            entity_type="system",
+            details={"trigger": "manual"},
+        )
+        await db.commit()
         return {"message": "Expirační úloha spuštěna"}
     except Exception as e:
         logger.error(f"Manual expiration job failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---- Audit log ----
+
+@router.get("/audit-log")
+async def get_superadmin_audit_log(
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+    institution_id: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+):
+    """Platform-wide audit log of superadmin actions (optionally filtered by target institution).
+
+    Superadmin entries are those with `details.superadmin = true` OR `user_email`
+    in the SUPERADMIN_EMAILS list. Joins institution name for context.
+    """
+    # Base query: superadmin-flagged actions only (details.superadmin == true).
+    # We intentionally do NOT include entries where user_email happens to be in
+    # SUPERADMIN_EMAILS — those may be regular admin operations by the same
+    # person acting inside their own institution.
+    base_filter = AuditLog.details["superadmin"].as_boolean() == True  # noqa: E712
+
+    q = select(AuditLog, Institution.name).join(
+        Institution, AuditLog.institution_id == Institution.id, isouter=True
+    ).where(base_filter)
+    count_q = select(func.count(AuditLog.id)).where(base_filter)
+
+    if institution_id:
+        q = q.where(AuditLog.institution_id == institution_id)
+        count_q = count_q.where(AuditLog.institution_id == institution_id)
+
+    total = (await db.execute(count_q)).scalar() or 0
+
+    q = q.order_by(desc(AuditLog.created_at)).offset((page - 1) * per_page).limit(per_page)
+    rows = (await db.execute(q)).all()
+
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "items": [
+            {
+                "id": str(log.id),
+                "user_email": log.user_email,
+                "action": log.action,
+                "entity_type": log.entity_type,
+                "entity_id": log.entity_id,
+                "details": log.details,
+                "institution_id": str(log.institution_id),
+                "institution_name": inst_name,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+            }
+            for log, inst_name in rows
+        ],
+    }

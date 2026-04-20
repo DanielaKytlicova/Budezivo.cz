@@ -360,6 +360,16 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] DB modely: MailingCampaign, MailingCampaignProgram, MailingCampaignRecipient, MailingRecipientProgram
 - [x] Alembic migrace pro 4 nové tabulky
 - [x] Backend CRUD: POST/GET/PUT/DELETE /api/mailings, včetně draft managementu
+
+### Fáze 44 - Superadmin Audit Log (20.4.2026)
+- [x] Backend helper `_log_superadmin` pro jednotné logování do `audit_logs` tabulky s flagem `details.superadmin=true`
+- [x] Audit zápisy zabudovány do: plan_change, institution_delete, billing_confirm, billing_cancel, run_expiration_job
+- [x] Nový endpoint `GET /api/superadmin/audit-log` — platform-wide (JOIN s Institution pro jméno), filtrovatelný dle institution_id
+- [x] `GET /api/superadmin/institutions/{id}` rozšířen o `audit_log` (top 20 superadmin zásahů pro danou instituci)
+- [x] Frontend: nová záložka „Historie" s tabulkou Čas / Akce / Instituce / Detaily (barevné akční badge, čitelné detaily změn plánu)
+- [x] Frontend: v detailu instituce nová karta „Historie zásahů superadmina" (per-instituce)
+- [x] Filtr striktní: `details.superadmin = true` (ignoruje regular admin akce i když jsou od superadmin emailu)
+
 - [x] Relevance engine: párování program.target_groups (ms_3_6, zs1_7_12...) ↔ school.tags (MŠ, ZŠ, SŠ...)
 - [x] 4 režimy výběru příjemců: relevant_only, all, manual, relevant_plus_manual
 - [x] Preview endpoint: /api/mailings/preview-recipients (statistiky, varování, seznam příjemců)

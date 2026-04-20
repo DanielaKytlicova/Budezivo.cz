@@ -15,7 +15,7 @@ import {
   Building2, Users, BookOpen, Calendar, Mail, BarChart3, Loader2,
   Search, ChevronRight, Crown, Shield, AlertTriangle, Check, X,
   FileText, Clock, ArrowLeft, Eye, Settings2, Trash2, BarChart2,
-  UserCog, AtSign
+  UserCog, AtSign, History
 } from 'lucide-react';
 import { API } from '../../config/api';
 
@@ -41,6 +41,7 @@ export const SuperadminPage = () => {
   const [institutions, setInstitutions] = useState([]);
   const [billingOrders, setBillingOrders] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [auditLog, setAuditLog] = useState(null);
   const [selectedInst, setSelectedInst] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -96,6 +97,14 @@ export const SuperadminPage = () => {
       setAnalytics(res.data);
       setView('analytics');
     } catch (e) { toast.error(e.response?.data?.detail || 'Chyba při načítání analytiky'); }
+  };
+
+  const loadAuditLog = async () => {
+    try {
+      const res = await axios.get(`${API}/superadmin/audit-log?per_page=100`, { withCredentials: true });
+      setAuditLog(res.data);
+      setView('audit');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Chyba při načítání historie'); }
   };
 
   const runExpirationJob = async () => {
@@ -191,6 +200,10 @@ export const SuperadminPage = () => {
             <Button variant={view === 'analytics' ? 'default' : 'outline'} size="sm"
               onClick={loadAnalytics} data-testid="tab-analytics">
               <BarChart2 className="w-4 h-4 mr-1" /> Usage
+            </Button>
+            <Button variant={view === 'audit' ? 'default' : 'outline'} size="sm"
+              onClick={loadAuditLog} data-testid="tab-audit">
+              <History className="w-4 h-4 mr-1" /> Historie
             </Button>
             <Button variant="outline" size="sm" onClick={runExpirationJob} data-testid="run-expiration-btn" title="Spustit expiraci plánů nyní">
               <Clock className="w-4 h-4 mr-1" /> Expirace
@@ -401,6 +414,37 @@ export const SuperadminPage = () => {
           </div>
         )}
 
+        {/* Platform-wide superadmin audit log */}
+        {view === 'audit' && (
+          <div className="space-y-4" data-testid="audit-view">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <History className="w-5 h-5" /> Historie změn superadmina
+            </h2>
+            <p className="text-xs text-slate-500">Všechny superadmin zásahy napříč platformou (změny plánů, mazání institucí, objednávky, expirace). Akce běžného admina ve vlastní instituci zde nejsou — ty jsou v Audit Logu dané instituce.</p>
+
+            {!auditLog ? (
+              <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>
+            ) : (
+              <Card className="p-4">
+                {auditLog.items.length === 0 ? (
+                  <p className="text-slate-500 text-center py-6">Zatím žádné superadmin zásahy nebyly zaznamenány.</p>
+                ) : (
+                  <>
+                    <div className="text-xs text-slate-500 mb-2">Celkem {auditLog.total} záznamů{auditLog.items.length < auditLog.total ? ` (zobrazeno ${auditLog.items.length})` : ''}</div>
+                    <div className="grid grid-cols-12 gap-2 pb-2 text-[10px] uppercase tracking-wider text-slate-400 border-b">
+                      <div className="col-span-3">Čas</div>
+                      <div className="col-span-2">Akce</div>
+                      <div className="col-span-3">Instituce</div>
+                      <div className="col-span-4">Detaily</div>
+                    </div>
+                    {auditLog.items.map(e => <AuditEntryRow key={e.id} entry={e} />)}
+                  </>
+                )}
+              </Card>
+            )}
+          </div>
+        )}
+
         {/* Plan change modal */}
         {showPlanModal && selectedInst && (
           <Dialog open onOpenChange={() => setShowPlanModal(false)}>
@@ -524,6 +568,62 @@ export const SuperadminPage = () => {
 };
 
 /* ---- Institution detail component ---- */
+const AUDIT_ACTION_LABEL = {
+  plan_change: 'Změna plánu',
+  institution_delete: 'Smazání instituce',
+  billing_confirm: 'Potvrzení objednávky',
+  billing_cancel: 'Zrušení objednávky',
+  run_expiration_job: 'Spuštění expirační úlohy',
+};
+
+const AUDIT_ACTION_COLOR = {
+  plan_change: 'bg-blue-100 text-blue-700',
+  institution_delete: 'bg-red-100 text-red-700',
+  billing_confirm: 'bg-emerald-100 text-emerald-700',
+  billing_cancel: 'bg-amber-100 text-amber-700',
+  run_expiration_job: 'bg-slate-100 text-slate-700',
+};
+
+const AuditEntryRow = ({ entry, showInstitution = true }) => {
+  const label = AUDIT_ACTION_LABEL[entry.action] || entry.action;
+  const color = AUDIT_ACTION_COLOR[entry.action] || 'bg-slate-100 text-slate-700';
+  const d = entry.details || {};
+  return (
+    <div className="grid grid-cols-12 gap-2 items-start py-2 border-b last:border-0 text-sm" data-testid={`audit-row-${entry.id}`}>
+      <div className="col-span-3 text-xs text-slate-500 font-mono">
+        {entry.created_at ? new Date(entry.created_at).toLocaleString('cs-CZ') : '—'}
+      </div>
+      <div className="col-span-2">
+        <Badge className={color}>{label}</Badge>
+      </div>
+      {showInstitution && (
+        <div className="col-span-3 text-slate-700 truncate" title={entry.institution_name || ''}>
+          {entry.institution_name || entry.institution_id?.slice(0, 8)}
+        </div>
+      )}
+      <div className={showInstitution ? "col-span-4 text-xs text-slate-600" : "col-span-7 text-xs text-slate-600"}>
+        <div className="truncate" title={entry.user_email}>
+          <AtSign className="w-3 h-3 inline -mt-0.5 text-slate-400" /> {entry.user_email}
+        </div>
+        {entry.action === 'plan_change' && (
+          <div className="text-slate-500">
+            {d.from_plan}/{d.from_status} → <span className="font-medium">{d.to_plan}/{d.to_status}</span>
+            {d.activated_by && <> · aktivoval: <span className="font-mono">{d.activated_by}</span></>}
+          </div>
+        )}
+        {entry.action === 'institution_delete' && (
+          <div className="text-slate-500">
+            {d.institution_name}{d.reason && ` · důvod: ${d.reason}`}
+          </div>
+        )}
+        {(entry.action === 'billing_confirm' || entry.action === 'billing_cancel') && d.requested_plan && (
+          <div className="text-slate-500">Plán: <span className="font-mono">{d.requested_plan}</span></div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const ROLE_LABELS = {
   admin: 'Admin',
   spravce: 'Správce',
@@ -741,6 +841,22 @@ const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => {
             </div>
           ))}
         </div>
+      </Card>
+    )}
+
+    {/* Superadmin audit log for this institution */}
+    {inst.audit_log?.length > 0 && (
+      <Card className="p-4" data-testid="institution-audit-card">
+        <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+          <History className="w-4 h-4" /> Historie zásahů superadmina
+          <span className="text-xs font-normal text-slate-500 ml-1">({inst.audit_log.length})</span>
+        </h3>
+        <div className="grid grid-cols-12 gap-2 pb-2 text-[10px] uppercase tracking-wider text-slate-400 border-b">
+          <div className="col-span-3">Čas</div>
+          <div className="col-span-2">Akce</div>
+          <div className="col-span-7">Detaily</div>
+        </div>
+        {inst.audit_log.map(e => <AuditEntryRow key={e.id} entry={e} showInstitution={false} />)}
       </Card>
     )}
 

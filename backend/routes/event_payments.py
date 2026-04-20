@@ -226,6 +226,14 @@ async def comgate_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     if not gateway:
         return Response(content="code=1&message=gateway not configured", media_type="text/plain", status_code=500)
 
+    # Hardening: in MOCK mode the gateway has no shared secret to validate,
+    # so we refuse external webhooks to prevent spoofed "paid" signals.
+    # Tests / integrators must use POST /api/event-payments/mock/complete instead.
+    from services.payment_gateways import GatewayMode as _GM
+    if _mode == _GM.MOCK:
+        logger.warning(f"[Comgate webhook] rejected in MOCK mode for inst {payment.institution_id}")
+        return Response(content="code=1&message=mock mode - use /mock/complete", media_type="text/plain", status_code=403)
+
     try:
         status = await gateway.parse_webhook(payload)
     except ValueError as e:

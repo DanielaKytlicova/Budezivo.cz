@@ -309,6 +309,28 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] Frontend: záložka Usage + Expirace na Superadmin stránce
 - [x] Testováno: 13/13 backend, 100% frontend (iteration_52.json)
 
+### Fáze 41 - Comgate platební brána pro Event přihlášky (P1) (20.4.2026)
+- [x] Backend: abstrakce `services/payment_gateways/` (base + factory + comgate)
+  - `PaymentGatewayBase` (initiate / parse_webhook / query_status)
+  - Módy: MOCK (prázdné klíče) / TEST (prefix `TEST_`) / LIVE
+  - Per-instituční přihlašovací údaje (z `InstitutionPaymentSettings`)
+- [x] Nové endpointy `/api/event-payments/*`:
+  - POST `/initiate` (gated `events_payments` = PRO+)
+  - POST `/webhook/comgate` (autorita, validuje merchant+secret)
+  - POST `/mock/complete` (pouze MOCK, interní simulátor)
+  - GET `/by-vs/{inst}/{vs}` (veřejný polling endpoint)
+- [x] Hardening: webhook odmítá externí volání v MOCK režimu (403)
+- [x] Webhook auto-potvrzení přihlášky (když instituce má `auto_confirm_paid` feature PRO+)
+  - payment_status → paid, status → approved
+- [x] Frontend: public `/payment/mock` (CZ simulátor) + `/payment/return` (polling 2s × 15)
+- [x] Frontend: veřejná přihláška – tlačítko „Zaplatit online" když `gateway_enabled`
+- [x] Admin Nastavení – pole Merchant ID + Secret + nápověda pro TEST_ prefix a mock režim
+- [x] VOP § 7.8 — doplněna klauzule „Platby jsou zpracovávány prostřednictvím platební brány třetí strany (např. Comgate)..."
+- [x] Otestováno: 13/13 backend + 100% frontend E2E (iteration_53.json)
+- [ ] BUDOUCÍ: GoPay jako druhý provider (abstrakce připravena, stačí `gopay.py`)
+- [ ] BUDOUCÍ: Apple Pay — automaticky dostupné jakmile instituce povolí v Comgate dashboardu
+
+
 ### Fáze 35 - Propagační mailingy / Kampanový modul (15.4.2026)
 - [x] DB modely: MailingCampaign, MailingCampaignProgram, MailingCampaignRecipient, MailingRecipientProgram
 - [x] Alembic migrace pro 4 nové tabulky

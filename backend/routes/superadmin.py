@@ -18,6 +18,7 @@ from database.supabase import get_db
 from database.models import (
     Institution, User, Program, Reservation, Event, EventApplication,
     MailingCampaign, WaitlistEntry, BillingOrder, UsageMetric, AuditLog,
+    FeatureFlag,
 )
 from database.supabase_repositories import InstitutionRepositorySupabase
 from services.plan_service import PLAN_LIMITS, PLAN_LABELS
@@ -858,6 +859,143 @@ async def get_superadmin_audit_log(
             for log, inst_name in rows
         ],
     }
+
+
+# ---- Feature flags management ----
+
+class FeatureFlagUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    add_institution_ids: Optional[list[str]] = None
+    remove_institution_ids: Optional[list[str]] = None
+
+
+@router.get("/feature-flags")
+async def list_feature_flags(
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(FeatureFlag).order_by(FeatureFlag.key))
+    return [
+        {
+            "key": f.key,
+            "enabled": f.enabled,
+            "description": f.description,
+            "allowed_institution_ids": f.allowed_institution_ids or [],
+            "updated_at": f.updated_at.isoformat() if f.updated_at else None,
+        }
+        for f in result.scalars().all()
+    ]
+
+
+@router.put("/feature-flags/{key}")
+async def update_feature_flag(
+    key: str,
+    data: FeatureFlagUpdate,
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Enable/disable a pilot feature flag globally or per-institution."""
+    result = await db.execute(select(FeatureFlag).where(FeatureFlag.key == key))
+    flag = result.scalar_one_or_none()
+    if not flag:
+        raise HTTPException(status_code=404, detail=f"Feature flag '{key}' neexistuje")
+
+    before = {"enabled": flag.enabled, "allowed": list(flag.allowed_institution_ids or [])}
+
+    if data.enabled is not None:
+        flag.enabled = data.enabled
+
+    current_set = set(flag.allowed_institution_ids or [])
+    for iid in (data.add_institution_ids or []):
+        current_set.add(iid)
+    for iid in (data.remove_institution_ids or []):
+        current_set.discard(iid)
+    flag.allowed_institution_ids = sorted(current_set)
+    flag.updated_at = datetime.now(timezone.utc)
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=None,
+        action="feature_flag_update",
+        entity_type="feature_flag",
+        entity_id=key,
+        details={"key": key, "before": before, "after": {"enabled": flag.enabled, "allowed": list(flag.allowed_institution_ids)}},
+    )
+    await db.commit()
+    return {
+        "key": flag.key,
+        "enabled": flag.enabled,
+        "allowed_institution_ids": flag.allowed_institution_ids,
+    }
+
+
+# ---- Password reset (force-reset any user; superadmin-only) ----
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    new_password: str
+
+
+@router.post("/reset-password")
+async def reset_user_password(
+    data: ResetPasswordRequest,
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Force-reset any user's password. Also creates the user if the email is
+    in SUPERADMIN_EMAILS and the account doesn't exist yet — useful for
+    bootstrapping the secondary superadmin.
+    """
+    from core.security import hash_password
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Heslo musí mít alespoň 8 znaků")
+    result = await db.execute(select(User).where(User.email == data.email))
+    user = result.scalar_one_or_none()
+    created = False
+    if not user:
+        if data.email not in SUPERADMIN_EMAILS:
+            raise HTTPException(status_code=404, detail="Uživatel nenalezen")
+        # Bootstrap missing superadmin: place them in Budeživo Platform institution
+        plat_res = await db.execute(
+            select(Institution).where(Institution.name == PLATFORM_INSTITUTION_NAME)
+        )
+        platform = plat_res.scalar_one_or_none()
+        if not platform:
+            raise HTTPException(status_code=400, detail="Platform instituce ještě neexistuje — spusťte /setup/move-to-platform")
+        user = User(
+            id=uuid.uuid4(),
+            institution_id=platform.id,
+            email=data.email,
+            password_hash=hash_password(data.new_password),
+            name=data.email.split("@")[0],
+            role="admin",
+            status="active",
+        )
+        db.add(user)
+        created = True
+    else:
+        user.password_hash = hash_password(data.new_password)
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=str(user.institution_id),
+        action="password_reset" if not created else "superadmin_bootstrap",
+        entity_type="user",
+        entity_id=str(user.id),
+        details={"target_email": user.email, "created": created},
+    )
+    await db.commit()
+    return {
+        "message": (
+            f"Superadmin {data.email} vytvořen v Platform instituci."
+            if created else f"Heslo pro {data.email} bylo změněno."
+        ),
+        "email": data.email,
+        "created": created,
+    }
+
 
 
 # ---- One-off: move superadmin users into a dedicated Platform institution ----

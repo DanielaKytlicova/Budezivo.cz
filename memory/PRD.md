@@ -392,6 +392,14 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] Výchozí české šablony pro MŠ/ZŠ/SŠ/obecné publikum
 - [x] Background odesílání emailů přes BackgroundTasks (ne v HTTP requestu)
 - [x] Snapshoty: content_snapshot, selection_snapshot, programs_snapshot při odeslání
+
+### Fáze 46 - Feature flag management + Password reset (20.4.2026)
+- [x] `GET/PUT /api/superadmin/feature-flags[/{key}]` — superadmin nyní může spravovat pilot feature flags (enable/disable globálně nebo per-instituce)
+- [x] `POST /api/superadmin/reset-password` — superadmin může resetovat heslo libovolného uživatele; pokud email patří do SUPERADMIN_EMAILS a uživatel neexistuje, vytvoří ho v Budeživo Platform instituci (bootstrap sekundárního superadmina)
+- [x] Bootstrapován `admin@budezivo.cz` s heslem `Admin2026!` (zapsáno v test_credentials.md)
+- [x] `events_module` feature flag rozšířen o `Oblastní galerie Lázně` (8ca0ac56-…) a `Budeživo Platform` (c18a10b9-…) — události nyní vidí i kytlicova.vanilie@gmail.com
+- [x] Audit log zaznamenává `feature_flag_update` (before/after diff) a `superadmin_bootstrap`
+
 - [x] Per-příjemce: matching_reason (proč vybrán), relevantní programy (MailingRecipientProgram)
 - [x] Frontend: stránka /admin/mailings s archivem kampaní
 - [x] Frontend: 4-krokový průvodce (Programy → Příjemci → Text emailu → Odeslání)

@@ -196,6 +196,55 @@ async def get_institution_detail(
     # Usage metrics
     usage = await get_institution_usage(db, institution_id)
 
+    # Owner: first admin by creation time (the person who registered the institution)
+    owner_res = await db.execute(
+        select(User).where(and_(
+            User.institution_id == inst_id,
+            User.deleted_at.is_(None),
+            User.role == 'admin',
+        )).order_by(User.created_at.asc()).limit(1)
+    )
+    owner = owner_res.scalar_one_or_none()
+    # Fallback: first user of any role if no admin exists
+    if not owner:
+        fallback = await db.execute(
+            select(User).where(and_(
+                User.institution_id == inst_id,
+                User.deleted_at.is_(None),
+            )).order_by(User.created_at.asc()).limit(1)
+        )
+        owner = fallback.scalar_one_or_none()
+
+    # All users (for sub-panel, viewer-only)
+    users_res = await db.execute(
+        select(User).where(and_(
+            User.institution_id == inst_id,
+            User.deleted_at.is_(None),
+        )).order_by(User.created_at.asc())
+    )
+    users_list = users_res.scalars().all()
+
+    def _user_dict(u: User):
+        if not u:
+            return None
+        full = (u.name or "").strip()
+        first, last = "", ""
+        if full:
+            parts = full.split(" ", 1)
+            first = parts[0]
+            last = parts[1] if len(parts) > 1 else ""
+        return {
+            "id": str(u.id),
+            "name": u.name,
+            "first_name": first,
+            "last_name": last,
+            "email": u.email,
+            "role": u.role,
+            "status": u.status,
+            "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        }
+
     # Billing orders
     billing_result = await db.execute(
         select(BillingOrder).where(BillingOrder.institution_id == inst_id)
@@ -231,6 +280,8 @@ async def get_institution_detail(
             "waitlist_entries": waitlist_count,
         },
         "usage_metrics": usage,
+        "owner": _user_dict(owner),
+        "users": [_user_dict(u) for u in users_list],
         "billing_orders": [
             {
                 "id": str(o.id),

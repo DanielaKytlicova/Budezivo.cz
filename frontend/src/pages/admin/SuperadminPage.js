@@ -14,7 +14,8 @@ import axios from 'axios';
 import {
   Building2, Users, BookOpen, Calendar, Mail, BarChart3, Loader2,
   Search, ChevronRight, Crown, Shield, AlertTriangle, Check, X,
-  FileText, Clock, ArrowLeft, Eye, Settings2, Trash2, BarChart2
+  FileText, Clock, ArrowLeft, Eye, Settings2, Trash2, BarChart2,
+  UserCog, AtSign
 } from 'lucide-react';
 import { API } from '../../config/api';
 
@@ -523,7 +524,30 @@ export const SuperadminPage = () => {
 };
 
 /* ---- Institution detail component ---- */
-const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => (
+const ROLE_LABELS = {
+  admin: 'Admin',
+  spravce: 'Správce',
+  edukator: 'Edukátor',
+  lektor: 'Lektor',
+  pokladni: 'Pokladní',
+  viewer: 'Pozorovatel',
+};
+
+const ROLE_BADGE = {
+  admin: 'bg-red-100 text-red-700',
+  spravce: 'bg-purple-100 text-purple-700',
+  edukator: 'bg-blue-100 text-blue-700',
+  lektor: 'bg-emerald-100 text-emerald-700',
+  pokladni: 'bg-amber-100 text-amber-700',
+  viewer: 'bg-slate-100 text-slate-600',
+};
+
+const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => {
+  const [usersOpen, setUsersOpen] = React.useState(false);
+  const owner = inst.owner;
+  const users = inst.users || [];
+
+  return (
   <div className="space-y-4">
     {/* Header */}
     <div className="flex items-center justify-between">
@@ -542,6 +566,56 @@ const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => (
         )}
       </div>
     </div>
+
+    {/* Owner / zřizovatel */}
+    <Card className="p-4" data-testid="owner-card">
+      <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+        <UserCog className="w-4 h-4" /> Zřizovatel / administrátor účtu
+      </h3>
+      {owner ? (
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-semibold text-lg shrink-0">
+            {(owner.first_name || owner.email || '?').charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+            <div>
+              <div className="text-xs text-slate-500">Jméno a příjmení</div>
+              <div className="font-medium text-slate-900" data-testid="owner-name">
+                {owner.name || <span className="italic text-slate-400">(neuvedeno)</span>}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Registrační e-mail</div>
+              <div className="font-medium text-slate-900 flex items-center gap-1" data-testid="owner-email">
+                <AtSign className="w-3 h-3 text-slate-400" /> {owner.email}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Role</div>
+              <Badge className={ROLE_BADGE[owner.role] || 'bg-slate-100'}>
+                {ROLE_LABELS[owner.role] || owner.role}
+              </Badge>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Registrace</div>
+              <div className="text-slate-700">{owner.created_at ? new Date(owner.created_at).toLocaleDateString('cs-CZ') : '—'}</div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Poslední přihlášení</div>
+              <div className="text-slate-700">{owner.last_login_at ? new Date(owner.last_login_at).toLocaleString('cs-CZ') : '—'}</div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Status</div>
+              <Badge className={owner.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}>
+                {owner.status}
+              </Badge>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500">Nenalezen žádný admin uživatel pro tuto instituci.</p>
+      )}
+    </Card>
 
     {/* Plan info */}
     <Card className="p-4">
@@ -579,6 +653,75 @@ const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => (
           </div>
         ))}
       </div>
+    </Card>
+
+    {/* Users list (read-only sub-panel) */}
+    <Card className="p-4" data-testid="users-card">
+      <button
+        type="button"
+        onClick={() => setUsersOpen(o => !o)}
+        className="w-full flex items-center justify-between hover:opacity-80"
+        data-testid="toggle-users-panel"
+      >
+        <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+          <Users className="w-4 h-4" /> Uživatelé instituce
+          <span className="text-xs font-normal text-slate-500 ml-1">({users.length})</span>
+          <span className="text-[10px] font-mono uppercase text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded ml-2">pouze čtení</span>
+        </h3>
+        <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${usersOpen ? 'rotate-90' : ''}`} />
+      </button>
+
+      {usersOpen && (
+        <div className="mt-4 overflow-x-auto">
+          {users.length === 0 ? (
+            <p className="text-sm text-slate-500 py-2">Žádní uživatelé.</p>
+          ) : (
+            <table className="w-full text-sm" data-testid="users-table">
+              <thead>
+                <tr className="text-left border-b text-xs uppercase text-slate-500">
+                  <th className="py-2 pr-3">Jméno</th>
+                  <th className="py-2 pr-3">E-mail</th>
+                  <th className="py-2 pr-3">Role</th>
+                  <th className="py-2 pr-3">Status</th>
+                  <th className="py-2 pr-3">Registrace</th>
+                  <th className="py-2">Poslední přihlášení</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(u => (
+                  <tr key={u.id} className="border-b last:border-0 hover:bg-slate-50" data-testid={`user-row-${u.id}`}>
+                    <td className="py-2 pr-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-semibold">
+                          {(u.first_name || u.email || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-slate-800">{u.name || <span className="italic text-slate-400">—</span>}</span>
+                      </div>
+                    </td>
+                    <td className="py-2 pr-3 font-mono text-xs text-slate-700">{u.email}</td>
+                    <td className="py-2 pr-3">
+                      <Badge className={ROLE_BADGE[u.role] || 'bg-slate-100'}>
+                        {ROLE_LABELS[u.role] || u.role}
+                      </Badge>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <Badge className={u.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}>
+                        {u.status}
+                      </Badge>
+                    </td>
+                    <td className="py-2 pr-3 text-xs text-slate-500">
+                      {u.created_at ? new Date(u.created_at).toLocaleDateString('cs-CZ') : '—'}
+                    </td>
+                    <td className="py-2 text-xs text-slate-500">
+                      {u.last_login_at ? new Date(u.last_login_at).toLocaleString('cs-CZ') : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </Card>
 
     {/* Usage metrics */}
@@ -621,6 +764,7 @@ const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => (
       </Card>
     )}
   </div>
-);
+  );
+};
 
 export default SuperadminPage;

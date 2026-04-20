@@ -348,6 +348,15 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 
 
 ### Fáze 35 - Propagační mailingy / Kampanový modul (15.4.2026)
+
+### Fáze 43 - Superadmin: karta zřizovatele + seznam uživatelů instituce (20.4.2026)
+- [x] Backend: `/api/superadmin/institutions/{id}` rozšířen o `owner` (první admin uživatel podle created_at) a `users` (všichni non-deleted uživatelé instituce)
+  - každý objekt obsahuje: id, name, first_name, last_name, email, role, status, last_login_at, created_at
+- [x] Frontend InstitutionDetail: nová karta „Zřizovatel / administrátor účtu" s iniciálou, jménem, e-mailem, rolí, datem registrace, posledním přihlášením a statusem
+- [x] Frontend: nový rozbalovací panel „Uživatelé instituce" — klikací header, tabulka read-only (jméno+avatar / e-mail / role / status / registrace / poslední přihlášení) se štítkem „POUZE ČTENÍ"
+- [x] Role překlady a barvy (admin/správce/edukátor/lektor/pokladní/viewer)
+- [x] Ověřeno screenshotem na instituci „Botanická zahrada Liberec"
+
 - [x] DB modely: MailingCampaign, MailingCampaignProgram, MailingCampaignRecipient, MailingRecipientProgram
 - [x] Alembic migrace pro 4 nové tabulky
 - [x] Backend CRUD: POST/GET/PUT/DELETE /api/mailings, včetně draft managementu

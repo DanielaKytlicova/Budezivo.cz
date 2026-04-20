@@ -774,6 +774,10 @@ async def submit_application(
         "account_number": pay_settings.account_number if pay_settings else None,
         "bank_code": pay_settings.bank_code if pay_settings else None,
         "account_name": pay_settings.account_name if pay_settings else None,
+        "provider": pay_settings.provider if pay_settings else None,
+        "gateway_enabled": bool(
+            pay_settings and pay_settings.provider and pay_settings.payment_mode in ("gateway", "both")
+        ),
     } if pay_settings else None
     resp["pdf_url"] = f"/api/events/public/{institution_id}/application/{str(application.id)}/pdf"
 

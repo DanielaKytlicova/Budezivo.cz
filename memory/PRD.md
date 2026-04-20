@@ -287,6 +287,28 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] Plan request → automatický billing order
 - [x] Testováno: 18/18 (iteration_51.json)
 
+
+### Fáze 40 - Superadmin delete, PDF font fix, QR IBAN, Auto-renewal + Usage Analytics (20.4.2026)
+- [x] Superadmin: DELETE /api/superadmin/institutions/{id} — soft delete s ochranou
+  - Vyžaduje přesnou shodu `confirmation_name` s názvem instituce
+  - Nelze smazat vlastní instituci
+  - Zároveň soft-deletuje všechny uživatele (nelze se přihlásit)
+  - Audit trail zapsán do billing_note (kdo, kdy, proč)
+- [x] Frontend modal pro mazání instituce s blokovaným tlačítkem dokud se název neshoduje
+- [x] PDF generace: DejaVuSans fonty nabalené do /app/backend/fonts/ (nezávislé na instalaci systému)
+  - registerFontFamily: `<b>` tagy v Paragraph nyní používají DejaVuSans-Bold
+  - Oprava chybných diakritických znaků (■) v PDF přihláškách
+- [x] QR platba: SPAYD nyní používá platný CZ IBAN místo surového čísla/banky
+  - `cz_account_to_iban()` s mod-97 algoritmem
+  - Příklad: 295033917/0300 → CZ6003000000000295033917
+- [x] Scheduler: denní job `process_plan_expiration` v 5:00 UTC
+  - Pro expired plány: auto_renew=True → billing order; jinak → status=expired + limity na Free
+- [x] Superadmin endpoint: GET /api/superadmin/usage-analytics
+  - `by_feature` (adoption rate), `by_plan`, `top_institutions`
+- [x] Superadmin endpoint: POST /api/superadmin/run-expiration-job (manuální trigger)
+- [x] Frontend: záložka Usage + Expirace na Superadmin stránce
+- [x] Testováno: 13/13 backend, 100% frontend (iteration_52.json)
+
 ### Fáze 35 - Propagační mailingy / Kampanový modul (15.4.2026)
 - [x] DB modely: MailingCampaign, MailingCampaignProgram, MailingCampaignRecipient, MailingRecipientProgram
 - [x] Alembic migrace pro 4 nové tabulky

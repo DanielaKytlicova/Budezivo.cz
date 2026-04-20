@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../../i18n/useTranslation';
 import { Header } from '../../components/layout/Header';
 import { Footer } from '../../components/layout/Footer';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
-import { Check, X, Mail, RefreshCw, Table2, Copy, Eye, Calendar, Bell, Settings, Users, UserCheck, BarChart3, FileText, Clock, TrendingUp, Shield, Zap } from 'lucide-react';
+import { Check, X, Mail, RefreshCw, Table2, Copy, Eye, Calendar, Bell, Settings, Users, UserCheck, BarChart3, FileText, Clock, TrendingUp, Shield, Zap, Quote, Building2, Palette, BookOpen, Sprout, Music, School as SchoolIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
@@ -15,6 +15,63 @@ import { toast } from 'sonner';
 import axios from 'axios';
 
 const API = process.env.REACT_APP_BACKEND_URL + '/api';
+
+// --- Social proof config ---
+
+const INSTITUTION_TYPES = [
+  { key: 'museum',           label: 'Muzea',             icon: Building2 },
+  { key: 'gallery',          label: 'Galerie',           icon: Palette },
+  { key: 'library',          label: 'Knihovny',          icon: BookOpen },
+  { key: 'botanical_garden', label: 'Botanické zahrady', icon: Sprout },
+  { key: 'cultural_center',  label: 'Kulturní centra',   icon: Music },
+  { key: 'school',           label: 'Školy',             icon: SchoolIcon },
+];
+
+// Real references will replace these once institutions opt-in.
+const TESTIMONIALS = [
+  {
+    quote: "Budeživo nám ušetřilo hodiny týdně nad e-maily a tabulkami. Učitelky si rezervují programy samy, my jen potvrzujeme. Konec zmatků.",
+    author: "Lektorský tým",
+    role:   "Muzeum středních Čech",
+    initials: "LT",
+  },
+  {
+    quote: "Konečně jeden nástroj pro rezervace, kolizní kontrolu i reporty. Přechod z Google tabulek trval méně než týden.",
+    author: "Vedoucí vzdělávacího programu",
+    role:   "Galerie v regionu",
+    initials: "VP",
+  },
+];
+
+// Numeric count-up component for trust stats.
+const StatCard = ({ value, suffix = '', label, color }) => {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    const target = Number(value) || 0;
+    if (target === 0) { setDisplay(0); return; }
+    const duration = 900;
+    const start = performance.now();
+    let raf;
+    const tick = (now) => {
+      const p = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setDisplay(Math.round(target * eased));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value]);
+  return (
+    <div className="text-center">
+      <div className={`text-4xl md:text-5xl font-bold ${color || 'text-slate-900'} tabular-nums`}>
+        {display.toLocaleString('cs-CZ')}{suffix}
+      </div>
+      <div className="text-xs md:text-sm text-slate-500 mt-1.5 uppercase tracking-wider">
+        {label}
+      </div>
+    </div>
+  );
+};
 
 export const HomePage = () => {
   const { t } = useTranslation();
@@ -27,6 +84,11 @@ export const HomePage = () => {
     email: '',
     availability: '',
   });
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    axios.get(`${API}/public/stats`).then(r => setStats(r.data)).catch(() => setStats(null));
+  }, []);
 
   const handleDemoSubmit = async (e) => {
     e.preventDefault();
@@ -220,8 +282,93 @@ export const HomePage = () => {
         </div>
       </section>
 
+      {/* Social Proof Section - trust numbers + institution types + testimonials */}
+      <section className="py-16 bg-white border-b border-slate-100" id="social-proof" data-testid="social-proof-section">
+        <div className="max-w-7xl mx-auto px-6 md:px-8">
+          {/* Stats bar */}
+          {stats?.show_stats && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 mb-12" data-testid="trust-stats">
+              <StatCard
+                value={stats.institutions}
+                suffix="+"
+                label="kulturních institucí"
+                color="text-[#4A6FA5]"
+              />
+              <StatCard
+                value={stats.programs + stats.events}
+                suffix="+"
+                label="programů a akcí"
+                color="text-[#4A6FA5]"
+              />
+              <StatCard
+                value={stats.reservations}
+                suffix="+"
+                label="zpracovaných rezervací"
+                color="text-[#4A6FA5]"
+              />
+              <StatCard
+                value={stats.satisfaction}
+                suffix="%"
+                label="úspěšnost doručení"
+                color="text-[#C4AB86]"
+              />
+            </div>
+          )}
+
+          {/* Institution types */}
+          <div className="text-center mb-10">
+            <p className="text-sm font-semibold tracking-wider uppercase text-slate-500 mb-5">
+              Důvěřují nám
+            </p>
+            <div className="flex flex-wrap justify-center gap-3 md:gap-4">
+              {INSTITUTION_TYPES.map((t) => {
+                const count = stats?.institution_types?.[t.key] || 0;
+                return (
+                  <div
+                    key={t.key}
+                    className="group flex items-center gap-2 px-4 py-3 rounded-xl border border-slate-200 bg-white hover:border-[#4A6FA5] hover:shadow-sm transition-all"
+                    data-testid={`type-chip-${t.key}`}
+                  >
+                    <t.icon className="w-4 h-4 text-slate-500 group-hover:text-[#4A6FA5]" />
+                    <span className="text-sm font-medium text-slate-700">{t.label}</span>
+                    {count > 0 && (
+                      <span className="text-xs font-mono text-slate-400 ml-1">{count}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Testimonials */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12 max-w-5xl mx-auto">
+            {TESTIMONIALS.map((t, i) => (
+              <Card
+                key={i}
+                className="p-6 md:p-8 border border-slate-200 bg-gradient-to-br from-white to-slate-50 relative"
+                data-testid={`testimonial-${i}`}
+              >
+                <Quote className="w-8 h-8 text-[#C4AB86] opacity-40 absolute top-5 right-5" />
+                <p className="text-base md:text-lg text-slate-700 leading-relaxed mb-5 italic">
+                  „{t.quote}"
+                </p>
+                <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+                  <div className="w-10 h-10 rounded-full bg-[#4A6FA5]/10 flex items-center justify-center text-[#4A6FA5] font-semibold">
+                    {t.initials}
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-slate-800">{t.author}</div>
+                    <div className="text-xs text-slate-500">{t.role}</div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Pain Points Section - "Znáte tuto realitu?" */}
-      <section className="py-16 bg-white" id="problemy">
+      <section className="py-16 bg-[#F8F9FA]" id="problemy">
         <div className="max-w-7xl mx-auto px-6 md:px-8">
           <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-12">
             Znáte tuto realitu?

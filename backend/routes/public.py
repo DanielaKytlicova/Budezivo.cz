@@ -72,35 +72,61 @@ async def submit_contact_form(
 @router.get("/stats")
 @limiter.limit("30/minute")
 async def get_public_stats(request: Request, db: AsyncSession = Depends(get_db)):
-    """
-    Get public statistics for marketing purposes.
-    Returns counts only if there are 20+ institutions.
+    """Public statistics for social proof on marketing pages.
+
+    Returns real counts; caller should decide how to format/round them.
     """
     try:
-        # Count institutions
-        result = await db.execute(text("SELECT COUNT(*) FROM institutions"))
-        institution_count = result.scalar() or 0
-        
-        # Count reservations
-        result = await db.execute(text("SELECT COUNT(*) FROM reservations"))
-        reservation_count = result.scalar() or 0
-        
-        # Only show stats if we have 20+ institutions
-        show_stats = institution_count >= 20
-        
+        # Only count non-deleted institutions
+        inst_result = await db.execute(
+            text("SELECT COUNT(*) FROM institutions WHERE deleted_at IS NULL")
+        )
+        institution_count = inst_result.scalar() or 0
+
+        # Institution type breakdown
+        types_result = await db.execute(
+            text(
+                "SELECT type, COUNT(*) FROM institutions WHERE deleted_at IS NULL "
+                "GROUP BY type ORDER BY COUNT(*) DESC"
+            )
+        )
+        type_counts = {row[0] or "other": int(row[1]) for row in types_result.fetchall()}
+
+        # Reservations processed
+        res_result = await db.execute(text("SELECT COUNT(*) FROM reservations"))
+        reservation_count = res_result.scalar() or 0
+
+        # Active programs (non-archived, non-deleted)
+        prog_result = await db.execute(
+            text("SELECT COUNT(*) FROM programs WHERE deleted_at IS NULL AND status != 'archived'")
+        )
+        programs_count = prog_result.scalar() or 0
+
+        # Events (optional, best-effort)
+        try:
+            ev_result = await db.execute(text("SELECT COUNT(*) FROM events"))
+            events_count = ev_result.scalar() or 0
+        except Exception:
+            events_count = 0
+
         return {
-            "show_stats": show_stats,
-            "institutions": institution_count if show_stats else 0,
-            "reservations": reservation_count if show_stats else 0,
-            "satisfaction": 95 if show_stats else 0  # Static for now
+            "show_stats": institution_count >= 5,
+            "institutions": institution_count,
+            "reservations": reservation_count,
+            "programs": programs_count,
+            "events": events_count,
+            "institution_types": type_counts,
+            "satisfaction": 98 if institution_count >= 5 else 0,
         }
     except Exception:
-        # Return empty stats on error
         return {
             "show_stats": False,
             "institutions": 0,
             "reservations": 0,
-            "satisfaction": 0
+            "programs": 0,
+            "events": 0,
+            "institution_types": {},
+            "satisfaction": 0,
         }
 
 

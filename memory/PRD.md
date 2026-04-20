@@ -328,6 +328,16 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] VOP § 7.8 — doplněna klauzule „Platby jsou zpracovávány prostřednictvím platební brány třetí strany (např. Comgate)..."
 - [x] Otestováno: 13/13 backend + 100% frontend E2E (iteration_53.json)
 - [ ] BUDOUCÍ: GoPay jako druhý provider (abstrakce připravena, stačí `gopay.py`)
+
+### Fáze 42 - Social proof na landing page (P3) (20.4.2026)
+- [x] Upravený endpoint `GET /api/public/stats` — vrací institutions, reservations, programs, events, institution_types (breakdown), satisfaction (práh snížen na 5 institucí)
+- [x] HomePage: nová sekce mezi Hero a Pain Points s:
+  - Animovanou stats lištou (count-up animace, `StatCard` komponenta, cs-CZ lokalizace čísel)
+  - Institution type chips (Muzea, Galerie, Knihovny, Botanické zahrady, Kulturní centra, Školy) s live countem
+  - Dvě testimonial karty (placeholder — skutečné reference budou doplněny po souhlasu institucí)
+- [x] data-testid: `social-proof-section`, `trust-stats`, `type-chip-{key}`, `testimonial-{i}`
+- [x] Ověřeno screenshotem: sekce renderuje správně s 12+ institucí / 13+ programy+akce / 63+ rezervací / 98%
+
 - [ ] BUDOUCÍ: Apple Pay — automaticky dostupné jakmile instituce povolí v Comgate dashboardu
 
 

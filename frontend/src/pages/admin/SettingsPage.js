@@ -1585,22 +1585,54 @@ export const SettingsPage = () => {
 
             {(paymentSettings.payment_mode === 'gateway' || paymentSettings.payment_mode === 'both') && (
               <Card className="p-4 bg-blue-50 border-blue-200 space-y-3">
-                <p className="text-sm font-medium text-blue-800">Platební brána (připraveno)</p>
-                <p className="text-xs text-blue-600">Integrace s GoPay/Comgate bude dostupná v další fázi. Nyní můžete předvyplnit přihlašovací údaje.</p>
+                <p className="text-sm font-medium text-blue-800">Platební brána</p>
+                <p className="text-xs text-blue-600">
+                  Zatím bez klíčů aplikace funguje v simulačním režimu (mock) — zákazník vidí testovací stránku a vy můžete odzkoušet celý flow.
+                  Po dodání reálných klíčů Comgate se brána automaticky přepne do produkčního / testovacího režimu.
+                </p>
                 <div>
                   <Label className="text-gray-500 text-sm">Poskytovatel</Label>
                   <Select
                     value={paymentSettings.provider || 'none'}
                     onValueChange={v => setPaymentSettings(p => ({ ...p, provider: v === 'none' ? null : v }))}
                   >
-                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="mt-1" data-testid="gateway-provider"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nevybráno</SelectItem>
-                      <SelectItem value="gopay">GoPay</SelectItem>
                       <SelectItem value="comgate">Comgate</SelectItem>
+                      <SelectItem value="gopay" disabled>GoPay (brzy)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                {paymentSettings.provider === 'comgate' && (
+                  <>
+                    <div>
+                      <Label className="text-gray-500 text-sm">Comgate Merchant ID</Label>
+                      <Input
+                        value={paymentSettings.gateway_api_key || ''}
+                        onChange={e => setPaymentSettings(p => ({ ...p, gateway_api_key: e.target.value }))}
+                        placeholder="např. 123456 (pro test začněte TEST_)"
+                        className="mt-1 font-mono"
+                        data-testid="gateway-merchant"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-gray-500 text-sm">Comgate Secret</Label>
+                      <Input
+                        type="password"
+                        value={paymentSettings.gateway_secret || ''}
+                        onChange={e => setPaymentSettings(p => ({ ...p, gateway_secret: e.target.value }))}
+                        placeholder="••••••••"
+                        className="mt-1 font-mono"
+                        data-testid="gateway-secret"
+                      />
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Tip: Merchant ID začínající <code className="font-mono">TEST_</code> přepne bránu do sandbox režimu Comgate.
+                      Prázdná pole = simulační (mock) režim pro otestování přihlášek bez odeslání do banky.
+                    </p>
+                  </>
+                )}
               </Card>
             )}
           </Card>

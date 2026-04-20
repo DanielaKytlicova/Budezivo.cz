@@ -18,8 +18,74 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.pdfmetrics import registerFontFamily
 
 logger = logging.getLogger(__name__)
+
+# ============ Font registration (once, at module load) ============
+# Bundled fonts in /app/backend/fonts/ guarantee Czech diacritics work in all PDFs.
+_FONT_BASE = 'Helvetica'
+_FONT_BOLD = 'Helvetica-Bold'
+
+def _register_pdf_fonts():
+    """Register DejaVuSans as the default PDF font family. Supports full Czech diacritics."""
+    global _FONT_BASE, _FONT_BOLD
+    import os
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    candidates = [
+        os.path.join(base_dir, 'fonts'),
+        '/usr/share/fonts/truetype/dejavu',
+    ]
+    for d in candidates:
+        regular = os.path.join(d, 'DejaVuSans.ttf')
+        bold = os.path.join(d, 'DejaVuSans-Bold.ttf')
+        if os.path.exists(regular) and os.path.exists(bold):
+            try:
+                if 'DejaVuSans' not in pdfmetrics.getRegisteredFontNames():
+                    pdfmetrics.registerFont(TTFont('DejaVuSans', regular))
+                if 'DejaVuSans-Bold' not in pdfmetrics.getRegisteredFontNames():
+                    pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', bold))
+                # Map family so <b>/<strong> tags in Paragraph pick the bold variant
+                registerFontFamily(
+                    'DejaVuSans',
+                    normal='DejaVuSans',
+                    bold='DejaVuSans-Bold',
+                    italic='DejaVuSans',
+                    boldItalic='DejaVuSans-Bold',
+                )
+                _FONT_BASE = 'DejaVuSans'
+                _FONT_BOLD = 'DejaVuSans-Bold'
+                logger.info(f"PDF fonts registered from {d}")
+                return
+            except Exception as e:
+                logger.warning(f"Failed to register fonts from {d}: {e}")
+    logger.warning("DejaVuSans fonts not found — falling back to Helvetica (Czech diacritics may break)")
+
+_register_pdf_fonts()
+
+
+# ============ Czech IBAN generation ============
+
+def cz_account_to_iban(account_number: str, bank_code: str) -> str:
+    """Convert Czech BBAN to IBAN.
+    account_number may be 'prefix-number' or just 'number'.
+    Used for SPAYD QR payments so bank apps correctly parse the account.
+    """
+    if not account_number or not bank_code:
+        return ''
+    acc = str(account_number).strip()
+    bank = str(bank_code).strip().rjust(4, '0')[-4:]
+    if '-' in acc:
+        prefix, main = acc.split('-', 1)
+    else:
+        prefix, main = '0', acc
+    prefix = prefix.rjust(6, '0')[-6:]
+    main = main.rjust(10, '0')[-10:]
+    bban = f"{bank}{prefix}{main}"
+    # Check digits: replace CZ=12 35 and 00 placeholder, mod-97
+    numeric = bban + '1235' + '00'
+    checksum = 98 - (int(numeric) % 97)
+    return f"CZ{checksum:02d}{bban}"
 
 STATUS_LABELS = {
     'pending': 'Čeká na schválení',
@@ -219,17 +285,8 @@ def generate_pdf_confirmation(
     """Generate PDF confirmation for a single application with QR payment."""
     buffer = io.BytesIO()
     
-    # Register DejaVuSans for Czech diacritics
-    import os
-    font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
-    font_bold_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
-    if os.path.exists(font_path):
-        pdfmetrics.registerFont(TTFont('DejaVuSans', font_path))
-    if os.path.exists(font_bold_path):
-        pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', font_bold_path))
-    
-    base_font = 'DejaVuSans' if os.path.exists(font_path) else 'Helvetica'
-    bold_font = 'DejaVuSans-Bold' if os.path.exists(font_bold_path) else 'Helvetica-Bold'
+    base_font = _FONT_BASE
+    bold_font = _FONT_BOLD
     
     doc = SimpleDocTemplate(
         buffer, pagesize=A4,
@@ -390,8 +447,10 @@ def generate_pdf_confirmation(
                 import qrcode
                 from reportlab.lib.utils import ImageReader
                 
-                acc = f"{acc_num}/{bank_code}" if bank_code else acc_num
-                spayd = f"SPD*1.0*ACC:CZ{acc}*AM:{total:.2f}*CC:CZK*X-VS:{vs}*MSG:Prihlaska"
+                iban = cz_account_to_iban(acc_num, bank_code)
+                if not iban:
+                    raise ValueError("Invalid account/bank code for IBAN")
+                spayd = f"SPD*1.0*ACC:{iban}*AM:{total:.2f}*CC:CZK*X-VS:{vs}*MSG:Prihlaska"
                 
                 qr = qrcode.QRCode(version=1, box_size=6, border=2)
                 qr.add_data(spayd)

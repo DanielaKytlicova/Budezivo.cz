@@ -14,7 +14,8 @@ import axios from 'axios';
 import {
   Building2, Users, BookOpen, Calendar, Mail, BarChart3, Loader2,
   Search, ChevronRight, Crown, Shield, AlertTriangle, Check, X,
-  FileText, Clock, ArrowLeft, Eye, Settings2
+  FileText, Clock, ArrowLeft, Eye, Settings2, Trash2, BarChart2,
+  UserCog, AtSign, History
 } from 'lucide-react';
 import { API } from '../../config/api';
 
@@ -39,6 +40,8 @@ export const SuperadminPage = () => {
   const [overview, setOverview] = useState(null);
   const [institutions, setInstitutions] = useState([]);
   const [billingOrders, setBillingOrders] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [auditLog, setAuditLog] = useState(null);
   const [selectedInst, setSelectedInst] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -48,6 +51,11 @@ export const SuperadminPage = () => {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [planForm, setPlanForm] = useState({ plan: 'free', plan_status: 'active', activated_by: 'admin', billing_note: '' });
   const [saving, setSaving] = useState(false);
+
+  // Delete institution modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteForm, setDeleteForm] = useState({ confirmation_name: '', reason: '' });
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => { loadOverview(); loadInstitutions(); }, []);
 
@@ -83,6 +91,32 @@ export const SuperadminPage = () => {
     } catch { toast.error('Chyba při načítání objednávek'); }
   };
 
+  const loadAnalytics = async () => {
+    try {
+      const res = await axios.get(`${API}/superadmin/usage-analytics`, { withCredentials: true });
+      setAnalytics(res.data);
+      setView('analytics');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Chyba při načítání analytiky'); }
+  };
+
+  const loadAuditLog = async () => {
+    try {
+      const res = await axios.get(`${API}/superadmin/audit-log?per_page=100`, { withCredentials: true });
+      setAuditLog(res.data);
+      setView('audit');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Chyba při načítání historie'); }
+  };
+
+  const runExpirationJob = async () => {
+    if (!window.confirm('Spustit expirační úlohu nyní? Instituce s expirovaným plánem budou přepnuty do stavu expired.')) return;
+    try {
+      await axios.post(`${API}/superadmin/run-expiration-job`, {}, { withCredentials: true });
+      toast.success('Expirační úloha spuštěna');
+      loadInstitutions();
+      loadOverview();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Chyba'); }
+  };
+
   const handlePlanChange = async () => {
     if (!selectedInst) return;
     setSaving(true);
@@ -115,6 +149,25 @@ export const SuperadminPage = () => {
     } catch (e) { toast.error(e.response?.data?.detail || 'Chyba'); }
   };
 
+  const handleDeleteInstitution = async () => {
+    if (!selectedInst) return;
+    setDeleting(true);
+    try {
+      await axios.delete(`${API}/superadmin/institutions/${selectedInst.id}`, {
+        data: deleteForm,
+        withCredentials: true,
+      });
+      toast.success('Instituce byla smazána');
+      setShowDeleteModal(false);
+      setDeleteForm({ confirmation_name: '', reason: '' });
+      setSelectedInst(null);
+      setView('institutions');
+      loadInstitutions();
+      loadOverview();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Chyba při mazání'); }
+    finally { setDeleting(false); }
+  };
+
   const filtered = institutions.filter(i => {
     if (planFilter !== 'all' && i.plan !== planFilter) return false;
     if (search && !i.name?.toLowerCase().includes(search.toLowerCase()) && !i.email?.toLowerCase().includes(search.toLowerCase())) return false;
@@ -143,6 +196,17 @@ export const SuperadminPage = () => {
             <Button variant={view === 'billing' ? 'default' : 'outline'} size="sm"
               onClick={loadBilling} data-testid="tab-billing">
               <FileText className="w-4 h-4 mr-1" /> Objednávky
+            </Button>
+            <Button variant={view === 'analytics' ? 'default' : 'outline'} size="sm"
+              onClick={loadAnalytics} data-testid="tab-analytics">
+              <BarChart2 className="w-4 h-4 mr-1" /> Usage
+            </Button>
+            <Button variant={view === 'audit' ? 'default' : 'outline'} size="sm"
+              onClick={loadAuditLog} data-testid="tab-audit">
+              <History className="w-4 h-4 mr-1" /> Historie
+            </Button>
+            <Button variant="outline" size="sm" onClick={runExpirationJob} data-testid="run-expiration-btn" title="Spustit expiraci plánů nyní">
+              <Clock className="w-4 h-4 mr-1" /> Expirace
             </Button>
           </div>
         </div>
@@ -230,9 +294,14 @@ export const SuperadminPage = () => {
         {view === 'detail' && selectedInst && (
           <InstitutionDetail
             inst={selectedInst}
+            canDelete={String(selectedInst.id) !== String(user?.institution_id)}
             onPlanChange={() => {
               setPlanForm({ plan: selectedInst.plan, plan_status: selectedInst.plan_status, activated_by: 'admin', billing_note: selectedInst.billing_note || '' });
               setShowPlanModal(true);
+            }}
+            onDelete={() => {
+              setDeleteForm({ confirmation_name: '', reason: '' });
+              setShowDeleteModal(true);
             }}
           />
         )}
@@ -271,6 +340,108 @@ export const SuperadminPage = () => {
                 </div>
               </Card>
             ))}
+          </div>
+        )}
+
+        {/* Platform usage analytics */}
+        {view === 'analytics' && (
+          <div className="space-y-4" data-testid="analytics-view">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <BarChart2 className="w-5 h-5" /> Platform Usage Analytics
+            </h2>
+
+            {!analytics ? (
+              <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>
+            ) : (
+              <>
+                <Card className="p-4">
+                  <h3 className="font-semibold text-slate-800 mb-3">Využití dle plánu</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {analytics.by_plan.map(p => (
+                      <div key={p.plan} className="p-3 bg-slate-50 rounded">
+                        <Badge className={PLAN_BADGE[p.plan] || ''}>{p.plan_label}</Badge>
+                        <div className="mt-2 text-2xl font-bold">{p.total_usage.toLocaleString('cs-CZ')}</div>
+                        <div className="text-xs text-slate-500">{p.active_institutions} aktivních institucí</div>
+                      </div>
+                    ))}
+                    {analytics.by_plan.length === 0 && <p className="text-slate-500 col-span-4 text-center py-4">Zatím žádná data</p>}
+                  </div>
+                </Card>
+
+                <Card className="p-4">
+                  <h3 className="font-semibold text-slate-800 mb-3">Využití dle funkce</h3>
+                  <div className="space-y-1">
+                    {analytics.by_feature.map(f => (
+                      <div key={f.feature_key} className="grid grid-cols-12 gap-2 items-center text-sm py-1.5 border-b last:border-0" data-testid={`feature-row-${f.feature_key}`}>
+                        <div className="col-span-5">
+                          <div className="font-medium text-slate-800">{f.feature_label}</div>
+                          <div className="text-xs text-slate-400">{f.feature_key}</div>
+                        </div>
+                        <div className="col-span-2">
+                          {f.min_plan_label && <Badge className={PLAN_BADGE[f.min_plan] || ''}>{f.min_plan_label}</Badge>}
+                        </div>
+                        <div className="col-span-2 text-slate-600">{f.total_usage.toLocaleString('cs-CZ')}x</div>
+                        <div className="col-span-3 flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-purple-500 rounded-full" style={{ width: `${Math.min(100, f.adoption_rate)}%` }} />
+                          </div>
+                          <span className="text-xs text-slate-500 w-12 text-right">{f.adoption_rate}%</span>
+                        </div>
+                      </div>
+                    ))}
+                    {analytics.by_feature.length === 0 && <p className="text-slate-500 text-center py-4">Zatím žádné využití funkcí nebylo zaznamenáno</p>}
+                  </div>
+                </Card>
+
+                <Card className="p-4">
+                  <h3 className="font-semibold text-slate-800 mb-3">Nejaktivnější instituce</h3>
+                  <div className="space-y-1">
+                    {analytics.top_institutions.map((inst, idx) => (
+                      <div key={inst.institution_id} className="flex items-center justify-between py-1.5 border-b last:border-0 text-sm">
+                        <div className="flex items-center gap-3">
+                          <span className="text-slate-400 font-mono w-5 text-right">{idx + 1}.</span>
+                          <span className="font-medium text-slate-800">{inst.institution_name}</span>
+                          <Badge className={PLAN_BADGE[inst.plan] || ''}>{inst.plan_label}</Badge>
+                        </div>
+                        <span className="font-mono text-slate-600">{inst.total_usage.toLocaleString('cs-CZ')}x</span>
+                      </div>
+                    ))}
+                    {analytics.top_institutions.length === 0 && <p className="text-slate-500 text-center py-4">Žádná data</p>}
+                  </div>
+                </Card>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Platform-wide superadmin audit log */}
+        {view === 'audit' && (
+          <div className="space-y-4" data-testid="audit-view">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <History className="w-5 h-5" /> Historie změn superadmina
+            </h2>
+            <p className="text-xs text-slate-500">Všechny superadmin zásahy napříč platformou (změny plánů, mazání institucí, objednávky, expirace). Akce běžného admina ve vlastní instituci zde nejsou — ty jsou v Audit Logu dané instituce.</p>
+
+            {!auditLog ? (
+              <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>
+            ) : (
+              <Card className="p-4">
+                {auditLog.items.length === 0 ? (
+                  <p className="text-slate-500 text-center py-6">Zatím žádné superadmin zásahy nebyly zaznamenány.</p>
+                ) : (
+                  <>
+                    <div className="text-xs text-slate-500 mb-2">Celkem {auditLog.total} záznamů{auditLog.items.length < auditLog.total ? ` (zobrazeno ${auditLog.items.length})` : ''}</div>
+                    <div className="grid grid-cols-12 gap-2 pb-2 text-[10px] uppercase tracking-wider text-slate-400 border-b">
+                      <div className="col-span-3">Čas</div>
+                      <div className="col-span-2">Akce</div>
+                      <div className="col-span-3">Instituce</div>
+                      <div className="col-span-4">Detaily</div>
+                    </div>
+                    {auditLog.items.map(e => <AuditEntryRow key={e.id} entry={e} />)}
+                  </>
+                )}
+              </Card>
+            )}
           </div>
         )}
 
@@ -334,13 +505,187 @@ export const SuperadminPage = () => {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* Delete institution modal */}
+        {showDeleteModal && selectedInst && (
+          <Dialog open onOpenChange={() => setShowDeleteModal(false)}>
+            <DialogContent className="max-w-md" data-testid="delete-inst-modal">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-red-600">
+                  <AlertTriangle className="w-5 h-5" /> Smazat instituci
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  <p className="font-semibold mb-1">Nevratná operace</p>
+                  <p>
+                    Instituce <strong>{selectedInst.name}</strong> a všichni její uživatelé ({selectedInst.stats?.users || 0}) budou deaktivováni.
+                    Data zůstanou v databázi pro audit, ale nebudou dostupná v aplikaci.
+                  </p>
+                </div>
+                <div>
+                  <Label>Pro potvrzení napište přesný název instituce:</Label>
+                  <div className="mt-1 text-xs text-slate-500 font-mono select-all mb-1">{selectedInst.name}</div>
+                  <Input
+                    value={deleteForm.confirmation_name}
+                    onChange={e => setDeleteForm(f => ({ ...f, confirmation_name: e.target.value }))}
+                    placeholder="Zadejte název..."
+                    data-testid="delete-confirm-name"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <Label>Důvod (nepovinné)</Label>
+                  <Textarea
+                    value={deleteForm.reason}
+                    onChange={e => setDeleteForm(f => ({ ...f, reason: e.target.value }))}
+                    rows={2}
+                    placeholder="Např. duplikát, požadavek uživatele, ukončení smlouvy..."
+                    data-testid="delete-reason"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowDeleteModal(false)} data-testid="delete-cancel-btn">
+                  Zrušit
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteInstitution}
+                  disabled={deleting || deleteForm.confirmation_name.trim() !== (selectedInst.name || '').trim()}
+                  data-testid="delete-confirm-btn"
+                >
+                  {deleting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                  Trvale smazat
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </AdminLayout>
   );
 };
 
 /* ---- Institution detail component ---- */
-const InstitutionDetail = ({ inst, onPlanChange }) => (
+const AUDIT_ACTION_LABEL = {
+  plan_change: 'Změna plánu',
+  institution_delete: 'Smazání instituce',
+  billing_confirm: 'Potvrzení objednávky',
+  billing_cancel: 'Zrušení objednávky',
+  run_expiration_job: 'Spuštění expirační úlohy',
+  impersonation_start: 'Zahájení impersonace',
+  impersonation_end: 'Ukončení impersonace',
+  setup_move_to_platform: 'Přesun superadmina do Platform instituce',
+};
+
+const AUDIT_ACTION_COLOR = {
+  plan_change: 'bg-blue-100 text-blue-700',
+  institution_delete: 'bg-red-100 text-red-700',
+  billing_confirm: 'bg-emerald-100 text-emerald-700',
+  billing_cancel: 'bg-amber-100 text-amber-700',
+  run_expiration_job: 'bg-slate-100 text-slate-700',
+  impersonation_start: 'bg-orange-100 text-orange-700',
+  impersonation_end: 'bg-orange-50 text-orange-600',
+  setup_move_to_platform: 'bg-purple-100 text-purple-700',
+};
+
+const AuditEntryRow = ({ entry, showInstitution = true }) => {
+  const label = AUDIT_ACTION_LABEL[entry.action] || entry.action;
+  const color = AUDIT_ACTION_COLOR[entry.action] || 'bg-slate-100 text-slate-700';
+  const d = entry.details || {};
+  return (
+    <div className="grid grid-cols-12 gap-2 items-start py-2 border-b last:border-0 text-sm" data-testid={`audit-row-${entry.id}`}>
+      <div className="col-span-3 text-xs text-slate-500 font-mono">
+        {entry.created_at ? new Date(entry.created_at).toLocaleString('cs-CZ') : '—'}
+      </div>
+      <div className="col-span-2">
+        <Badge className={color}>{label}</Badge>
+      </div>
+      {showInstitution && (
+        <div className="col-span-3 text-slate-700 truncate" title={entry.institution_name || ''}>
+          {entry.institution_name || entry.institution_id?.slice(0, 8)}
+        </div>
+      )}
+      <div className={showInstitution ? "col-span-4 text-xs text-slate-600" : "col-span-7 text-xs text-slate-600"}>
+        <div className="truncate" title={entry.user_email}>
+          <AtSign className="w-3 h-3 inline -mt-0.5 text-slate-400" /> {entry.user_email}
+        </div>
+        {entry.action === 'plan_change' && (
+          <div className="text-slate-500">
+            {d.from_plan}/{d.from_status} → <span className="font-medium">{d.to_plan}/{d.to_status}</span>
+            {d.activated_by && <> · aktivoval: <span className="font-mono">{d.activated_by}</span></>}
+          </div>
+        )}
+        {entry.action === 'institution_delete' && (
+          <div className="text-slate-500">
+            {d.institution_name}{d.reason && ` · důvod: ${d.reason}`}
+          </div>
+        )}
+        {(entry.action === 'billing_confirm' || entry.action === 'billing_cancel') && d.requested_plan && (
+          <div className="text-slate-500">Plán: <span className="font-mono">{d.requested_plan}</span></div>
+        )}
+        {entry.action === 'impersonation_start' && (
+          <div className="text-slate-500">
+            Cíl: <span className="font-mono">{d.target_email}</span> ({d.target_role})
+            {d.reason && <> · důvod: <span className="italic">{d.reason}</span></>}
+          </div>
+        )}
+        {entry.action === 'impersonation_end' && d.impersonated_email && (
+          <div className="text-slate-500">
+            Ukončeno pro: <span className="font-mono">{d.impersonated_email}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const ROLE_LABELS = {
+  admin: 'Admin',
+  spravce: 'Správce',
+  edukator: 'Edukátor',
+  lektor: 'Lektor',
+  pokladni: 'Pokladní',
+  viewer: 'Pozorovatel',
+};
+
+const ROLE_BADGE = {
+  admin: 'bg-red-100 text-red-700',
+  spravce: 'bg-purple-100 text-purple-700',
+  edukator: 'bg-blue-100 text-blue-700',
+  lektor: 'bg-emerald-100 text-emerald-700',
+  pokladni: 'bg-amber-100 text-amber-700',
+  viewer: 'bg-slate-100 text-slate-600',
+};
+
+const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => {
+  const [usersOpen, setUsersOpen] = React.useState(false);
+  const { startImpersonation, user: me } = useContext(AuthContext);
+  const [impBusyId, setImpBusyId] = useState(null);
+  const owner = inst.owner;
+  const users = inst.users || [];
+
+  const doImpersonate = async (u) => {
+    const reason = window.prompt(
+      `Zahájit impersonaci uživatele ${u.email}?\n\nBudete na 30 minut vystupovat jako tento uživatel.\nAkce je zaznamenána v audit logu.\n\nDůvod (nepovinné):`,
+      ''
+    );
+    if (reason === null) return; // cancelled
+    setImpBusyId(u.id);
+    try {
+      await startImpersonation(u.id, reason || '');
+      toast.success(`Impersonace aktivní jako ${u.email}`);
+      // Navigate to the institution dashboard so the session-inheritance takes effect
+      setTimeout(() => window.location.assign('/admin'), 500);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Impersonaci se nepodařilo zahájit');
+    } finally {
+      setImpBusyId(null);
+    }
+  };
+
+  return (
   <div className="space-y-4">
     {/* Header */}
     <div className="flex items-center justify-between">
@@ -348,10 +693,67 @@ const InstitutionDetail = ({ inst, onPlanChange }) => (
         <h2 className="text-xl font-bold text-slate-900">{inst.name}</h2>
         <p className="text-sm text-slate-500">{inst.email} {inst.website && `| ${inst.website}`}</p>
       </div>
-      <Button onClick={onPlanChange} data-testid="change-plan-btn">
-        <Settings2 className="w-4 h-4 mr-1" /> Změnit plán
-      </Button>
+      <div className="flex gap-2">
+        <Button onClick={onPlanChange} data-testid="change-plan-btn">
+          <Settings2 className="w-4 h-4 mr-1" /> Změnit plán
+        </Button>
+        {canDelete && (
+          <Button variant="destructive" onClick={onDelete} data-testid="delete-inst-btn">
+            <Trash2 className="w-4 h-4 mr-1" /> Smazat
+          </Button>
+        )}
+      </div>
     </div>
+
+    {/* Owner / zřizovatel */}
+    <Card className="p-4" data-testid="owner-card">
+      <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+        <UserCog className="w-4 h-4" /> Zřizovatel / administrátor účtu
+      </h3>
+      {owner ? (
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 rounded-full bg-red-100 text-red-700 flex items-center justify-center font-semibold text-lg shrink-0">
+            {(owner.first_name || owner.email || '?').charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+            <div>
+              <div className="text-xs text-slate-500">Jméno a příjmení</div>
+              <div className="font-medium text-slate-900" data-testid="owner-name">
+                {owner.name || <span className="italic text-slate-400">(neuvedeno)</span>}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Registrační e-mail</div>
+              <div className="font-medium text-slate-900 flex items-center gap-1" data-testid="owner-email">
+                <AtSign className="w-3 h-3 text-slate-400" /> {owner.email}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Role</div>
+              <Badge className={ROLE_BADGE[owner.role] || 'bg-slate-100'}>
+                {ROLE_LABELS[owner.role] || owner.role}
+              </Badge>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Registrace</div>
+              <div className="text-slate-700">{owner.created_at ? new Date(owner.created_at).toLocaleDateString('cs-CZ') : '—'}</div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Poslední přihlášení</div>
+              <div className="text-slate-700">{owner.last_login_at ? new Date(owner.last_login_at).toLocaleString('cs-CZ') : '—'}</div>
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Status</div>
+              <Badge className={owner.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}>
+                {owner.status}
+              </Badge>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500">Nenalezen žádný admin uživatel pro tuto instituci.</p>
+      )}
+    </Card>
 
     {/* Plan info */}
     <Card className="p-4">
@@ -391,6 +793,102 @@ const InstitutionDetail = ({ inst, onPlanChange }) => (
       </div>
     </Card>
 
+    {/* Users list (read-only sub-panel) */}
+    <Card className="p-4" data-testid="users-card">
+      <button
+        type="button"
+        onClick={() => setUsersOpen(o => !o)}
+        className="w-full flex items-center justify-between hover:opacity-80"
+        data-testid="toggle-users-panel"
+      >
+        <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+          <Users className="w-4 h-4" /> Uživatelé instituce
+          <span className="text-xs font-normal text-slate-500 ml-1">({users.length})</span>
+          <span className="text-[10px] font-mono uppercase text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded ml-2">pouze čtení</span>
+        </h3>
+        <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${usersOpen ? 'rotate-90' : ''}`} />
+      </button>
+
+      {usersOpen && (
+        <div className="mt-4 overflow-x-auto">
+          {users.length === 0 ? (
+            <p className="text-sm text-slate-500 py-2">Žádní uživatelé.</p>
+          ) : (
+            <table className="w-full text-sm" data-testid="users-table">
+              <thead>
+                <tr className="text-left border-b text-xs uppercase text-slate-500">
+                  <th className="py-2 pr-3">Jméno</th>
+                  <th className="py-2 pr-3">E-mail</th>
+                  <th className="py-2 pr-3">Role</th>
+                  <th className="py-2 pr-3">Status</th>
+                  <th className="py-2 pr-3">Registrace</th>
+                  <th className="py-2 pr-3">Poslední přihlášení</th>
+                  <th className="py-2 text-right">Akce</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map(u => {
+                  const isSelf = me?.id === u.id;
+                  const isAnotherSuperadmin = ['demo@budezivo.cz', 'admin@budezivo.cz'].includes(u.email);
+                  const cantImpersonate = isSelf || isAnotherSuperadmin || u.status !== 'active';
+                  return (
+                  <tr key={u.id} className="border-b last:border-0 hover:bg-slate-50" data-testid={`user-row-${u.id}`}>
+                    <td className="py-2 pr-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-semibold">
+                          {(u.first_name || u.email || '?').charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-slate-800">{u.name || <span className="italic text-slate-400">—</span>}</span>
+                      </div>
+                    </td>
+                    <td className="py-2 pr-3 font-mono text-xs text-slate-700">{u.email}</td>
+                    <td className="py-2 pr-3">
+                      <Badge className={ROLE_BADGE[u.role] || 'bg-slate-100'}>
+                        {ROLE_LABELS[u.role] || u.role}
+                      </Badge>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <Badge className={u.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}>
+                        {u.status}
+                      </Badge>
+                    </td>
+                    <td className="py-2 pr-3 text-xs text-slate-500">
+                      {u.created_at ? new Date(u.created_at).toLocaleDateString('cs-CZ') : '—'}
+                    </td>
+                    <td className="py-2 pr-3 text-xs text-slate-500">
+                      {u.last_login_at ? new Date(u.last_login_at).toLocaleString('cs-CZ') : '—'}
+                    </td>
+                    <td className="py-2 text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => doImpersonate(u)}
+                        disabled={cantImpersonate || impBusyId === u.id}
+                        title={
+                          isSelf ? 'Nelze impersonovat sám sebe' :
+                          isAnotherSuperadmin ? 'Nelze impersonovat jiného superadmina' :
+                          u.status !== 'active' ? 'Uživatel není aktivní' :
+                          'Zahájit impersonaci (30 min)'
+                        }
+                        className="h-7 text-xs"
+                        data-testid={`impersonate-btn-${u.id}`}
+                      >
+                        {impBusyId === u.id
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <UserCog className="w-3 h-3 mr-1" />}
+                        Impersonovat
+                      </Button>
+                    </td>
+                  </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </Card>
+
     {/* Usage metrics */}
     {inst.usage_metrics?.length > 0 && (
       <Card className="p-4">
@@ -408,6 +906,22 @@ const InstitutionDetail = ({ inst, onPlanChange }) => (
             </div>
           ))}
         </div>
+      </Card>
+    )}
+
+    {/* Superadmin audit log for this institution */}
+    {inst.audit_log?.length > 0 && (
+      <Card className="p-4" data-testid="institution-audit-card">
+        <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+          <History className="w-4 h-4" /> Historie zásahů superadmina
+          <span className="text-xs font-normal text-slate-500 ml-1">({inst.audit_log.length})</span>
+        </h3>
+        <div className="grid grid-cols-12 gap-2 pb-2 text-[10px] uppercase tracking-wider text-slate-400 border-b">
+          <div className="col-span-3">Čas</div>
+          <div className="col-span-2">Akce</div>
+          <div className="col-span-7">Detaily</div>
+        </div>
+        {inst.audit_log.map(e => <AuditEntryRow key={e.id} entry={e} showInstitution={false} />)}
       </Card>
     )}
 
@@ -431,6 +945,7 @@ const InstitutionDetail = ({ inst, onPlanChange }) => (
       </Card>
     )}
   </div>
-);
+  );
+};
 
 export default SuperadminPage;

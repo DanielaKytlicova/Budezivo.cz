@@ -255,7 +255,8 @@ VOP_SECTIONS = {
                 "7.4 Provozovatel není plátcem DPH.",
                 "7.5 Ceny uvedené na webu jsou konečné.",
                 "7.6 Platby jsou nevratné, pokud není uvedeno jinak.",
-                "7.7 Při prodlení:\n- může být služba omezena"
+                "7.7 Při prodlení:\n- může být služba omezena",
+                "7.8 Platby účastníků za akce/události jsou zpracovávány prostřednictvím platební brány třetí strany (např. Comgate). Poplatky za transakce se řídí ceníkem této brány a hradí je přímo daná instituce (příjemce platby). Provozovatel platformy není stranou platební transakce mezi účastníkem a institucí."
             ]
         },
         {

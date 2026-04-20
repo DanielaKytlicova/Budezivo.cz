@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 
 from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select, func, and_, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +17,7 @@ from core.security import get_current_user
 from database.supabase import get_db
 from database.models import (
     Institution, User, Program, Reservation, Event, EventApplication,
-    MailingCampaign, WaitlistEntry, BillingOrder, UsageMetric,
+    MailingCampaign, WaitlistEntry, BillingOrder, UsageMetric, AuditLog,
 )
 from database.supabase_repositories import InstitutionRepositorySupabase
 from services.plan_service import PLAN_LIMITS, PLAN_LABELS
@@ -29,10 +30,58 @@ logger = logging.getLogger(__name__)
 SUPERADMIN_EMAILS = ["demo@budezivo.cz", "admin@budezivo.cz"]
 
 
+# ---- Audit helper ----
+
+async def _log_superadmin(
+    db: AsyncSession,
+    *,
+    current_user: dict,
+    target_institution_id: Optional[str],
+    action: str,
+    entity_type: str,
+    entity_id: Optional[str] = None,
+    details: Optional[dict] = None,
+):
+    """Write a single audit entry for a superadmin mutating action.
+
+    institution_id on the row = the TARGET institution (so institution detail pages
+    can surface "who did what to us"). If no target institution (platform-level
+    action such as running the expiration job), falls back to the superadmin's
+    own institution to satisfy the NOT NULL constraint.
+    """
+    try:
+        iid = target_institution_id or current_user.get("institution_id")
+        if not iid:
+            return
+        entry = AuditLog(
+            institution_id=iid,
+            user_id=current_user["user_id"],
+            user_email=current_user.get("email", ""),
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            details={**(details or {}), "superadmin": True},
+        )
+        db.add(entry)
+        await db.flush()
+    except Exception as e:
+        logger.warning(f"Superadmin audit write failed: {e}")
+
+
 # ---- Guard ----
 
 async def require_superadmin(current_user: dict = Depends(get_current_user)):
-    """Only platform owner/operator can access superadmin routes."""
+    """Only platform owner/operator can access superadmin routes.
+
+    Impersonation tokens are explicitly blocked — a superadmin who is currently
+    impersonating another user cannot make superadmin changes. They must stop
+    impersonation first (see `/impersonate/stop`).
+    """
+    if current_user.get("impersonated_by_email"):
+        raise HTTPException(
+            status_code=403,
+            detail="Superadmin akce nelze provést během impersonace. Ukončete impersonaci a zkuste znovu.",
+        )
     if current_user.get("email") not in SUPERADMIN_EMAILS:
         raise HTTPException(status_code=403, detail="Přístup pouze pro superadmina platformy")
     return current_user
@@ -50,6 +99,11 @@ class SuperadminPlanChange(BaseModel):
 
 class SuperadminBillingConfirm(BaseModel):
     order_id: str
+
+
+class SuperadminDeleteInstitution(BaseModel):
+    confirmation_name: str
+    reason: Optional[str] = None
 
 
 # ---- Institution list ----
@@ -191,6 +245,55 @@ async def get_institution_detail(
     # Usage metrics
     usage = await get_institution_usage(db, institution_id)
 
+    # Owner: first admin by creation time (the person who registered the institution)
+    owner_res = await db.execute(
+        select(User).where(and_(
+            User.institution_id == inst_id,
+            User.deleted_at.is_(None),
+            User.role == 'admin',
+        )).order_by(User.created_at.asc()).limit(1)
+    )
+    owner = owner_res.scalar_one_or_none()
+    # Fallback: first user of any role if no admin exists
+    if not owner:
+        fallback = await db.execute(
+            select(User).where(and_(
+                User.institution_id == inst_id,
+                User.deleted_at.is_(None),
+            )).order_by(User.created_at.asc()).limit(1)
+        )
+        owner = fallback.scalar_one_or_none()
+
+    # All users (for sub-panel, viewer-only)
+    users_res = await db.execute(
+        select(User).where(and_(
+            User.institution_id == inst_id,
+            User.deleted_at.is_(None),
+        )).order_by(User.created_at.asc())
+    )
+    users_list = users_res.scalars().all()
+
+    def _user_dict(u: User):
+        if not u:
+            return None
+        full = (u.name or "").strip()
+        first, last = "", ""
+        if full:
+            parts = full.split(" ", 1)
+            first = parts[0]
+            last = parts[1] if len(parts) > 1 else ""
+        return {
+            "id": str(u.id),
+            "name": u.name,
+            "first_name": first,
+            "last_name": last,
+            "email": u.email,
+            "role": u.role,
+            "status": u.status,
+            "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+        }
+
     # Billing orders
     billing_result = await db.execute(
         select(BillingOrder).where(BillingOrder.institution_id == inst_id)
@@ -198,6 +301,15 @@ async def get_institution_detail(
         .limit(10)
     )
     orders = billing_result.scalars().all()
+
+    # Recent superadmin audit log for THIS institution (top 20)
+    audit_res = await db.execute(
+        select(AuditLog).where(and_(
+            AuditLog.institution_id == inst_id,
+            AuditLog.details["superadmin"].as_boolean() == True,  # noqa: E712
+        )).order_by(desc(AuditLog.created_at)).limit(20)
+    )
+    audit_entries = audit_res.scalars().all()
 
     return {
         "id": str(inst.id),
@@ -226,6 +338,8 @@ async def get_institution_detail(
             "waitlist_entries": waitlist_count,
         },
         "usage_metrics": usage,
+        "owner": _user_dict(owner),
+        "users": [_user_dict(u) for u in users_list],
         "billing_orders": [
             {
                 "id": str(o.id),
@@ -239,6 +353,18 @@ async def get_institution_detail(
                 "note": o.note,
             }
             for o in orders
+        ],
+        "audit_log": [
+            {
+                "id": str(a.id),
+                "user_email": a.user_email,
+                "action": a.action,
+                "entity_type": a.entity_type,
+                "entity_id": a.entity_id,
+                "details": a.details,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+            }
+            for a in audit_entries
         ],
     }
 
@@ -285,12 +411,111 @@ async def change_institution_plan(
     inst_repo = InstitutionRepositorySupabase(db)
     await inst_repo.update(institution_id, update_data)
 
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=institution_id,
+        action="plan_change",
+        entity_type="institution",
+        entity_id=institution_id,
+        details={
+            "institution_name": inst.name,
+            "from_plan": inst.plan,
+            "from_status": inst.plan_status,
+            "to_plan": data.plan,
+            "to_status": data.plan_status,
+            "activated_by": data.activated_by,
+            "billing_note": data.billing_note,
+            "expires_at": data.expires_at.isoformat() if data.expires_at else None,
+        },
+    )
+    await db.commit()
+
     logger.info(f"Superadmin plan change: {institution_id} → {data.plan}/{data.plan_status} by {current_user['email']}")
 
     return {
         "message": f"Plán instituce změněn na {PLAN_LABELS.get(data.plan, data.plan)} ({data.plan_status})",
         "plan": data.plan,
         "plan_status": data.plan_status,
+    }
+
+
+# ---- Institution deletion (soft delete with safety) ----
+
+@router.delete("/institutions/{institution_id}")
+async def delete_institution(
+    institution_id: str,
+    data: SuperadminDeleteInstitution,
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Soft-delete an institution. Requires exact name confirmation for safety.
+
+    Security rules:
+    - Superadmin cannot delete their own institution.
+    - `confirmation_name` must match the institution's name EXACTLY (case-sensitive).
+    - Sets `deleted_at` on institution and on all its users (prevents login).
+    - Preserves data in DB for audit/recovery.
+    """
+    result = await db.execute(
+        select(Institution).where(Institution.id == institution_id)
+    )
+    inst = result.scalar_one_or_none()
+    if not inst:
+        raise HTTPException(status_code=404, detail="Instituce nenalezena")
+    if inst.deleted_at is not None:
+        raise HTTPException(status_code=400, detail="Instituce je již smazána")
+
+    # Safety: superadmin cannot delete own institution
+    if str(inst.id) == str(current_user.get("institution_id", "")):
+        raise HTTPException(status_code=400, detail="Nelze smazat vlastní instituci")
+
+    # Safety: confirmation name must match exactly
+    if (data.confirmation_name or "").strip() != (inst.name or "").strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Název instituce nesouhlasí. Pro potvrzení zadejte přesný název.",
+        )
+
+    now = datetime.now(timezone.utc)
+    note_suffix = f"\n[DELETED by {current_user['email']} at {now.isoformat()}]"
+    if data.reason:
+        note_suffix += f" Důvod: {data.reason}"
+
+    # Soft-delete institution
+    inst.deleted_at = now
+    inst.billing_note = (inst.billing_note or "") + note_suffix
+
+    # Soft-delete all users of this institution (so they cannot log in)
+    await db.execute(
+        text("UPDATE users SET deleted_at = :now WHERE institution_id = CAST(:iid AS uuid) AND deleted_at IS NULL")
+        .bindparams(now=now, iid=institution_id)
+    )
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=institution_id,
+        action="institution_delete",
+        entity_type="institution",
+        entity_id=institution_id,
+        details={
+            "institution_name": inst.name,
+            "reason": data.reason,
+            "confirmed_name": data.confirmation_name,
+        },
+    )
+
+    await db.commit()
+
+    logger.warning(
+        f"Superadmin DELETED institution {institution_id} ({inst.name}) by {current_user['email']}. Reason: {data.reason or 'n/a'}"
+    )
+
+    return {
+        "message": f"Instituce „{inst.name}“ byla smazána.",
+        "institution_id": str(inst.id),
+        "deleted_at": now.isoformat(),
     }
 
 
@@ -347,9 +572,26 @@ async def confirm_order(
     db: AsyncSession = Depends(get_db),
 ):
     """Manually confirm a billing order and activate the plan."""
+    # Load order to get target institution BEFORE confirm (order state may change)
+    pre = await db.execute(select(BillingOrder).where(BillingOrder.id == order_id))
+    order = pre.scalar_one_or_none()
+    target_iid = str(order.institution_id) if order else None
+    requested_plan = order.requested_plan_type if order else None
+
     result = await confirm_billing_order(db, order_id, confirmed_by="admin")
     if result.get("error"):
         raise HTTPException(status_code=404, detail=result["error"])
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=target_iid,
+        action="billing_confirm",
+        entity_type="billing_order",
+        entity_id=order_id,
+        details={"requested_plan": requested_plan},
+    )
+    await db.commit()
     return result
 
 
@@ -371,6 +613,17 @@ async def cancel_order(
 
     order.status = "cancelled"
     order.cancelled_at = datetime.now(timezone.utc)
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=str(order.institution_id),
+        action="billing_cancel",
+        entity_type="billing_order",
+        entity_id=order_id,
+        details={"requested_plan": order.requested_plan_type},
+    )
+
     await db.commit()
 
     return {"message": "Objednávka zrušena", "order_id": str(order.id)}
@@ -422,3 +675,407 @@ async def platform_overview(
         "total_users": total_users,
         "pending_billing_orders": pending_orders,
     }
+
+
+# ---- Platform-wide usage analytics ----
+
+@router.get("/usage-analytics")
+async def platform_usage_analytics(
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Platform-wide feature usage analytics aggregated across all institutions.
+
+    Returns:
+    - `by_feature`: total usage + institutions using each feature + adoption rate
+    - `by_plan`: feature usage grouped by institution's plan
+    - `top_institutions`: most active institutions by total usage
+    """
+    from services.plan_service import FEATURE_LABELS, PLAN_FEATURES, FEATURE_MIN_PLAN
+
+    # Total active institutions (denominator for adoption rate)
+    total_inst_result = await db.execute(
+        select(func.count()).select_from(Institution).where(Institution.deleted_at.is_(None))
+    )
+    total_inst = total_inst_result.scalar() or 1
+
+    # by_feature: sum usage + distinct institutions per feature
+    feat_result = await db.execute(
+        select(
+            UsageMetric.feature_key,
+            func.sum(UsageMetric.usage_count).label("total_usage"),
+            func.count(func.distinct(UsageMetric.institution_id)).label("inst_count"),
+        ).group_by(UsageMetric.feature_key)
+    )
+    by_feature = []
+    for row in feat_result.all():
+        key = row.feature_key
+        by_feature.append({
+            "feature_key": key,
+            "feature_label": FEATURE_LABELS.get(key, key),
+            "min_plan": FEATURE_MIN_PLAN.get(key),
+            "min_plan_label": PLAN_LABELS.get(FEATURE_MIN_PLAN.get(key, ""), ""),
+            "total_usage": int(row.total_usage or 0),
+            "institutions_using": int(row.inst_count or 0),
+            "adoption_rate": round(100.0 * (row.inst_count or 0) / total_inst, 1),
+        })
+    by_feature.sort(key=lambda x: x["total_usage"], reverse=True)
+
+    # by_plan: join usage metrics with institution plan
+    plan_result = await db.execute(
+        select(
+            Institution.plan,
+            func.sum(UsageMetric.usage_count).label("total_usage"),
+            func.count(func.distinct(UsageMetric.institution_id)).label("inst_count"),
+        )
+        .select_from(UsageMetric)
+        .join(Institution, UsageMetric.institution_id == Institution.id)
+        .where(Institution.deleted_at.is_(None))
+        .group_by(Institution.plan)
+    )
+    by_plan = []
+    for row in plan_result.all():
+        plan = row.plan or "free"
+        by_plan.append({
+            "plan": plan,
+            "plan_label": PLAN_LABELS.get(plan, plan),
+            "total_usage": int(row.total_usage or 0),
+            "active_institutions": int(row.inst_count or 0),
+        })
+
+    # top_institutions by total usage
+    top_result = await db.execute(
+        select(
+            Institution.id,
+            Institution.name,
+            Institution.plan,
+            func.sum(UsageMetric.usage_count).label("total_usage"),
+        )
+        .select_from(UsageMetric)
+        .join(Institution, UsageMetric.institution_id == Institution.id)
+        .where(Institution.deleted_at.is_(None))
+        .group_by(Institution.id, Institution.name, Institution.plan)
+        .order_by(desc(func.sum(UsageMetric.usage_count)))
+        .limit(10)
+    )
+    top_institutions = [
+        {
+            "institution_id": str(row.id),
+            "institution_name": row.name,
+            "plan": row.plan,
+            "plan_label": PLAN_LABELS.get(row.plan, row.plan),
+            "total_usage": int(row.total_usage or 0),
+        }
+        for row in top_result.all()
+    ]
+
+    return {
+        "total_institutions": total_inst,
+        "by_feature": by_feature,
+        "by_plan": by_plan,
+        "top_institutions": top_institutions,
+    }
+
+
+# ---- Manual trigger: plan expiration scheduler ----
+
+@router.post("/run-expiration-job")
+async def run_expiration_job(
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually trigger the plan expiration/auto-renewal scheduler.
+    Useful for testing or immediate processing."""
+    try:
+        from scheduler import process_plan_expiration
+        await process_plan_expiration()
+        await _log_superadmin(
+            db,
+            current_user=current_user,
+            target_institution_id=None,
+            action="run_expiration_job",
+            entity_type="system",
+            details={"trigger": "manual"},
+        )
+        await db.commit()
+        return {"message": "Expirační úloha spuštěna"}
+    except Exception as e:
+        logger.error(f"Manual expiration job failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---- Audit log ----
+
+@router.get("/audit-log")
+async def get_superadmin_audit_log(
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+    institution_id: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
+):
+    """Platform-wide audit log of superadmin actions (optionally filtered by target institution).
+
+    Superadmin entries are those with `details.superadmin = true` OR `user_email`
+    in the SUPERADMIN_EMAILS list. Joins institution name for context.
+    """
+    # Base query: superadmin-flagged actions only (details.superadmin == true).
+    # We intentionally do NOT include entries where user_email happens to be in
+    # SUPERADMIN_EMAILS — those may be regular admin operations by the same
+    # person acting inside their own institution.
+    base_filter = AuditLog.details["superadmin"].as_boolean() == True  # noqa: E712
+
+    q = select(AuditLog, Institution.name).join(
+        Institution, AuditLog.institution_id == Institution.id, isouter=True
+    ).where(base_filter)
+    count_q = select(func.count(AuditLog.id)).where(base_filter)
+
+    if institution_id:
+        q = q.where(AuditLog.institution_id == institution_id)
+        count_q = count_q.where(AuditLog.institution_id == institution_id)
+
+    total = (await db.execute(count_q)).scalar() or 0
+
+    q = q.order_by(desc(AuditLog.created_at)).offset((page - 1) * per_page).limit(per_page)
+    rows = (await db.execute(q)).all()
+
+    return {
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+        "items": [
+            {
+                "id": str(log.id),
+                "user_email": log.user_email,
+                "action": log.action,
+                "entity_type": log.entity_type,
+                "entity_id": log.entity_id,
+                "details": log.details,
+                "institution_id": str(log.institution_id),
+                "institution_name": inst_name,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+            }
+            for log, inst_name in rows
+        ],
+    }
+
+
+# ---- One-off: move superadmin users into a dedicated Platform institution ----
+
+PLATFORM_INSTITUTION_NAME = "Budeživo Platform"
+
+
+@router.post("/setup/move-to-platform")
+async def move_superadmins_to_platform_institution(
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a dedicated `Budeživo Platform` institution and move all users in
+    SUPERADMIN_EMAILS there, so that normal customer institutions (incl.
+    `Test Muzeum`) become deletable without the superadmin losing their login.
+
+    Idempotent — calling again returns summary without duplicating rows.
+    """
+    # Find or create Platform institution
+    result = await db.execute(
+        select(Institution).where(Institution.name == PLATFORM_INSTITUTION_NAME)
+    )
+    platform = result.scalar_one_or_none()
+
+    created = False
+    if not platform:
+        platform = Institution(
+            id=uuid.uuid4(),
+            name=PLATFORM_INSTITUTION_NAME,
+            type="other",
+            email="platform@budezivo.cz",
+            plan="pro_plus",
+            plan_status="active",
+            plan_activated_by="system",
+            billing_note="Interní instituce pro superadmin účty.",
+        )
+        db.add(platform)
+        await db.flush()
+        created = True
+
+    # Move all superadmin users there
+    moved = []
+    users_res = await db.execute(
+        select(User).where(User.email.in_(SUPERADMIN_EMAILS))
+    )
+    for user in users_res.scalars().all():
+        if str(user.institution_id) == str(platform.id):
+            continue
+        old_iid = str(user.institution_id)
+        user.institution_id = platform.id
+        user.role = "admin"
+        user.status = "active"
+        user.deleted_at = None  # resurrect if previously soft-deleted
+        moved.append({"email": user.email, "from": old_iid, "to": str(platform.id)})
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=str(platform.id),
+        action="setup_move_to_platform",
+        entity_type="system",
+        details={
+            "platform_created": created,
+            "platform_id": str(platform.id),
+            "moved_users": moved,
+        },
+    )
+
+    await db.commit()
+
+    return {
+        "message": (
+            "Superadmin účty přesunuty do platformní instituce. "
+            "Odhlaste se a přihlaste znovu pro obnovení session."
+            if moved else
+            "Superadmin účty již byly v platformní instituci."
+        ),
+        "platform_institution_id": str(platform.id),
+        "platform_created_now": created,
+        "moved_users": moved,
+    }
+
+
+# ---- Impersonation (Support debugging) ----
+
+IMPERSONATION_MINUTES = 30
+
+
+class ImpersonationStartRequest(BaseModel):
+    reason: Optional[str] = None
+
+
+@router.post("/impersonate/start/{user_id}")
+async def start_impersonation(
+    user_id: str,
+    body: ImpersonationStartRequest,
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Issue a short-lived JWT acting AS the target user, with a back-pointer
+    (`impersonated_by_*`) so that every subsequent request carries both identities.
+
+    Blocked: cannot impersonate another superadmin. Lifetime 30 minutes.
+    """
+    from core.security import create_jwt_token, COOKIE_NAME
+
+    result = await db.execute(select(User).where(User.id == user_id))
+    target = result.scalar_one_or_none()
+    if not target or target.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Uživatel nenalezen")
+    if target.email in SUPERADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Nelze impersonovat jiného superadmina")
+    if target.status != "active":
+        raise HTTPException(status_code=400, detail="Uživatel není aktivní")
+
+    token = create_jwt_token(
+        user_id=str(target.id),
+        institution_id=str(target.institution_id),
+        email=target.email,
+        role=target.role,
+        impersonated_by_user_id=current_user["user_id"],
+        impersonated_by_email=current_user["email"],
+        expires_minutes=IMPERSONATION_MINUTES,
+    )
+
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=str(target.institution_id),
+        action="impersonation_start",
+        entity_type="user",
+        entity_id=str(target.id),
+        details={
+            "target_email": target.email,
+            "target_role": target.role,
+            "reason": body.reason,
+            "expires_in_minutes": IMPERSONATION_MINUTES,
+        },
+    )
+    await db.commit()
+
+    response = JSONResponse(content={
+        "message": f"Impersonace zahájena jako {target.email}",
+        "token": token,
+        "target_user_id": str(target.id),
+        "target_email": target.email,
+        "expires_in_minutes": IMPERSONATION_MINUTES,
+    })
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=IMPERSONATION_MINUTES * 60,
+        path="/api",
+    )
+    return response
+
+
+@router.post("/impersonate/stop")
+async def stop_impersonation(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """End the current impersonation session and restore the original superadmin
+    identity. Requires an active impersonation token."""
+    from core.security import create_jwt_token, COOKIE_NAME
+
+    original_uid = current_user.get("impersonated_by_user_id")
+    original_email = current_user.get("impersonated_by_email")
+    if not original_uid or not original_email:
+        raise HTTPException(status_code=400, detail="Žádná aktivní impersonace")
+
+    # Reload the original superadmin user (email still in SUPERADMIN_EMAILS)
+    orig_res = await db.execute(select(User).where(User.id == original_uid))
+    orig_user = orig_res.scalar_one_or_none()
+    if not orig_user or orig_user.email not in SUPERADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Původní superadmin účet je nedostupný")
+
+    token = create_jwt_token(
+        user_id=str(orig_user.id),
+        institution_id=str(orig_user.institution_id),
+        email=orig_user.email,
+        role=orig_user.role,
+    )
+
+    # Audit (log against superadmin's own institution since impersonation ended)
+    synthetic_current = {
+        "user_id": str(orig_user.id),
+        "email": orig_user.email,
+        "institution_id": str(orig_user.institution_id),
+    }
+    await _log_superadmin(
+        db,
+        current_user=synthetic_current,
+        target_institution_id=str(current_user.get("institution_id")),
+        action="impersonation_end",
+        entity_type="user",
+        entity_id=current_user["user_id"],
+        details={
+            "impersonated_email": current_user.get("email"),
+        },
+    )
+    await db.commit()
+
+    response = JSONResponse(content={
+        "message": "Impersonace ukončena",
+        "restored_email": orig_user.email,
+        "token": token,
+    })
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=30 * 60,
+        path="/api",
+    )
+    return response

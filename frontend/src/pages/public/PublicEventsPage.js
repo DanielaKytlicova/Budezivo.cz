@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { QRCodeSVG } from 'qrcode.react';
-import { Calendar, Users, ArrowRight, CheckCircle, Loader2, AlertCircle, CreditCard, Copy, Download } from 'lucide-react';
+import { Calendar, Users, ArrowRight, CheckCircle, Loader2, AlertCircle, CreditCard, Copy, Download, ExternalLink } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
@@ -23,6 +23,7 @@ export default function PublicEventsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const [payingOnline, setPayingOnline] = useState(false);
   const [institutionData, setInstitutionData] = useState({
     name: '',
     logoUrl: null,
@@ -211,8 +212,47 @@ export default function PublicEventsPage() {
                   <p className="text-xs text-gray-500">Naskenujte QR kód v bankovní aplikaci nebo zadejte údaje ručně.</p>
                 </div>
               )}
-              {(!result.qr_payload || result.total_amount === 0) && (
+              {(!result.qr_payload || result.total_amount === 0) && !result.payment_settings?.gateway_enabled && (
                 <p className="text-sm text-gray-500">Organizátor vás bude kontaktovat s dalšími informacemi.</p>
+              )}
+
+              {/* Pay online via gateway (Comgate etc.) */}
+              {result.payment_settings?.gateway_enabled && result.total_amount > 0 && (
+                <div className="border-t pt-4 mt-4 space-y-2">
+                  <Button
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-white"
+                    onClick={async () => {
+                      setPayingOnline(true);
+                      try {
+                        localStorage.setItem('bz_last_payment_institution', institutionId);
+                        const res = await axios.post(`${API_URL}/api/event-payments/initiate`, {
+                          institution_id: institutionId,
+                          application_id: result.id,
+                        });
+                        if (res.data?.redirect_url) {
+                          window.location.href = res.data.redirect_url;
+                        } else {
+                          toast.error('Nepodařilo se zahájit platbu');
+                        }
+                      } catch (e) {
+                        toast.error(e.response?.data?.detail || 'Chyba platební brány');
+                      } finally {
+                        setPayingOnline(false);
+                      }
+                    }}
+                    disabled={payingOnline}
+                    data-testid="pay-online-btn"
+                  >
+                    {payingOnline ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Přesměrovávám...</>
+                    ) : (
+                      <><ExternalLink className="w-4 h-4 mr-2" /> Zaplatit online ({result.total_amount} Kč)</>
+                    )}
+                  </Button>
+                  <p className="text-xs text-gray-500 text-center">
+                    Po zaplacení se vaše přihláška automaticky potvrdí.
+                  </p>
+                </div>
               )}
 
               {/* PDF Download */}

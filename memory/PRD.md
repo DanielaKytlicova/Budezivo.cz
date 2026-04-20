@@ -102,7 +102,7 @@ programs: + room_id (FK → rooms.id)
 
 ## Důležitá poznámka k OAuth
 Pro testování na preview prostředí je potřeba v Azure Portal přidat Redirect URI:
-`https://audit-enhance-fix.preview.emergentagent.com/api/auth/microsoft/callback`
+`https://school-crm-saas.preview.emergentagent.com/api/auth/microsoft/callback`
 
 Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 
@@ -287,12 +287,107 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] Plan request → automatický billing order
 - [x] Testováno: 18/18 (iteration_51.json)
 
+
+### Fáze 40 - Superadmin delete, PDF font fix, QR IBAN, Auto-renewal + Usage Analytics (20.4.2026)
+- [x] Superadmin: DELETE /api/superadmin/institutions/{id} — soft delete s ochranou
+  - Vyžaduje přesnou shodu `confirmation_name` s názvem instituce
+  - Nelze smazat vlastní instituci
+  - Zároveň soft-deletuje všechny uživatele (nelze se přihlásit)
+  - Audit trail zapsán do billing_note (kdo, kdy, proč)
+- [x] Frontend modal pro mazání instituce s blokovaným tlačítkem dokud se název neshoduje
+- [x] PDF generace: DejaVuSans fonty nabalené do /app/backend/fonts/ (nezávislé na instalaci systému)
+  - registerFontFamily: `<b>` tagy v Paragraph nyní používají DejaVuSans-Bold
+  - Oprava chybných diakritických znaků (■) v PDF přihláškách
+- [x] QR platba: SPAYD nyní používá platný CZ IBAN místo surového čísla/banky
+  - `cz_account_to_iban()` s mod-97 algoritmem
+  - Příklad: 295033917/0300 → CZ6003000000000295033917
+- [x] Scheduler: denní job `process_plan_expiration` v 5:00 UTC
+  - Pro expired plány: auto_renew=True → billing order; jinak → status=expired + limity na Free
+- [x] Superadmin endpoint: GET /api/superadmin/usage-analytics
+  - `by_feature` (adoption rate), `by_plan`, `top_institutions`
+- [x] Superadmin endpoint: POST /api/superadmin/run-expiration-job (manuální trigger)
+- [x] Frontend: záložka Usage + Expirace na Superadmin stránce
+- [x] Testováno: 13/13 backend, 100% frontend (iteration_52.json)
+
+### Fáze 41 - Comgate platební brána pro Event přihlášky (P1) (20.4.2026)
+- [x] Backend: abstrakce `services/payment_gateways/` (base + factory + comgate)
+  - `PaymentGatewayBase` (initiate / parse_webhook / query_status)
+  - Módy: MOCK (prázdné klíče) / TEST (prefix `TEST_`) / LIVE
+  - Per-instituční přihlašovací údaje (z `InstitutionPaymentSettings`)
+- [x] Nové endpointy `/api/event-payments/*`:
+  - POST `/initiate` (gated `events_payments` = PRO+)
+  - POST `/webhook/comgate` (autorita, validuje merchant+secret)
+  - POST `/mock/complete` (pouze MOCK, interní simulátor)
+  - GET `/by-vs/{inst}/{vs}` (veřejný polling endpoint)
+- [x] Hardening: webhook odmítá externí volání v MOCK režimu (403)
+- [x] Webhook auto-potvrzení přihlášky (když instituce má `auto_confirm_paid` feature PRO+)
+  - payment_status → paid, status → approved
+- [x] Frontend: public `/payment/mock` (CZ simulátor) + `/payment/return` (polling 2s × 15)
+- [x] Frontend: veřejná přihláška – tlačítko „Zaplatit online" když `gateway_enabled`
+- [x] Admin Nastavení – pole Merchant ID + Secret + nápověda pro TEST_ prefix a mock režim
+- [x] VOP § 7.8 — doplněna klauzule „Platby jsou zpracovávány prostřednictvím platební brány třetí strany (např. Comgate)..."
+- [x] Otestováno: 13/13 backend + 100% frontend E2E (iteration_53.json)
+- [ ] BUDOUCÍ: GoPay jako druhý provider (abstrakce připravena, stačí `gopay.py`)
+
+### Fáze 42 - Social proof na landing page (P3) (20.4.2026)
+- [x] Upravený endpoint `GET /api/public/stats` — vrací institutions, reservations, programs, events, institution_types (breakdown), satisfaction (práh snížen na 5 institucí)
+- [x] HomePage: nová sekce mezi Hero a Pain Points s:
+  - Animovanou stats lištou (count-up animace, `StatCard` komponenta, cs-CZ lokalizace čísel)
+  - Institution type chips (Muzea, Galerie, Knihovny, Botanické zahrady, Kulturní centra, Školy) s live countem
+  - Dvě testimonial karty (placeholder — skutečné reference budou doplněny po souhlasu institucí)
+- [x] data-testid: `social-proof-section`, `trust-stats`, `type-chip-{key}`, `testimonial-{i}`
+- [x] Ověřeno screenshotem: sekce renderuje správně s 12+ institucí / 13+ programy+akce / 63+ rezervací / 98%
+
+
+### Fáze 42b - Social proof úprava: skrytí testimonials (20.4.2026)
+- [x] Testimonials karty zakomentovány (`{false && TESTIMONIALS.length > 0 ...}`) — pole `TESTIMONIALS` zůstalo v kódu jako placeholder s instrukcemi, jak je znovu aktivovat (jen přepnout flag)
+- [x] Celá Social Proof sekce zabalena do `stats?.show_stats &&` — pokud backend vrátí show_stats=false (méně než 5 institucí), sekce se automaticky ze landing page odstraní
+- [x] Akceptační kritérium: čísla a typy institucí zůstávají, ale zobrazí se pouze když máme dostatek reálných dat
+
+- [ ] BUDOUCÍ: Apple Pay — automaticky dostupné jakmile instituce povolí v Comgate dashboardu
+
+
 ### Fáze 35 - Propagační mailingy / Kampanový modul (15.4.2026)
+
+### Fáze 43 - Superadmin: karta zřizovatele + seznam uživatelů instituce (20.4.2026)
+- [x] Backend: `/api/superadmin/institutions/{id}` rozšířen o `owner` (první admin uživatel podle created_at) a `users` (všichni non-deleted uživatelé instituce)
+  - každý objekt obsahuje: id, name, first_name, last_name, email, role, status, last_login_at, created_at
+- [x] Frontend InstitutionDetail: nová karta „Zřizovatel / administrátor účtu" s iniciálou, jménem, e-mailem, rolí, datem registrace, posledním přihlášením a statusem
+- [x] Frontend: nový rozbalovací panel „Uživatelé instituce" — klikací header, tabulka read-only (jméno+avatar / e-mail / role / status / registrace / poslední přihlášení) se štítkem „POUZE ČTENÍ"
+- [x] Role překlady a barvy (admin/správce/edukátor/lektor/pokladní/viewer)
+- [x] Ověřeno screenshotem na instituci „Botanická zahrada Liberec"
+
 - [x] DB modely: MailingCampaign, MailingCampaignProgram, MailingCampaignRecipient, MailingRecipientProgram
 - [x] Alembic migrace pro 4 nové tabulky
 - [x] Backend CRUD: POST/GET/PUT/DELETE /api/mailings, včetně draft managementu
+
+### Fáze 44 - Superadmin Audit Log (20.4.2026)
+- [x] Backend helper `_log_superadmin` pro jednotné logování do `audit_logs` tabulky s flagem `details.superadmin=true`
+- [x] Audit zápisy zabudovány do: plan_change, institution_delete, billing_confirm, billing_cancel, run_expiration_job
+- [x] Nový endpoint `GET /api/superadmin/audit-log` — platform-wide (JOIN s Institution pro jméno), filtrovatelný dle institution_id
+- [x] `GET /api/superadmin/institutions/{id}` rozšířen o `audit_log` (top 20 superadmin zásahů pro danou instituci)
+- [x] Frontend: nová záložka „Historie" s tabulkou Čas / Akce / Instituce / Detaily (barevné akční badge, čitelné detaily změn plánu)
+- [x] Frontend: v detailu instituce nová karta „Historie zásahů superadmina" (per-instituce)
+- [x] Filtr striktní: `details.superadmin = true` (ignoruje regular admin akce i když jsou od superadmin emailu)
+
 - [x] Relevance engine: párování program.target_groups (ms_3_6, zs1_7_12...) ↔ school.tags (MŠ, ZŠ, SŠ...)
 - [x] 4 režimy výběru příjemců: relevant_only, all, manual, relevant_plus_manual
+
+### Fáze 45 - Platform migrace + Impersonace (20.4.2026)
+- [x] Endpoint `POST /api/superadmin/setup/move-to-platform` — idempotentní, vytvoří instituci „Budeživo Platform" (type=other, PRO+, activated_by=system) a přesune všechny uživatele ze SUPERADMIN_EMAILS tam
+- [x] Po migraci už není demo@budezivo.cz vlastníkem Test Muzea, takže Test Muzeum lze volně smazat (blokace „Nelze smazat vlastní instituci" odpadla)
+- [x] `create_jwt_token` rozšířeno o parametry `impersonated_by_user_id`, `impersonated_by_email`, `expires_minutes`
+- [x] `require_superadmin` striktně odmítá impersonační tokeny (403 „Superadmin akce nelze provést během impersonace")
+- [x] Endpointy:
+  - `POST /api/superadmin/impersonate/start/{user_id}` — startuje impersonaci (odmítá self, jiné superadminy, neaktivní uživatele; lifetime 30 min)
+  - `POST /api/superadmin/impersonate/stop` — ukončí pouze s impersonačním tokenem, vrátí čerstvý token pro původního superadmina
+- [x] `/api/auth/me` vrací `impersonation: {active, original_email, original_user_id}`
+- [x] AuthContext: funkce `startImpersonation()` a `stopImpersonation()` + `applyImpersonationToken()` (neobnovuje refresh token — zůstává původní pro čistý návrat)
+- [x] `ImpersonationBanner` — sticky žlutý banner na vrchu všech admin stránek se štítkem „IMPERSONACE", emailem + rolí cílového usera, jménem skutečného superadmina a tlačítkem „Ukončit impersonaci"
+- [x] Sloupec „Akce → Impersonovat" v tabulce uživatelů instituce (disabled pro sebe, jiné superadminy, neaktivní; prompt na důvod)
+- [x] Audit log zaznamenává `impersonation_start` (s target_email, role, reason, TTL) a `impersonation_end`
+- [x] Testováno: 8/8 backend (iteration_54.json), frontend sidebar + institutions list verified screenshotem
+
 - [x] Preview endpoint: /api/mailings/preview-recipients (statistiky, varování, seznam příjemců)
 - [x] Výchozí české šablony pro MŠ/ZŠ/SŠ/obecné publikum
 - [x] Background odesílání emailů přes BackgroundTasks (ne v HTTP requestu)

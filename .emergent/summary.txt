@@ -1,45 +1,45 @@
-<analysis>**original_problem_statement**: Deep security & architecture audit execution followed by consecutive iterative feature enhancements and complex bug fixes. The user requested resolving an off-by-one calendar bug, lecturer collision logic ignoring one-off blocks, frontend crash on form validation errors, unassigned lecturer collision filtering, auto-completion background jobs, dynamic 180-day Outlook sync, PRO program feedback settings, public URL program pre-selection, strict time-block bounds logic, and admin form warnings for overlapping time blocks. PRODUCT REQUIREMENTS: A highly secure, multi-tenant SaaS application providing School CRM, booking management with collision validation, GDPR compliance, advanced calendar integrations, and robust role-based security.
+<analysis>**original_problem_statement**: Deep security & architecture audit execution followed by consecutive iterative feature enhancements and complex bug fixes. The user requested resolving navigation UI issues, building a comprehensive Promotional Mailing / Campaign Module with relevance matching, bounce tracking, a 4-tier Subscription Plan System (Free, Start, PRO, PRO+) with strict backend feature gating, and a Superadmin Dashboard with billing order readiness. PRODUCT REQUIREMENTS: A highly secure, multi-tenant SaaS application providing School CRM, booking management with collision validation, GDPR compliance, advanced calendar integrations, robust role-based security, promotional mailings, and a subscription-based pricing architecture with automated billing hooks.
 
 **User's preferred language**: Czech (Čeština). INSTRUCT NEXT AGENT TO RESPOND IN THE USER'S PREFERRED LANGUAGE ONLY.
 
-**what currently exists?**: A fully functional, highly secure multi-tenant SaaS application. It now features accurate and robust lecturer availability logic (properly handling one-off blocks and unassigned lecturers dynamically checking the whole team), auto-completion of past bookings via APScheduler, custom feedback questions per program (PRO feature), dynamic 180-day Outlook sync, robust time-block overlap validation in the admin panel, and URL auto-selection for public bookings.
+**what currently exists?**: A fully functional, highly secure multi-tenant SaaS application. It features unified availability logic, waitlist management, pilot event management, and a new Promotional Mailing Module (with Resend integration, auto-tagging, and bounce tracking). It also includes a newly implemented 4-tier subscription system (Free, Start, PRO, PRO+) governed by a centralized backend feature-gating config, complete with a delta-view upgrade modal and public pricing page. A Superadmin dashboard is active for platform overview, manual plan overrides, and usage metric tracking.
 
 **Last working item**: 
-    - Last item agent was working: Implementing a warning popup dialog in  to alert administrators if they create overlapping time blocks or time blocks that do not respect preparation/cleanup times.
+    - Last item agent was working: Answering the user's question regarding how the Superadmin account was created and how to access it. The agent clarified that  is hardcoded in  inside .
     - Status: COMPLETED
     - Agent Testing Done: Y
-    - Which testing method agent to use?: NA (Testing is already done via  iteration 37 with 100% success rate)
+    - Which testing method agent to use?: NA (No coding required for the final response, but the prior implementation was tested using  with 100% success rate up to iteration 51)
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  *(No pending issues. All critical bugs, validation requests, and UI errors have been successfully resolved and tested.)*
+  *(No pending bug issues. All recent features and UI fixes were verified with 100% test success).*
 
 **In progress Task List**: 
-  *(No tasks are currently in progress. The agent finished the last task successfully.)*
+  *(No tasks are currently in progress.)*
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P0) Connect  to the public feedback form: Ensure that the custom feedback questions set on a program level are displayed to respondents when filling out the form.
-    - (P2) i18n Language Toggle (CZ/EN) using existing placeholder buttons.
-    - (P3) Social proof on landing page (logos, references, numbers).
+    - (P0) **Fakturoid Real Integration**: Implement actual API integration/webhook handler for automatic plan activation after Fakturoid invoice payment.
+    - (P1) **GoPay/Comgate Integration**: Implement payment gateway for Event applications (PRO+ feature).
+    - (P2) **i18n Language Toggle**: Implement CZ/EN switch using existing placeholder buttons.
+    - (P3) **Social proof**: Add logos, references, and numbers on the landing page.
     
     Future Tasks:
-    - (P4) Financial analytics/overviews (Deferred until program pricing per person is fully integrated).
-    - (P4) Payment integration (Stripe for PRO accounts/invoicing via Fakturoid).
-    - (P4) Mobile app (PWA).
+    - (P4) Subscription auto-renewal scheduler and expiration logic.
+    - (P4) Promotional Mailing advanced features: Open/click statistics, scheduled background sending, advanced HTML editor.
+    - (P4) Usage analytics UI per plan.
 
 **Completed work in this session**
-- Calendar off-by-one UI fix (due to  UTC shift) (DONE)
-- Lecturer collision checks now support one-off availability blocks (DONE)
-- White screen crash on booking edit fixed (handled Pydantic 422 array responses cleanly in UI) (DONE)
-- Monthly/daily availability endpoints updated to check ANY team lecturer if a program has lecturer collision enabled but no specific lecturer is assigned (DONE)
-- CSS text overflow for long school names fixed in bookings table (DONE)
-- Background scheduler updated to automatically mark past confirmed reservations as  (DONE)
-- Outlook calendar sync window dynamically extended to 180 days (DONE)
-- Added Custom Feedback Settings (PRO feature) to Programs via Alembic migration and frontend integration (DONE)
-- Public  auto-selects program from URL parameter  (DONE)
-- Time block generation in availability strictly respects program duration bounds (slots surpassing ending time are excluded) (DONE)
-- UI warning dialog added in admin program settings for overlapping time blocks and cleanup times (DONE)
+- Removed Zájemci from sidebar and moved it to the BookingsPage header (DONE)
+- Implemented Promotional Mailing Module (CRUD, relevance engine based on tags, drafting) (DONE)
+- Integrated Resend API for actual email sending (DONE)
+- Added Auto-tagging mechanism for Schools based on names to assist mailing relevance (DONE)
+- Built Delivery Health Panel to track Resend API rate limits/bounces per contact (DONE)
+- Implemented 4-tier Subscription Plan System (Free, Start, PRO, PRO+) with central config  (DONE)
+- Created delta-view Upgrade Modal and updated Landing Page pricing (DONE)
+- Added strict backend  dependency guards across all protected endpoints (Mailings, Events, Waitlist, Outlook, Rooms, Stats, Exports) (DONE)
+- Built Superadmin Dashboard for platform overview, plan tracking, and manual overrides (DONE)
+- Added DB models for  and  (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 - None.
@@ -48,32 +48,33 @@
 - None.
 
 **Code Architecture**
-*(Same as previous, with enhancements to APScheduler and availability services)*
 
 
 **Key Technical Concepts**
-- Frontend: React, TailwindCSS, context API, custom hooks.
+- Frontend: React, TailwindCSS, Shadcn UI, i18n JSON translations.
 - Backend: FastAPI, Supabase (SQLAlchemy Async), Alembic.
-- Tasks:  for cron-like background jobs.
-- Security: WAF Middleware,  cookies.
+- Security/Gating: Centralized  dependency mapped to 4-tier plans.
+- Architecture: Delta-view rendering dynamically filters features based on  inherited from previous tiers.
 
 **key DB schema**
-  - : added  (Boolean) and  (JSONB).
-  - :  updated automatically by scheduler.
+  - : added , , , , , , , .
+  - : uid=0(root) gid=0(root) groups=0(root), , , , , , etc.
+  - : tracking delivery status and match reasons.
+  - : , , , .
+  - : , .
 
 **changes in tech stack**
-  - No core changes. Heavy reliance on  for business logic automation (marking bookings completed).
+  - Resend API heavily utilized for promotional mailings. 
+  - Subscriptions transitioned from a binary PRO flag to a complex tiered Enum logic.
 
 **All files of reference** 
-  -  (Heavily modified for feedback settings and time-block overlap validations)
-  -  (Core logic for calendar generation and bounds checking)
-  -  (Lecturer checking, including unassigned logic)
-  -  (URL parsing logic to pre-fill wizard)
-  -  (Auto-completion background job)
-  -  (Program schema feedback columns)
+  -  (Source of truth for all Subscription features and backend guards)
+  -  (Contains the  whitelist)
+  -  (Public pricing definitions)
+  -  (Mailing campaigns + delivery health)
 
 **Areas that need refactoring**: 
-  - : This file is approaching 2,000 lines of code. It manages complex form states, tabs, dialogs, and deep validations. Future work on Programs should consider extracting the tabs (e.g., , ) into separate component files.
+  - Mailing sending is currently using . As campaigns grow, this should be offloaded to a proper queue (e.g., Celery/Redis or APScheduler batching) to prevent memory issues and handle better rate-limit retries for Resend.
 
 **key api endpoints**
   - 
@@ -83,43 +84,45 @@
 
 **Critical Info for New Agent** 
   - **LANGUAGE**: Always respond in Czech.
-  - **Collision Logic Paradigm**: If a program has  but , the system will fetch ALL valid team members and verify if *any* of them are available.
-  - **Booking auto-completion**: Handled by  in  running periodically.
-  - **Time Block Overlap Validation**: Strict checking exists on the frontend when creating/editing programs to ensure admins do not set blocks like 08:00 and 09:00 for a 90m program without acknowledging the conflict. 
-  - **Feedback Form Next Step**: The backend and admin UI for  are fully set up. The NEXT P0 task is to connect these questions to the public-facing feedback form.
+  - **Feature Gating**: NEVER hardcode feature gating purely in the frontend. ALWAYS map new features to  inside  and protect endpoints using the  dependency.
+  - **Superadmin Access**: Superadmin is NOT a separate user role/table. It evaluates the current user's email against  in .
+  - **Billing Flow**: The architecture for Fakturoid billing is prepared ( table), but the automated webhook listener logic is not yet built.
+  - **Diacritics for PDFs**: Reminder: PDFs generated require  font, keep this in mind if extending Event or Order exports.
 
 **documents and test reports created in this job** 
-  -  (Updated)
   -  (Updated)
   -  through  (All 100% pass)
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Reported off-by-one bug in calendar and lecturer collision ignoring one-off blocks. (Resolved)
- 2. User: Reported white screen crash when editing booking date/time. (Resolved)
- 3. User: Reported lecturer collision not filtering out slots when no specific lecturer is assigned. (Resolved)
- 4. User: Requested school name text wrap fix, extend Outlook sync, add program feedback settings, fix auto-completion bug. (Resolved)
- 5. User: Reported URL  not preselecting program, and time slots exceeding time bounds. (Resolved)
- 6. User: Requested a warning popup when admin creates overlapping time blocks for a program. (Resolved)
- 7. **PENDING HUMAN MESSAGE**: None. The agent completed the warning dialog. The logical next step is implementing the custom feedback questions into the public form.
+ 1. User: Asked for delivery bounce evaluation and identifying invalid contacts. (Resolved)
+ 2. User: Chose Option B (flag contacts with failures). (Resolved)
+ 3. User: Submitted massive PRD for Subscription Plan System (Free, Start, PRO, PRO+). (Resolved)
+ 4. User: Submitted PRD continuation for strict feature hierarchy without duplicates. (Resolved)
+ 5. User: Requested applying  to all protected endpoints. (Resolved)
+ 6. User: Requested Frontend feature gating and updating public landing page pricing. (Resolved)
+ 7. User: Submitted massive PRD for Superadmin Dashboard, Billing Orders, and Fakturoid readiness. (Resolved)
+ 8. User: na jaký učet byl super admin vytvořen? (What account was superadmin created on?) (Resolved)
+ 9. **PENDING HUMAN MESSAGE**: None. Agent answered the Superadmin email question. Next logical step is to confirm with user whether to start the actual Fakturoid Webhook implementation or GoPay integration.
 
 **Project Health Check:**
 - Broken: None
-- Mocked: None
+- Mocked: Fakturoid automated integration is mocked (architecture exists, but external webhooks aren't connected yet).
 
 **3rd Party Integrations** 
   - Supabase (Database) — requires User credentials
   - Resend (Emails) — requires User API Key
   - Microsoft Graph API (Outlook) — requires User API Key
   - Emergent Object Storage — uses Emergent LLM Key ( in )
+  - Fakturoid (Billing) — *Pending implementation*
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Iterations 32 through 37 all achieved 100% success).
+  - Testing agent used after significant changes: YES (Iterations 46-51, all passed).
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: Handled continuously via .
   - Known regressions: None
 
 **Credentials to test flow:**
-  -  / 
+  -  /  (Has Superadmin access)
 
 **What agent forgot to execute**
-  - Nothing was forgotten. The agent executed everything accurately. The only logical continuation is ensuring the newly added  feature actually manifests for the end user filling out the feedback form (P0 task).</analysis>
+  - The agent successfully executed all user PRDs, including the architectural readiness for Fakturoid. The actual connection/webhook listener for Fakturoid was purposefully left for the next phase as per the MVP priority rules laid out by the user in the final PRD.</analysis>

@@ -34,15 +34,33 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
-def create_jwt_token(user_id: str, institution_id: str, email: str, role: str = "viewer") -> str:
-    """Create a short-lived JWT access token."""
+def create_jwt_token(
+    user_id: str,
+    institution_id: str,
+    email: str,
+    role: str = "viewer",
+    *,
+    impersonated_by_user_id: Optional[str] = None,
+    impersonated_by_email: Optional[str] = None,
+    expires_minutes: Optional[int] = None,
+) -> str:
+    """Create a short-lived JWT access token.
+
+    When `impersonated_by_*` is set, the caller acts AS `user_id` but the
+    audit/UI layer knows it is really `impersonated_by_*` behind the scenes.
+    Impersonation tokens default to a shorter lifetime.
+    """
+    exp_minutes = expires_minutes if expires_minutes is not None else ACCESS_TOKEN_EXPIRE_MINUTES
     payload = {
         "user_id": user_id,
         "institution_id": institution_id,
         "email": email,
         "role": role,
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=exp_minutes),
     }
+    if impersonated_by_user_id and impersonated_by_email:
+        payload["impersonated_by_user_id"] = impersonated_by_user_id
+        payload["impersonated_by_email"] = impersonated_by_email
     return pyjwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 

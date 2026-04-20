@@ -38,6 +38,8 @@ import { WaitlistPage } from './pages/admin/WaitlistPage';
 import { MailingsPage } from './pages/admin/MailingsPage';
 import { SuperadminPage } from './pages/admin/SuperadminPage';
 import PublicEventsPage from './pages/public/PublicEventsPage';
+import PaymentReturnPage from './pages/public/PaymentReturnPage';
+import PaymentMockPage from './pages/public/PaymentMockPage';
 
 import './App.css';
 
@@ -75,6 +77,8 @@ function App() {
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/obchodni-podminky" element={<VopPage />} />
               <Route path="/events/:institutionId" element={<PublicEventsPage />} />
+              <Route path="/payment/return" element={<PaymentReturnPage />} />
+              <Route path="/payment/mock" element={<PaymentMockPage />} />
 
               {/* Admin routes */}
               <Route

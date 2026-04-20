@@ -15,7 +15,7 @@ import {
   Building2, Users, BookOpen, Calendar, Mail, BarChart3, Loader2,
   Search, ChevronRight, Crown, Shield, AlertTriangle, Check, X,
   FileText, Clock, ArrowLeft, Eye, Settings2, Trash2, BarChart2,
-  UserCog, AtSign, History
+  UserCog, AtSign, History, Flag, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { API } from '../../config/api';
 
@@ -42,6 +42,7 @@ export const SuperadminPage = () => {
   const [billingOrders, setBillingOrders] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [auditLog, setAuditLog] = useState(null);
+  const [featureFlags, setFeatureFlags] = useState(null);
   const [selectedInst, setSelectedInst] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -105,6 +106,29 @@ export const SuperadminPage = () => {
       setAuditLog(res.data);
       setView('audit');
     } catch (e) { toast.error(e.response?.data?.detail || 'Chyba při načítání historie'); }
+  };
+
+  const loadFeatureFlags = async () => {
+    try {
+      // Ensure we have the full institutions list to let admin choose
+      let insts = institutions;
+      if (!insts || insts.length === 0) {
+        const r = await axios.get(`${API}/superadmin/institutions?per_page=200`, { withCredentials: true });
+        insts = r.data.institutions || [];
+        setInstitutions(insts);
+      }
+      const res = await axios.get(`${API}/superadmin/feature-flags`, { withCredentials: true });
+      setFeatureFlags(res.data);
+      setView('features');
+    } catch (e) { toast.error(e.response?.data?.detail || 'Chyba při načítání feature flagů'); }
+  };
+
+  const saveFeatureFlag = async (flagKey, patch) => {
+    try {
+      await axios.put(`${API}/superadmin/feature-flags/${flagKey}`, patch, { withCredentials: true });
+      toast.success('Feature flag uložen');
+      loadFeatureFlags();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Chyba'); }
   };
 
   const runExpirationJob = async () => {
@@ -204,6 +228,10 @@ export const SuperadminPage = () => {
             <Button variant={view === 'audit' ? 'default' : 'outline'} size="sm"
               onClick={loadAuditLog} data-testid="tab-audit">
               <History className="w-4 h-4 mr-1" /> Historie
+            </Button>
+            <Button variant={view === 'features' ? 'default' : 'outline'} size="sm"
+              onClick={loadFeatureFlags} data-testid="tab-features">
+              <Flag className="w-4 h-4 mr-1" /> Feature flagy
             </Button>
             <Button variant="outline" size="sm" onClick={runExpirationJob} data-testid="run-expiration-btn" title="Spustit expiraci plánů nyní">
               <Clock className="w-4 h-4 mr-1" /> Expirace
@@ -445,6 +473,36 @@ export const SuperadminPage = () => {
           </div>
         )}
 
+        {/* Feature Flags (pilot modules) */}
+        {view === 'features' && (
+          <div className="space-y-4" data-testid="features-view">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Flag className="w-5 h-5" /> Feature flagy (pilotní moduly)
+            </h2>
+            <p className="text-xs text-slate-500">
+              Pilotní funkce, které nejsou součástí cenových plánů. Pokud je flag <strong>globálně zapnutý</strong>,
+              mají k němu přístup všechny instituce. Jinak rozhoduje whitelist níže.
+            </p>
+
+            {!featureFlags ? (
+              <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>
+            ) : featureFlags.length === 0 ? (
+              <Card className="p-6 text-center text-slate-500">Žádné pilot feature flagy zatím nejsou definovány.</Card>
+            ) : (
+              featureFlags.map(flag => (
+                <FeatureFlagCard
+                  key={flag.key}
+                  flag={flag}
+                  institutions={institutions}
+                  onSave={(patch) => saveFeatureFlag(flag.key, patch)}
+                />
+              ))
+            )}
+          </div>
+        )}
+
+
+
         {/* Plan change modal */}
         {showPlanModal && selectedInst && (
           <Dialog open onOpenChange={() => setShowPlanModal(false)}>
@@ -588,6 +646,143 @@ const AUDIT_ACTION_COLOR = {
   impersonation_start: 'bg-orange-100 text-orange-700',
   impersonation_end: 'bg-orange-50 text-orange-600',
   setup_move_to_platform: 'bg-purple-100 text-purple-700',
+};
+
+const FEATURE_FLAG_LABELS = {
+  events_module: {
+    label: 'Události & přihlášky',
+    icon: Calendar,
+    description: 'Správa jednorázových akcí a přihlášek s QR platbou.',
+  },
+};
+
+const FeatureFlagCard = ({ flag, institutions, onSave }) => {
+  const meta = FEATURE_FLAG_LABELS[flag.key] || { label: flag.key, icon: Flag, description: flag.description };
+  const Icon = meta.icon;
+
+  const allowedSet = new Set(flag.allowed_institution_ids || []);
+  const [pendingAllowed, setPendingAllowed] = useState(allowedSet);
+  const [search, setSearch] = useState('');
+  const [dirty, setDirty] = useState(false);
+
+  React.useEffect(() => {
+    setPendingAllowed(new Set(flag.allowed_institution_ids || []));
+    setDirty(false);
+  }, [flag]);
+
+  const toggleInst = (id) => {
+    const next = new Set(pendingAllowed);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setPendingAllowed(next);
+    setDirty(true);
+  };
+
+  const toggleGlobal = () => {
+    onSave({ enabled: !flag.enabled });
+  };
+
+  const saveWhitelist = () => {
+    const before = allowedSet;
+    const after = pendingAllowed;
+    const toAdd = [...after].filter(id => !before.has(id));
+    const toRemove = [...before].filter(id => !after.has(id));
+    onSave({ add_institution_ids: toAdd, remove_institution_ids: toRemove });
+  };
+
+  const filtered = (institutions || []).filter(i => {
+    if (!search) return true;
+    return (i.name || '').toLowerCase().includes(search.toLowerCase()) ||
+           (i.email || '').toLowerCase().includes(search.toLowerCase());
+  });
+
+  return (
+    <Card className="p-5" data-testid={`feature-card-${flag.key}`}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${flag.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+            <Icon className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-slate-900">{meta.label}</h3>
+            <p className="text-xs font-mono text-slate-400">{flag.key}</p>
+            {meta.description && <p className="text-sm text-slate-600 mt-1">{meta.description}</p>}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={toggleGlobal}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold border transition-colors shrink-0 ${
+            flag.enabled
+              ? 'bg-emerald-600 text-white border-emerald-700 hover:bg-emerald-700'
+              : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+          }`}
+          data-testid={`feature-global-toggle-${flag.key}`}
+          title={flag.enabled
+            ? 'Globálně zapnuto — mají všichni. Klikněte pro vypnutí (přepnutí na whitelist)'
+            : 'Vypnuto — používá whitelist. Klikněte pro globální zapnutí'}
+        >
+          {flag.enabled ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+          {flag.enabled ? 'Globálně ZAPNUTO' : 'Whitelist režim'}
+        </button>
+      </div>
+
+      <div className={`mt-4 p-3 rounded-md border ${flag.enabled ? 'bg-slate-50 border-slate-200 opacity-70' : 'bg-white border-slate-300'}`}>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-semibold text-slate-700">
+            Whitelist institucí ({pendingAllowed.size} / {institutions?.length || 0})
+          </p>
+          {dirty && (
+            <Button
+              size="sm"
+              onClick={saveWhitelist}
+              className="h-7 text-xs"
+              data-testid={`feature-save-${flag.key}`}
+            >
+              <Check className="w-3 h-3 mr-1" /> Uložit změny
+            </Button>
+          )}
+        </div>
+        {flag.enabled && (
+          <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mb-2">
+            Flag je globálně zapnutý — whitelist se nyní nepoužívá, ale změny zde se uloží a aktivují po vypnutí globálu.
+          </p>
+        )}
+        <Input
+          placeholder="Hledat instituci..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="mb-2 h-8 text-sm"
+          data-testid={`feature-search-${flag.key}`}
+        />
+        <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 border rounded">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-slate-400 p-3 text-center">Žádné výsledky</p>
+          ) : filtered.map(inst => {
+            const on = pendingAllowed.has(inst.id);
+            return (
+              <label
+                key={inst.id}
+                className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                data-testid={`feature-inst-${flag.key}-${inst.id}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={on}
+                  onChange={() => toggleInst(inst.id)}
+                  className="w-4 h-4 accent-emerald-600"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-slate-800 truncate">{inst.name}</div>
+                  <div className="text-xs text-slate-400 truncate">{inst.email}</div>
+                </div>
+                {inst.plan_label && <Badge className={PLAN_BADGE[inst.plan] || ''}>{inst.plan_label}</Badge>}
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    </Card>
+  );
 };
 
 const AuditEntryRow = ({ entry, showInstitution = true }) => {

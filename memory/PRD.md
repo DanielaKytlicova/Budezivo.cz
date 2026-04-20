@@ -402,6 +402,18 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 
 - [x] Per-příjemce: matching_reason (proč vybrán), relevantní programy (MailingRecipientProgram)
 - [x] Frontend: stránka /admin/mailings s archivem kampaní
+
+### Fáze 47 - UI pro správu Feature flagů (20.4.2026)
+- [x] Nová záložka „Feature flagy" v Superadmin panelu (data-testid `tab-features`)
+- [x] Komponenta `FeatureFlagCard` zobrazuje:
+  - Ikonku + čitelný název + technický klíč + popis
+  - Globální toggle „Whitelist režim ↔ Globálně ZAPNUTO" (jedním klikem)
+  - Whitelist sekci s vyhledáváním + checkboxy per-instituce (s plan badge)
+  - Batch ukládání změn (tlačítko „Uložit změny" se zobrazí pouze když je něco dirty)
+  - Upozornění při globálně zapnutém flagu („whitelist se nepoužívá, ale uloží se")
+- [x] Metadata pro jednotlivé flagy v `FEATURE_FLAG_LABELS` (zatím jen `events_module`)
+- [x] Změny jdou přes existující `PUT /api/superadmin/feature-flags/{key}` → automatický audit log
+
 - [x] Frontend: 4-krokový průvodce (Programy → Příjemci → Text emailu → Odeslání)
 - [x] Frontend: detail kampaně s příjemci, programy, snapshoty
 - [x] Frontend: tlačítko "Rozeslat nabídku" na kartě programu v ProgramsPage

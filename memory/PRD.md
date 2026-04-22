@@ -490,9 +490,25 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 ### Fáze 53 — Multi-part improvement bundle + PDF report button (22.4.2026)
 - [x] Task 1: „Stáhnout PDF report" v kebab menu u každé karty programu (testid `pdf-report-{id}`) — blob download
 - [x] PART 1: DB `users` + 4 sloupce (preferred_age_groups, supported_program_ids, learning_program_ids jsonb + admin_note text); `TeamMember` schéma + `PATCH /api/team/{id}/lecturer-profile` (self-edit + admin-only admin_note)
-- [x] PART 2: Nová tabulka `reservation_observers` + 5 endpointů `/api/bookings/{id}/naslech[...]` + `GET /bookings/me/naslech-upcoming`; Admin POST auto-approve, lektor POST self=pending; **nezasahuje** do kolizí ani do pool pro pick_main_lecturer (ověřeno)
-- [x] PART 3 rozšíření: `pick_main_lecturer` přidává lektory s `supported_program_ids`, vylučuje `learning_program_ids`; skóre boostuje age_group + explicit supporters
 - [x] PART 4: `services/collision_classifier.py` — wrapper `classify(msg) → {blocked, code, source, message_cs, details}`; obě entry-points (public + admin); FE čte `detail.message_cs`
 - [x] PART 5: `ProgramCollisionTab.js` — karta „Současně s jinými programy", helper texty bez „paralelní"/technických termínů
-- [x] NaslechPanel v detailu rezervace: seznam + dropdown + Přidat/Schválit/Odebrat
 - [x] Testováno: 14/14 backend pytest + FE E2E (iteration_58.json)
+
+### Fáze 54 — Oprava crash ArchivePage + Samoobslužný profil lektora + Zjednodušení Náslechu (22.4.2026)
+- [x] **Fix P0**: `/app/frontend/src/pages/admin/ArchivePage.js` – volání `/api/programs/{id}/archive-report` doplněno o `?format=json` (default se stal PDF po Fázi 52) + null-safe render `reportData && reportData.program`; TypeError při kliku na „Report" u archivovaného programu vyřešen
+- [x] **Self-service profil lektora**: Nová stránka `/admin/my-profile` (MyProfilePage.js) dostupná všem rolím:
+  - Úprava jména
+  - Preferované věkové skupiny (ms_3_6 / zs1_7_12 / zs2_12_16 / ss_15_19 / adults)
+  - Programy „mohu vést" (supported_program_ids) a „chci se naučit / náslech" (learning_program_ids) s mutual exclusion
+  - Zobrazení admin_note (read-only pro ne-adminy)
+  - Save přes `PATCH /api/team/{user_id}/lecturer-profile`
+- [x] **Zjednodušení Náslechu** (dle uživatele: odstranění duplicity):
+  - ❌ ODSTRANĚNO: celý router `/app/backend/routes/observers.py` (5 endpointů /api/bookings/{id}/naslech*)
+  - ❌ ODSTRANĚNO: `PATCH /api/team/{id}/lecturer-mode` endpoint
+  - ❌ ODSTRANĚNO: filtr `lecturer_mode == "main"` v `pick_main_lecturer` a `bookings.py`
+  - ❌ ODSTRANĚNO: komponenta `NaslechPanel` v BookingsPage.js a tlačítko toggle `lecturer-mode-toggle-*` v TeamPage.js
+  - ✅ Náslech je nyní jen „poznámka" v profilu lektora — program v `learning_program_ids` znamená „tento program zatím nevedu" (systém mě u něj automaticky nepřiřadí jako hlavního lektora); po absolvování lektor sám přesune program do `supported_program_ids`
+- [x] Sidebar: nová položka „Můj profil" (`nav-my-profile`) viditelná pro všechny role
+- [x] Pytest: `test_my_profile_and_naslech_removal.py` — 7/7 PASS
+- [x] Testováno: 100% backend + 100% frontend E2E (iteration_59.json)
+

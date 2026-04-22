@@ -644,6 +644,15 @@ export const BookingPage = () => {
                       <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm font-medium">
                         {program.duration} min.
                       </span>
+                      {program.pricing_info && (
+                        <span
+                          className="px-3 py-1 rounded-md text-sm font-medium bg-amber-50 text-amber-800 border border-amber-200"
+                          data-testid={`program-pricing-${program.id}`}
+                          title="Informativní cena"
+                        >
+                          {program.pricing_info}
+                        </span>
+                      )}
                     </div>
                     {hasValidity && (
                       <div className="pt-3 border-t border-gray-100">

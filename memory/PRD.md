@@ -418,6 +418,17 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] Frontend: detail kampaně s příjemci, programy, snapshoty
 - [x] Frontend: tlačítko "Rozeslat nabídku" na kartě programu v ProgramsPage
 - [x] Frontend: navigace "Mailingy" v sidebar pod "Školy"
+
+### Fáze 48 - Program: Cena informativní místo Ceníku (22.4.2026)
+- [x] Nová Program kolona `pricing_info` (Text) — volný text jako „30,-/dítě – pedagog zdarma"
+- [x] ALTER TABLE programs ADD COLUMN pricing_info TEXT (provedeno na DB)
+- [x] ProgramCreate schema + create/update routes + repositories + public programs endpoint předávají pricing_info
+- [x] Frontend ProgramsPage: „Ceník" sekce nahrazena „Cena pro účastníky" — volné textové pole, max 200 znaků, bez tariff dropdownu, bez číselné ceny
+- [x] Odstraněn dead link „Vylepši svůj tarif → Chceš k programům přidat fotografie" (nevedlo nikam)
+- [x] Public `/book/{inst}` — zobrazuje pricing_info jako jantarový badge vedle délky programu
+- [x] Email template: `_reservation_details_box` zobrazuje řádek „Cena:" pouze pokud je pricing_info vyplněné — řetězec z DB jde escapem přes HTML a nahrazuje newlines za `<br>`
+- [x] `_build_email_context` propaguje `program_pricing_info` do všech reservation-related mailů (potvrzení, zrušení, vytvoření)
+
 - [x] UI fix: "Zájemci" přesunuto ze sidebaru do hlavičky stránky Rezervace
 
 ### DB Schema (nové tabulky - Fáze 35)

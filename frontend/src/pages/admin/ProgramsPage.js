@@ -57,6 +57,7 @@ const getDefaultFormData = () => ({
   min_capacity: 5,
   price: 0,
   tariff: 'free',
+  pricing_info: '',
   requires_approval: false,
   is_published: true,
   send_email_notification: true,
@@ -753,44 +754,29 @@ export const ProgramsPage = () => {
         </div>
       </Card>
 
-      {/* Ceník */}
-      <Card className="p-4 md:p-6 space-y-4">
-        <div className="flex justify-between items-start">
-          <h3 className="font-semibold text-slate-900">Ceník</h3>
-          <button className="text-sm text-slate-600 underline hover:text-slate-800">
-            Chceš k programům přidat i fotografie? Vylepši svůj tarif.
-          </button>
-        </div>
-        
+      {/* Cena (informativní) */}
+      <Card className="p-4 md:p-6 space-y-3">
         <div>
-          <Label className="text-gray-500 text-sm">Vybraný tarif</Label>
-          <Select
-            value={formData.tariff}
-            onValueChange={(value) => setFormData({ ...formData, tariff: value, price: value === 'free' ? 0 : formData.price })}
-          >
-            <SelectTrigger className="mt-1" data-testid="program-tariff">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TARIFFS.map(tariff => (
-                <SelectItem key={tariff.value} value={tariff.value}>{tariff.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <h3 className="font-semibold text-slate-900">Cena pro účastníky</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Informativní text pro školy / rodiče. Peníze <strong>nevybíráme online</strong> — slouží pouze
+            k zobrazení v nabídce a k propsání do potvrzovacího e-mailu rezervace.
+          </p>
         </div>
-
-        {formData.tariff === 'paid' && (
-          <div>
-            <Label className="text-gray-500 text-sm">Cena (Kč)</Label>
-            <Input
-              type="number"
-              data-testid="program-price"
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-              className="mt-1"
-            />
-          </div>
-        )}
+        <div>
+          <Label className="text-gray-500 text-sm">Text o ceně</Label>
+          <Input
+            data-testid="program-pricing-info"
+            value={formData.pricing_info || ''}
+            onChange={(e) => setFormData({ ...formData, pricing_info: e.target.value })}
+            placeholder="např. 30,-/dítě – pedagog zdarma"
+            className="mt-1"
+            maxLength={200}
+          />
+          <p className="text-xs text-slate-400 mt-1">
+            Pokud ponecháte prázdné, v nabídce ani v mailu se žádná informace o ceně nezobrazí.
+          </p>
+        </div>
       </Card>
 
       {/* Další nastavení */}

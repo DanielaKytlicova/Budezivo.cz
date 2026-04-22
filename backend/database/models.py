@@ -148,6 +148,7 @@ class Program(Base):
     target_group = Column(Text, nullable=False, default='schools')  # schools, public, both - LEGACY
     target_groups = Column(JSON, default=[])  # Array of age groups: ms_3_6, zs1_7_12, zs2_12_15, ss_14_18, gym_14_18, adults, all
     price = Column(Float, default=0.0)
+    pricing_info = Column(Text)  # Free-form "30 Kč/dítě, pedagog zdarma" — display-only, propagated to confirmation email
     
     # Status & Publishing
     status = Column(Text, nullable=False, default='active')  # active, concept, archived

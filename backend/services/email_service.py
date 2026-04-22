@@ -480,6 +480,7 @@ def _build_email_context(
         "teachers_count": booking_data.get("num_teachers", 0),
         "program_name": program_data.get("name_cs", ""),
         "program_duration": program_data.get("duration", 60),
+        "program_pricing_info": program_data.get("pricing_info") or "",
         "institution_name": institution_data.get("name", ""),
         "institution_email": institution_data.get("email", ""),
         "institution_phone": institution_data.get("phone", ""),

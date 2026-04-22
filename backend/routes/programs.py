@@ -84,7 +84,7 @@ async def get_public_programs(
     PUBLIC_ALLOWED_FIELDS = {
         "id", "institution_id", "name_cs", "name_en", "description_cs", "description_en",
         "duration", "age_group", "age_categories", "target_groups", "subject_tags",
-        "min_capacity", "max_capacity", "target_group", "price", "status",
+        "min_capacity", "max_capacity", "target_group", "price", "pricing_info", "status",
         "is_published", "available_days", "time_blocks", "start_date", "end_date",
         "min_days_before_booking", "max_days_before_booking",
         "preparation_time", "cleanup_time", "requires_approval",
@@ -451,6 +451,7 @@ async def get_archive_report(
             "age_group": program.get("age_group", ""),
             "duration": program.get("duration"),
             "price": program.get("price"),
+            "pricing_info": program.get("pricing_info"),
             "capacity": f"{program.get('min_capacity')}-{program.get('max_capacity')}",
             "status": program.get("status"),
             "start_date": program.get("start_date"),

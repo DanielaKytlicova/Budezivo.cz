@@ -78,6 +78,7 @@ class ProgramBase(BaseModel):
     max_capacity: int = 30
     target_group: str  # Legacy - kept for backwards compatibility
     price: Optional[float] = 0.0
+    pricing_info: Optional[str] = None
     status: str = "active"
     requires_approval: bool = False
     is_published: bool = True

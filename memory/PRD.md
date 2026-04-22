@@ -465,3 +465,13 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] Oprava vedlejšího bugu: `BookingBase.age_or_class: Optional[str]` (GET /api/bookings vracelo 500 pro historické null hodnoty)
 - [x] Testování: 12/12 backend pytest + frontend badge ověřen screenshotem (iteration_56.json)
 
+
+
+### Fáze 51 — Hromadný ZIP export všech generovaných souborů (22.4.2026)
+- [x] Nový endpoint `GET /api/exports/download-bundle` (gated: superadmin OR admin/spravce + plan has `data_export`)
+- [x] Bezpečnost: lektor/edukátor dostane 403, free plan → 403 s výzvou k upgrade, superadmin OK
+- [x] Obsah: `01_skoly_kontakty.csv`, `02_import_template.xlsx`, `03_zpetna_vazba.csv`, `04-06_statistiky_*.csv`, `07_gdpr_export.json`, `08_kalendar_instituce.ics`, `09_kalendar_program_{name}.ics` + `10_archive_report_{name}.json` na program (cap 20), `MANIFEST.json`
+- [x] Helper `_bytes_from_call` zvládá `Response`/`StreamingResponse`/bytes/dict — per-file error do manifestu
+- [x] Fix: `Content-Disposition` RFC 5987 kvůli českým diakritikám
+- [x] Frontend `SettingsPage → GDPR a export dat`: karta „Hromadný export (ZIP)" s loading state a blob download (testid `bulk-export-card`, `bulk-export-button`)
+- [x] Ověřeno: 23 souborů × 227 kB pro Gallery PRO, 403 pro lektora, 200 pro superadmina

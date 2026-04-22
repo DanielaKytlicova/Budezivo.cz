@@ -406,7 +406,7 @@ async def export_statistics_csv(
     if not institution:
         raise HTTPException(status_code=404, detail="Instituce nenalezena")
     
-    is_pro = institution.get("plan") in ["standard", "premium"]
+    is_pro = institution.get("plan") in ["standard", "premium", "pro", "pro_plus"]
     csv_export_exception = institution.get("pro_settings", {}).get("csv_export_exception", False)
     
     if not is_pro and not csv_export_exception:

@@ -79,6 +79,7 @@ class ProgramBase(BaseModel):
     target_group: str  # Legacy - kept for backwards compatibility
     price: Optional[float] = 0.0
     pricing_info: Optional[str] = None
+    image_url: Optional[str] = None
     status: str = "active"
     requires_approval: bool = False
     is_published: bool = True

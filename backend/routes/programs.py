@@ -6,8 +6,8 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, Depends, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Depends, Query, Request, UploadFile, File
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -21,6 +21,7 @@ from database.supabase_repositories import (
     BookingRepositorySupabase,
 )
 from routes.audit import log_action
+from services.feature_flags import is_feature_enabled
 
 router = APIRouter(prefix="/programs", tags=["Programs"])
 logger = logging.getLogger(__name__)
@@ -84,7 +85,7 @@ async def get_public_programs(
     PUBLIC_ALLOWED_FIELDS = {
         "id", "institution_id", "name_cs", "name_en", "description_cs", "description_en",
         "duration", "age_group", "age_categories", "target_groups", "subject_tags",
-        "min_capacity", "max_capacity", "target_group", "price", "pricing_info", "status",
+        "min_capacity", "max_capacity", "target_group", "price", "pricing_info", "image_url", "status",
         "is_published", "available_days", "time_blocks", "start_date", "end_date",
         "min_days_before_booking", "max_days_before_booking",
         "preparation_time", "cleanup_time", "requires_approval",
@@ -525,3 +526,122 @@ async def get_program_external_url(
         "institution_name": institution.get("name", "") if institution else "",
         "embed_code": f'<a href="{external_url}" target="_blank">Rezervovat: {program.get("name_cs", "")}</a>'
     }
+
+
+# ============ Program Photos (feature flag: program_photos) ============
+
+PROGRAM_PHOTOS_FLAG = "program_photos"
+
+
+async def _require_program_photos(db: AsyncSession, institution_id: str):
+    if not await is_feature_enabled(db, PROGRAM_PHOTOS_FLAG, institution_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Fotografie k programům nejsou pro vaši instituci povoleny. Kontaktujte prosím správce platformy.",
+        )
+
+
+@router.get("/features/check-access")
+async def check_program_photos_access(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return whether program_photos flag is enabled for the current institution."""
+    enabled = await is_feature_enabled(db, PROGRAM_PHOTOS_FLAG, current_user["institution_id"])
+    return {"program_photos": bool(enabled)}
+
+
+@router.post("/{program_id}/image/upload")
+async def upload_program_image_endpoint(
+    program_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload cover image for a program. Gated by `program_photos` feature flag."""
+    from services.storage_service import (
+        ALLOWED_IMAGE_TYPES, MAX_PROGRAM_IMAGE_SIZE, upload_program_image,
+    )
+
+    await _require_program_photos(db, current_user["institution_id"])
+
+    program_repo = ProgramRepositorySupabase(db)
+    program = await program_repo.find_by_id(program_id, current_user["institution_id"])
+    if not program:
+        raise HTTPException(status_code=404, detail="Program nenalezen")
+
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Nepodporovaný formát. Povoleno: PNG, JPG, SVG, WebP, GIF")
+
+    data = await file.read()
+    if len(data) > MAX_PROGRAM_IMAGE_SIZE:
+        raise HTTPException(status_code=400, detail="Soubor je příliš velký (max 5 MB)")
+
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "png"
+
+    try:
+        storage_path = upload_program_image(
+            current_user["institution_id"], program_id, data, file.content_type, ext,
+        )
+    except Exception as e:
+        logger.error(f"Program image upload failed: {e}")
+        raise HTTPException(status_code=500, detail="Nahrání fotografie selhalo")
+
+    image_url = f"/api/programs/image/{storage_path}"
+    await program_repo.update(program_id, current_user["institution_id"], {"image_url": image_url})
+
+    await log_action(
+        db, institution_id=current_user["institution_id"],
+        user_id=current_user["user_id"], user_email=current_user.get("email", ""),
+        action="upload_image", entity_type="program", entity_id=program_id,
+        details={"name": program.get("name_cs", ""), "size": len(data)},
+    )
+
+    return {"image_url": image_url, "message": "Fotografie úspěšně nahrána"}
+
+
+@router.delete("/{program_id}/image")
+async def delete_program_image(
+    program_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove cover image from a program. Gated by `program_photos` feature flag."""
+    await _require_program_photos(db, current_user["institution_id"])
+
+    program_repo = ProgramRepositorySupabase(db)
+    program = await program_repo.find_by_id(program_id, current_user["institution_id"])
+    if not program:
+        raise HTTPException(status_code=404, detail="Program nenalezen")
+
+    await program_repo.update(program_id, current_user["institution_id"], {"image_url": None})
+
+    await log_action(
+        db, institution_id=current_user["institution_id"],
+        user_id=current_user["user_id"], user_email=current_user.get("email", ""),
+        action="delete_image", entity_type="program", entity_id=program_id,
+        details={"name": program.get("name_cs", "")},
+    )
+
+    return {"message": "Fotografie odstraněna"}
+
+
+@router.get("/image/{path:path}")
+async def serve_program_image(path: str):
+    """Serve uploaded program image from object storage. Public (used in <img> tags)."""
+    from services.storage_service import get_object
+
+    # Restrict served paths to the program images namespace
+    if not path.startswith("budezivo/programs/"):
+        raise HTTPException(status_code=404, detail="Fotografie nenalezena")
+
+    try:
+        data, content_type = get_object(path)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Fotografie nenalezena")
+
+    return Response(
+        content=data,
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )

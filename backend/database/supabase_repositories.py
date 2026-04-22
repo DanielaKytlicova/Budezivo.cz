@@ -296,6 +296,7 @@ class ProgramRepositorySupabase:
             target_groups=program_data.get('target_groups', []),
             price=program_data.get('price', 0.0),
             pricing_info=program_data.get('pricing_info'),
+            image_url=program_data.get('image_url'),
             status=program_data.get('status', 'active'),
             is_published=program_data.get('is_published', True),
             requires_approval=program_data.get('requires_approval', False),

@@ -618,6 +618,16 @@ export const BookingPage = () => {
                     onClick={() => handleProgramSelect(program)}
                     data-testid={`program-card-${program.id}`}
                   >
+                    {program.image_url && (
+                      <div className="-mx-6 -mt-6 mb-4 rounded-t-lg overflow-hidden">
+                        <img
+                          src={`${process.env.REACT_APP_BACKEND_URL}${program.image_url}`}
+                          alt={program.name_cs}
+                          className="w-full h-48 object-cover"
+                          data-testid={`program-image-${program.id}`}
+                        />
+                      </div>
+                    )}
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="text-xl font-semibold text-[#2B3E50] mb-1">{program.name_cs}</h3>

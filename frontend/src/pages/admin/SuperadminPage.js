@@ -15,7 +15,7 @@ import {
   Building2, Users, BookOpen, Calendar, Mail, BarChart3, Loader2,
   Search, ChevronRight, Crown, Shield, AlertTriangle, Check, X,
   FileText, Clock, ArrowLeft, Eye, Settings2, Trash2, BarChart2,
-  UserCog, AtSign, History, Flag, ToggleLeft, ToggleRight
+  UserCog, AtSign, History, Flag, ToggleLeft, ToggleRight, Image as ImageIcon
 } from 'lucide-react';
 import { API } from '../../config/api';
 
@@ -653,6 +653,11 @@ const FEATURE_FLAG_LABELS = {
     label: 'Události & přihlášky',
     icon: Calendar,
     description: 'Správa jednorázových akcí a přihlášek s QR platbou.',
+  },
+  program_photos: {
+    label: 'Fotografie programů',
+    icon: ImageIcon,
+    description: 'Umožňuje nahrát hlavní fotografii programu zobrazenou na veřejné rezervační stránce.',
   },
 };
 

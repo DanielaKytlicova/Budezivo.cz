@@ -1,7 +1,8 @@
 """
 Automatic main-lecturer assignment for new reservations.
-Chooses the best available lecturer (main mode only) for a program+slot.
-Training-mode ("náslech") lecturers are never selected as the main lecturer.
+Chooses the best available lecturer for a program+slot.
+Lecturers who list the program in `learning_program_ids` (currently learning via
+náslech) are excluded from main-lecturer selection for that program.
 """
 import logging
 import uuid
@@ -26,10 +27,10 @@ SOURCE_UNASSIGNED = "unassigned"
 
 
 async def _load_eligible_lecturer_pool(db: AsyncSession, program: Program) -> tuple[list[User], int]:
-    """Candidate pool filtered to active + main-mode. Also enrich with lecturers whose
-    `supported_program_ids` explicitly include this program, and exclude lecturers whose
-    `learning_program_ids` include this program (they are trainees for this program).
-    Returns (main_mode_candidates, total_configured_count)."""
+    """Candidate pool of active lecturers. Enriched with lecturers whose
+    `supported_program_ids` explicitly include this program, and excluding lecturers
+    whose `learning_program_ids` include this program (they are trainees for it).
+    Returns (candidates, total_configured_count)."""
     candidate_ids: list[str] = []
     if program.assigned_lecturer_id:
         candidate_ids.append(str(program.assigned_lecturer_id))
@@ -43,7 +44,6 @@ async def _load_eligible_lecturer_pool(db: AsyncSession, program: Program) -> tu
         select(User).where(and_(
             User.institution_id == program.institution_id,
             User.status == "active",
-            User.lecturer_mode == "main",
             User.deleted_at.is_(None),
             User.supported_program_ids.contains([pid_str]),
         ))
@@ -60,7 +60,6 @@ async def _load_eligible_lecturer_pool(db: AsyncSession, program: Program) -> tu
             User.id.in_([uuid.UUID(x) for x in candidate_ids]),
             User.institution_id == program.institution_id,
             User.status == "active",
-            User.lecturer_mode == "main",
             User.deleted_at.is_(None),
         ))
     )

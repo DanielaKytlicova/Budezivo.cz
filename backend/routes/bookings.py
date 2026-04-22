@@ -75,16 +75,16 @@ async def _resolve_main_lecturer(
 
     # Admin explicit override wins
     if admin_override and admin_override.get("assigned_lecturer_id"):
-        # Validate this lecturer is main-mode and available
+        # Validate this lecturer exists and is active
         from sqlalchemy import select
         from database.models import User
         import uuid as _uuid
         r = await db.execute(select(User).where(User.id == _uuid.UUID(admin_override["assigned_lecturer_id"])))
         u = r.scalar_one_or_none()
-        if not u or u.lecturer_mode != "main":
+        if not u or u.status != "active":
             raise HTTPException(
                 status_code=400,
-                detail="Zvolený lektor není v režimu hlavního lektora (máte vybraného Náslech/trainee — hlavní lektor musí být zadán zvlášť).",
+                detail="Zvolený lektor není aktivní.",
             )
         return {
             "lecturer_id": str(u.id),
@@ -763,13 +763,6 @@ async def admin_assign_lecturer_to_booking(
     
     if lecturer.get("institution_id") != current_user["institution_id"]:
         raise HTTPException(status_code=403, detail="Lektor nepatří do vaší instituce")
-
-    # Main-lecturer only — training lecturers cannot be assigned as main
-    if lecturer.get("lecturer_mode") == "training":
-        raise HTTPException(
-            status_code=400,
-            detail="Tento lektor je v režimu Náslech (training). Jako hlavního lektora lze přiřadit pouze lektora v hlavním režimu.",
-        )
 
     # Check for lecturer time collisions
     collision_error = await check_lecturer_collision_for_assignment(

@@ -144,18 +144,6 @@ export const TeamPage = () => {
     setShowEditDialog(true);
   };
 
-  const handleToggleLecturerMode = async (member) => {
-    const currentMode = member.lecturer_mode || 'main';
-    const newMode = currentMode === 'main' ? 'training' : 'main';
-    try {
-      await axios.patch(`${API}/team/${member.id}/lecturer-mode`, { lecturer_mode: newMode });
-      toast.success(`Režim změněn na ${newMode === 'main' ? 'Hlavní lektor' : 'Náslech'}`);
-      fetchTeamMembers();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Nepodařilo se změnit režim lektora');
-    }
-  };
-
   const handleUpdateMember = async (e) => {
     e.preventDefault();
     try {
@@ -340,20 +328,6 @@ export const TeamPage = () => {
                             <CheckCircle className="w-3 h-3" />
                             Aktivní
                           </span>
-                          {(member.role === 'lektor' || member.role === 'edukator') && (
-                            <button
-                              onClick={() => handleToggleLecturerMode(member)}
-                              className={`px-2 py-0.5 text-xs rounded-full border transition ${
-                                (member.lecturer_mode || 'main') === 'training'
-                                  ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-                                  : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                              }`}
-                              data-testid={`lecturer-mode-toggle-${member.id}`}
-                              title="Přepnout režim lektora mezi Hlavní / Náslech"
-                            >
-                              {(member.lecturer_mode || 'main') === 'training' ? 'Náslech' : 'Hlavní lektor'}
-                            </button>
-                          )}
                         </div>
                       </div>
                     </div>

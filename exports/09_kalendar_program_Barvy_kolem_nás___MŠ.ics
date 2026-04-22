@@ -1,0 +1,248 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Budezivo.cz//Calendar//CS
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Barvy kolem nás — MŠ – Rezervace
+X-WR-TIMEZONE:Europe/Prague
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260402T100000
+DTEND;TZID=Europe/Prague:20260402T104500
+UID:daf34a1c-116f-47d6-aa5e-f6f84cc0b8ea@budezivo.cz
+CREATED:20260328T114437Z
+DESCRIPTION:Škola: MŠ Kamarád\nPočet dětí: 9\nPočet učitelů: 2\nK
+ ontakt: Mgr. Jana Nováková\nEmail: jana.novakova@ms-kamarad.cz\nTelefon:
+  +420 545 571 140\nStav: Dokončeno
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260412T100000
+DTEND;TZID=Europe/Prague:20260412T104500
+UID:ca40dcb9-df88-465e-bc2f-33789555f0c2@budezivo.cz
+CREATED:20260407T114437Z
+DESCRIPTION:Škola: Gymnázium Vídeňská\nPočet dětí: 9\nPočet učit
+ elů: 3\nKontakt: PaedDr. Karel Malý\nEmail: karel.maly@gymnazium-vidno.c
+ z\nTelefon: +420 544 509 111\nStav: Dokončeno
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260417T100000
+DTEND;TZID=Europe/Prague:20260417T104500
+UID:d0e381a0-6453-424d-a4a1-12e3885c531f@budezivo.cz
+CREATED:20260412T114437Z
+DESCRIPTION:Škola: Gymnázium Matyáše Lercha\nPočet dětí: 11\nPočet
+  učitelů: 3\nKontakt: Mgr. Martin Beneš\nEmail: martin.benes@gml.cz\nTe
+ lefon: +420 543 237 540\nStav: Dokončeno
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260507T090000
+DTEND;TZID=Europe/Prague:20260507T094500
+UID:ff91a60e-5c78-4f1e-8c40-242d5bce2500@budezivo.cz
+CREATED:20260422T114438Z
+DESCRIPTION:Škola: Gymnázium Vídeňská\nPočet dětí: 14\nPočet uči
+ telů: 2\nKontakt: Mgr. Jana Nováková\nEmail: jana.novakova@gymnazium-vi
+ dno.cz\nTelefon: +420 544 509 111\nStav: Potvrzeno
+LOCATION:Masarykova 14
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260603T090000
+DTEND;TZID=Europe/Prague:20260603T094500
+UID:35bca491-476d-415d-955e-5092d65a19e2@budezivo.cz
+CREATED:20260422T115048Z
+DESCRIPTION:Škola: ZŠ Testovací funkční test\nPočet dětí: 10\nPoč
+ et učitelů: 1\nKontakt: Test Pedagog\nEmail: danny.van@seznam.cz\nTelefo
+ n: +420 600 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260611T090000
+DTEND;TZID=Europe/Prague:20260611T094500
+UID:d0d4f872-b237-47ca-90a3-abe5663665bf@budezivo.cz
+CREATED:20260422T115054Z
+DESCRIPTION:Škola: Edge Back-to-back A\nPočet dětí: 10\nPočet učitel
+ ů: 1\nKontakt: Test Pedagog\nEmail: noemi.xxx@seznam.cz\nTelefon: +420 60
+ 0 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260621T090000
+DTEND;TZID=Europe/Prague:20260621T094500
+UID:828ab0c0-7040-4888-827c-1c51c59753e7@budezivo.cz
+CREATED:20260422T115101Z
+DESCRIPTION:Škola: Diff prog A\nPočet dětí: 10\nPočet učitelů: 1\nK
+ ontakt: Test Pedagog\nEmail: kytlicova@icloud.com\nTelefon: +420 600 111 2
+ 22\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260626T090000
+DTEND;TZID=Europe/Prague:20260626T094500
+UID:a6dc9577-8ca4-4a64-8d5f-6a3ec187f3a8@budezivo.cz
+CREATED:20260422T115106Z
+DESCRIPTION:Škola: Pending coexistence A\nPočet dětí: 10\nPočet učit
+ elů: 1\nKontakt: Test Pedagog\nEmail: noemi.xxx@seznam.cz\nTelefon: +420 
+ 600 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260726T090000
+DTEND;TZID=Europe/Prague:20260726T094500
+UID:a180e565-b2c5-4ba3-be37-060ef7ddcfd6@budezivo.cz
+CREATED:20260422T115523Z
+DESCRIPTION:Škola: Edge Back-to-back A\nPočet dětí: 10\nPočet učitel
+ ů: 1\nKontakt: Test Pedagog\nEmail: noemi.xxx@seznam.cz\nTelefon: +420 60
+ 0 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260810T090000
+DTEND;TZID=Europe/Prague:20260810T094500
+UID:31983789-1f77-4c9a-90b2-4389ddd69bfb@budezivo.cz
+CREATED:20260422T115531Z
+DESCRIPTION:Škola: Diff prog A\nPočet dětí: 10\nPočet učitelů: 1\nK
+ ontakt: Test Pedagog\nEmail: kytlicova@icloud.com\nTelefon: +420 600 111 2
+ 22\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260815T090000
+DTEND;TZID=Europe/Prague:20260815T094500
+UID:6fe78c95-6be9-4da1-94f1-381e6b22767a@budezivo.cz
+CREATED:20260422T115534Z
+DESCRIPTION:Škola: Pending coexistence A\nPočet dětí: 10\nPočet učit
+ elů: 1\nKontakt: Test Pedagog\nEmail: noemi.xxx@seznam.cz\nTelefon: +420 
+ 600 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260830T090000
+DTEND;TZID=Europe/Prague:20260830T094500
+UID:bded4162-ade7-4a52-9c09-8188654cbe91@budezivo.cz
+CREATED:20260422T115546Z
+DESCRIPTION:Škola: Load Test School #0\nPočet dětí: 8\nPočet učitel
+ ů: 1\nKontakt: Test Pedagog\nEmail: load0@example.com\nTelefon: +420 600 
+ 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260907T090000
+DTEND;TZID=Europe/Prague:20260907T094500
+UID:ef49b203-1a3b-4289-aeb2-21371c245509@budezivo.cz
+CREATED:20260422T115547Z
+DESCRIPTION:Škola: Load Test School #8\nPočet dětí: 8\nPočet učitel
+ ů: 1\nKontakt: Test Pedagog\nEmail: load8@example.com\nTelefon: +420 600 
+ 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20260915T090000
+DTEND;TZID=Europe/Prague:20260915T094500
+UID:179729c3-ccef-43f6-a2cc-79b96bfde881@budezivo.cz
+CREATED:20260422T115547Z
+DESCRIPTION:Škola: Load Test School #16\nPočet dětí: 8\nPočet učitel
+ ů: 1\nKontakt: Test Pedagog\nEmail: load16@example.com\nTelefon: +420 600
+  111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20261104T090000
+DTEND;TZID=Europe/Prague:20261104T094500
+UID:21fd33df-e516-40d2-9729-9b93fa9c2680@budezivo.cz
+CREATED:20260422T115941Z
+DESCRIPTION:Škola: ZŠ Testovací create\nPočet dětí: 10\nPočet učit
+ elů: 1\nKontakt: Test Pedagog\nEmail: danny.van@seznam.cz\nTelefon: +420 
+ 600 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20261113T090000
+DTEND;TZID=Europe/Prague:20261113T094500
+UID:d193c2ba-232e-4663-a377-548f86649207@budezivo.cz
+CREATED:20260422T115944Z
+DESCRIPTION:Škola: ZŠ Testovací confirm\nPočet dětí: 10\nPočet uči
+ telů: 1\nKontakt: Test Pedagog\nEmail: noemi.xxx@seznam.cz\nTelefon: +420
+  600 111 222\nStav: Potvrzeno
+LOCATION:Masarykova 14
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20261214T090000
+DTEND;TZID=Europe/Prague:20261214T094500
+UID:56c72dae-822f-4274-a53c-5bd12278f1e9@budezivo.cz
+CREATED:20260422T115955Z
+DESCRIPTION:Škola: Edge Back-to-back A\nPočet dětí: 10\nPočet učitel
+ ů: 1\nKontakt: Test Pedagog\nEmail: noemi.xxx@seznam.cz\nTelefon: +420 60
+ 0 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20270108T090000
+DTEND;TZID=Europe/Prague:20270108T094500
+UID:799887f7-b098-48db-a1f5-ea1f81eb6c19@budezivo.cz
+CREATED:20260422T120006Z
+DESCRIPTION:Škola: Pending coexistence A\nPočet dětí: 10\nPočet učit
+ elů: 1\nKontakt: Test Pedagog\nEmail: noemi.xxx@seznam.cz\nTelefon: +420 
+ 600 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20270123T090000
+DTEND;TZID=Europe/Prague:20270123T094500
+UID:78ad7254-73f2-4793-b7ff-75fd38d215e2@budezivo.cz
+CREATED:20260422T120016Z
+DESCRIPTION:Škola: Load Test School #0\nPočet dětí: 8\nPočet učitel
+ ů: 1\nKontakt: Test Pedagog\nEmail: load0@example.com\nTelefon: +420 600 
+ 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Barvy kolem nás — MŠ
+DTSTART;TZID=Europe/Prague:20270131T090000
+DTEND;TZID=Europe/Prague:20270131T094500
+UID:4eb0b902-1319-48e5-80d5-8d9cccd9bcf3@budezivo.cz
+CREATED:20260422T120017Z
+DESCRIPTION:Škola: Load Test School #8\nPočet dětí: 8\nPočet učitel
+ ů: 1\nKontakt: Test Pedagog\nEmail: load8@example.com\nTelefon: +420 600 
+ 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+END:VCALENDAR

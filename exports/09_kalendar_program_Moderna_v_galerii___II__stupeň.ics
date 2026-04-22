@@ -1,0 +1,116 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Budezivo.cz//Calendar//CS
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Moderna v galerii — II. stupeň ZŠ – Rezervace
+X-WR-TIMEZONE:Europe/Prague
+BEGIN:VEVENT
+SUMMARY:Moderna v galerii — II. stupeň ZŠ
+DTSTART;TZID=Europe/Prague:20260402T110000
+DTEND;TZID=Europe/Prague:20260402T123000
+UID:4064355c-3857-41eb-ba5f-0f5b0020101a@budezivo.cz
+CREATED:20260328T114437Z
+DESCRIPTION:Škola: ZŠ Horácké náměstí\nPočet dětí: 19\nPočet u
+ čitelů: 2\nKontakt: Mgr. Daniel Hruška\nEmail: daniel.hruska@zshoracke.
+ cz\nTelefon: +420 549 212 110\nStav: Dokončeno
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Moderna v galerii — II. stupeň ZŠ
+DTSTART;TZID=Europe/Prague:20260416T090000
+DTEND;TZID=Europe/Prague:20260416T103000
+UID:0cf92b05-8e8b-4adf-9fce-d904a71e0320@budezivo.cz
+CREATED:20260411T114437Z
+DESCRIPTION:Škola: ZŠ Úvoz\nPočet dětí: 21\nPočet učitelů: 2\nKon
+ takt: Mgr. Tereza Kolářová\nEmail: tereza.kolarova@zsuvoz.cz\nTelefon: 
+ +420 541 513 900\nStav: Dokončeno
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Moderna v galerii — II. stupeň ZŠ
+DTSTART;TZID=Europe/Prague:20260506T110000
+DTEND;TZID=Europe/Prague:20260506T123000
+UID:d6608ad3-b7d4-401a-908b-0d93e7be1b2b@budezivo.cz
+CREATED:20260422T114438Z
+DESCRIPTION:Škola: ZŠ Masarykova Brno\nPočet dětí: 22\nPočet učitel
+ ů: 2\nKontakt: Mgr. Jana Nováková\nEmail: jana.novakova@zs-masarykova.c
+ z\nTelefon: +420 545 214 112\nStav: Potvrzeno
+LOCATION:Masarykova 14
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Moderna v galerii — II. stupeň ZŠ
+DTSTART;TZID=Europe/Prague:20260508T110000
+DTEND;TZID=Europe/Prague:20260508T123000
+UID:07acd574-efec-4aa9-ab84-f89b09801ada@budezivo.cz
+CREATED:20260422T114438Z
+DESCRIPTION:Škola: MŠ Kamarád\nPočet dětí: 25\nPočet učitelů: 1\n
+ Kontakt: Mgr. Petra Svobodová\nEmail: petra.svobodova@ms-kamarad.cz\nTele
+ fon: +420 545 571 140\nStav: Potvrzeno
+LOCATION:Masarykova 14
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Moderna v galerii — II. stupeň ZŠ
+DTSTART;TZID=Europe/Prague:20260901T090000
+DTEND;TZID=Europe/Prague:20260901T103000
+UID:75f1e4c2-d8ce-4e91-978f-9caaa78dbcef@budezivo.cz
+CREATED:20260422T115719Z
+DESCRIPTION:Škola: Load Test School #2\nPočet dětí: 12\nPočet učitel
+ ů: 1\nKontakt: Test Pedagog\nEmail: load2@example.com\nTelefon: +420 600 
+ 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Moderna v galerii — II. stupeň ZŠ
+DTSTART;TZID=Europe/Prague:20260909T090000
+DTEND;TZID=Europe/Prague:20260909T103000
+UID:5749eb6d-e70c-4647-9109-bb718e49e4c1@budezivo.cz
+CREATED:20260422T115547Z
+DESCRIPTION:Škola: Load Test School #10\nPočet dětí: 12\nPočet učite
+ lů: 1\nKontakt: Test Pedagog\nEmail: load10@example.com\nTelefon: +420 60
+ 0 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Moderna v galerii — II. stupeň ZŠ
+DTSTART;TZID=Europe/Prague:20260917T090000
+DTEND;TZID=Europe/Prague:20260917T103000
+UID:edcb2f5f-8704-4a2a-8a4d-9e7bfbedff9a@budezivo.cz
+CREATED:20260422T115547Z
+DESCRIPTION:Škola: Load Test School #18\nPočet dětí: 12\nPočet učite
+ lů: 1\nKontakt: Test Pedagog\nEmail: load18@example.com\nTelefon: +420 60
+ 0 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Moderna v galerii — II. stupeň ZŠ
+DTSTART;TZID=Europe/Prague:20270125T090000
+DTEND;TZID=Europe/Prague:20270125T103000
+UID:058c4cff-4305-4bb1-939c-39bc7203dc01@budezivo.cz
+CREATED:20260422T120017Z
+DESCRIPTION:Škola: Load Test School #2\nPočet dětí: 12\nPočet učitel
+ ů: 1\nKontakt: Test Pedagog\nEmail: load2@example.com\nTelefon: +420 600 
+ 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+BEGIN:VEVENT
+SUMMARY:Moderna v galerii — II. stupeň ZŠ
+DTSTART;TZID=Europe/Prague:20270210T090000
+DTEND;TZID=Europe/Prague:20270210T103000
+UID:d9ece998-a148-4ea4-9148-cdaa29781ac9@budezivo.cz
+CREATED:20260422T120017Z
+DESCRIPTION:Škola: Load Test School #18\nPočet dětí: 12\nPočet učite
+ lů: 1\nKontakt: Test Pedagog\nEmail: load18@example.com\nTelefon: +420 60
+ 0 111 222\nStav: Čeká na potvrzení
+LOCATION:Masarykova 14
+STATUS:TENTATIVE
+END:VEVENT
+END:VCALENDAR

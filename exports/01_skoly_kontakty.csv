@@ -1,0 +1,24 @@
+Název školy;Město;Email;Kontaktní osoba;Telefon;Status;Datum registrace
+Diff prog A;;kytlicova@icloud.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Edge Back-to-back A;;noemi.xxx@seznam.cz;Test Pedagog;+420 600 111 222;active;22.04.2026
+Edge overlap base;;daniela.kytlicova@tul.cz;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #0;;load0@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #1;;load1@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #10;;load10@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #11;;load11@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #12;;load12@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #13;;load13@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #14;;load14@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #15;;load15@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #16;;load16@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #17;;load17@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #18;;load18@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #19;;load19@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #2;;load2@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #5;;load5@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #6;;load6@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #7;;load7@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #8;;load8@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+Load Test School #9;;load9@example.com;Test Pedagog;+420 600 111 222;active;22.04.2026
+ZŠ Test;;test@example.com;Test;+420 600 111 222;active;22.04.2026
+ZŠ Testovací funkční test;;danny.van@seznam.cz;Test Pedagog;+420 600 111 222;active;22.04.2026

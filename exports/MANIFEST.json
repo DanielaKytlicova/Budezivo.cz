@@ -1,0 +1,138 @@
+{
+  "generated_at": "2026-04-22T15:18:52.052400",
+  "files": [
+    {
+      "name": "01_skoly_kontakty",
+      "file": "/app/exports/01_skoly_kontakty.csv",
+      "bytes": 2091,
+      "status": 200,
+      "content_type": "text/csv; charset=utf-8"
+    },
+    {
+      "name": "02_import_template_skol",
+      "file": "/app/exports/02_import_template_skol.xlsx",
+      "bytes": 6964,
+      "status": 200,
+      "content_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    },
+    {
+      "name": "03_zpetna_vazba",
+      "file": "/app/exports/03_zpetna_vazba.csv",
+      "bytes": 3145,
+      "status": 200,
+      "content_type": "text/csv; charset=utf-8"
+    },
+    {
+      "name": "04_statistiky_rezervace",
+      "file": "/app/exports/04_statistiky_rezervace.csv",
+      "bytes": 5335,
+      "status": 200,
+      "content_type": "text/csv; charset=utf-8"
+    },
+    {
+      "name": "05_statistiky_souhrn",
+      "file": "/app/exports/05_statistiky_souhrn.csv",
+      "bytes": 116,
+      "status": 200,
+      "content_type": "text/csv; charset=utf-8"
+    },
+    {
+      "name": "06_statistiky_programy",
+      "file": "/app/exports/06_statistiky_programy.csv",
+      "bytes": 533,
+      "status": 200,
+      "content_type": "text/csv; charset=utf-8"
+    },
+    {
+      "name": "07_gdpr_export",
+      "file": "/app/exports/07_gdpr_export.json",
+      "bytes": 46805,
+      "status": 200,
+      "content_type": "application/json"
+    },
+    {
+      "name": "08_kalendar_instituce",
+      "file": "/app/exports/08_kalendar_instituce.ics",
+      "bytes": 39431,
+      "status": 200,
+      "content_type": "text/calendar; charset=utf-8"
+    },
+    {
+      "name": "09_kalendar_program_Barvy_kolem_nás___MŠ",
+      "file": "/app/exports/09_kalendar_program_Barvy_kolem_nás___MŠ.ics",
+      "bytes": 9427,
+      "status": 200,
+      "content_type": "text/calendar; charset=utf-8"
+    },
+    {
+      "name": "09_kalendar_program_Barvy_kolem_nás___I__stupeň_ZŠ",
+      "file": "/app/exports/09_kalendar_program_Barvy_kolem_nás___I__stupeň_ZŠ.ics",
+      "bytes": 7320,
+      "status": 200,
+      "content_type": "text/calendar; charset=utf-8"
+    },
+    {
+      "name": "09_kalendar_program_Moderna_v_galerii___II__stupeň",
+      "file": "/app/exports/09_kalendar_program_Moderna_v_galerii___II__stupeň.ics",
+      "bytes": 4490,
+      "status": 200,
+      "content_type": "text/calendar; charset=utf-8"
+    },
+    {
+      "name": "10_archive_report_Barvy_kolem_nás___MŠ",
+      "file": "/app/exports/10_archive_report_Barvy_kolem_nás___MŠ.json",
+      "bytes": 7374,
+      "status": 200,
+      "content_type": "application/json"
+    },
+    {
+      "name": "10_archive_report_Barvy_kolem_nás___I__stupeň_ZŠ",
+      "file": "/app/exports/10_archive_report_Barvy_kolem_nás___I__stupeň_ZŠ.json",
+      "bytes": 6044,
+      "status": 200,
+      "content_type": "application/json"
+    },
+    {
+      "name": "10_archive_report_Moderna_v_galerii___II__stupeň",
+      "file": "/app/exports/10_archive_report_Moderna_v_galerii___II__stupeň.json",
+      "bytes": 3946,
+      "status": 200,
+      "content_type": "application/json"
+    },
+    {
+      "name": "10_archive_report_Moderna_v_galerii___SŠ",
+      "file": "/app/exports/10_archive_report_Moderna_v_galerii___SŠ.json",
+      "bytes": 3787,
+      "status": 200,
+      "content_type": "application/json"
+    },
+    {
+      "name": "10_archive_report_Experimentální_ateliér___II__s",
+      "file": "/app/exports/10_archive_report_Experimentální_ateliér___II__s.json",
+      "bytes": 5078,
+      "status": 200,
+      "content_type": "application/json"
+    },
+    {
+      "name": "10_archive_report_Experimentální_ateliér___Gymná",
+      "file": "/app/exports/10_archive_report_Experimentální_ateliér___Gymná.json",
+      "bytes": 3879,
+      "status": 200,
+      "content_type": "application/json"
+    },
+    {
+      "name": "10_archive_report_Komentovaná_prohlídka_výstavy",
+      "file": "/app/exports/10_archive_report_Komentovaná_prohlídka_výstavy.json",
+      "bytes": 6107,
+      "status": 200,
+      "content_type": "application/json"
+    },
+    {
+      "name": "10_archive_report_Tvůrčí_dílna__grafika___I__stu",
+      "file": "/app/exports/10_archive_report_Tvůrčí_dílna__grafika___I__stu.json",
+      "bytes": 4378,
+      "status": 200,
+      "content_type": "application/json"
+    }
+  ]
+}

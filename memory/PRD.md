@@ -485,3 +485,14 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] RFC 5987 filename fix pro české diakritiky v Content-Disposition (jinak Response crashuje na latin-1 encoding)
 - [x] Testováno: 9/9 backend pytest + FE end-to-end (iteration_57.json)
 
+
+
+### Fáze 53 — Multi-part improvement bundle + PDF report button (22.4.2026)
+- [x] Task 1: „Stáhnout PDF report" v kebab menu u každé karty programu (testid `pdf-report-{id}`) — blob download
+- [x] PART 1: DB `users` + 4 sloupce (preferred_age_groups, supported_program_ids, learning_program_ids jsonb + admin_note text); `TeamMember` schéma + `PATCH /api/team/{id}/lecturer-profile` (self-edit + admin-only admin_note)
+- [x] PART 2: Nová tabulka `reservation_observers` + 5 endpointů `/api/bookings/{id}/naslech[...]` + `GET /bookings/me/naslech-upcoming`; Admin POST auto-approve, lektor POST self=pending; **nezasahuje** do kolizí ani do pool pro pick_main_lecturer (ověřeno)
+- [x] PART 3 rozšíření: `pick_main_lecturer` přidává lektory s `supported_program_ids`, vylučuje `learning_program_ids`; skóre boostuje age_group + explicit supporters
+- [x] PART 4: `services/collision_classifier.py` — wrapper `classify(msg) → {blocked, code, source, message_cs, details}`; obě entry-points (public + admin); FE čte `detail.message_cs`
+- [x] PART 5: `ProgramCollisionTab.js` — karta „Současně s jinými programy", helper texty bez „paralelní"/technických termínů
+- [x] NaslechPanel v detailu rezervace: seznam + dropdown + Přidat/Schválit/Odebrat
+- [x] Testováno: 14/14 backend pytest + FE E2E (iteration_58.json)

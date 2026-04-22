@@ -475,3 +475,13 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] Fix: `Content-Disposition` RFC 5987 kvůli českým diakritikám
 - [x] Frontend `SettingsPage → GDPR a export dat`: karta „Hromadný export (ZIP)" s loading state a blob download (testid `bulk-export-card`, `bulk-export-button`)
 - [x] Ověřeno: 23 souborů × 227 kB pro Gallery PRO, 403 pro lektora, 200 pro superadmina
+
+### Fáze 52 — JSON → PDF migrace exportů (22.4.2026)
+- [x] Nové PDF buildery v `services/export_service.py`: `build_archive_report_pdf()` + `build_gdpr_export_pdf()` (DejaVuSans, kv-table styl, max 80 řádků tabulek s oříznutím)
+- [x] `GET /api/programs/{id}/archive-report` výchozí výstup je **PDF** (dříve JSON); `?format=json` zachován pro zpětnou kompatibilitu interních nástrojů
+- [x] `GET /api/gdpr/export` výchozí výstup je **ZIP** s `gdpr_export.json` + `gdpr_export.pdf` + `README.txt` vysvětlujícím, že autoritativní formát pro GDPR čl. 20 přenositelnost zůstává JSON; `?format=pdf` a `?format=json` zachovány
+- [x] Bundle `GET /api/exports/download-bundle`: `07_gdpr_export.{json,pdf}` bok po boku, archive reporty jako `10_archive_report_*.pdf` (žádné JSON archive)
+- [x] SettingsPage `handleExportData`: stahuje jako blob ZIP s datem v názvu souboru; popisky i tlačítko přepsány na „Exportovat moje data (ZIP — JSON + PDF)"
+- [x] RFC 5987 filename fix pro české diakritiky v Content-Disposition (jinak Response crashuje na latin-1 encoding)
+- [x] Testováno: 9/9 backend pytest + FE end-to-end (iteration_57.json)
+

@@ -1238,11 +1238,12 @@ export const SettingsPage = () => {
         <Card className="p-4 space-y-4">
           <h2 className="font-semibold text-slate-900">Export osobních dat</h2>
           <p className="text-sm text-gray-500">
-            Stáhněte si všechna svá osobní data ve strojově čitelném formátu (JSON).
-            Zahrnuje údaje o uživateli, instituci, rezervacích a školách.
+            Stáhněte si všechna svá osobní data jako ZIP obsahující <strong>JSON</strong>
+            {' '}(strojově čitelný formát pro přenositelnost) a <strong>PDF</strong>
+            {' '}(lidsky čitelný přehled). Zahrnuje údaje o uživateli, instituci, rezervacích a školách.
           </p>
           <p className="text-xs text-gray-400">
-            Na základě článku 20 GDPR — právo na přenositelnost údajů.
+            Na základě článku 20 GDPR — právo na přenositelnost údajů (autoritativní formát je JSON).
           </p>
           <Button
             variant="outline"
@@ -1254,7 +1255,7 @@ export const SettingsPage = () => {
             {exportLoading ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Exportuji...</>
             ) : (
-              'Stáhnout export dat (JSON)'
+              'Exportovat moje data (ZIP — JSON + PDF)'
             )}
           </Button>
         </Card>

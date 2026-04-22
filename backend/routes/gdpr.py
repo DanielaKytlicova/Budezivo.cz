@@ -36,12 +36,17 @@ class GdprDeleteRequest(BaseModel):
 
 @router.get("/export")
 async def export_personal_data(
+    format: str = "zip",
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Export all personal data associated with the user and their institution.
     GDPR Article 20 - Right to data portability.
+
+    Default: ZIP containing both the machine-readable JSON (legally required for
+    Article 20 portability) and a human-readable PDF companion document.
+    Pass `?format=json` to get only the JSON, `?format=pdf` for only the PDF.
     """
     user_repo = UserRepositorySupabase(db)
     booking_repo = BookingRepositorySupabase(db)
@@ -116,7 +121,7 @@ async def export_personal_data(
 
     logger.info(f"GDPR data export for user {current_user['user_id']}")
 
-    return {
+    data = {
         "export_date": datetime.now(timezone.utc).isoformat(),
         "user_data": user_export,
         "institution_data": institution_export,
@@ -125,6 +130,52 @@ async def export_personal_data(
         "schools_count": len(schools_export),
         "schools": schools_export,
     }
+
+    if format == "json":
+        return data
+
+    from services.export_service import build_gdpr_export_pdf
+    from fastapi.responses import Response
+    import io as _io
+    import json as _json
+    import zipfile as _zipfile
+
+    pdf_bytes = build_gdpr_export_pdf(data)
+
+    if format == "pdf":
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": 'attachment; filename="gdpr_export.pdf"'},
+        )
+
+    # Default: ZIP bundle with both PDF + JSON (GDPR-compliant portability + readability)
+    buf = _io.BytesIO()
+    with _zipfile.ZipFile(buf, "w", _zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(
+            "gdpr_export.json",
+            _json.dumps(data, ensure_ascii=False, default=str, indent=2).encode("utf-8"),
+        )
+        zf.writestr("gdpr_export.pdf", pdf_bytes)
+        zf.writestr(
+            "README.txt",
+            (
+                "Export osobních údajů (GDPR čl. 20 — právo na přenositelnost)\n"
+                "===============================================================\n\n"
+                "Tento balík obsahuje:\n"
+                "  1) gdpr_export.json — strojově čitelný formát (pro přenositelnost\n"
+                "     k jinému správci dat; to je soubor, který splňuje požadavky GDPR).\n"
+                "  2) gdpr_export.pdf  — lidsky čitelný přehled stejných dat.\n"
+                "  3) README.txt       — tento dokument.\n\n"
+                "Pokud chcete data předat jinému správci, použijte JSON.\n"
+            ).encode("utf-8"),
+        )
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="gdpr_export.zip"'},
+    )
 
 
 @router.post("/anonymize")

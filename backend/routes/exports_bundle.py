@@ -129,8 +129,19 @@ async def download_export_bundle(
         await add("06_statistiky_programy.csv",
                   export_statistics_csv(export_type="programs", **common_stats))
 
-        # 7) GDPR export (personal data for the caller)
-        await add("07_gdpr_export.json", export_personal_data(current_user=current_user, db=db))
+        # 7) GDPR export — PDF + JSON side-by-side (GDPR Art. 20 compliance)
+        try:
+            raw_gdpr = await export_personal_data(format="json", current_user=current_user, db=db)
+            from services.export_service import build_gdpr_export_pdf
+            gdpr_pdf = build_gdpr_export_pdf(raw_gdpr)
+            zf.writestr("07_gdpr_export.json",
+                        json.dumps(raw_gdpr, ensure_ascii=False, default=str, indent=2).encode("utf-8"))
+            zf.writestr("07_gdpr_export.pdf", gdpr_pdf)
+            manifest.append({"file": "07_gdpr_export.json", "bytes": 0, "content_type": "application/json"})
+            manifest.append({"file": "07_gdpr_export.pdf", "bytes": len(gdpr_pdf), "content_type": "application/pdf"})
+        except Exception as e:
+            logger.exception("GDPR export failed")
+            manifest.append({"file": "07_gdpr_export", "error": str(e)[:200]})
 
         # 8) ICS — institution (needs HMAC token; pass status=None to bypass Query default)
         tk = await generate_feed_token(entity_type="institution", entity_id=institution_id,
@@ -152,8 +163,9 @@ async def download_export_bundle(
             if ptok_val:
                 await add(f"09_kalendar_program_{safe}.ics",
                           program_calendar_feed(program_id=pid, token=ptok_val, db=db))
-            await add(f"10_archive_report_{safe}.json",
-                      get_archive_report(program_id=pid, current_user=current_user, db=db))
+            await add(f"10_archive_report_{safe}.pdf",
+                      get_archive_report(program_id=pid, format="pdf",
+                                         current_user=current_user, db=db))
 
         # Manifest
         zf.writestr("MANIFEST.json", json.dumps({

@@ -1166,18 +1166,17 @@ export const SettingsPage = () => {
     const handleExportData = async () => {
       setExportLoading(true);
       try {
-        const response = await axios.get(`${API}/gdpr/export`);
-        const dataStr = JSON.stringify(response.data, null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
+        const response = await axios.get(`${API}/gdpr/export`, { responseType: 'blob' });
+        const blob = new Blob([response.data], { type: 'application/zip' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `budezivo_export_${new Date().toISOString().slice(0, 10)}.json`;
+        link.download = `budezivo_gdpr_export_${new Date().toISOString().slice(0, 10)}.zip`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        toast.success('Data byla exportována');
+        toast.success('GDPR export stažen (obsahuje JSON i PDF)');
       } catch (error) {
         toast.error('Chyba při exportu dat');
       } finally {

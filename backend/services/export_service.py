@@ -491,3 +491,258 @@ def generate_pdf_confirmation(
     doc.build(elements)
     buffer.seek(0)
     return buffer
+
+
+
+# ==================================================================================
+# Archive report & GDPR export PDFs — called from routes/programs.py and routes/gdpr.py
+# ==================================================================================
+
+def _pdf_base_styles():
+    """Shared style-sheet for structured reports."""
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='RptTitle', fontName=_FONT_BOLD, fontSize=18,
+                              textColor=colors.HexColor('#1F2937'), spaceAfter=6))
+    styles.add(ParagraphStyle(name='RptSub', fontName=_FONT_BASE, fontSize=10,
+                              textColor=colors.HexColor('#6B7280'), spaceAfter=10))
+    styles.add(ParagraphStyle(name='RptH2', fontName=_FONT_BOLD, fontSize=13,
+                              textColor=colors.HexColor('#111827'),
+                              spaceBefore=10, spaceAfter=6))
+    styles.add(ParagraphStyle(name='RptBody', fontName=_FONT_BASE, fontSize=10,
+                              textColor=colors.HexColor('#1F2937'), leading=14))
+    styles.add(ParagraphStyle(name='RptFooter', fontName=_FONT_BASE, fontSize=8,
+                              textColor=colors.HexColor('#9CA3AF'), alignment=1))
+    return styles
+
+
+def _kv_table(rows, col_widths=(55*mm, 115*mm)):
+    """Render a key/value table with clean light styling."""
+    t = Table([[k, str(v) if v is not None else '—'] for k, v in rows], colWidths=col_widths)
+    t.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), _FONT_BASE),
+        ('FONTNAME', (0, 0), (0, -1), _FONT_BOLD),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#374151')),
+        ('TEXTCOLOR', (1, 0), (1, -1), colors.HexColor('#111827')),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F9FAFB')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LINEBELOW', (0, 0), (-1, -1), 0.25, colors.HexColor('#E5E7EB')),
+    ]))
+    return t
+
+
+def _footer(styles, label="Vygenerováno systémem Budeživo.cz"):
+    return Paragraph(f"{label} | {datetime.now().strftime('%d.%m.%Y %H:%M')}", styles['RptFooter'])
+
+
+def build_archive_report_pdf(data: dict) -> bytes:
+    """Render a program archive report dict as a clean A4 PDF (bytes)."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+                            leftMargin=20*mm, rightMargin=20*mm,
+                            topMargin=18*mm, bottomMargin=15*mm)
+    styles = _pdf_base_styles()
+    story = []
+
+    prog = data.get('program', {}) or {}
+    inst = data.get('institution', {}) or {}
+    stats = data.get('statistics', {}) or {}
+
+    story.append(Paragraph(f"Archive report – {prog.get('name', '—')}", styles['RptTitle']))
+    story.append(Paragraph(
+        f"{inst.get('name', '—')} &nbsp;·&nbsp; vygenerováno {data.get('report_generated_at', '')[:19]}",
+        styles['RptSub'],
+    ))
+
+    story.append(Paragraph("Program", styles['RptH2']))
+    story.append(_kv_table([
+        ("Název", prog.get('name')),
+        ("Věková kategorie", prog.get('age_group')),
+        ("Délka", f"{prog.get('duration')} min" if prog.get('duration') else None),
+        ("Kapacita", prog.get('capacity')),
+        ("Cenový info", prog.get('pricing_info')),
+        ("Status", prog.get('status')),
+        ("Archivováno", prog.get('archived_at')),
+        ("Důvod archivace", prog.get('archive_reason')),
+    ]))
+    if prog.get('description'):
+        story.append(Spacer(1, 4*mm))
+        story.append(Paragraph(prog['description'], styles['RptBody']))
+
+    story.append(Paragraph("Statistiky", styles['RptH2']))
+    dr = stats.get('date_range', {}) or {}
+    story.append(_kv_table([
+        ("Rezervací celkem", stats.get('total_reservations', 0)),
+        ("Potvrzené / dokončené / zrušené",
+         f"{stats.get('confirmed', 0)} / {stats.get('completed', 0)} / {stats.get('cancelled', 0)}"),
+        ("Studentů celkem", stats.get('total_students', 0)),
+        ("Pedagogů celkem", stats.get('total_teachers', 0)),
+        ("Unikátních škol", stats.get('unique_schools', 0)),
+        ("Rozsah dat", f"{dr.get('from') or '—'} → {dr.get('to') or '—'}"),
+        ("Zpětných vazeb", data.get('feedback_count', 0)),
+    ]))
+
+    schools = data.get('schools', {}) or {}
+    if schools:
+        story.append(Paragraph("Školy", styles['RptH2']))
+        rows = [["Škola", "Návštěv", "Studentů", "Poslední"]]
+        for sn, info in sorted(schools.items(), key=lambda x: -x[1].get('visits', 0))[:25]:
+            rows.append([sn[:60], info.get('visits', 0), info.get('students', 0),
+                         info.get('last_visit') or '—'])
+        t = Table(rows, colWidths=(90*mm, 20*mm, 25*mm, 35*mm))
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), _FONT_BASE),
+            ('FONTNAME', (0, 0), (-1, 0), _FONT_BOLD),
+            ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
+            ('LINEBELOW', (0, 0), (-1, 0), 0.75, colors.HexColor('#6B7280')),
+            ('LINEBELOW', (0, 1), (-1, -1), 0.25, colors.HexColor('#E5E7EB')),
+            ('ALIGN', (1, 1), (3, -1), 'RIGHT'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 5),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(t)
+
+    bookings = data.get('bookings', []) or []
+    if bookings:
+        story.append(Paragraph(f"Rezervace ({len(bookings)})", styles['RptH2']))
+        rows = [["Datum", "Čas", "Škola", "Status", "Studentů"]]
+        for b in bookings[:80]:
+            rows.append([b.get('date') or '—', b.get('time_block') or '—',
+                         (b.get('school_name') or '—')[:42],
+                         b.get('status') or '—', b.get('num_students') or '—'])
+        t = Table(rows, colWidths=(22*mm, 25*mm, 65*mm, 30*mm, 18*mm))
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), _FONT_BASE),
+            ('FONTNAME', (0, 0), (-1, 0), _FONT_BOLD),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
+            ('LINEBELOW', (0, 0), (-1, 0), 0.75, colors.HexColor('#6B7280')),
+            ('LINEBELOW', (0, 1), (-1, -1), 0.25, colors.HexColor('#E5E7EB')),
+            ('ALIGN', (4, 1), (4, -1), 'RIGHT'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(t)
+        if len(bookings) > 80:
+            story.append(Paragraph(f"<i>… zkráceno, zobrazeno prvních 80 z {len(bookings)} rezervací.</i>",
+                                   styles['RptBody']))
+
+    story.append(Spacer(1, 6*mm))
+    story.append(_footer(styles))
+    doc.build(story)
+    return buf.getvalue()
+
+
+def build_gdpr_export_pdf(data: dict) -> bytes:
+    """Render the GDPR portability export (JSON dict) as a human-readable PDF.
+    Note: this is a *companion* document; the authoritative machine-readable format
+    for GDPR Article 20 remains JSON, which is delivered alongside."""
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+                            leftMargin=20*mm, rightMargin=20*mm,
+                            topMargin=18*mm, bottomMargin=15*mm)
+    styles = _pdf_base_styles()
+    story = []
+
+    story.append(Paragraph("Export osobních údajů (GDPR čl. 20)", styles['RptTitle']))
+    story.append(Paragraph(
+        f"Datum exportu: {data.get('export_date', '')[:19]} &nbsp;·&nbsp; "
+        "Pro přenositelnost v souladu s GDPR použijte JSON variantu tohoto souboru.",
+        styles['RptSub'],
+    ))
+
+    u = data.get('user_data', {}) or {}
+    story.append(Paragraph("Uživatel", styles['RptH2']))
+    story.append(_kv_table([
+        ("ID", u.get('id')),
+        ("E-mail", u.get('email')),
+        ("Jméno", u.get('name')),
+        ("Role", u.get('role')),
+        ("Status", u.get('status')),
+        ("GDPR souhlas", u.get('gdpr_consent')),
+        ("Datum souhlasu", u.get('gdpr_consent_date')),
+        ("Účet vytvořen", u.get('created_at')),
+    ]))
+
+    i = data.get('institution_data', {}) or {}
+    if i:
+        story.append(Paragraph("Instituce", styles['RptH2']))
+        story.append(_kv_table([
+            ("Název", i.get('name')),
+            ("Typ", i.get('type')),
+            ("Adresa", f"{i.get('address') or ''}, {i.get('city') or ''}, {i.get('country') or ''}".strip(' ,')),
+            ("Plán", i.get('plan')),
+            ("Vytvořeno", i.get('created_at')),
+        ]))
+
+    bookings = data.get('bookings', []) or []
+    story.append(Paragraph(f"Rezervace ({data.get('bookings_count', len(bookings))})", styles['RptH2']))
+    if bookings:
+        rows = [["Datum", "Škola", "Kontakt", "Status", "Žáci"]]
+        for b in bookings[:80]:
+            rows.append([
+                b.get('date') or '—',
+                (b.get('school_name') or '—')[:35],
+                (f"{b.get('contact_name') or ''}\n{b.get('contact_email') or ''}").strip(),
+                b.get('status') or '—',
+                b.get('num_students') or '—',
+            ])
+        t = Table(rows, colWidths=(22*mm, 50*mm, 62*mm, 25*mm, 15*mm))
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), _FONT_BASE),
+            ('FONTNAME', (0, 0), (-1, 0), _FONT_BOLD),
+            ('FONTSIZE', (0, 0), (-1, -1), 7.5),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
+            ('LINEBELOW', (0, 0), (-1, 0), 0.75, colors.HexColor('#6B7280')),
+            ('LINEBELOW', (0, 1), (-1, -1), 0.25, colors.HexColor('#E5E7EB')),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('ALIGN', (4, 1), (4, -1), 'RIGHT'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(t)
+        if len(bookings) > 80:
+            story.append(Paragraph(f"<i>… zkráceno, zobrazeno prvních 80 z {len(bookings)}.</i>",
+                                   styles['RptBody']))
+    else:
+        story.append(Paragraph("Žádné rezervace.", styles['RptBody']))
+
+    schools = data.get('schools', []) or []
+    story.append(Paragraph(f"Školy v databázi ({data.get('schools_count', len(schools))})", styles['RptH2']))
+    if schools:
+        rows = [["Název", "Kontakt", "E-mail", "Město"]]
+        for s in schools[:80]:
+            rows.append([(s.get('name') or '—')[:40], s.get('contact_person') or '—',
+                         s.get('email') or '—', s.get('city') or '—'])
+        t = Table(rows, colWidths=(60*mm, 45*mm, 45*mm, 25*mm))
+        t.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), _FONT_BASE),
+            ('FONTNAME', (0, 0), (-1, 0), _FONT_BOLD),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F3F4F6')),
+            ('LINEBELOW', (0, 0), (-1, 0), 0.75, colors.HexColor('#6B7280')),
+            ('LINEBELOW', (0, 1), (-1, -1), 0.25, colors.HexColor('#E5E7EB')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(t)
+    else:
+        story.append(Paragraph("Žádné školy.", styles['RptBody']))
+
+    story.append(Spacer(1, 6*mm))
+    story.append(_footer(styles, label="GDPR export — Budeživo.cz"))
+    doc.build(story)
+    return buf.getvalue()

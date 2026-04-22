@@ -386,10 +386,15 @@ async def unarchive_program(
 @router.get("/{program_id}/archive-report")
 async def get_archive_report(
     program_id: str,
+    format: str = "pdf",
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Generate structured archive report with all program data, stats, and feedback."""
+    """Generate structured archive report with all program data, stats, and feedback.
+
+    Default output is PDF. Pass `?format=json` for the raw machine-readable payload
+    (used by internal tooling / unit tests).
+    """
     program_repo = ProgramRepositorySupabase(db)
     booking_repo = BookingRepositorySupabase(db)
     institution_repo = InstitutionRepositorySupabase(db)
@@ -441,7 +446,7 @@ async def get_archive_report(
         if bdate and (not schools_summary[sn]["last_visit"] or bdate > schools_summary[sn]["last_visit"]):
             schools_summary[sn]["last_visit"] = bdate
     
-    return {
+    payload = {
         "report_generated_at": datetime.now(timezone.utc).isoformat(),
         "institution": {
             "name": institution.get("name") if institution else "",
@@ -485,6 +490,26 @@ async def get_archive_report(
             for b in program_bookings
         ],
     }
+
+    if format == "json":
+        return payload
+
+    from services.export_service import build_archive_report_pdf
+    from fastapi.responses import Response
+    from urllib.parse import quote
+    pdf_bytes = build_archive_report_pdf(payload)
+    safe_utf = "".join(c if c.isalnum() else "_" for c in (program.get("name_cs") or program_id))[:50]
+    safe_ascii = "".join(c if c.isascii() and c.isalnum() else "_" for c in (program.get("name_cs") or program_id))[:50] or "archive_report"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="archive_report_{safe_ascii}.pdf"; '
+                f"filename*=UTF-8''{quote('archive_report_' + safe_utf + '.pdf')}"
+            )
+        },
+    )
 
 
 @router.delete("/{program_id}")

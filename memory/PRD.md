@@ -263,8 +263,6 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] Přímá aktivace PRO trvale zablokována (HTTP 400)
 - [x] Request flow: objednávka → pending → platba → admin aktivace
 
-*Poslední aktualizace: 19. dubna 2026*
-
 ### Fáze 37 - Backend Feature Enforcement (19.4.2026)
 - [x] require_feature() dependency aplikován na všechny chráněné endpointy
 - [x] Router-level: mailings, audit-log, rooms, microsoft-calendar
@@ -438,3 +436,19 @@ mailing_campaign_programs: id, campaign_id, program_id, display_order
 mailing_campaign_recipients: id, campaign_id, school_id, contact_id, email, school_name, contact_name, status, sent_at, failure_reason, email_provider_id, matching_reason
 mailing_recipient_programs: id, recipient_id, program_id, program_name, program_target_groups
 ```
+
+### Fáze 49 - Fotografie programů (feature-flagged) (22.4.2026)
+- [x] DB: ALTER TABLE programs ADD COLUMN image_url TEXT (provedeno na Supabase)
+- [x] Nový feature flag `program_photos` seed (enabled=false, whitelist ∅ → superadmin volitelně přidá instituci)
+- [x] Backend: `GET /api/programs/features/check-access` — vrací {program_photos: bool} pro aktuální instituci
+- [x] Backend: `POST /api/programs/{id}/image/upload` (multipart, max 5 MB, ALLOWED_IMAGE_TYPES) — gated `_require_program_photos`
+- [x] Backend: `DELETE /api/programs/{id}/image` — gated, nastaví image_url=null
+- [x] Backend: `GET /api/programs/image/{path:path}` — veřejné servírování, restrikce path musí začínat `budezivo/programs/`
+- [x] `ProgramCreate`/`Program` schéma + repo (`create`) propouští `image_url`; public endpoint přidán do PUBLIC_ALLOWED_FIELDS
+- [x] `services/storage_service.py` — nová helper `upload_program_image(...)` (storage cesta `budezivo/programs/{inst}/{prog}/{uuid}.{ext}`) + konstanta MAX_PROGRAM_IMAGE_SIZE=5 MB
+- [x] Frontend ProgramsPage: nová karta „Fotografie programu" v Detail tabu — drag&drop upload, náhled, tlačítka Vyměnit / Odstranit; karta se zobrazuje jen když `/api/programs/features/check-access` = true
+- [x] Frontend BookingPage (veřejná): pokud `program.image_url` existuje, zobrazuje se hero obrázek nad kartou programu (`program-image-{id}`)
+- [x] Frontend SuperadminPage: `FEATURE_FLAG_LABELS.program_photos` registrován (ikona Image, label „Fotografie programů") — whitelist UI v záložce Feature flagy
+- [x] Audit log zaznamenává `upload_image` / `delete_image` na entity_type=program
+- [x] Testováno: 16/16 backend pytest + 100% frontend (iteration_55.json)
+

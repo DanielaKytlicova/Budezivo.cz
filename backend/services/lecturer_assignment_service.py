@@ -26,16 +26,31 @@ SOURCE_UNASSIGNED = "unassigned"
 
 
 async def _load_eligible_lecturer_pool(db: AsyncSession, program: Program) -> tuple[list[User], int]:
-    """Candidate pool = assigned_lecturer + program.collision_lecturer_ids.
-    Returns (main_mode_candidates, total_configured_count).
-    `total_configured_count` counts all configured lecturers (including inactive or training-mode)
-    so the caller can distinguish: configured-but-nobody-main vs. no-pool-at-all."""
+    """Candidate pool filtered to active + main-mode. Also enrich with lecturers whose
+    `supported_program_ids` explicitly include this program, and exclude lecturers whose
+    `learning_program_ids` include this program (they are trainees for this program).
+    Returns (main_mode_candidates, total_configured_count)."""
     candidate_ids: list[str] = []
     if program.assigned_lecturer_id:
         candidate_ids.append(str(program.assigned_lecturer_id))
     for lid in (program.collision_lecturer_ids or []):
         if lid and lid not in candidate_ids:
             candidate_ids.append(str(lid))
+
+    # Also include lecturers that claim this program in supported_program_ids
+    pid_str = str(program.id)
+    extra_rows = await db.execute(
+        select(User).where(and_(
+            User.institution_id == program.institution_id,
+            User.status == "active",
+            User.lecturer_mode == "main",
+            User.deleted_at.is_(None),
+            User.supported_program_ids.contains([pid_str]),
+        ))
+    )
+    for u in extra_rows.scalars().all():
+        if str(u.id) not in candidate_ids:
+            candidate_ids.append(str(u.id))
 
     if not candidate_ids:
         return [], 0
@@ -50,7 +65,11 @@ async def _load_eligible_lecturer_pool(db: AsyncSession, program: Program) -> tu
         ))
     )
     by_id = {str(u.id): u for u in rows.scalars().all()}
-    ordered = [by_id[cid] for cid in candidate_ids if cid in by_id]
+    # Exclude lecturers who listed this program as a learning one (trainees for this program)
+    ordered = [
+        by_id[cid] for cid in candidate_ids
+        if cid in by_id and pid_str not in (by_id[cid].learning_program_ids or [])
+    ]
     return ordered, len(candidate_ids)
 
 
@@ -145,13 +164,33 @@ async def pick_main_lecturer(
             continue
 
         load = await _lecturer_load(db, lect.id, inst_uuid)
-        # Score: prefer program default (idx=0) by -1000, then lower load
-        score = (0 if idx == 0 else 10) + load
+        # Scoring: default lecturer first; then age-group match; then lower load
+        age_match = bool(
+            (lect.preferred_age_groups or [])
+            and program.age_group
+            and program.age_group in (lect.preferred_age_groups or [])
+        )
+        supports_explicitly = str(program.id) in (lect.supported_program_ids or [])
+        score = (
+            (0 if idx == 0 else 10)       # keep program default at top
+            + (-3 if age_match else 0)    # prefer age-group match
+            + (-2 if supports_explicitly else 0)  # prefer explicit supporters
+            + load                        # then prefer lower load
+        )
         if idx == 0:
             reason = f"{lect.name or lect.email} — výchozí lektor programu (volný rozvrh, bez kolizí)"
             source = SOURCE_DEFAULT
         else:
-            reason = f"{lect.name or lect.email} — auto-výběr z {len(pool)} způsobilých lektorů (zatížení {load} rez./7 dní)"
+            parts = []
+            if age_match:
+                parts.append("preferuje tuto věkovou skupinu")
+            if supports_explicitly:
+                parts.append("program má v profilu jako podporovaný")
+            extra = f" ({'; '.join(parts)})" if parts else ""
+            reason = (
+                f"{lect.name or lect.email} — auto-výběr z {len(pool)} způsobilých lektorů"
+                f", zatížení {load} rez./7 dní{extra}"
+            )
             source = SOURCE_AUTO
         ranked.append((score, lect, reason, source))
 

@@ -30,6 +30,7 @@ from services.email_service import (
     trigger_reservation_rescheduled_email,
 )
 from services.collision_service import check_booking_collision, check_lecturer_collision_for_assignment
+from services.collision_classifier import classify as classify_collision
 from services.lecturer_assignment_service import pick_main_lecturer, SOURCE_MANUAL, SOURCE_UNASSIGNED
 from routes.audit import log_action
 
@@ -125,7 +126,7 @@ async def create_booking(
         booking_data.date, booking_data.time_block
     )
     if collision_error:
-        raise HTTPException(status_code=409, detail=collision_error)
+        raise HTTPException(status_code=409, detail=classify_collision(collision_error))
 
     # Resolve main lecturer (admin may pre-fill assigned_lecturer_id for manual override)
     payload = booking_data.model_dump()
@@ -211,7 +212,7 @@ async def create_public_booking(
         db, institution_id, booking_data.program_id, booking_data.date, booking_data.time_block
     )
     if collision_error:
-        raise HTTPException(status_code=409, detail=collision_error)
+        raise HTTPException(status_code=409, detail=classify_collision(collision_error))
 
     # Resolve main lecturer (auto-pick; public flow never has admin override)
     resolved = await _resolve_main_lecturer(db, institution_id, booking_data, admin_override=None)

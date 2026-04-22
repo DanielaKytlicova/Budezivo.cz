@@ -134,6 +134,38 @@ async def update_lecturer_mode(
     return {"message": "Režim lektora aktualizován", "lecturer_mode": mode}
 
 
+@router.patch("/{member_id}/lecturer-profile")
+async def update_lecturer_profile(
+    member_id: str,
+    payload: dict,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update extended lecturer profile fields.
+    Lecturers may edit their own profile; admins may edit anyone's (including admin_note)."""
+    user_repo = UserRepositorySupabase(db)
+    me = await user_repo.find_by_id(current_user["user_id"])
+    is_admin = me.get("role") in ("admin", "spravce")
+
+    if member_id != current_user["user_id"] and not is_admin:
+        raise HTTPException(status_code=403, detail="Můžete upravovat pouze svůj profil")
+
+    allowed = {"preferred_age_groups", "supported_program_ids",
+               "learning_program_ids", "name"}
+    if is_admin:
+        allowed.add("admin_note")
+    patch = {k: v for k, v in payload.items() if k in allowed and v is not None}
+    if not patch:
+        raise HTTPException(status_code=400, detail="Žádná platná pole k uložení")
+
+    result = await user_repo.update_profile(
+        member_id, current_user["institution_id"], patch,
+    )
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Člen týmu nenalezen")
+    return {"message": "Profil lektora aktualizován", "updated": list(patch.keys())}
+
+
 @router.delete("/{member_id}")
 async def remove_team_member(
     member_id: str,

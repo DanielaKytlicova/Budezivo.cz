@@ -74,6 +74,15 @@ const PERMISSIONS = {
   viewer: { canEditAll: false, canEditAttendance: false, canAssignLecturer: false, canEditDateTime: false, canEditContact: false },
 };
 
+
+// Extract a human-readable error message from either legacy string or structured collision dict
+const extractErrorDetail = (detail, fallback = 'Nastala chyba') => {
+  if (!detail) return fallback;
+  if (typeof detail === 'string') return detail;
+  if (typeof detail === 'object') return detail.message_cs || detail.detail || fallback;
+  return fallback;
+};
+
 export const BookingsPage = () => {
   const { t } = useTranslation();
   const { user } = useContext(AuthContext);
@@ -186,7 +195,7 @@ export const BookingsPage = () => {
       fetchBookings();
     } catch (error) {
       const detail = error.response?.data?.detail;
-      toast.error(typeof detail === 'string' ? detail : `Chyba při hromadném ${labels[status]}`);
+      toast.error(extractErrorDetail(detail, `Chyba při hromadném ${labels[status]}`));
     } finally {
       setBulkLoading(false);
     }
@@ -238,7 +247,7 @@ export const BookingsPage = () => {
       setEditMode(null);
     } catch (error) {
       const detail = error.response?.data?.detail;
-      const msg = typeof detail === 'string' ? detail : 'Chyba při aktualizaci rezervace';
+      const msg = extractErrorDetail(detail, 'Chyba při aktualizaci rezervace');
       toast.error(msg);
     }
   };
@@ -254,7 +263,7 @@ export const BookingsPage = () => {
       setSelectedBooking(updatedBooking.data);
     } catch (error) {
       const detail = error.response?.data?.detail;
-      toast.error(typeof detail === 'string' ? detail : 'Chyba při přiřazení lektora');
+      toast.error(extractErrorDetail(detail, 'Chyba při přiřazení lektora'));
     }
   };
 
@@ -272,7 +281,7 @@ export const BookingsPage = () => {
       setSelectedLecturer('');
     } catch (error) {
       const detail = error.response?.data?.detail;
-      toast.error(typeof detail === 'string' ? detail : 'Chyba při přiřazení lektora');
+      toast.error(extractErrorDetail(detail, 'Chyba při přiřazení lektora'));
     }
   };
 
@@ -291,7 +300,7 @@ export const BookingsPage = () => {
       }));
     } catch (error) {
       const detail = error.response?.data?.detail;
-      toast.error(typeof detail === 'string' ? detail : 'Chyba při odhlášení lektora');
+      toast.error(extractErrorDetail(detail, 'Chyba při odhlášení lektora'));
     }
   };
 
@@ -723,6 +732,17 @@ export const BookingsPage = () => {
               )}
             </Card>
 
+            {/* Náslech — lecturers attending as observers */}
+            <NaslechPanel
+              booking={selectedBooking}
+              teamMembers={teamMembers}
+              isAdmin={permissions.canEditAll}
+              onChange={async () => {
+                const r = await axios.get(`${API}/bookings/${selectedBooking.id}`);
+                setSelectedBooking(r.data);
+              }}
+            />
+
             {/* Poznámky */}
             {selectedBooking.special_requirements && (
               <Card className="p-4">
@@ -1117,3 +1137,132 @@ export const BookingsPage = () => {
     </AdminLayout>
   );
 };
+
+
+// ──────────────────────────────────────────────────────────────
+// Náslech — observer list + add/approve/remove (non-blocking)
+// ──────────────────────────────────────────────────────────────
+const NaslechPanel = ({ booking, teamMembers, isAdmin, onChange }) => {
+  const [observers, setObservers] = useState([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const fetchObservers = async () => {
+    try {
+      const r = await axios.get(`${API}/bookings/${booking.id}/naslech`);
+      setObservers(Array.isArray(r.data) ? r.data : []);
+    } catch {
+      setObservers([]);
+    }
+  };
+
+  useEffect(() => {
+    if (booking?.id) fetchObservers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booking?.id]);
+
+  const addObserver = async () => {
+    if (!selectedId) return;
+    setLoading(true);
+    try {
+      await axios.post(`${API}/bookings/${booking.id}/naslech`, { lecturer_id: selectedId });
+      setSelectedId('');
+      await fetchObservers();
+      onChange && onChange();
+      toast.success('Náslech přidán');
+    } catch (error) {
+      const d = error.response?.data?.detail;
+      toast.error(typeof d === 'string' ? d : (d?.message_cs || 'Nelze přidat na náslech'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const approve = async (observerId) => {
+    try {
+      await axios.patch(`${API}/bookings/${booking.id}/naslech/${observerId}/approve`);
+      await fetchObservers();
+      toast.success('Schváleno');
+    } catch { toast.error('Schválení selhalo'); }
+  };
+  const remove = async (observerId) => {
+    if (!window.confirm('Odebrat lektora z náslechu?')) return;
+    try {
+      await axios.delete(`${API}/bookings/${booking.id}/naslech/${observerId}`);
+      await fetchObservers();
+      onChange && onChange();
+      toast.success('Odebráno');
+    } catch { toast.error('Odebrání selhalo'); }
+  };
+
+  const observerIds = new Set(observers.map(o => o.lecturer_id));
+  const availableLecturers = (teamMembers || []).filter(m =>
+    (m.role === 'lektor' || m.role === 'edukator') && !observerIds.has(m.id)
+  );
+
+  return (
+    <Card className="p-4" data-testid="naslech-card">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+          <Users className="w-5 h-5" />
+          Náslech
+        </h3>
+        <span className="text-xs text-slate-400">
+          {observers.length === 0 ? 'Žádní pozorovatelé' : `${observers.length} lektor${observers.length > 1 ? 'ů' : ''}`}
+        </span>
+      </div>
+
+      {observers.length > 0 ? (
+        <ul className="space-y-2 mb-3">
+          {observers.map(o => (
+            <li key={o.id} className="flex items-center justify-between text-sm" data-testid={`naslech-row-${o.lecturer_id}`}>
+              <div className="flex items-center gap-2">
+                <span>{o.lecturer_name}</span>
+                <span className={`px-2 py-0.5 text-xs rounded-full ${
+                  o.status === 'approved' ? 'bg-emerald-50 text-emerald-700'
+                  : o.status === 'pending' ? 'bg-amber-50 text-amber-700'
+                  : 'bg-slate-100 text-slate-600'
+                }`}>{o.status === 'approved' ? 'Schváleno' : o.status === 'pending' ? 'Čeká na schválení' : o.status}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {isAdmin && o.status === 'pending' && (
+                  <Button size="sm" variant="outline" onClick={() => approve(o.id)} data-testid={`naslech-approve-${o.id}`}>
+                    Schválit
+                  </Button>
+                )}
+                <button onClick={() => remove(o.id)} className="text-red-600 hover:underline text-xs" data-testid={`naslech-remove-${o.id}`}>
+                  Odebrat
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-gray-500 mb-3">Zatím nikdo není na náslechu. Náslech nezasahuje do kolizí ani do hlavního lektora.</p>
+      )}
+
+      <div className="flex gap-2">
+        <select
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className="flex-1 border rounded-md px-2 py-1 text-sm"
+          data-testid="naslech-select"
+        >
+          <option value="">— vyberte lektora —</option>
+          {availableLecturers.map(m => (
+            <option key={m.id} value={m.id}>{m.name || m.email}</option>
+          ))}
+        </select>
+        <Button
+          size="sm"
+          disabled={!selectedId || loading}
+          onClick={addObserver}
+          data-testid="naslech-add-btn"
+        >
+          Přidat na náslech
+        </Button>
+      </div>
+    </Card>
+  );
+};
+

@@ -306,8 +306,20 @@ class TeamMember(BaseModel):
     role: str
     status: Optional[str] = None
     lecturer_mode: Optional[str] = "main"  # main | training (náslech)
+    preferred_age_groups: Optional[List[str]] = []
+    supported_program_ids: Optional[List[str]] = []
+    learning_program_ids: Optional[List[str]] = []
+    admin_note: Optional[str] = None
     institution_id: str
     created_at: str
+
+
+class LecturerProfileUpdate(BaseModel):
+    preferred_age_groups: Optional[List[str]] = None
+    supported_program_ids: Optional[List[str]] = None
+    learning_program_ids: Optional[List[str]] = None
+    admin_note: Optional[str] = None
+    name: Optional[str] = None
 
 
 class TeamInvite(BaseModel):

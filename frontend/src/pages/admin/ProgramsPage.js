@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
 import { Checkbox } from '../../components/ui/checkbox';
-import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, Mail, ShieldAlert, Star, AlertTriangle } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, Mail, ShieldAlert, Star, AlertTriangle, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -359,6 +359,26 @@ export const ProgramsPage = () => {
     }
   };
 
+  const handleDownloadPdfReport = async (program) => {
+    try {
+      const response = await axios.get(`${API}/programs/${program.id}/archive-report`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const safe = (program.name_cs || 'report').replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 50);
+      link.setAttribute('download', `archive_report_${safe}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('PDF report stažen');
+    } catch (error) {
+      const d = error.response?.data;
+      toast.error(typeof d === 'string' ? d : (d?.detail?.message_cs || d?.detail || 'Chyba při stahování PDF'));
+    }
+  };
+
   const handleArchive = async (program) => {
     try {
       await axios.post(`${API}/programs/${program.id}/archive`, {
@@ -644,6 +664,14 @@ export const ProgramsPage = () => {
                       >
                         <Copy className="w-4 h-4" />
                         Duplikovat
+                      </button>
+                      <button
+                        onClick={() => { handleDownloadPdfReport(program); setOpenMenu(null); }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                        data-testid={`pdf-report-${program.id}`}
+                      >
+                        <FileText className="w-4 h-4" />
+                        Stáhnout PDF report
                       </button>
                       <button
                         onClick={() => handleArchive(program)}

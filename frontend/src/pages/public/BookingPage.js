@@ -281,7 +281,9 @@ export const BookingPage = () => {
       setSuccess(true);
       toast.success('Rezervace byla odeslána');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Chyba při odeslání rezervace');
+      const d = error.response?.data?.detail;
+      const msg = typeof d === 'string' ? d : (d?.message_cs || 'Chyba při odeslání rezervace');
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }

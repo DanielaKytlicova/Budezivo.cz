@@ -112,6 +112,19 @@ class UserRepositorySupabase:
         )
         await self.db.commit()
         return result.rowcount
+
+    async def update_profile(self, user_id: str, institution_id: str, fields: dict) -> int:
+        """Update arbitrary user profile fields (whitelisted by caller)."""
+        result = await self.db.execute(
+            update(User)
+            .where(and_(
+                User.id == uuid.UUID(user_id),
+                User.institution_id == uuid.UUID(institution_id)
+            ))
+            .values(**fields)
+        )
+        await self.db.commit()
+        return result.rowcount
     
     async def update_name(self, user_id: str, institution_id: str, name: str) -> int:
         """Update user name."""

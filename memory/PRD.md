@@ -452,3 +452,16 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] Audit log zaznamenává `upload_image` / `delete_image` na entity_type=program
 - [x] Testováno: 16/16 backend pytest + 100% frontend (iteration_55.json)
 
+
+### Fáze 50 — Auto-přiřazení hlavního lektora + režim Hlavní / Náslech (22.4.2026)
+- [x] DB: `users.lecturer_mode` (default 'main'), `reservations.assignment_source`, `reservations.assignment_reason`
+- [x] Backfill: 40 rezervací → `default_program`, 116 → `unassigned`
+- [x] Nová služba `services/lecturer_assignment_service.py::pick_main_lecturer()` — pool = program.assigned_lecturer_id + collision_lecturer_ids, filtrováno na aktivní + `lecturer_mode='main'`, hodnoceno podle rozvrhu + AvailabilityBlock + zatížení za 7 dní
+- [x] `routes/bookings.py::_resolve_main_lecturer()` napojen do `create_booking` i `create_public_booking`; pokud jsou konfigurovaní lektoři, ale nikdo není k dispozici → 409 s českou zprávou
+- [x] Admin assign: `assign-lecturer-admin` odmítne training-mode lektora s 400 („Náslech“)
+- [x] Nový endpoint `PATCH /api/team/{id}/lecturer-mode` (admin only)
+- [x] BookingsPage: color-coded badge `assignment-source-badge` + `assignment-reason`; dropdown pro přiřazení filtruje pouze main-mode lektory
+- [x] TeamPage: inline toggle „Hlavní lektor ↔ Náslech" (testid `lecturer-mode-toggle-{id}`) pro role `lektor`/`edukator`
+- [x] Oprava vedlejšího bugu: `BookingBase.age_or_class: Optional[str]` (GET /api/bookings vracelo 500 pro historické null hodnoty)
+- [x] Testování: 12/12 backend pytest + frontend badge ověřen screenshotem (iteration_56.json)
+

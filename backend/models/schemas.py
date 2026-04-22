@@ -134,7 +134,7 @@ class BookingBase(BaseModel):
     time_block: str
     school_name: str
     group_type: str
-    age_or_class: str
+    age_or_class: Optional[str] = None
     num_students: int
     num_teachers: int = 1
     special_requirements: Optional[str] = ""

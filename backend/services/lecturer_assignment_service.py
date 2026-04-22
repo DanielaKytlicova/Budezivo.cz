@@ -125,7 +125,7 @@ async def pick_main_lecturer(
         return None
 
     # Evaluate each candidate: schedule OK + no Outlook/manual block + no same-lecturer overlap
-    ranked: list[tuple[int, User, str]] = []  # (score, lecturer, reason)
+    ranked: list[tuple[int, User, str, str]] = []  # (score, lecturer, reason, source)
     for idx, lect in enumerate(pool):
         lect_id_str = str(lect.id)
 
@@ -149,18 +149,20 @@ async def pick_main_lecturer(
         score = (0 if idx == 0 else 10) + load
         if idx == 0:
             reason = f"{lect.name or lect.email} — výchozí lektor programu (volný rozvrh, bez kolizí)"
+            source = SOURCE_DEFAULT
         else:
             reason = f"{lect.name or lect.email} — auto-výběr z {len(pool)} způsobilých lektorů (zatížení {load} rez./7 dní)"
-        ranked.append((score, lect, reason))
+            source = SOURCE_AUTO
+        ranked.append((score, lect, reason, source))
 
     if not ranked:
         return None  # Pool exists but nobody is available → caller rejects booking
 
     ranked.sort(key=lambda x: x[0])
-    _, best, reason = ranked[0]
+    _, best, reason, source = ranked[0]
     return {
         "lecturer_id": str(best.id),
         "lecturer_name": best.name or best.email,
-        "source": SOURCE_DEFAULT if "výchozí" in reason else SOURCE_AUTO,
+        "source": source,
         "reason": reason,
     }

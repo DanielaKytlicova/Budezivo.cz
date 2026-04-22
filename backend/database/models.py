@@ -102,6 +102,7 @@ class User(Base):
     password_hash = Column(Text, nullable=False)
     name = Column(Text)
     role = Column(Text, nullable=False, default='viewer')  # admin, spravce, edukator, lektor, pokladni, viewer
+    lecturer_mode = Column(Text, nullable=False, default='main')  # main | training (náslech)
     status = Column(Text, nullable=False, default='active')  # active, inactive, pending
     invited_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     
@@ -253,6 +254,10 @@ class Reservation(Base):
     assigned_lecturer_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     assigned_lecturer_name = Column(Text)
     assigned_lecturer_at = Column(DateTime(timezone=True))
+
+    # Main-lecturer assignment auditability (source + human-readable reason)
+    assignment_source = Column(Text)  # default_program | auto_suggest | manual_admin | unassigned
+    assignment_reason = Column(Text)
     
     # GDPR
     gdpr_consent = Column(Boolean, default=False)

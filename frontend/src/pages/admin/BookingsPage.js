@@ -632,6 +632,29 @@ export const BookingsPage = () => {
                       <p className="text-xs text-gray-500">
                         Přiřazen: {selectedBooking.assigned_lecturer_at ? new Date(selectedBooking.assigned_lecturer_at).toLocaleString('cs-CZ') : '-'}
                       </p>
+                      {selectedBooking.assignment_source && (
+                        <p className="text-xs mt-1">
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                              selectedBooking.assignment_source === 'default_program' ? 'bg-emerald-50 text-emerald-700' :
+                              selectedBooking.assignment_source === 'auto_suggest' ? 'bg-sky-50 text-sky-700' :
+                              selectedBooking.assignment_source === 'manual_admin' ? 'bg-amber-50 text-amber-700' :
+                              'bg-slate-100 text-slate-600'
+                            }`}
+                            data-testid="assignment-source-badge"
+                          >
+                            {selectedBooking.assignment_source === 'default_program' ? 'Výchozí lektor programu' :
+                             selectedBooking.assignment_source === 'auto_suggest' ? 'Auto-výběr' :
+                             selectedBooking.assignment_source === 'manual_admin' ? 'Ručně přiřazeno' :
+                             selectedBooking.assignment_source}
+                          </span>
+                        </p>
+                      )}
+                      {selectedBooking.assignment_reason && (
+                        <p className="text-xs text-slate-500 mt-1" data-testid="assignment-reason">
+                          {selectedBooking.assignment_reason}
+                        </p>
+                      )}
                     </div>
                   </div>
                   {(permissions.canEditAll || isAssignedToMe) && (
@@ -661,11 +684,13 @@ export const BookingsPage = () => {
                             <SelectValue placeholder="Vyberte lektora..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {teamMembers.map(member => (
-                              <SelectItem key={member.id} value={member.id}>
-                                {member.name || member.email}
-                              </SelectItem>
-                            ))}
+                            {teamMembers
+                              .filter(m => (m.lecturer_mode || 'main') === 'main')
+                              .map(member => (
+                                <SelectItem key={member.id} value={member.id}>
+                                  {member.name || member.email}
+                                </SelectItem>
+                              ))}
                           </SelectContent>
                         </Select>
                       </div>

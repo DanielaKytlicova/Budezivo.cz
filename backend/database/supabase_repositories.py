@@ -99,6 +99,19 @@ class UserRepositorySupabase:
         )
         await self.db.commit()
         return result.rowcount
+
+    async def update_lecturer_mode(self, user_id: str, institution_id: str, mode: str) -> int:
+        """Update lecturer_mode (main | training)."""
+        result = await self.db.execute(
+            update(User)
+            .where(and_(
+                User.id == uuid.UUID(user_id),
+                User.institution_id == uuid.UUID(institution_id)
+            ))
+            .values(lecturer_mode=mode)
+        )
+        await self.db.commit()
+        return result.rowcount
     
     async def update_name(self, user_id: str, institution_id: str, name: str) -> int:
         """Update user name."""
@@ -521,6 +534,11 @@ class BookingRepositorySupabase:
             contact_email=booking_data['contact_email'],
             contact_phone=booking_data['contact_phone'],
             status='pending',
+            assigned_lecturer_id=uuid.UUID(booking_data['assigned_lecturer_id']) if booking_data.get('assigned_lecturer_id') else None,
+            assigned_lecturer_name=booking_data.get('assigned_lecturer_name'),
+            assigned_lecturer_at=booking_data.get('assigned_lecturer_at'),
+            assignment_source=booking_data.get('assignment_source'),
+            assignment_reason=booking_data.get('assignment_reason'),
             gdpr_consent=booking_data.get('gdpr_consent', False),
             gdpr_consent_date=datetime.now(timezone.utc) if booking_data.get('gdpr_consent') else None,
             terms_accepted=terms_accepted,
@@ -551,21 +569,27 @@ class BookingRepositorySupabase:
     
     async def assign_lecturer(
         self, booking_id: str, institution_id: str,
-        lecturer_id: str, lecturer_name: str
+        lecturer_id: str, lecturer_name: str,
+        source: str = "manual_admin",
+        reason: Optional[str] = None,
     ) -> int:
         """Assign lecturer to booking."""
         return await self.update(booking_id, institution_id, {
             "assigned_lecturer_id": uuid.UUID(lecturer_id),
             "assigned_lecturer_name": lecturer_name,
-            "assigned_lecturer_at": datetime.now(timezone.utc)
+            "assigned_lecturer_at": datetime.now(timezone.utc),
+            "assignment_source": source,
+            "assignment_reason": reason or f"{lecturer_name} — ručně přiřazeno administrátorem",
         })
-    
+
     async def unassign_lecturer(self, booking_id: str, institution_id: str) -> int:
         """Remove lecturer assignment."""
         return await self.update(booking_id, institution_id, {
             "assigned_lecturer_id": None,
             "assigned_lecturer_name": None,
-            "assigned_lecturer_at": None
+            "assigned_lecturer_at": None,
+            "assignment_source": "unassigned",
+            "assignment_reason": "Hlavní lektor odstraněn administrátorem",
         })
 
     async def bulk_update_status(self, booking_ids: List[str], institution_id: str, status: str) -> int:

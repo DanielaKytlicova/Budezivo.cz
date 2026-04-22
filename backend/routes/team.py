@@ -62,6 +62,7 @@ async def invite_team_member(
         "institution_id": current_user["institution_id"],
         "role": invite_data.role,
         "status": "active",
+        "lecturer_mode": invite_data.lecturer_mode or "main",
         "invited_by": current_user["user_id"],
     })
     
@@ -102,6 +103,35 @@ async def update_member_role(
         raise HTTPException(status_code=404, detail="Team member not found")
     
     return {"message": "Role updated"}
+
+
+class LecturerModeUpdate(RoleUpdate):
+    mode: str  # "main" | "training"
+
+
+@router.patch("/{member_id}/lecturer-mode")
+async def update_lecturer_mode(
+    member_id: str,
+    payload: dict,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Toggle lecturer mode (main ↔ training/náslech). Admin only."""
+    user_repo = UserRepositorySupabase(db)
+    user = await user_repo.find_by_id(current_user["user_id"])
+    if user.get("role") not in ["admin", "spravce"]:
+        raise HTTPException(status_code=403, detail="Pouze admin může měnit režim lektora")
+
+    mode = payload.get("lecturer_mode")
+    if mode not in ("main", "training"):
+        raise HTTPException(status_code=400, detail="lecturer_mode musí být 'main' nebo 'training'")
+
+    result = await user_repo.update_lecturer_mode(
+        member_id, current_user["institution_id"], mode,
+    )
+    if result == 0:
+        raise HTTPException(status_code=404, detail="Člen týmu nenalezen")
+    return {"message": "Režim lektora aktualizován", "lecturer_mode": mode}
 
 
 @router.delete("/{member_id}")

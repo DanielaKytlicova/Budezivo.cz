@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
 import { Checkbox } from '../../components/ui/checkbox';
-import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, Mail, ShieldAlert, Star, AlertTriangle } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, Mail, ShieldAlert, Star, AlertTriangle, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -57,6 +57,8 @@ const getDefaultFormData = () => ({
   min_capacity: 5,
   price: 0,
   tariff: 'free',
+  pricing_info: '',
+  image_url: null,
   requires_approval: false,
   is_published: true,
   send_email_notification: true,
@@ -95,6 +97,8 @@ export const ProgramsPage = () => {
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomCapacity, setNewRoomCapacity] = useState('');
   const [isPro, setIsPro] = useState(false);
+  const [programPhotosEnabled, setProgramPhotosEnabled] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [validationWarnings, setValidationWarnings] = useState([]);
   const [showValidationDialog, setShowValidationDialog] = useState(false);
   const [teamMembers, setTeamMembers] = useState([]);
@@ -105,6 +109,7 @@ export const ProgramsPage = () => {
     fetchRooms();
     fetchPlanStatus();
     fetchTeamMembers();
+    fetchProgramPhotosAccess();
   }, []);
 
   const fetchPrograms = async () => {
@@ -152,6 +157,58 @@ export const ProgramsPage = () => {
       setTeamMembers(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
       console.error('Failed to fetch team members');
+    }
+  };
+
+  const fetchProgramPhotosAccess = async () => {
+    try {
+      const response = await axios.get(`${API}/programs/features/check-access`);
+      setProgramPhotosEnabled(!!response.data?.program_photos);
+    } catch (error) {
+      setProgramPhotosEnabled(false);
+    }
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!editingProgram?.id) {
+      toast.error('Nejdříve uložte program, pak můžete nahrát fotografii.');
+      return;
+    }
+    const formDataFile = new FormData();
+    formDataFile.append('file', file);
+    try {
+      setUploadingImage(true);
+      const res = await axios.post(
+        `${API}/programs/${editingProgram.id}/image/upload`,
+        formDataFile,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
+      const newUrl = res.data?.image_url;
+      setFormData((prev) => ({ ...prev, image_url: newUrl }));
+      setEditingProgram((prev) => (prev ? { ...prev, image_url: newUrl } : prev));
+      fetchPrograms();
+      toast.success('Fotografie nahrána');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Nahrání selhalo');
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleImageDelete = async () => {
+    if (!editingProgram?.id) return;
+    if (!window.confirm('Odstranit fotografii z programu?')) return;
+    try {
+      await axios.delete(`${API}/programs/${editingProgram.id}/image`);
+      setFormData((prev) => ({ ...prev, image_url: null }));
+      setEditingProgram((prev) => (prev ? { ...prev, image_url: null } : prev));
+      fetchPrograms();
+      toast.success('Fotografie odstraněna');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Odstranění selhalo');
     }
   };
 
@@ -299,6 +356,26 @@ export const ProgramsPage = () => {
       fetchPrograms();
     } catch (error) {
       toast.error(t('common.error'));
+    }
+  };
+
+  const handleDownloadPdfReport = async (program) => {
+    try {
+      const response = await axios.get(`${API}/programs/${program.id}/archive-report`, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const safe = (program.name_cs || 'report').replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 50);
+      link.setAttribute('download', `archive_report_${safe}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('PDF report stažen');
+    } catch (error) {
+      const d = error.response?.data;
+      toast.error(typeof d === 'string' ? d : (d?.detail?.message_cs || d?.detail || 'Chyba při stahování PDF'));
     }
   };
 
@@ -589,6 +666,14 @@ export const ProgramsPage = () => {
                         Duplikovat
                       </button>
                       <button
+                        onClick={() => { handleDownloadPdfReport(program); setOpenMenu(null); }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                        data-testid={`pdf-report-${program.id}`}
+                      >
+                        <FileText className="w-4 h-4" />
+                        Stáhnout PDF report
+                      </button>
+                      <button
                         onClick={() => handleArchive(program)}
                         className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
                         data-testid={`archive-program-${program.id}`}
@@ -753,45 +838,103 @@ export const ProgramsPage = () => {
         </div>
       </Card>
 
-      {/* Ceník */}
-      <Card className="p-4 md:p-6 space-y-4">
-        <div className="flex justify-between items-start">
-          <h3 className="font-semibold text-slate-900">Ceník</h3>
-          <button className="text-sm text-slate-600 underline hover:text-slate-800">
-            Chceš k programům přidat i fotografie? Vylepši svůj tarif.
-          </button>
-        </div>
-        
+      {/* Cena (informativní) */}
+      <Card className="p-4 md:p-6 space-y-3">
         <div>
-          <Label className="text-gray-500 text-sm">Vybraný tarif</Label>
-          <Select
-            value={formData.tariff}
-            onValueChange={(value) => setFormData({ ...formData, tariff: value, price: value === 'free' ? 0 : formData.price })}
-          >
-            <SelectTrigger className="mt-1" data-testid="program-tariff">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TARIFFS.map(tariff => (
-                <SelectItem key={tariff.value} value={tariff.value}>{tariff.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <h3 className="font-semibold text-slate-900">Cena pro účastníky</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Informativní text pro školy / rodiče. Peníze <strong>nevybíráme online</strong> — slouží pouze
+            k zobrazení v nabídce a k propsání do potvrzovacího e-mailu rezervace.
+          </p>
         </div>
-
-        {formData.tariff === 'paid' && (
-          <div>
-            <Label className="text-gray-500 text-sm">Cena (Kč)</Label>
-            <Input
-              type="number"
-              data-testid="program-price"
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-              className="mt-1"
-            />
-          </div>
-        )}
+        <div>
+          <Label className="text-gray-500 text-sm">Text o ceně</Label>
+          <Input
+            data-testid="program-pricing-info"
+            value={formData.pricing_info || ''}
+            onChange={(e) => setFormData({ ...formData, pricing_info: e.target.value })}
+            placeholder="např. 30,-/dítě – pedagog zdarma"
+            className="mt-1"
+            maxLength={200}
+          />
+          <p className="text-xs text-slate-400 mt-1">
+            Pokud ponecháte prázdné, v nabídce ani v mailu se žádná informace o ceně nezobrazí.
+          </p>
+        </div>
       </Card>
+
+      {/* Fotografie programu (feature-flagged: program_photos) */}
+      {programPhotosEnabled && (
+        <Card className="p-4 md:p-6 space-y-3" data-testid="program-photo-card">
+          <div>
+            <h3 className="font-semibold text-slate-900">Fotografie programu</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              Hlavní obrázek programu zobrazený na veřejné rezervační stránce. Doporučený formát:
+              {' '}<strong>1200×800 px</strong>, PNG / JPG / WebP, max 5&nbsp;MB.
+            </p>
+          </div>
+
+          {formData.image_url ? (
+            <div className="flex flex-col md:flex-row gap-4 items-start">
+              <img
+                src={`${process.env.REACT_APP_BACKEND_URL}${formData.image_url}`}
+                alt="Náhled fotografie programu"
+                className="w-full md:w-64 h-40 object-cover rounded-lg border border-slate-200"
+                data-testid="program-photo-preview"
+              />
+              <div className="flex flex-col gap-2">
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml,image/gif"
+                    className="hidden"
+                    onChange={handleImageUpload}
+                    disabled={uploadingImage}
+                    data-testid="program-photo-replace-input"
+                  />
+                  <span className="inline-flex items-center px-3 py-2 rounded-md border border-slate-300 text-sm hover:bg-slate-50">
+                    {uploadingImage ? 'Nahrávám...' : 'Vyměnit fotografii'}
+                  </span>
+                </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleImageDelete}
+                  className="text-red-600 hover:text-red-700"
+                  data-testid="program-photo-delete-btn"
+                >
+                  <Trash2 className="w-4 h-4 mr-1" /> Odstranit
+                </Button>
+              </div>
+            </div>
+          ) : editingProgram?.id ? (
+            <label
+              className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-lg py-10 px-4 cursor-pointer hover:border-slate-400 hover:bg-slate-50 transition"
+              data-testid="program-photo-upload-zone"
+            >
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml,image/gif"
+                className="hidden"
+                onChange={handleImageUpload}
+                disabled={uploadingImage}
+                data-testid="program-photo-upload-input"
+              />
+              <div className="text-center">
+                <p className="text-sm text-slate-700 font-medium">
+                  {uploadingImage ? 'Nahrávám...' : 'Klikněte pro nahrání fotografie'}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">PNG, JPG, WebP, max 5 MB</p>
+              </div>
+            </label>
+          ) : (
+            <div className="rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2">
+              Nejprve uložte program — pak budete moci nahrát fotografii.
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Další nastavení */}
       <Card className="p-4 md:p-6 space-y-4">

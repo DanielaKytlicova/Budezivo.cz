@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 57 — JSON-to-PDF migration for archive reports + GDPR exports. Backend: 9/9 pytest cases PASS in /app/backend/tests/test_pdf_exports.py. Verified: (a) GET /api/programs/{id}/archive-report defaults to application/pdf, body starts with %PDF, Content-Disposition contains both ASCII filename and RFC 5987 filename*=UTF-8''…; (b) ?format=json keeps the legacy payload (report_generated_at, institution, program, statistics, schools, feedback_count, feedbacks, bookings); (c) GET /api/gdpr/export defaults to application/zip with exactly {gdpr_export.json, gdpr_export.pdf, README.txt}, README contains the literal Czech 'GDPR čl. 20', inner PDF starts with %PDF; (d) ?format=json and ?format=pdf branches both honoured; (e) GET /api/exports/download-bundle ZIP (399 KB / 24 files) contains 07_gdpr_export.json + 07_gdpr_export.pdf side-by-side AND 7× 10_archive_report_*.pdf with NO 10_archive_report_*.json (regression covered); (f) Lecturer (anna.dvorakova) → 403 on bundle, MANIFEST.json present. Frontend: end-to-end click-flow on https://school-crm-saas.preview.emergentagent.com/admin/settings → 'GDPR a správa dat' card. Pressing the export button triggers a real browser download named budezivo_gdpr_export_2026-04-22.zip (58 070 B, ZIP magic 'PK', contains the expected three entries; PDF is valid; README contains 'GDPR čl. 20'). Pressing [data-testid=bulk-export-button] downloads budezivo_export_Galerie_U_Zlat_ho_kohouta_*.zip (399 012 B, 24 files, 7 archive PDFs, 0 archive JSONs, both 07_gdpr_export.{json,pdf} present). All AC met functionally.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "SettingsPage → GDPR a export dat → Export osobních dat card", "issue": "Button label and description were NOT updated to match the new ZIP behaviour. Button still reads 'Stáhnout export dat (JSON)' and the section subtitle still says 've strojově čitelném formátu (JSON)' — but clicking actually downloads a ZIP (gdpr_export.json + gdpr_export.pdf + README.txt). The review-request expected the button label to be 'Exportovat moje data' and the copy to mention 'JSON i PDF'. Functionality is correct; only the visible label/description is misleading. Toast message 'GDPR export stažen (obsahuje JSON i PDF)' IS correctly updated in code (line 1179 of SettingsPage.js).", "selector": "text='Stáhnout export dat (JSON)'", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pdf_exports.py",
+    "/app/test_reports/pytest/iter57_pdf_exports.xml"
+  ],
+  "action_items": [
+    "MEDIUM (UX copy only): In /app/frontend/src/pages/admin/SettingsPage.js, update the GDPR card so the button text reads 'Exportovat moje data' (or 'Stáhnout export dat (ZIP)') and the description mentions that the download is a ZIP containing both JSON (GDPR čl. 20 přenositelnost) and PDF (lidsky čitelný přehled). Functionality already works — this is a copy/label fix only."
+  ],
+  "critical_code_review_comments": [
+    "VERIFIED: services/export_service.py registers DejaVuSans+DejaVuSans-Bold via registerFontFamily so <b>/<strong> renders bold even with Czech diacritics. Both build_archive_report_pdf and build_gdpr_export_pdf reuse _pdf_base_styles + _kv_table — DRY-clean.",
+    "VERIFIED: routes/programs.py:get_archive_report uses Response with media_type='application/pdf' and emits both ASCII fallback filename and RFC 5987 UTF-8 quoted filename* — handles Czech diacritics safely.",
+    "VERIFIED: routes/gdpr.py:export_personal_data now returns ZIP by default with explicit README.txt that mentions 'GDPR čl. 20' (Czech encoded UTF-8). Article 20 portability still satisfied because gdpr_export.json is the authoritative machine-readable file and README documents this.",
+    "VERIFIED: routes/exports_bundle.py:download-bundle writes 07_gdpr_export.json + 07_gdpr_export.pdf side-by-side, and writes only 10_archive_report_*.pdf (no _.json) — JSON archive reports are no longer included as expected.",
+    "MINOR copy bug (frontend): card title 'Export osobních dat' description still claims 've strojově čitelném formátu (JSON)' — should be updated to reflect ZIP+PDF since the button no longer returns JSON.",
+    "MINOR: handleExportData has no Content-Disposition parsing; filename is hard-coded client-side. Backend Content-Disposition ('gdpr_export.zip') is ignored. Acceptable for this case but inconsistent with handleBulkExportZip which reads the header."
+  ],
+  "updated_files": ["/app/backend/tests/test_pdf_exports.py"],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% functional (1 cosmetic label gap)"},
+  "test_credentials": "Used: galerie@budezivo.cz / Galerie2026! (gallery admin) and anna.dvorakova@budezivo.cz / Lektor2026! (lecturer 403 check). demo@budezivo.cz fixture defined but unused.",
+  "seed_data_creation": "None. Tests are read-only against the gallery institution's existing 8 seeded programs.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Re-run with `cd /app/backend && pytest tests/test_pdf_exports.py -v`. Auth helper supports both 'access_token' and 'token' response keys (current backend returns 'token'). The bundle endpoint can take ~30s due to per-program PDF generation — timeout is set to 180s in the bundle fixture. The GDPR ZIP must contain literally 'GDPR čl. 20' (UTF-8) in README.txt — this is asserted explicitly.",
+  "rca of the issue": "N/A — all backend behaviour matches spec. Only cosmetic UI gap: SettingsPage GDPR card was not relabelled when handleExportData was switched from JSON-fetch to ZIP-blob. Fix is a one-line text change in /app/frontend/src/pages/admin/SettingsPage.js around lines 1248-1260 (button label) and the surrounding paragraph."
+}

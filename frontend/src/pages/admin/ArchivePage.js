@@ -48,7 +48,7 @@ export const ArchivePage = () => {
     setReportData(null);
     setExpandedSchools(false);
     try {
-      const res = await axios.get(`${API}/programs/${program.id}/archive-report`);
+      const res = await axios.get(`${API}/programs/${program.id}/archive-report`, { params: { format: 'json' } });
       setReportData(res.data);
     } catch (err) {
       toast.error('Chyba při generování reportu');
@@ -150,15 +150,15 @@ export const ArchivePage = () => {
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800 mx-auto" />
             </div>
-          ) : reportData ? (
+          ) : reportData && reportData.program ? (
             <div className="space-y-5" data-testid="archive-report">
               {/* Program Info */}
               <Card className="p-4 space-y-2 bg-slate-50">
                 <h3 className="font-semibold text-slate-800">Program</h3>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><span className="text-gray-500">Název:</span> {reportData.program.name}</div>
+                  <div><span className="text-gray-500">Název:</span> {reportData.program.name || '-'}</div>
                   <div><span className="text-gray-500">Věková skupina:</span> {reportData.program.age_group || '-'}</div>
-                  <div><span className="text-gray-500">Kapacita:</span> {reportData.program.capacity}</div>
+                  <div><span className="text-gray-500">Kapacita:</span> {reportData.program.capacity ?? '-'}</div>
                   <div><span className="text-gray-500">Cena:</span> {reportData.program.price ? `${reportData.program.price} Kč` : 'Zdarma'}</div>
                   {reportData.program.archive_reason && (
                     <div className="col-span-2"><span className="text-gray-500">Důvod archivace:</span> {reportData.program.archive_reason}</div>
@@ -173,14 +173,14 @@ export const ArchivePage = () => {
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
-                    { label: 'Rezervací celkem', value: reportData.statistics.total_reservations },
-                    { label: 'Potvrzených', value: reportData.statistics.confirmed },
-                    { label: 'Dokončených', value: reportData.statistics.completed },
-                    { label: 'Zrušených', value: reportData.statistics.cancelled },
-                    { label: 'Studentů celkem', value: reportData.statistics.total_students },
-                    { label: 'Pedagogů celkem', value: reportData.statistics.total_teachers },
-                    { label: 'Unikátních škol', value: reportData.statistics.unique_schools },
-                    { label: 'Zpětných vazeb', value: reportData.feedback_count },
+                    { label: 'Rezervací celkem', value: reportData.statistics?.total_reservations ?? 0 },
+                    { label: 'Potvrzených', value: reportData.statistics?.confirmed ?? 0 },
+                    { label: 'Dokončených', value: reportData.statistics?.completed ?? 0 },
+                    { label: 'Zrušených', value: reportData.statistics?.cancelled ?? 0 },
+                    { label: 'Studentů celkem', value: reportData.statistics?.total_students ?? 0 },
+                    { label: 'Pedagogů celkem', value: reportData.statistics?.total_teachers ?? 0 },
+                    { label: 'Unikátních škol', value: reportData.statistics?.unique_schools ?? 0 },
+                    { label: 'Zpětných vazeb', value: reportData.feedback_count ?? 0 },
                   ].map((s, i) => (
                     <div key={i} className="bg-gray-50 rounded-lg p-3 text-center">
                       <p className="text-2xl font-bold text-slate-800">{s.value}</p>
@@ -188,7 +188,7 @@ export const ArchivePage = () => {
                     </div>
                   ))}
                 </div>
-                {reportData.statistics.date_range?.from && (
+                {reportData.statistics?.date_range?.from && (
                   <p className="text-xs text-gray-400">
                     Období: {reportData.statistics.date_range.from} — {reportData.statistics.date_range.to}
                   </p>

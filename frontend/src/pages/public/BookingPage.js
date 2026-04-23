@@ -281,7 +281,9 @@ export const BookingPage = () => {
       setSuccess(true);
       toast.success('Rezervace byla odeslána');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Chyba při odeslání rezervace');
+      const d = error.response?.data?.detail;
+      const msg = typeof d === 'string' ? d : (d?.message_cs || 'Chyba při odeslání rezervace');
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -618,6 +620,16 @@ export const BookingPage = () => {
                     onClick={() => handleProgramSelect(program)}
                     data-testid={`program-card-${program.id}`}
                   >
+                    {program.image_url && (
+                      <div className="-mx-6 -mt-6 mb-4 rounded-t-lg overflow-hidden">
+                        <img
+                          src={`${process.env.REACT_APP_BACKEND_URL}${program.image_url}`}
+                          alt={program.name_cs}
+                          className="w-full h-48 object-cover"
+                          data-testid={`program-image-${program.id}`}
+                        />
+                      </div>
+                    )}
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="text-xl font-semibold text-[#2B3E50] mb-1">{program.name_cs}</h3>
@@ -644,6 +656,15 @@ export const BookingPage = () => {
                       <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md text-sm font-medium">
                         {program.duration} min.
                       </span>
+                      {program.pricing_info && (
+                        <span
+                          className="px-3 py-1 rounded-md text-sm font-medium bg-amber-50 text-amber-800 border border-amber-200"
+                          data-testid={`program-pricing-${program.id}`}
+                          title="Informativní cena"
+                        >
+                          {program.pricing_info}
+                        </span>
+                      )}
                     </div>
                     {hasValidity && (
                       <div className="pt-3 border-t border-gray-100">

@@ -29,6 +29,7 @@ import { StatisticsPage } from './pages/admin/StatisticsPage';
 import { SettingsPage } from './pages/admin/SettingsPage';
 import { PlanPage } from './pages/admin/PlanPage';
 import { TeamPage } from './pages/admin/TeamPage';
+import { MyProfilePage } from './pages/admin/MyProfilePage';
 import FeedbackAdminPage from './pages/admin/FeedbackAdminPage';
 import { UnifiedAvailabilityPage } from './pages/admin/UnifiedAvailabilityPage';
 import { ArchivePage } from './pages/admin/ArchivePage';
@@ -142,6 +143,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <TeamPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/my-profile"
+                element={
+                  <ProtectedRoute>
+                    <MyProfilePage />
                   </ProtectedRoute>
                 }
               />

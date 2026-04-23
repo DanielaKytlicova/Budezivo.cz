@@ -17,6 +17,7 @@ _storage_key: str | None = None
 
 ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/svg+xml", "image/webp", "image/gif"}
 MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2 MB
+MAX_PROGRAM_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
 def init_storage() -> str:
@@ -64,5 +65,13 @@ def upload_logo(institution_id: str, file_data: bytes, content_type: str, extens
     """Upload a logo and return the storage path."""
     file_id = uuid.uuid4()
     path = f"{APP_NAME}/logos/{institution_id}/{file_id}.{extension}"
+    put_object(path, file_data, content_type)
+    return path
+
+
+def upload_program_image(institution_id: str, program_id: str, file_data: bytes, content_type: str, extension: str) -> str:
+    """Upload a program cover image and return the storage path."""
+    file_id = uuid.uuid4()
+    path = f"{APP_NAME}/programs/{institution_id}/{program_id}/{file_id}.{extension}"
     put_object(path, file_data, content_type)
     return path

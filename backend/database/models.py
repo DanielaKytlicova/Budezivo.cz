@@ -8,7 +8,7 @@ from sqlalchemy import (
     Column, String, Text, Integer, Float, Boolean, DateTime, 
     ForeignKey, ARRAY, JSON, Index
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, DeclarativeBase
 
 
@@ -102,6 +102,11 @@ class User(Base):
     password_hash = Column(Text, nullable=False)
     name = Column(Text)
     role = Column(Text, nullable=False, default='viewer')  # admin, spravce, edukator, lektor, pokladni, viewer
+    lecturer_mode = Column(Text, nullable=False, default='main')  # main | training (náslech)
+    preferred_age_groups = Column(JSONB, default=list)   # e.g. ["ms_3_6","zs1_7_12"]
+    supported_program_ids = Column(JSONB, default=list)  # programs the lecturer can lead
+    learning_program_ids = Column(JSONB, default=list)   # programs the lecturer wants to learn
+    admin_note = Column(Text)
     status = Column(Text, nullable=False, default='active')  # active, inactive, pending
     invited_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     
@@ -148,6 +153,8 @@ class Program(Base):
     target_group = Column(Text, nullable=False, default='schools')  # schools, public, both - LEGACY
     target_groups = Column(JSON, default=[])  # Array of age groups: ms_3_6, zs1_7_12, zs2_12_15, ss_14_18, gym_14_18, adults, all
     price = Column(Float, default=0.0)
+    pricing_info = Column(Text)  # Free-form "30 Kč/dítě, pedagog zdarma" — display-only, propagated to confirmation email
+    image_url = Column(Text)  # Cover image on public booking page (gated by `program_photos` feature flag)
     
     # Status & Publishing
     status = Column(Text, nullable=False, default='active')  # active, concept, archived
@@ -251,6 +258,10 @@ class Reservation(Base):
     assigned_lecturer_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     assigned_lecturer_name = Column(Text)
     assigned_lecturer_at = Column(DateTime(timezone=True))
+
+    # Main-lecturer assignment auditability (source + human-readable reason)
+    assignment_source = Column(Text)  # default_program | auto_suggest | manual_admin | unassigned
+    assignment_reason = Column(Text)
     
     # GDPR
     gdpr_consent = Column(Boolean, default=False)
@@ -1109,3 +1120,21 @@ class UsageMetric(Base):
         Index('idx_usage_metrics_feature', 'feature_key'),
         Index('idx_usage_metrics_inst_feature', 'institution_id', 'feature_key', unique=True),
     )
+
+
+
+class ReservationObserver(Base):
+    """Náslech — lecturer joins reservation as observer. Does NOT affect collision logic."""
+    __tablename__ = 'reservation_observers'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    reservation_id = Column(UUID(as_uuid=True), ForeignKey('reservations.id', ondelete='CASCADE'), nullable=False)
+    lecturer_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    role = Column(Text, nullable=False, default='naslech')
+    status = Column(Text, nullable=False, default='pending')  # pending | approved | rejected
+    requested_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+    approved_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
+    note = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    approved_at = Column(DateTime(timezone=True))

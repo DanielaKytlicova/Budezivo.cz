@@ -263,8 +263,6 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] Přímá aktivace PRO trvale zablokována (HTTP 400)
 - [x] Request flow: objednávka → pending → platba → admin aktivace
 
-*Poslední aktualizace: 19. dubna 2026*
-
 ### Fáze 37 - Backend Feature Enforcement (19.4.2026)
 - [x] require_feature() dependency aplikován na všechny chráněné endpointy
 - [x] Router-level: mailings, audit-log, rooms, microsoft-calendar
@@ -392,12 +390,43 @@ event_payments: id, application_id, institution_id, provider, status, amount, cu
 - [x] Výchozí české šablony pro MŠ/ZŠ/SŠ/obecné publikum
 - [x] Background odesílání emailů přes BackgroundTasks (ne v HTTP requestu)
 - [x] Snapshoty: content_snapshot, selection_snapshot, programs_snapshot při odeslání
+
+### Fáze 46 - Feature flag management + Password reset (20.4.2026)
+- [x] `GET/PUT /api/superadmin/feature-flags[/{key}]` — superadmin nyní může spravovat pilot feature flags (enable/disable globálně nebo per-instituce)
+- [x] `POST /api/superadmin/reset-password` — superadmin může resetovat heslo libovolného uživatele; pokud email patří do SUPERADMIN_EMAILS a uživatel neexistuje, vytvoří ho v Budeživo Platform instituci (bootstrap sekundárního superadmina)
+- [x] Bootstrapován `admin@budezivo.cz` s heslem `Admin2026!` (zapsáno v test_credentials.md)
+- [x] `events_module` feature flag rozšířen o `Oblastní galerie Lázně` (8ca0ac56-…) a `Budeživo Platform` (c18a10b9-…) — události nyní vidí i kytlicova.vanilie@gmail.com
+- [x] Audit log zaznamenává `feature_flag_update` (before/after diff) a `superadmin_bootstrap`
+
 - [x] Per-příjemce: matching_reason (proč vybrán), relevantní programy (MailingRecipientProgram)
 - [x] Frontend: stránka /admin/mailings s archivem kampaní
+
+### Fáze 47 - UI pro správu Feature flagů (20.4.2026)
+- [x] Nová záložka „Feature flagy" v Superadmin panelu (data-testid `tab-features`)
+- [x] Komponenta `FeatureFlagCard` zobrazuje:
+  - Ikonku + čitelný název + technický klíč + popis
+  - Globální toggle „Whitelist režim ↔ Globálně ZAPNUTO" (jedním klikem)
+  - Whitelist sekci s vyhledáváním + checkboxy per-instituce (s plan badge)
+  - Batch ukládání změn (tlačítko „Uložit změny" se zobrazí pouze když je něco dirty)
+  - Upozornění při globálně zapnutém flagu („whitelist se nepoužívá, ale uloží se")
+- [x] Metadata pro jednotlivé flagy v `FEATURE_FLAG_LABELS` (zatím jen `events_module`)
+- [x] Změny jdou přes existující `PUT /api/superadmin/feature-flags/{key}` → automatický audit log
+
 - [x] Frontend: 4-krokový průvodce (Programy → Příjemci → Text emailu → Odeslání)
 - [x] Frontend: detail kampaně s příjemci, programy, snapshoty
 - [x] Frontend: tlačítko "Rozeslat nabídku" na kartě programu v ProgramsPage
 - [x] Frontend: navigace "Mailingy" v sidebar pod "Školy"
+
+### Fáze 48 - Program: Cena informativní místo Ceníku (22.4.2026)
+- [x] Nová Program kolona `pricing_info` (Text) — volný text jako „30,-/dítě – pedagog zdarma"
+- [x] ALTER TABLE programs ADD COLUMN pricing_info TEXT (provedeno na DB)
+- [x] ProgramCreate schema + create/update routes + repositories + public programs endpoint předávají pricing_info
+- [x] Frontend ProgramsPage: „Ceník" sekce nahrazena „Cena pro účastníky" — volné textové pole, max 200 znaků, bez tariff dropdownu, bez číselné ceny
+- [x] Odstraněn dead link „Vylepši svůj tarif → Chceš k programům přidat fotografie" (nevedlo nikam)
+- [x] Public `/book/{inst}` — zobrazuje pricing_info jako jantarový badge vedle délky programu
+- [x] Email template: `_reservation_details_box` zobrazuje řádek „Cena:" pouze pokud je pricing_info vyplněné — řetězec z DB jde escapem přes HTML a nahrazuje newlines za `<br>`
+- [x] `_build_email_context` propaguje `program_pricing_info` do všech reservation-related mailů (potvrzení, zrušení, vytvoření)
+
 - [x] UI fix: "Zájemci" přesunuto ze sidebaru do hlavičky stránky Rezervace
 
 ### DB Schema (nové tabulky - Fáze 35)
@@ -407,3 +436,79 @@ mailing_campaign_programs: id, campaign_id, program_id, display_order
 mailing_campaign_recipients: id, campaign_id, school_id, contact_id, email, school_name, contact_name, status, sent_at, failure_reason, email_provider_id, matching_reason
 mailing_recipient_programs: id, recipient_id, program_id, program_name, program_target_groups
 ```
+
+### Fáze 49 - Fotografie programů (feature-flagged) (22.4.2026)
+- [x] DB: ALTER TABLE programs ADD COLUMN image_url TEXT (provedeno na Supabase)
+- [x] Nový feature flag `program_photos` seed (enabled=false, whitelist ∅ → superadmin volitelně přidá instituci)
+- [x] Backend: `GET /api/programs/features/check-access` — vrací {program_photos: bool} pro aktuální instituci
+- [x] Backend: `POST /api/programs/{id}/image/upload` (multipart, max 5 MB, ALLOWED_IMAGE_TYPES) — gated `_require_program_photos`
+- [x] Backend: `DELETE /api/programs/{id}/image` — gated, nastaví image_url=null
+- [x] Backend: `GET /api/programs/image/{path:path}` — veřejné servírování, restrikce path musí začínat `budezivo/programs/`
+- [x] `ProgramCreate`/`Program` schéma + repo (`create`) propouští `image_url`; public endpoint přidán do PUBLIC_ALLOWED_FIELDS
+- [x] `services/storage_service.py` — nová helper `upload_program_image(...)` (storage cesta `budezivo/programs/{inst}/{prog}/{uuid}.{ext}`) + konstanta MAX_PROGRAM_IMAGE_SIZE=5 MB
+- [x] Frontend ProgramsPage: nová karta „Fotografie programu" v Detail tabu — drag&drop upload, náhled, tlačítka Vyměnit / Odstranit; karta se zobrazuje jen když `/api/programs/features/check-access` = true
+- [x] Frontend BookingPage (veřejná): pokud `program.image_url` existuje, zobrazuje se hero obrázek nad kartou programu (`program-image-{id}`)
+- [x] Frontend SuperadminPage: `FEATURE_FLAG_LABELS.program_photos` registrován (ikona Image, label „Fotografie programů") — whitelist UI v záložce Feature flagy
+- [x] Audit log zaznamenává `upload_image` / `delete_image` na entity_type=program
+- [x] Testováno: 16/16 backend pytest + 100% frontend (iteration_55.json)
+
+
+### Fáze 50 — Auto-přiřazení hlavního lektora + režim Hlavní / Náslech (22.4.2026)
+- [x] DB: `users.lecturer_mode` (default 'main'), `reservations.assignment_source`, `reservations.assignment_reason`
+- [x] Backfill: 40 rezervací → `default_program`, 116 → `unassigned`
+- [x] Nová služba `services/lecturer_assignment_service.py::pick_main_lecturer()` — pool = program.assigned_lecturer_id + collision_lecturer_ids, filtrováno na aktivní + `lecturer_mode='main'`, hodnoceno podle rozvrhu + AvailabilityBlock + zatížení za 7 dní
+- [x] `routes/bookings.py::_resolve_main_lecturer()` napojen do `create_booking` i `create_public_booking`; pokud jsou konfigurovaní lektoři, ale nikdo není k dispozici → 409 s českou zprávou
+- [x] Admin assign: `assign-lecturer-admin` odmítne training-mode lektora s 400 („Náslech“)
+- [x] Nový endpoint `PATCH /api/team/{id}/lecturer-mode` (admin only)
+- [x] BookingsPage: color-coded badge `assignment-source-badge` + `assignment-reason`; dropdown pro přiřazení filtruje pouze main-mode lektory
+- [x] TeamPage: inline toggle „Hlavní lektor ↔ Náslech" (testid `lecturer-mode-toggle-{id}`) pro role `lektor`/`edukator`
+- [x] Oprava vedlejšího bugu: `BookingBase.age_or_class: Optional[str]` (GET /api/bookings vracelo 500 pro historické null hodnoty)
+- [x] Testování: 12/12 backend pytest + frontend badge ověřen screenshotem (iteration_56.json)
+
+
+
+### Fáze 51 — Hromadný ZIP export všech generovaných souborů (22.4.2026)
+- [x] Nový endpoint `GET /api/exports/download-bundle` (gated: superadmin OR admin/spravce + plan has `data_export`)
+- [x] Bezpečnost: lektor/edukátor dostane 403, free plan → 403 s výzvou k upgrade, superadmin OK
+- [x] Obsah: `01_skoly_kontakty.csv`, `02_import_template.xlsx`, `03_zpetna_vazba.csv`, `04-06_statistiky_*.csv`, `07_gdpr_export.json`, `08_kalendar_instituce.ics`, `09_kalendar_program_{name}.ics` + `10_archive_report_{name}.json` na program (cap 20), `MANIFEST.json`
+- [x] Helper `_bytes_from_call` zvládá `Response`/`StreamingResponse`/bytes/dict — per-file error do manifestu
+- [x] Fix: `Content-Disposition` RFC 5987 kvůli českým diakritikám
+- [x] Frontend `SettingsPage → GDPR a export dat`: karta „Hromadný export (ZIP)" s loading state a blob download (testid `bulk-export-card`, `bulk-export-button`)
+- [x] Ověřeno: 23 souborů × 227 kB pro Gallery PRO, 403 pro lektora, 200 pro superadmina
+
+### Fáze 52 — JSON → PDF migrace exportů (22.4.2026)
+- [x] Nové PDF buildery v `services/export_service.py`: `build_archive_report_pdf()` + `build_gdpr_export_pdf()` (DejaVuSans, kv-table styl, max 80 řádků tabulek s oříznutím)
+- [x] `GET /api/programs/{id}/archive-report` výchozí výstup je **PDF** (dříve JSON); `?format=json` zachován pro zpětnou kompatibilitu interních nástrojů
+- [x] `GET /api/gdpr/export` výchozí výstup je **ZIP** s `gdpr_export.json` + `gdpr_export.pdf` + `README.txt` vysvětlujícím, že autoritativní formát pro GDPR čl. 20 přenositelnost zůstává JSON; `?format=pdf` a `?format=json` zachovány
+- [x] Bundle `GET /api/exports/download-bundle`: `07_gdpr_export.{json,pdf}` bok po boku, archive reporty jako `10_archive_report_*.pdf` (žádné JSON archive)
+- [x] SettingsPage `handleExportData`: stahuje jako blob ZIP s datem v názvu souboru; popisky i tlačítko přepsány na „Exportovat moje data (ZIP — JSON + PDF)"
+- [x] RFC 5987 filename fix pro české diakritiky v Content-Disposition (jinak Response crashuje na latin-1 encoding)
+- [x] Testováno: 9/9 backend pytest + FE end-to-end (iteration_57.json)
+
+
+
+### Fáze 53 — Multi-part improvement bundle + PDF report button (22.4.2026)
+- [x] Task 1: „Stáhnout PDF report" v kebab menu u každé karty programu (testid `pdf-report-{id}`) — blob download
+- [x] PART 1: DB `users` + 4 sloupce (preferred_age_groups, supported_program_ids, learning_program_ids jsonb + admin_note text); `TeamMember` schéma + `PATCH /api/team/{id}/lecturer-profile` (self-edit + admin-only admin_note)
+- [x] PART 4: `services/collision_classifier.py` — wrapper `classify(msg) → {blocked, code, source, message_cs, details}`; obě entry-points (public + admin); FE čte `detail.message_cs`
+- [x] PART 5: `ProgramCollisionTab.js` — karta „Současně s jinými programy", helper texty bez „paralelní"/technických termínů
+- [x] Testováno: 14/14 backend pytest + FE E2E (iteration_58.json)
+
+### Fáze 54 — Oprava crash ArchivePage + Samoobslužný profil lektora + Zjednodušení Náslechu (22.4.2026)
+- [x] **Fix P0**: `/app/frontend/src/pages/admin/ArchivePage.js` – volání `/api/programs/{id}/archive-report` doplněno o `?format=json` (default se stal PDF po Fázi 52) + null-safe render `reportData && reportData.program`; TypeError při kliku na „Report" u archivovaného programu vyřešen
+- [x] **Self-service profil lektora**: Nová stránka `/admin/my-profile` (MyProfilePage.js) dostupná všem rolím:
+  - Úprava jména
+  - Preferované věkové skupiny (ms_3_6 / zs1_7_12 / zs2_12_16 / ss_15_19 / adults)
+  - Programy „mohu vést" (supported_program_ids) a „chci se naučit / náslech" (learning_program_ids) s mutual exclusion
+  - Zobrazení admin_note (read-only pro ne-adminy)
+  - Save přes `PATCH /api/team/{user_id}/lecturer-profile`
+- [x] **Zjednodušení Náslechu** (dle uživatele: odstranění duplicity):
+  - ❌ ODSTRANĚNO: celý router `/app/backend/routes/observers.py` (5 endpointů /api/bookings/{id}/naslech*)
+  - ❌ ODSTRANĚNO: `PATCH /api/team/{id}/lecturer-mode` endpoint
+  - ❌ ODSTRANĚNO: filtr `lecturer_mode == "main"` v `pick_main_lecturer` a `bookings.py`
+  - ❌ ODSTRANĚNO: komponenta `NaslechPanel` v BookingsPage.js a tlačítko toggle `lecturer-mode-toggle-*` v TeamPage.js
+  - ✅ Náslech je nyní jen „poznámka" v profilu lektora — program v `learning_program_ids` znamená „tento program zatím nevedu" (systém mě u něj automaticky nepřiřadí jako hlavního lektora); po absolvování lektor sám přesune program do `supported_program_ids`
+- [x] Sidebar: nová položka „Můj profil" (`nav-my-profile`) viditelná pro všechny role
+- [x] Pytest: `test_my_profile_and_naslech_removal.py` — 7/7 PASS
+- [x] Testováno: 100% backend + 100% frontend E2E (iteration_59.json)
+

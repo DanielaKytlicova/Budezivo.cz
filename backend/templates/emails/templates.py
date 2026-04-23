@@ -171,13 +171,24 @@ Pokud máte dotazy, kontaktujte nás na info@budezivo.cz
 
 def _reservation_details_box(data: Dict[str, Any]) -> str:
     """Reusable reservation details box."""
+    pricing_info = (data.get('program_pricing_info') or '').strip()
+    pricing_row = ''
+    if pricing_info:
+        # Preserve line breaks entered by the institution
+        safe = pricing_info.replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
+        pricing_row = f"""
+                <tr>
+                    <td style="padding: 8px 0; color: #64748B; border-top: 1px solid #E2E8F0;">Cena:</td>
+                    <td style="padding: 8px 0; color: #1E293B; font-weight: 500; border-top: 1px solid #E2E8F0;">{safe}</td>
+                </tr>
+"""
     return f"""
         <div style="{BASE_STYLES['info_box']}">
             <table style="width: 100%; border-collapse: collapse;">
                 <tr>
                     <td style="padding: 8px 0; color: #64748B; width: 140px;">Program:</td>
                     <td style="padding: 8px 0; color: #1E293B; font-weight: 500;">{data.get('program_name', '')}</td>
-                </tr>
+                </tr>{pricing_row}
                 <tr>
                     <td style="padding: 8px 0; color: #64748B; border-top: 1px solid #E2E8F0;">Datum:</td>
                     <td style="padding: 8px 0; color: #1E293B; font-weight: 500; border-top: 1px solid #E2E8F0;">{data.get('reservation_date', '')}</td>

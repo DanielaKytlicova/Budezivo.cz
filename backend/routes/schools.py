@@ -1254,7 +1254,7 @@ async def send_propagation(
     program_repo = ProgramRepositorySupabase(db)
     
     institution = await institution_repo.find_by_id(current_user["institution_id"])
-    if not institution or institution.get("plan") not in ["standard", "premium"]:
+    if not institution or institution.get("plan") not in ["standard", "premium", "pro", "pro_plus"]:
         raise HTTPException(status_code=403, detail="Tato funkce je dostupná pouze v PRO verzi")
     
     program = await program_repo.find_by_id(request.program_id, current_user["institution_id"])

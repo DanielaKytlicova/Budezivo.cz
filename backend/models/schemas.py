@@ -78,6 +78,8 @@ class ProgramBase(BaseModel):
     max_capacity: int = 30
     target_group: str  # Legacy - kept for backwards compatibility
     price: Optional[float] = 0.0
+    pricing_info: Optional[str] = None
+    image_url: Optional[str] = None
     status: str = "active"
     requires_approval: bool = False
     is_published: bool = True
@@ -132,7 +134,7 @@ class BookingBase(BaseModel):
     time_block: str
     school_name: str
     group_type: str
-    age_or_class: str
+    age_or_class: Optional[str] = None
     num_students: int
     num_teachers: int = 1
     special_requirements: Optional[str] = ""
@@ -145,6 +147,8 @@ class BookingBase(BaseModel):
 class BookingCreate(BookingBase):
     terms_accepted: bool = False
     terms_accepted_text_version: Optional[str] = "v1"
+    # Optional admin override: lecturer selected manually. Ignored on public endpoint.
+    assigned_lecturer_id: Optional[str] = None
 
 
 class Booking(BookingBase):
@@ -157,6 +161,8 @@ class Booking(BookingBase):
     assigned_lecturer_id: Optional[str] = None
     assigned_lecturer_name: Optional[str] = None
     assigned_lecturer_at: Optional[str] = None
+    assignment_source: Optional[str] = None
+    assignment_reason: Optional[str] = None
     notes: Optional[str] = None
     terms_accepted: Optional[bool] = None
     terms_accepted_at: Optional[datetime] = None
@@ -299,14 +305,28 @@ class TeamMember(BaseModel):
     name: Optional[str] = None
     role: str
     status: Optional[str] = None
+    lecturer_mode: Optional[str] = "main"  # main | training (náslech)
+    preferred_age_groups: Optional[List[str]] = []
+    supported_program_ids: Optional[List[str]] = []
+    learning_program_ids: Optional[List[str]] = []
+    admin_note: Optional[str] = None
     institution_id: str
     created_at: str
+
+
+class LecturerProfileUpdate(BaseModel):
+    preferred_age_groups: Optional[List[str]] = None
+    supported_program_ids: Optional[List[str]] = None
+    learning_program_ids: Optional[List[str]] = None
+    admin_note: Optional[str] = None
+    name: Optional[str] = None
 
 
 class TeamInvite(BaseModel):
     name: Optional[str] = None
     email: EmailStr
     role: str = "edukator"
+    lecturer_mode: Optional[str] = "main"
 
 
 class RoleUpdate(BaseModel):

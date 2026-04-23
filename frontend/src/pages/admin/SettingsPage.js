@@ -183,6 +183,7 @@ export const SettingsPage = () => {
     anonymize: false,
   });
   const [exportLoading, setExportLoading] = useState(false);
+  const [bulkExportLoading, setBulkExportLoading] = useState(false);
   const [anonymizeDialog, setAnonymizeDialog] = useState(false);
   const [anonymizeConfirm, setAnonymizeConfirm] = useState('');
   const [anonymizeLoading, setAnonymizeLoading] = useState(false);
@@ -1165,22 +1166,44 @@ export const SettingsPage = () => {
     const handleExportData = async () => {
       setExportLoading(true);
       try {
-        const response = await axios.get(`${API}/gdpr/export`);
-        const dataStr = JSON.stringify(response.data, null, 2);
-        const blob = new Blob([dataStr], { type: 'application/json' });
+        const response = await axios.get(`${API}/gdpr/export`, { responseType: 'blob' });
+        const blob = new Blob([response.data], { type: 'application/zip' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `budezivo_export_${new Date().toISOString().slice(0, 10)}.json`;
+        link.download = `budezivo_gdpr_export_${new Date().toISOString().slice(0, 10)}.zip`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        toast.success('Data byla exportována');
+        toast.success('GDPR export stažen (obsahuje JSON i PDF)');
       } catch (error) {
         toast.error('Chyba při exportu dat');
       } finally {
         setExportLoading(false);
+      }
+    };
+
+    const handleBulkExportZip = async () => {
+      setBulkExportLoading(true);
+      try {
+        const response = await axios.get(`${API}/exports/download-bundle`, { responseType: 'blob' });
+        const blobUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'application/zip' }));
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        const cd = response.headers?.['content-disposition'] || '';
+        const match = cd.match(/filename="([^"]+)"/);
+        link.setAttribute('download', match?.[1] || `budezivo_export_${Date.now()}.zip`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(blobUrl);
+        toast.success('ZIP s exporty byl stažen');
+      } catch (error) {
+        const msg = error.response?.data?.detail || 'Chyba při hromadném exportu';
+        toast.error(typeof msg === 'string' ? msg : 'Chyba při hromadném exportu');
+      } finally {
+        setBulkExportLoading(false);
       }
     };
 
@@ -1215,11 +1238,12 @@ export const SettingsPage = () => {
         <Card className="p-4 space-y-4">
           <h2 className="font-semibold text-slate-900">Export osobních dat</h2>
           <p className="text-sm text-gray-500">
-            Stáhněte si všechna svá osobní data ve strojově čitelném formátu (JSON).
-            Zahrnuje údaje o uživateli, instituci, rezervacích a školách.
+            Stáhněte si všechna svá osobní data jako ZIP obsahující <strong>JSON</strong>
+            {' '}(strojově čitelný formát pro přenositelnost) a <strong>PDF</strong>
+            {' '}(lidsky čitelný přehled). Zahrnuje údaje o uživateli, instituci, rezervacích a školách.
           </p>
           <p className="text-xs text-gray-400">
-            Na základě článku 20 GDPR — právo na přenositelnost údajů.
+            Na základě článku 20 GDPR — právo na přenositelnost údajů (autoritativní formát je JSON).
           </p>
           <Button
             variant="outline"
@@ -1231,7 +1255,34 @@ export const SettingsPage = () => {
             {exportLoading ? (
               <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Exportuji...</>
             ) : (
-              'Stáhnout export dat (JSON)'
+              'Exportovat moje data (ZIP — JSON + PDF)'
+            )}
+          </Button>
+        </Card>
+
+        {/* Hromadný export všech dat inštituce (PRO) */}
+        <Card className="p-4 space-y-4" data-testid="bulk-export-card">
+          <h2 className="font-semibold text-slate-900">Hromadný export (ZIP)</h2>
+          <p className="text-sm text-gray-500">
+            Stáhněte jedním kliknutím kompletní balík všech generovaných souborů za vaši instituci —
+            školy a kontakty (CSV), zpětnou vazbu, statistiky, GDPR data (JSON), iCal feedy a
+            archive reporty programů.
+          </p>
+          <p className="text-xs text-gray-400">
+            Dostupné pro plány PRO a PRO+. Export obsahuje citlivá data — přístup mají pouze
+            administrátoři instituce.
+          </p>
+          <Button
+            variant="outline"
+            className="w-full border-gray-300"
+            onClick={handleBulkExportZip}
+            disabled={bulkExportLoading}
+            data-testid="bulk-export-button"
+          >
+            {bulkExportLoading ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Připravuji ZIP...</>
+            ) : (
+              'Stáhnout všechno jako ZIP'
             )}
           </Button>
         </Card>

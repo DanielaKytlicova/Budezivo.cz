@@ -63,19 +63,19 @@ export const ProgramCollisionTab = ({
 
   return (
     <div className="space-y-6">
-      {/* Paralelní provoz */}
+      {/* Současně s jinými programy */}
       <Card className="p-4 md:p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex-1">
-            <h3 className="font-semibold text-slate-900">Paralelní provoz</h3>
+            <h3 className="font-semibold text-slate-900">Současně s jinými programy</h3>
             <p className="text-sm text-gray-500 mt-1">
-              Určuje, zda se tento program může časově překrývat s jinými programy.
+              Určuje, zda tento program může probíhat zároveň s jinými programy ve stejném čase.
             </p>
           </div>
           <div className="relative group ml-4">
             <Info className="w-4 h-4 text-gray-400 cursor-help" />
             <div className="absolute right-0 bottom-full mb-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-              Pokud je paralelní provoz zakázán, program blokuje celý svůj časový slot a žádný jiný program se nemůže v tomto čase rezervovat.
+              Pokud zvolíte „Pouze samostatně", tento program si vyhradí celý časový slot a ve stejnou dobu nelze rezervovat žádný jiný program.
             </div>
           </div>
         </div>
@@ -84,15 +84,13 @@ export const ProgramCollisionTab = ({
           <div>
             <p className="font-medium text-slate-900 text-sm">
               {!formData.allow_parallel
-                ? 'Nelze paralelně provozovat (překryv zakázán)'
-                : 'Paralelní provoz povolen'
-              }
+                ? 'Pouze samostatně'
+                : 'Ano — může probíhat současně s jinými'}
             </p>
             <p className="text-xs text-gray-500 mt-0.5">
               {!formData.allow_parallel
-                ? 'Program blokuje svůj časový slot globálně'
-                : 'Program se může překrývat s jinými programy (s omezením)'
-              }
+                ? 'V době konání nemohou probíhat jiné programy.'
+                : 'Další programy se mohou v tomto čase konat, s dále uvedenými omezeními.'}
             </p>
           </div>
           <Switch
@@ -382,11 +380,11 @@ export const ProgramCollisionTab = ({
         <div className="space-y-2 text-sm">
           {!formData.allow_parallel ? (
             <p className="text-slate-700">
-              Program <strong>blokuje</strong> svůj časový slot globálně. Žádný jiný program se nemůže časově překrývat.
+              Tento program probíhá <strong>pouze samostatně</strong> — v době jeho konání nemohou probíhat jiné programy.
             </p>
           ) : (
             <>
-              <p className="text-slate-700">Program <strong>umožňuje</strong> paralelní provoz.</p>
+              <p className="text-slate-700">Tento program <strong>může probíhat současně</strong> s jinými programy.</p>
               {formData.collision_resources.length > 0 && (
                 <p className="text-slate-600">
                   Kontrola kolizí: {formData.collision_resources.map(r =>

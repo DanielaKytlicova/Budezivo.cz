@@ -4,7 +4,7 @@ Uses Supabase (PostgreSQL) for database operations.
 """
 import logging
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi import Limiter
@@ -30,6 +30,8 @@ from services.email_service import (
     trigger_reservation_rescheduled_email,
 )
 from services.collision_service import check_booking_collision, check_lecturer_collision_for_assignment
+from services.collision_classifier import classify as classify_collision
+from services.lecturer_assignment_service import pick_main_lecturer, SOURCE_MANUAL, SOURCE_UNASSIGNED
 from routes.audit import log_action
 
 from pydantic import BaseModel as PydanticBaseModel
@@ -58,6 +60,59 @@ def _strip_internal_fields(booking: dict) -> dict:
     return {k: v for k, v in booking.items() if k not in _INTERNAL_BOOKING_FIELDS}
 
 
+async def _resolve_main_lecturer(
+    db: AsyncSession, institution_id: str, booking_data: BookingCreate,
+    admin_override: Optional[dict] = None,
+) -> dict:
+    """
+    Resolve which main lecturer to assign. Admin overrides bypass auto-pick (source=manual_admin).
+    Raises HTTPException(409) if the program has a lecturer pool but no one is available.
+    """
+    program_repo = ProgramRepositorySupabase(db)
+    program_row = await program_repo.find_by_id(booking_data.program_id, institution_id)
+    if not program_row:
+        raise HTTPException(status_code=404, detail="Program nenalezen")
+
+    # Admin explicit override wins
+    if admin_override and admin_override.get("assigned_lecturer_id"):
+        # Validate this lecturer exists and is active
+        from sqlalchemy import select
+        from database.models import User
+        import uuid as _uuid
+        r = await db.execute(select(User).where(User.id == _uuid.UUID(admin_override["assigned_lecturer_id"])))
+        u = r.scalar_one_or_none()
+        if not u or u.status != "active":
+            raise HTTPException(
+                status_code=400,
+                detail="Zvolený lektor není aktivní.",
+            )
+        return {
+            "lecturer_id": str(u.id),
+            "lecturer_name": u.name or u.email,
+            "source": SOURCE_MANUAL,
+            "reason": f"{u.name or u.email} — ručně přiřazeno administrátorem",
+        }
+
+    # Load full ORM program object for service
+    from sqlalchemy import select
+    from database.models import Program
+    import uuid as _uuid
+    r = await db.execute(select(Program).where(Program.id == _uuid.UUID(booking_data.program_id)))
+    program_obj = r.scalar_one_or_none()
+    if program_obj is None:
+        raise HTTPException(status_code=404, detail="Program nenalezen")
+
+    result = await pick_main_lecturer(
+        db, institution_id, program_obj, booking_data.date, booking_data.time_block,
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=409,
+            detail="Pro tento termín není k dispozici žádný hlavní lektor (všichni kandidáti mají kolize nebo nejsou v rozvrhu). Zvolte prosím jiný termín.",
+        )
+    return result
+
+
 @router.post("", response_model=Booking)
 async def create_booking(
     booking_data: BookingCreate,
@@ -71,13 +126,26 @@ async def create_booking(
         booking_data.date, booking_data.time_block
     )
     if collision_error:
-        raise HTTPException(status_code=409, detail=collision_error)
-    
-    booking_repo = BookingRepositorySupabase(db)
-    booking = await booking_repo.create(
-        booking_data.model_dump(),
-        current_user["institution_id"]
+        raise HTTPException(status_code=409, detail=classify_collision(collision_error))
+
+    # Resolve main lecturer (admin may pre-fill assigned_lecturer_id for manual override)
+    payload = booking_data.model_dump()
+    admin_override = None
+    if payload.get("assigned_lecturer_id"):
+        admin_override = {"assigned_lecturer_id": payload["assigned_lecturer_id"]}
+    resolved = await _resolve_main_lecturer(
+        db, current_user["institution_id"], booking_data, admin_override
     )
+    payload.update({
+        "assigned_lecturer_id": resolved["lecturer_id"],
+        "assigned_lecturer_name": resolved["lecturer_name"],
+        "assigned_lecturer_at": datetime.now(timezone.utc) if resolved["lecturer_id"] else None,
+        "assignment_source": resolved["source"],
+        "assignment_reason": resolved["reason"],
+    })
+
+    booking_repo = BookingRepositorySupabase(db)
+    booking = await booking_repo.create(payload, current_user["institution_id"])
     return booking
 
 
@@ -144,9 +212,21 @@ async def create_public_booking(
         db, institution_id, booking_data.program_id, booking_data.date, booking_data.time_block
     )
     if collision_error:
-        raise HTTPException(status_code=409, detail=collision_error)
-    
-    booking = await booking_repo.create(booking_data.model_dump(), institution_id)
+        raise HTTPException(status_code=409, detail=classify_collision(collision_error))
+
+    # Resolve main lecturer (auto-pick; public flow never has admin override)
+    resolved = await _resolve_main_lecturer(db, institution_id, booking_data, admin_override=None)
+
+    payload = booking_data.model_dump()
+    payload.update({
+        "assigned_lecturer_id": resolved["lecturer_id"],
+        "assigned_lecturer_name": resolved["lecturer_name"],
+        "assigned_lecturer_at": datetime.now(timezone.utc) if resolved["lecturer_id"] else None,
+        "assignment_source": resolved["source"],
+        "assignment_reason": resolved["reason"],
+    })
+
+    booking = await booking_repo.create(payload, institution_id)
     
     # Create or update school record
     school = await school_repo.find_by_email(institution_id, booking_data.contact_email)
@@ -683,14 +763,14 @@ async def admin_assign_lecturer_to_booking(
     
     if lecturer.get("institution_id") != current_user["institution_id"]:
         raise HTTPException(status_code=403, detail="Lektor nepatří do vaší instituce")
-    
+
     # Check for lecturer time collisions
     collision_error = await check_lecturer_collision_for_assignment(
         db, request.lecturer_id, current_user["institution_id"], booking_id
     )
     if collision_error:
         raise HTTPException(status_code=409, detail=collision_error)
-    
+
     lecturer_name = lecturer.get("name") or lecturer.get("email", "Unknown")
     
     # Assign lecturer

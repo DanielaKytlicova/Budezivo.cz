@@ -75,8 +75,15 @@ async def get_public_stats(request: Request, db: AsyncSession = Depends(get_db))
     """Public statistics for social proof on marketing pages.
 
     Returns real counts; caller should decide how to format/round them.
+    Section visibility is gated by the `social_proof` feature flag (superadmin).
     """
     try:
+        # Superadmin-controlled kill switch: feature flag `social_proof`
+        flag_row = await db.execute(
+            text("SELECT enabled FROM feature_flags WHERE key = 'social_proof'")
+        )
+        flag_enabled = bool(flag_row.scalar() or False)
+
         # Only count non-deleted institutions
         inst_result = await db.execute(
             text("SELECT COUNT(*) FROM institutions WHERE deleted_at IS NULL")
@@ -110,7 +117,8 @@ async def get_public_stats(request: Request, db: AsyncSession = Depends(get_db))
             events_count = 0
 
         return {
-            "show_stats": institution_count >= 5,
+            # show_stats gated purely by superadmin feature flag now
+            "show_stats": flag_enabled,
             "institutions": institution_count,
             "reservations": reservation_count,
             "programs": programs_count,

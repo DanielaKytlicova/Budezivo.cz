@@ -521,3 +521,13 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] Odstraněn nepoužívaný `painPoints` array
 - [x] Lint: ✅ No issues
 
+
+### Fáze 56 — Feature flag pro Social Proof sekci (23.4.2026)
+- [x] **Skrytí sekce Social Proof** (stats 8+/21+/173+/98% + „Důvěřují nám"): default **VYPNUTO**
+- [x] **Nový feature flag** `social_proof` automaticky vytvořen při startup seedu (`main.py startup_event`, idempotentní `INSERT ... ON CONFLICT (key) DO NOTHING`)
+- [x] `/api/public/stats` nyní čte `FeatureFlag.enabled` pro klíč `social_proof` a podle něj nastavuje `show_stats` (místo staré podmínky ≥5 institucí)
+- [x] **Superadmin UI bez úprav** — flag se automaticky objeví v existující sekci *Feature flags* s přepínačem *Globálně ZAPNUTO / Whitelist režim* (dle přání uživatele — nová sekce nevznikla)
+- [x] Testováno curl:
+  - flag OFF → `show_stats=False`, sekce skryta (ověřeno v DOM: `document.querySelector('[data-testid=social-proof-section]') === null`)
+  - PUT enabled=true → `show_stats=True`, sekce se objeví
+

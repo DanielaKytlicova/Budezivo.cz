@@ -254,6 +254,31 @@ async def startup_event():
     except Exception as e:
         logger.warning(f"Object storage init deferred: {e}")
 
+    # Ensure default feature flags exist (idempotent)
+    try:
+        from sqlalchemy import text as _text
+        from database.supabase import AsyncSessionLocal as _Session
+        DEFAULT_FLAGS = [
+            (
+                "social_proof",
+                "Sekce Social Proof na landing page (statistiky 8+/21+/173+/98% a \u201eD\u016fv\u011bruj\u00ed n\u00e1m\u201c). Vypnuto = sekce skryta; Zapnuto glob\u00e1ln\u011b = sekce zobrazena v\u0161em n\u00e1v\u0161t\u011bvn\u00edk\u016fm.",
+            ),
+        ]
+        async with _Session() as s:
+            for key, desc in DEFAULT_FLAGS:
+                await s.execute(
+                    _text(
+                        "INSERT INTO feature_flags (id, key, enabled, allowed_institution_ids, description, created_at, updated_at) "
+                        "VALUES (gen_random_uuid(), :k, false, '[]'::jsonb, :d, now(), now()) "
+                        "ON CONFLICT (key) DO NOTHING"
+                    ),
+                    {"k": key, "d": desc},
+                )
+            await s.commit()
+        logger.info("Default feature flags ensured")
+    except Exception as e:
+        logger.warning(f"Feature flag seed skipped: {e}")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():

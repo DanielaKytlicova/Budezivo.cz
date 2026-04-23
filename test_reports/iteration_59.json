@@ -22,7 +22,7 @@
   "updated_files": [],
   "success_rate": {"backend": "100% (7/7)", "frontend": "100% (archive report dialog, my-profile CRUD, removals all confirmed)"},
   "test_credentials": "demo@budezivo.cz / Demo2026! used throughout. No lecturer-role test user was created — impersonation/lecturer 403 path is already covered by iteration 58 test suite.",
-  "seed_data_creation": "Archived 1 program (id=41961f9c-2db1-47b7-8678-38e944222cc3, 'Seznamte se!') via POST /api/programs/{id}/archive with reason 'Test archive iter59' to populate the archive page. Can be restored via POST /api/programs/{id}/unarchive.",
+  "seed_data_creation": "Archived 1 program (id=arch-enhance-v59, 'Seznamte se!') via POST /api/programs/{id}/archive with reason 'Test archive iter59' to populate the archive page. Can be restored via POST /api/programs/{id}/unarchive.",
   "retest_needed": false,
   "main_agent_can_self_test": true,
   "context_for_next_testing_agent": "Real archive route is /admin/archive (not /admin/programs/archive) — use sidebar: Programy → 'Archiv' button (data-testid=archive-link-btn) or direct goto /admin/archive. Direct goto /admin/programs/archive redirects to landing. Seeded archive program 'Seznamte se!' is still archived; unarchive if a clean state is needed. Run pytest with: `cd /app/backend && python -m pytest tests/test_my_profile_and_naslech_removal.py -v`.",

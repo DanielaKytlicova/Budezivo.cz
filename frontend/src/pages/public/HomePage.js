@@ -5,7 +5,7 @@ import { Footer } from '../../components/layout/Footer';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
-import { Check, X, Mail, RefreshCw, Table2, Copy, Eye, Calendar, Bell, Settings, Users, UserCheck, BarChart3, FileText, Clock, TrendingUp, Shield, Zap, Quote, Building2, Palette, BookOpen, Sprout, Music, School as SchoolIcon } from 'lucide-react';
+import { Check, X, Mail, RefreshCw, Table2, Copy, Eye, Calendar, Bell, Settings, Users, UserCheck, BarChart3, FileText, Clock, TrendingUp, Shield, Zap, Quote, Building2, Palette, BookOpen, Sprout, Music, School as SchoolIcon, ArrowRight, CalendarCheck2, MailCheck, CheckCircle2, CalendarDays, UserPlus, Smile, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
@@ -113,12 +113,28 @@ export const HomePage = () => {
   const pricingTiers = ['free', 'start', 'pro', 'pro_plus'];
 
   // Pain points data
-  const painPoints = [
-    { icon: Mail, text: 'Nekonečné e-maily se školami' },
-    { icon: RefreshCw, text: 'Ruční potvrzování rezervací' },
-    { icon: Table2, text: 'Nepřehledné tabulky' },
-    { icon: Copy, text: 'Duplicitní objednávky' },
-    { icon: Eye, text: 'Chybějící přehled o obsazenosti' },
+  // Pain → Solution comparison (before/after with Budeživo)
+  const painComparison = [
+    {
+      bad:  { icon: Mail,          text: 'Desítky e-mailů pro potvrzení jedné rezervace' },
+      good: { icon: MailCheck,     text: 'Automatické potvrzení obratem, žádný e-mail' },
+    },
+    {
+      bad:  { icon: RefreshCw,     text: 'Ruční potvrzování každé rezervace zvlášť' },
+      good: { icon: CheckCircle2,  text: 'Pravidla nastavíte jednou, systém pracuje sám' },
+    },
+    {
+      bad:  { icon: Table2,        text: 'Nepřehledné Excel tabulky, které jsou vždy zastaralé' },
+      good: { icon: CalendarDays,  text: 'Přehledný kalendář vždy aktuální v reálném čase' },
+    },
+    {
+      bad:  { icon: Copy,          text: 'Duplicitní objednávky a kolize termínů' },
+      good: { icon: Shield,        text: 'Systém hlídá obsazenost, duplicity jsou nemožné' },
+    },
+    {
+      bad:  { icon: Clock,         text: 'Školy čekají na odpověď, volají a píšou znovu' },
+      good: { icon: UserPlus,      text: 'Škola rezervuje sama bez registrace, za 2 minuty' },
+    },
   ];
 
   // Features data
@@ -157,35 +173,44 @@ export const HomePage = () => {
 
   // Benefits data
   const employeeBenefits = [
-    'Méně rutinní administrativy',
-    'Úspora hodin týdně',
-    'Méně chyb a nedorozumění',
-    'Klidnější pracovní den',
+    { icon: Clock,       title: 'Méně rutinní administrativy', description: 'Rezervace a potvrzení probíhají bez vašeho zásahu' },
+    { icon: UserCheck,   title: 'Úspora hodin týdně',          description: 'Průměrně 3 hodiny administrativy méně každý týden' },
+    { icon: CheckCircle2,title: 'Méně chyb a nedorozumění',    description: 'Pravidla hlídá systém, ne člověk' },
+    { icon: Smile,       title: 'Klidnější pracovní den',      description: 'Žádné urgentní e-maily, žádné telefonáty' },
   ];
 
   const managementBenefits = [
-    'Statistiky a přehledy',
-    'Podklady pro zřizovatele',
-    'Lepší plánování kapacit',
-    'Transparentní evidence rezervací',
+    { icon: BarChart3,   title: 'Statistiky a přehledy',          description: 'Kolik skupin, odkud, kdy — exportovatelné reporty' },
+    { icon: FileText,    title: 'Podklady pro zřizovatele',       description: 'Reporty připravené pro výroční zprávy a dotace' },
+    { icon: TrendingUp,  title: 'Lepší plánování kapacit',        description: 'Vidíte vytíženost dopředu a můžete reagovat' },
+    { icon: Shield,      title: 'Transparentní evidence rezervací', description: 'Každá rezervace dohledatelná, nic se neztratí' },
   ];
 
-  // How it works steps
+  // How it works steps (4-step timeline)
   const howItWorks = [
     {
       step: 1,
-      title: 'Vytvoříte program',
-      description: 'Nastavíte název, popis, délku trvání a kapacitu programu.',
+      icon: CalendarDays,
+      title: 'Nastavíte instituci',
+      description: 'Prostory, kapacity a provozní dobu za 15 minut',
     },
     {
       step: 2,
-      title: 'Nastavíte dostupné termíny',
-      description: 'Určíte, kdy je program dostupný. Systém hlídá obsazenost.',
+      icon: UserCheck,
+      title: 'Škola si vybere',
+      description: 'Jednoduchý formulář, výběr termínu bez registrace',
     },
     {
       step: 3,
-      title: 'Školy rezervují online',
-      description: 'Učitelé si vyberou termín a rezervují online. Dostanete okamžité potvrzení.',
+      icon: CheckCircle2,
+      title: 'Potvrzení automaticky',
+      description: 'Obě strany obdrží e-mail, termín se zapíše do kalendáře',
+    },
+    {
+      step: 4,
+      icon: BarChart3,
+      title: 'Přehled po ruce',
+      description: 'Kalendář a statistiky kdykoli, odkudkoli',
     },
   ];
 
@@ -377,24 +402,59 @@ export const HomePage = () => {
       )}
 
       {/* Pain Points Section - "Znáte tuto realitu?" */}
-      <section className="py-16 bg-[#F8F9FA]" id="problemy">
+      <section className="py-20 bg-[#F8F9FA]" id="problemy">
         <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-14">
             Znáte tuto realitu?
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {painPoints.map((point, idx) => (
-              <Card 
-                key={idx} 
-                className="p-8 bg-[#F8F9FA] border-0 rounded-2xl text-center hover:shadow-md transition-shadow"
-                data-testid={`pain-point-${idx}`}
-              >
-                <div className="w-16 h-16 bg-[#E8EDF2] rounded-full flex items-center justify-center mx-auto mb-4">
-                  <point.icon className="w-7 h-7 text-[#6B7C8F]" />
+
+          {/* Column headers */}
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_40px_1fr] gap-4 md:gap-6 max-w-5xl mx-auto mb-6 px-1">
+            <div className="flex items-center gap-2 text-sm font-semibold tracking-wider uppercase text-[#D94A4A]">
+              <span className="w-2 h-2 rounded-full bg-[#D94A4A]"></span>
+              Bez systému
+            </div>
+            <div></div>
+            <div className="flex items-center gap-2 text-sm font-semibold tracking-wider uppercase text-[#4A6FA5]">
+              <span className="w-2 h-2 rounded-full bg-[#4A6FA5]"></span>
+              S Budeživo
+            </div>
+          </div>
+
+          {/* Comparison rows */}
+          <div className="space-y-4 max-w-5xl mx-auto">
+            {painComparison.map((row, idx) => {
+              const BadIcon = row.bad.icon;
+              const GoodIcon = row.good.icon;
+              return (
+                <div
+                  key={idx}
+                  className="grid grid-cols-1 md:grid-cols-[1fr_40px_1fr] items-center gap-4 md:gap-6"
+                  data-testid={`pain-comparison-row-${idx}`}
+                >
+                  {/* Bad card */}
+                  <div className="flex items-center gap-4 bg-[#FCECEB] border border-[#F5D5D2] rounded-2xl p-5 hover:shadow-sm transition-shadow">
+                    <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <BadIcon className="w-5 h-5 text-[#D94A4A]" strokeWidth={2} />
+                    </div>
+                    <p className="text-[#2B3E50] font-medium leading-snug">{row.bad.text}</p>
+                  </div>
+
+                  {/* Arrow */}
+                  <div className="hidden md:flex items-center justify-center">
+                    <ArrowRight className="w-5 h-5 text-[#B8C4D6]" strokeWidth={2} />
+                  </div>
+
+                  {/* Good card */}
+                  <div className="flex items-center gap-4 bg-[#EEF2F9] border border-[#D9E1F0] rounded-2xl p-5 hover:shadow-sm transition-shadow">
+                    <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
+                      <GoodIcon className="w-5 h-5 text-[#4A6FA5]" strokeWidth={2} />
+                    </div>
+                    <p className="text-[#2B3E50] font-medium leading-snug">{row.good.text}</p>
+                  </div>
                 </div>
-                <p className="text-[#2B3E50] font-medium">{point.text}</p>
-              </Card>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -426,70 +486,108 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {/* Benefits Section - "Úleva pro zaměstnance / Přínos pro vedení" */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-5xl mx-auto">
-            {/* Employee Benefits */}
-            <div>
-              <div className="flex items-center mb-6">
-                <div className="w-1 h-8 bg-[#84A98C] rounded mr-4"></div>
-                <h3 className="text-2xl font-bold text-[#2B3E50]">Úleva pro zaměstnance</h3>
-              </div>
-              <div className="space-y-4">
-                {employeeBenefits.map((benefit, idx) => (
-                  <div key={idx} className="flex items-center" data-testid={`employee-benefit-${idx}`}>
-                    <div className="w-10 h-10 bg-[#E8F5E9] rounded-xl flex items-center justify-center mr-4 flex-shrink-0">
-                      <Check className="w-5 h-5 text-[#84A98C]" />
+      {/* Benefits Section - Split layout: Úleva pro zaměstnance / Přínos pro vedení */}
+      <section className="bg-white">
+        <div className="grid grid-cols-1 md:grid-cols-2">
+          {/* Employee Benefits (light side) */}
+          <div className="py-20 px-6 md:px-12 lg:px-20 bg-white">
+            <div className="max-w-xl md:ml-auto md:pr-8">
+              <p className="text-xs font-semibold tracking-[0.2em] uppercase text-[#C4AB86] mb-3">Pro zaměstnance</p>
+              <h3 className="text-3xl md:text-4xl font-bold text-[#2B3E50] mb-10">Úleva pro zaměstnance</h3>
+
+              <div className="divide-y divide-gray-100">
+                {employeeBenefits.map((benefit, idx) => {
+                  const Icon = benefit.icon;
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-4 py-5"
+                      data-testid={`employee-benefit-${idx}`}
+                    >
+                      <div className="w-10 h-10 bg-[#F1F3F8] rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Icon className="w-5 h-5 text-[#4A6FA5]" strokeWidth={2} />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-semibold text-[#2B3E50] mb-1">{benefit.title}</h4>
+                        <p className="text-sm text-gray-500 leading-relaxed">{benefit.description}</p>
+                      </div>
                     </div>
-                    <span className="text-[#2B3E50]">{benefit}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
+          </div>
 
-            {/* Management Benefits */}
-            <div>
-              <div className="flex items-center mb-6">
-                <div className="w-1 h-8 bg-[#4A6FA5] rounded mr-4"></div>
-                <h3 className="text-2xl font-bold text-[#2B3E50]">Přínos pro vedení</h3>
-              </div>
-              <div className="space-y-4">
-                {managementBenefits.map((benefit, idx) => (
-                  <div key={idx} className="flex items-center" data-testid={`management-benefit-${idx}`}>
-                    <div className="w-10 h-10 bg-[#E8EDF5] rounded-xl flex items-center justify-center mr-4 flex-shrink-0">
-                      <Check className="w-5 h-5 text-[#4A6FA5]" />
+          {/* Management Benefits (dark side) */}
+          <div className="py-20 px-6 md:px-12 lg:px-20 bg-[#2B3E50]">
+            <div className="max-w-xl md:mr-auto md:pl-8">
+              <p className="text-xs font-semibold tracking-[0.2em] uppercase text-[#C4AB86] mb-3">Pro vedení</p>
+              <h3 className="text-3xl md:text-4xl font-bold text-white mb-10">Přínos pro vedení</h3>
+
+              <div className="divide-y divide-white/10">
+                {managementBenefits.map((benefit, idx) => {
+                  const Icon = benefit.icon;
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-4 py-5"
+                      data-testid={`management-benefit-${idx}`}
+                    >
+                      <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Icon className="w-5 h-5 text-[#C4AB86]" strokeWidth={2} />
+                      </div>
+                      <div>
+                        <h4 className="text-base font-semibold text-white mb-1">{benefit.title}</h4>
+                        <p className="text-sm text-white/60 leading-relaxed">{benefit.description}</p>
+                      </div>
                     </div>
-                    <span className="text-[#2B3E50]">{benefit}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* How It Works Section - "Jak to funguje" */}
-      <section className="py-16 bg-[#F8F9FA]" id="jak-to-funguje">
+      {/* How It Works Section - "Jak to funguje?" 4-step timeline */}
+      <section className="py-20 bg-[#F1F4FA]" id="jak-to-funguje">
         <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-12">
-            Jak to funguje
+          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-16">
+            Jak to funguje?
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {howItWorks.map((item, idx) => (
-              <Card 
-                key={idx} 
-                className="p-8 bg-white border-0 rounded-2xl text-center relative"
-                data-testid={`how-it-works-${idx}`}
-              >
-                <div className="w-14 h-14 bg-[#4A6FA5] rounded-full flex items-center justify-center mx-auto mb-6">
-                  <span className="text-2xl font-bold text-white">{item.step}</span>
-                </div>
-                <h3 className="text-lg font-semibold text-[#2B3E50] mb-2">{item.title}</h3>
-                <div className="w-8 h-0.5 bg-[#4A6FA5] mx-auto mb-4"></div>
-                <p className="text-gray-600 text-sm leading-relaxed">{item.description}</p>
-              </Card>
-            ))}
+
+          <div className="relative max-w-5xl mx-auto">
+            {/* Horizontal connecting line (desktop only) */}
+            <div
+              className="hidden md:block absolute top-10 left-[12.5%] right-[12.5%] h-px bg-[#CBD4E4]"
+              aria-hidden="true"
+            ></div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-6 relative">
+              {howItWorks.map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={idx}
+                    className="flex flex-col items-center text-center"
+                    data-testid={`how-it-works-${idx}`}
+                  >
+                    {/* Circle with icon + step badge */}
+                    <div className="relative mb-6">
+                      <div className="w-20 h-20 bg-[#4A6FA5] rounded-full flex items-center justify-center shadow-md">
+                        <Icon className="w-8 h-8 text-white" strokeWidth={2} />
+                      </div>
+                      <div className="absolute -top-1 -right-1 w-7 h-7 bg-[#C4AB86] rounded-full flex items-center justify-center shadow-sm ring-4 ring-[#F1F4FA]">
+                        <span className="text-xs font-bold text-white">{item.step}</span>
+                      </div>
+                    </div>
+
+                    <h3 className="text-lg font-semibold text-[#2B3E50] mb-3">{item.title}</h3>
+                    <p className="text-sm text-gray-500 leading-relaxed max-w-[220px]">{item.description}</p>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>

@@ -102,7 +102,7 @@ programs: + room_id (FK → rooms.id)
 
 ## Důležitá poznámka k OAuth
 Pro testování na preview prostředí je potřeba v Azure Portal přidat Redirect URI:
-`https://school-crm-saas.preview.emergentagent.com/api/auth/microsoft/callback`
+`https://arch-enhance-v59.preview.emergentagent.com/api/auth/microsoft/callback`
 
 Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 
@@ -511,4 +511,13 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] Sidebar: nová položka „Můj profil" (`nav-my-profile`) viditelná pro všechny role
 - [x] Pytest: `test_my_profile_and_naslech_removal.py` — 7/7 PASS
 - [x] Testováno: 100% backend + 100% frontend E2E (iteration_59.json)
+
+
+### Fáze 55 — Landing page redesign sekcí dle mockupů (23.4.2026)
+- [x] **Sekce „Znáte tuto realitu?"**: přepracováno ze 6 karet do porovnávacího layoutu *Bez systému* (červené karty) → šipky → *S Budeživo* (modré karty); 5 párů problém/řešení
+- [x] **Sekce Benefits (Úleva pro zaměstnance / Přínos pro vedení)**: split layout přes celou šířku — levá strana bílá (employee), pravá strana `#2B3E50` (management); každý benefit má ikonu + název + popisek; zlaté `#C4AB86` akcenty
+- [x] **Sekce „Jak to funguje?"**: rozšíření ze 3 na 4 kroky v horizontální timeline s propojovací linkou; modré kruhy `#4A6FA5` s ikonou + zlatý badge čísla
+- [x] Nové ikony importovány z lucide-react (ArrowRight, MailCheck, CheckCircle2, CalendarDays, UserPlus, Smile, atd.)
+- [x] Odstraněn nepoužívaný `painPoints` array
+- [x] Lint: ✅ No issues
 

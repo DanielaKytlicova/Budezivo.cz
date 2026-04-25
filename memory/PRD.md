@@ -548,3 +548,17 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - `/programy-pro-skoly/:id` (`CatalogDetailPage.js`) — cover, název, institution, meta (city/duration/capacity), categories, popis, sticky sidebar s CTA „Vybrat termín" (→ `/booking/{inst}?program={id}`) a „Nezávazně poptat" (otevře dialog → POST `/api/public/contact` s prefixem source)
 - [x] **NENÍ linkováno z hlavní stránky** (per user request) — Header/HomePage/Footer žádný odkaz, přístup pouze přes URL
 - [x] **Testing iter60**: backend 12/12 PASS po fixu age operátoru, frontend 100% PASS (list + filtry + detail + inquiry + admin Switch)
+
+
+### Fáze 58 — Katalog ETAPA 2: Inspirace & Discovery + SEO slugy (25.4.2026)
+- [x] **🔥 Sekce „Nejoblíbenější"** + **🆕 Sekce „Novinky"** nad hlavním gridem, viditelné jen když nejsou aktivní filtry/slug; kompaktní 4-sloupcové karty (`discover-card-{id}`) využívají existující endpoint s `?sort=popular&limit=4` / `?sort=newest&limit=4`
+- [x] **SEO URL slugy** `/programy-pro-skoly/{slug}` — slug client-side resolved:
+  - `ms` / `zs1` / `zs2` / `ss` → age filter (např. „Programy pro mateřské školy")
+  - `praha` / `brno` / `…` → city filter (slug porovnán proti facets.cities)
+  - `vytvarna-vychova` / `hudebni` / … → category filter
+  - Slug-aware H1: „Programy v lokalitě Brno", „Programy pro 1. stupeň ZŠ" atd.
+  - Změna filtru opouští slug a přejde na `?city=…` query (zachování URL pro sdílení)
+- [x] **Routing reorganizace**: detail přesunut na `/programy-pro-skoly/p/{id}` aby nedošlo ke kolizi se slug routou; ProgramCard a CompactProgramCard updated
+- [x] **Slugify helper** `/app/frontend/src/lib/slugify.js` (NFD strip + lowercase + dash) + `AGE_SLUGS`, `AGE_SLUG_LABELS`, `UUID_RE`
+- [x] **Testováno**: curl + screenshot — `?sort=popular&limit=4` a `?sort=newest&limit=4` vrací správně (4 + 4 položky, oba viditelné v UI), `/brno` filtruje, `/ms` filtruje, `/p/{id}` otevírá detail
+- [x] Lint: ✅ No issues

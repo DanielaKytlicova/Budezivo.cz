@@ -85,7 +85,8 @@ function App() {
 
               {/* B2B catalog "Programy pro školy" — hidden from main nav, accessible by URL only */}
               <Route path="/programy-pro-skoly" element={<CatalogPage />} />
-              <Route path="/programy-pro-skoly/:id" element={<CatalogDetailPage />} />
+              <Route path="/programy-pro-skoly/p/:id" element={<CatalogDetailPage />} />
+              <Route path="/programy-pro-skoly/:slug" element={<CatalogPage />} />
 
               {/* Admin routes */}
               <Route

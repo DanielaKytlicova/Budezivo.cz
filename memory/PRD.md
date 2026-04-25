@@ -531,3 +531,20 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - flag OFF → `show_stats=False`, sekce skryta (ověřeno v DOM: `document.querySelector('[data-testid=social-proof-section]') === null`)
   - PUT enabled=true → `show_stats=True`, sekce se objeví
 
+
+
+### Fáze 57 — B2B Katalog „Programy pro školy" (ETAPA 1 MVP) (25.4.2026)
+- [x] **DB schema (idempotent migrace)**: nový sloupec `programs.is_in_catalog` BOOLEAN NOT NULL DEFAULT FALSE — ALTER TABLE IF NOT EXISTS v `main.py startup_event`
+- [x] **SQLAlchemy model**: `Program.is_in_catalog` + Pydantic `ProgramBase.is_in_catalog: bool = False`
+- [x] **Backend route** `/app/backend/routes/catalog.py`:
+  - `GET /api/public/catalog` — list s filtry `?city=&age=ms|zs1|zs2|ss&category=&q=&sort=popular|newest`, paginace, facets (cities/categories/age_groups)
+  - `GET /api/public/catalog/{program_id}` — detail s description_full, institution.address
+  - Hard filtr: `is_in_catalog=TRUE AND deleted_at IS NULL AND is_published=TRUE AND status='active' AND i.deleted_at IS NULL`
+  - Reservation count z `reservations` (counted statuses: confirmed/pending_approval/done/approved)
+  - **CRITICAL FIX iter60**: `(p.target_groups)::jsonb ?| :age_codes` — sloupec je JSON, ne JSONB; cast nutný pro `?|` operátor
+- [x] **Admin toggle**: nový Switch `program-is-in-catalog` v `ProgramsPage.js` editoru programu (vedle is_published) — popisek „Zobrazit v katalogu „Programy pro školy"
+- [x] **Veřejné stránky** (oba s data-testid):
+  - `/programy-pro-skoly` (`CatalogPage.js`) — hero, search bar, 4 filtry (city/age/category/sort), URL-driven přes `useSearchParams`, aktivní filter chips, grid 3-col karet, empty state
+  - `/programy-pro-skoly/:id` (`CatalogDetailPage.js`) — cover, název, institution, meta (city/duration/capacity), categories, popis, sticky sidebar s CTA „Vybrat termín" (→ `/booking/{inst}?program={id}`) a „Nezávazně poptat" (otevře dialog → POST `/api/public/contact` s prefixem source)
+- [x] **NENÍ linkováno z hlavní stránky** (per user request) — Header/HomePage/Footer žádný odkaz, přístup pouze přes URL
+- [x] **Testing iter60**: backend 12/12 PASS po fixu age operátoru, frontend 100% PASS (list + filtry + detail + inquiry + admin Switch)

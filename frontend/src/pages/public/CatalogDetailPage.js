@@ -10,7 +10,7 @@ import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
 import { ArrowLeft, MapPin, Clock, Users, Sparkles, Calendar as CalIcon, MessageSquare } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL + '/api';
@@ -216,11 +216,11 @@ export default function CatalogDetailPage() {
         <DialogContent className="max-w-md" data-testid="catalog-inquiry-dialog">
           <DialogHeader>
             <DialogTitle>Nezávazná poptávka</DialogTitle>
+            <DialogDescription>
+              Pošleme váš dotaz přímo pořadateli programu „{p.name}". Nezávazně.
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleInquiry} className="space-y-3">
-            <p className="text-sm text-slate-500">
-              Pošleme vaše dotazy přímo pořadateli programu „{p.name}".
-            </p>
             <div>
               <Label htmlFor="inq-name">Vaše jméno *</Label>
               <Input id="inq-name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required data-testid="inquiry-name" />

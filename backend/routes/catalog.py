@@ -107,9 +107,9 @@ async def list_catalog(
     if age:
         codes = AGE_SLUG_MAP.get(age.lower())
         if codes:
-            # Match either single age_group or any code in target_groups JSON array
+            # Match either single age_group or any code in target_groups (json) — cast to jsonb for ?| operator
             where.append(
-                "(p.age_group = ANY(:age_codes) OR p.target_groups ?| :age_codes)"
+                "(p.age_group = ANY(:age_codes) OR (p.target_groups)::jsonb ?| :age_codes)"
             )
             params["age_codes"] = codes
 

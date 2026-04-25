@@ -425,6 +425,49 @@ export const HomePage = () => {
         </div>
       </section>
 
+      {/* How It Works Section - "Jak to funguje?" 4-step timeline */}
+      <section className="py-20 bg-[#F1F4FA]" id="jak-to-funguje">
+        <div className="max-w-7xl mx-auto px-6 md:px-8">
+          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-16">
+            Jak to funguje?
+          </h2>
+
+          <div className="relative max-w-5xl mx-auto">
+            {/* Horizontal connecting line (desktop only) */}
+            <div
+              className="hidden md:block absolute top-10 left-[12.5%] right-[12.5%] h-px bg-[#CBD4E4]"
+              aria-hidden="true"
+            ></div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-6 relative">
+              {howItWorks.map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <div
+                    key={idx}
+                    className="flex flex-col items-center text-center"
+                    data-testid={`how-it-works-${idx}`}
+                  >
+                    {/* Circle with icon + step badge */}
+                    <div className="relative mb-6">
+                      <div className="w-20 h-20 bg-[#4A6FA5] rounded-full flex items-center justify-center shadow-md">
+                        <Icon className="w-8 h-8 text-white" strokeWidth={2} />
+                      </div>
+                      <div className="absolute -top-1 -right-1 w-7 h-7 bg-[#C4AB86] rounded-full flex items-center justify-center shadow-sm ring-4 ring-[#F1F4FA]">
+                        <span className="text-xs font-bold text-white">{item.step}</span>
+                      </div>
+                    </div>
+
+                    <h3 className="text-lg font-semibold text-[#2B3E50] mb-3">{item.title}</h3>
+                    <p className="text-sm text-gray-500 leading-relaxed max-w-[220px]">{item.description}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Features Section — "Vše na jednom místě." with dashboard preview */}
       <section className="py-20 md:py-24 bg-[#2B3E50] relative overflow-hidden" id="funkce">
         {/* subtle grid backdrop */}
@@ -530,49 +573,6 @@ export const HomePage = () => {
                   );
                 })}
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works Section - "Jak to funguje?" 4-step timeline */}
-      <section className="py-20 bg-[#F1F4FA]" id="jak-to-funguje">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-16">
-            Jak to funguje?
-          </h2>
-
-          <div className="relative max-w-5xl mx-auto">
-            {/* Horizontal connecting line (desktop only) */}
-            <div
-              className="hidden md:block absolute top-10 left-[12.5%] right-[12.5%] h-px bg-[#CBD4E4]"
-              aria-hidden="true"
-            ></div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-6 relative">
-              {howItWorks.map((item, idx) => {
-                const Icon = item.icon;
-                return (
-                  <div
-                    key={idx}
-                    className="flex flex-col items-center text-center"
-                    data-testid={`how-it-works-${idx}`}
-                  >
-                    {/* Circle with icon + step badge */}
-                    <div className="relative mb-6">
-                      <div className="w-20 h-20 bg-[#4A6FA5] rounded-full flex items-center justify-center shadow-md">
-                        <Icon className="w-8 h-8 text-white" strokeWidth={2} />
-                      </div>
-                      <div className="absolute -top-1 -right-1 w-7 h-7 bg-[#C4AB86] rounded-full flex items-center justify-center shadow-sm ring-4 ring-[#F1F4FA]">
-                        <span className="text-xs font-bold text-white">{item.step}</span>
-                      </div>
-                    </div>
-
-                    <h3 className="text-lg font-semibold text-[#2B3E50] mb-3">{item.title}</h3>
-                    <p className="text-sm text-gray-500 leading-relaxed max-w-[220px]">{item.description}</p>
-                  </div>
-                );
-              })}
             </div>
           </div>
         </div>
@@ -812,32 +812,6 @@ export const HomePage = () => {
               <DialogTrigger asChild>
                 <Button variant="outline" className="border-2 border-[#4A6FA5] text-[#4A6FA5] rounded-lg px-8 h-12">
                   Nezávazná konzultace
-                </Button>
-              </DialogTrigger>
-            </Dialog>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="bg-gradient-to-br from-[#4A6FA5] via-[#5979ad] to-[#6889bb] text-white py-20">
-        <div className="max-w-4xl mx-auto px-6 md:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Dopřejte svému týmu více času na skutečnou práci.
-          </h2>
-          <p className="text-lg text-white/90 mb-8">
-            Vyzkoušejte systém zdarma po dobu 30 dnů. Žádná platební karta není potřeba.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/register">
-              <Button size="lg" className="bg-[#C4AB86] text-white hover:bg-[#b39975] h-12 px-8 rounded-lg">
-                Vyzkoušet zdarma
-              </Button>
-            </Link>
-            <Dialog open={showDemoDialog} onOpenChange={setShowDemoDialog}>
-              <DialogTrigger asChild>
-                <Button size="lg" variant="outline" className="h-12 px-8 rounded-lg border-2 border-white text-white hover:bg-white/10">
-                  Domluvit online ukázku
                 </Button>
               </DialogTrigger>
             </Dialog>

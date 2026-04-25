@@ -578,3 +578,16 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - Divider s ikonou oka „Podívejte se, jak to uvidí váš zákazník"
   - **Glass karta** „POHLED VAŠEHO ZÁKAZNÍKA / Jak jednoduché to bude pro učitele?" se 3 checks + zlatým „Spustit ukázku rezervace" (target="_blank") + „Otevře se v novém okně · Pouze demo data"
 - [x] Lint: ✅ + smoke screenshoty potvrdily render obou sekcí (4 cta-tlačítka, 1 dashboard-preview, 6 feature-pills, 1 try-booking-demo)
+
+
+### Fáze 60 — Reorder sekcí na hlavní stránce + smazání CTA (25.4.2026)
+- [x] **Nové pořadí sekcí** (po Hero):
+  1. Znáte tuto realitu?
+  2. Jak to funguje? (přesunuto vpřed)
+  3. Vše na jednom místě.
+  4. Úleva pro zaměstnance / Přínos pro vedení
+  5. Nastavení za 15 minut.
+  6. Tarify
+  7. FAQ
+- [x] **Smazána sekce** „Dopřejte svému týmu více času na skutečnou práci." (modré CTA před FAQ) — duplicitní s „Nastavení za 15 minut."
+- [x] Lint: ✅ + smoke screenshot ověřil nové pořadí v DOM

@@ -1,0 +1,52 @@
+{
+  "summary": "Iter60 — B2B Catalog 'Programy pro školy' (Etapa 1 MVP). Backend pytest /app/backend/tests/test_catalog_b2b.py: 10/12 PASS (1 CRITICAL backend bug found in age filter, 1 fail = my test fixture miss, not an app bug). Frontend playwright: 100% pass on /programy-pro-skoly list+detail+inquiry+admin Switch flows; homepage confirmed NOT linking to /programy-pro-skoly.\n\nBackend confirmed: GET /api/public/catalog returns 4 in_catalog programs (Galerie U Zlatého kohouta, Brno) with no _id leakage; institution embedded with id (UUID string), name, city; reservation_count present; facets contain Brno + categories. Detail GET /api/public/catalog/{id} returns description_full + institution.address; unknown UUID → 404. Toggling is_in_catalog from true→false via admin PUT /api/programs/{id} hides the program from /api/public/catalog/{id} (returns 404), toggling back true makes it visible again. City filter (case-insensitive 'BRNO'), q (free text), sort=newest/popular all work. Unknown city returns total=0.\n\nFrontend confirmed: /programy-pro-skoly renders catalog-page → catalog-title 'Najděte program pro svou třídu', search bar, 4 cards. Filter selects (city, age, category, sort) write URL params without reload (?city=Brno → ?city=Brno&age=ms etc). catalog-search-input + catalog-search-submit set ?q=. clear-filters resets URL. catalog-card-{id} navigates to /programy-pro-skoly/{id} where catalog-detail-page renders catalog-detail-title + description + CTA buttons. catalog-cta-inquiry opens catalog-inquiry-dialog; submitting POSTs /api/public/contact and shows sonner toast 'Děkujeme! Brzy vás kontaktujeme.'. Homepage / has 0 anchors to /programy-pro-skoly (Header, HomePage, Footer all clean). Admin login as galerie@budezivo.cz → /admin/programs → editing first program shows program-is-in-catalog Switch in 'checked' state (matches DB).",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/public/catalog?age=ms (and zs1/zs2/ss)",
+        "issue": "500 ProgrammingError: 'operator does not exist: json ?| text[]'. SQL uses `p.target_groups ?| :age_codes` but programs.target_groups is a json column (not jsonb). Postgres `?|` is a jsonb-only operator. Needs cast `(p.target_groups)::jsonb ?| :age_codes` OR rewrite to `EXISTS (SELECT 1 FROM json_array_elements_text(p.target_groups) t WHERE t = ANY(:age_codes))`. Reproduce: curl '$URL/api/public/catalog?age=ms' → 500. Verified in /var/log/supervisor/backend.err.log.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "/programy-pro-skoly/{id}",
+        "issues": [
+          "Console a11y warning: 'Missing Description or aria-describedby={undefined} for {DialogContent}' on catalog-inquiry-dialog. Add <DialogDescription> or aria-describedby for screen-reader compliance."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_catalog_b2b.py",
+    "/app/test_reports/pytest/iter60_catalog.xml"
+  ],
+  "action_items": [
+    "FIX in /app/backend/routes/catalog.py list_catalog age filter: cast `p.target_groups::jsonb ?| :age_codes` OR rewrite using json_array_elements_text. Currently /api/public/catalog?age=ms (and zs1/zs2/ss) returns 500 — entire age filter pathway broken end-to-end (UI shows empty because backend errored).",
+    "OPTIONAL: Add <DialogDescription> to catalog-inquiry-dialog in CatalogDetailPage.js to remove a11y warning."
+  ],
+  "critical_code_review_comments": [
+    "CRITICAL: catalog.py:111 SQL `p.target_groups ?| :age_codes` will always raise on Postgres because `target_groups` is `json` not `jsonb`. There are no tests of this code path before iter60 — recommend regression test in test_catalog_b2b.py covers all 4 age slugs once fix is applied.",
+    "GOOD: _row_to_card excludes _id, returns id as str(uuid), embeds institution.id as str(uuid). No MongoDB ObjectId leakage.",
+    "GOOD: list_catalog hard-filters is_in_catalog=TRUE AND deleted_at IS NULL AND is_published=TRUE AND status='active' AND i.deleted_at IS NULL — correct opt-in semantics.",
+    "GOOD: detail endpoint returns 404 (not 403) when is_in_catalog=FALSE — verified by test_toggle_off_then_on (toggled false → /api/public/catalog/{id} → 404, toggled true → 200).",
+    "GOOD: facets query also filters by is_in_catalog=TRUE so distinct cities/categories only reflect publicly-visible programs.",
+    "GOOD: Frontend CatalogPage URL-driven filters (useSearchParams, replace:false) correctly preserve browser back/forward. Homepage and Header.js contain zero anchors to /programy-pro-skoly per user requirement.",
+    "GOOD: CatalogDetailPage CTA 'Vybrat termín' navigates to /booking/{institution_id}?program={id} (line 178) — matches existing booking flow contract.",
+    "MINOR: route /programy-pro-skoly/:id has no SEO/meta tags. For B2B catalog SEO discoverability may be desired, but per user choice the page is hidden from main nav, so this is intentional.",
+    "MINOR: Backend /api/public/catalog has @limiter.limit('60/minute') — appropriate but not tested in this iteration."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "83% (10/12; 1 critical app bug, 1 test fixture miss)", "frontend": "100% (catalog list, filters, search, detail, inquiry submit, homepage has no link, admin Switch all verified)"},
+  "test_credentials": "galerie@budezivo.cz / Galerie2026! (Galerie U Zlatého kohouta admin, 4 programs is_in_catalog=true). demo@budezivo.cz / Demo2026! (superadmin) — used for cross-checks only.",
+  "seed_data_creation": "None added permanently. test_toggle_off_then_on briefly toggled one Galerie program off→on; final state restored to TRUE. POST /api/public/contact received an inquiry from inquiry-name='Test User' / email='test60@example.com' — please clean up if mailing log size matters.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reproduce backend 500: `curl '$REACT_APP_BACKEND_URL/api/public/catalog?age=ms'`. After main agent fixes catalog.py SQL (json→jsonb cast), re-run `cd /app/backend && python -m pytest tests/test_catalog_b2b.py::TestCatalogList::test_filter_age_ms -v`. test_new_program_defaults_to_not_in_catalog needs a richer payload (name_en, description_en, target_group required) — left as-is to keep visible the API contract expectation; main agent should either decide to relax those or update the test. Do NOT delete /app/backend/tests/test_catalog_b2b.py — it is the regression suite for this feature.",
+  "rca of the issue": "ROOT CAUSE: In /app/backend/routes/catalog.py at line 111-114, the WHERE clause uses Postgres's jsonb-only operator `?|` against `p.target_groups`, which is declared as `json` (not `jsonb`) in the SQLAlchemy model. asyncpg raises 'operator does not exist: json ?| text[]' as a 500. PROOF: backend.err.log clearly shows the SQL and the parameters [['ms_3_6'],60,0]. FIX OPTIONS (any one): (a) `(p.target_groups)::jsonb ?| :age_codes`; (b) `EXISTS (SELECT 1 FROM json_array_elements_text(p.target_groups) AS t WHERE t = ANY(:age_codes))`; (c) migrate the column to jsonb. Option (a) is smallest, option (b) is most portable. After fix, all 4 age slugs (ms, zs1, zs2, ss) in AGE_SLUG_MAP will work."
+}

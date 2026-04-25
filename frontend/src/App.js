@@ -41,6 +41,8 @@ import { SuperadminPage } from './pages/admin/SuperadminPage';
 import PublicEventsPage from './pages/public/PublicEventsPage';
 import PaymentReturnPage from './pages/public/PaymentReturnPage';
 import PaymentMockPage from './pages/public/PaymentMockPage';
+import CatalogPage from './pages/public/CatalogPage';
+import CatalogDetailPage from './pages/public/CatalogDetailPage';
 
 import './App.css';
 
@@ -80,6 +82,10 @@ function App() {
               <Route path="/events/:institutionId" element={<PublicEventsPage />} />
               <Route path="/payment/return" element={<PaymentReturnPage />} />
               <Route path="/payment/mock" element={<PaymentMockPage />} />
+
+              {/* B2B catalog "Programy pro školy" — hidden from main nav, accessible by URL only */}
+              <Route path="/programy-pro-skoly" element={<CatalogPage />} />
+              <Route path="/programy-pro-skoly/:id" element={<CatalogDetailPage />} />
 
               {/* Admin routes */}
               <Route

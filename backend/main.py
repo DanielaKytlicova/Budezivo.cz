@@ -48,6 +48,7 @@ from routes.microsoft_calendar import router as ms_calendar_router
 from routes.events import router as events_router
 from routes.unified_availability import router as unified_availability_router
 from routes.waitlist import router as waitlist_router
+from routes.catalog import router as catalog_router
 from routes.mailings import router as mailings_router
 from routes.superadmin import router as superadmin_router
 from routes.event_payments import router as event_payments_router
@@ -118,6 +119,7 @@ api_router.include_router(availability_router)
 api_router.include_router(statistics_router)
 api_router.include_router(email_templates_router)
 api_router.include_router(public_router)
+api_router.include_router(catalog_router)
 api_router.include_router(emails_router)
 api_router.include_router(account_router)
 api_router.include_router(feedback_router)
@@ -274,6 +276,12 @@ async def startup_event():
                     ),
                     {"k": key, "d": desc},
                 )
+            # Idempotent column additions for incremental schema (non-breaking)
+            await s.execute(
+                _text(
+                    "ALTER TABLE programs ADD COLUMN IF NOT EXISTS is_in_catalog BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
             await s.commit()
         logger.info("Default feature flags ensured")
     except Exception as e:

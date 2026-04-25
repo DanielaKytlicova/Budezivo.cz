@@ -61,6 +61,7 @@ const getDefaultFormData = () => ({
   image_url: null,
   requires_approval: false,
   is_published: true,
+  is_in_catalog: false,
   send_email_notification: true,
   status: 'active',
   available_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
@@ -962,6 +963,20 @@ export const ProgramsPage = () => {
               data-testid="program-is-published"
               checked={formData.is_published}
               onCheckedChange={(checked) => setFormData({ ...formData, is_published: checked })}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-slate-900">Zobrazit v katalogu „Programy pro školy"</p>
+              <p className="text-sm text-gray-500">
+                Program se objeví ve veřejném katalogu na <code>/programy-pro-skoly</code>. Vhodné pro programy nabízené školám.
+              </p>
+            </div>
+            <Switch
+              data-testid="program-is-in-catalog"
+              checked={!!formData.is_in_catalog}
+              onCheckedChange={(checked) => setFormData({ ...formData, is_in_catalog: checked })}
             />
           </div>
 

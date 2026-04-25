@@ -562,3 +562,19 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] **Slugify helper** `/app/frontend/src/lib/slugify.js` (NFD strip + lowercase + dash) + `AGE_SLUGS`, `AGE_SLUG_LABELS`, `UUID_RE`
 - [x] **Testováno**: curl + screenshot — `?sort=popular&limit=4` a `?sort=newest&limit=4` vrací správně (4 + 4 položky, oba viditelné v UI), `/brno` filtruje, `/ms` filtruje, `/p/{id}` otevírá detail
 - [x] Lint: ✅ No issues
+
+
+### Fáze 59 — Landing redesign sekcí „Vše na jednom místě" + „Vyzkoušejte si to" (25.4.2026)
+- [x] **„Vše na jednom místě"** — kompletně přepracováno:
+  - Pozadí změněno na tmavě modré `#2B3E50` (per styleguide) s jemným grid backdrop
+  - **DashboardPreview komponenta** — stylizovaná ilustrace admin panelu (sidebar, header, 4 statkarty, kalendář s žluto/zlatými booking bloky — jako mockup); pouze visual, žádná data
+  - 6 feature pills níže (Automatická potvrzení, Bez registrace pro školy, Statistiky pro vedení, Správa kapacit, Online platby, Týmové role) v outline-glass stylu
+  - Odstraněn starý 6-card grid (`features` array smazán)
+- [x] **„Vyzkoušejte si to"** přepracováno na **„Nastavení za 15 minut."** dark CTA sekci:
+  - Pozadí `#2B3E50` se zlatým radial accent
+  - Eyebrow „Připraveni začít?"
+  - **Vynechány věty:** „První měsíc zdarma." a „Bez smlouvy, bez závazků." (per user)
+  - 2 CTA: „Zaregistrovat instituci" (zlaté → /register) + „Domluvit online ukázku" (outline → #contact)
+  - Divider s ikonou oka „Podívejte se, jak to uvidí váš zákazník"
+  - **Glass karta** „POHLED VAŠEHO ZÁKAZNÍKA / Jak jednoduché to bude pro učitele?" se 3 checks + zlatým „Spustit ukázku rezervace" (target="_blank") + „Otevře se v novém okně · Pouze demo data"
+- [x] Lint: ✅ + smoke screenshoty potvrdily render obou sekcí (4 cta-tlačítka, 1 dashboard-preview, 6 feature-pills, 1 try-booking-demo)

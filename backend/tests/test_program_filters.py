@@ -6,7 +6,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://school-crm-saas.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://arch-enhance-v59.preview.emergentagent.com').rstrip('/')
 INSTITUTION_ID = "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
 TEST_CREDENTIALS = {"email": "demo@budezivo.cz", "password": "Demo2026!"}
 

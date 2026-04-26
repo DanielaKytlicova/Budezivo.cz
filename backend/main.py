@@ -48,6 +48,7 @@ from routes.microsoft_calendar import router as ms_calendar_router
 from routes.events import router as events_router
 from routes.unified_availability import router as unified_availability_router
 from routes.waitlist import router as waitlist_router
+from routes.catalog import router as catalog_router
 from routes.mailings import router as mailings_router
 from routes.superadmin import router as superadmin_router
 from routes.event_payments import router as event_payments_router
@@ -118,6 +119,7 @@ api_router.include_router(availability_router)
 api_router.include_router(statistics_router)
 api_router.include_router(email_templates_router)
 api_router.include_router(public_router)
+api_router.include_router(catalog_router)
 api_router.include_router(emails_router)
 api_router.include_router(account_router)
 api_router.include_router(feedback_router)
@@ -253,6 +255,37 @@ async def startup_event():
         init_storage()
     except Exception as e:
         logger.warning(f"Object storage init deferred: {e}")
+
+    # Ensure default feature flags exist (idempotent)
+    try:
+        from sqlalchemy import text as _text
+        from database.supabase import AsyncSessionLocal as _Session
+        DEFAULT_FLAGS = [
+            (
+                "social_proof",
+                "Sekce Social Proof na landing page (statistiky 8+/21+/173+/98% a \u201eD\u016fv\u011bruj\u00ed n\u00e1m\u201c). Vypnuto = sekce skryta; Zapnuto glob\u00e1ln\u011b = sekce zobrazena v\u0161em n\u00e1v\u0161t\u011bvn\u00edk\u016fm.",
+            ),
+        ]
+        async with _Session() as s:
+            for key, desc in DEFAULT_FLAGS:
+                await s.execute(
+                    _text(
+                        "INSERT INTO feature_flags (id, key, enabled, allowed_institution_ids, description, created_at, updated_at) "
+                        "VALUES (gen_random_uuid(), :k, false, '[]'::jsonb, :d, now(), now()) "
+                        "ON CONFLICT (key) DO NOTHING"
+                    ),
+                    {"k": key, "d": desc},
+                )
+            # Idempotent column additions for incremental schema (non-breaking)
+            await s.execute(
+                _text(
+                    "ALTER TABLE programs ADD COLUMN IF NOT EXISTS is_in_catalog BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
+            await s.commit()
+        logger.info("Default feature flags ensured")
+    except Exception as e:
+        logger.warning(f"Feature flag seed skipped: {e}")
 
 
 @app.on_event("shutdown")

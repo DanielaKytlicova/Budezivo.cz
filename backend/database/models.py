@@ -194,6 +194,9 @@ class Program(Base):
     # Filtering & Tags
     age_categories = Column(ARRAY(Text), default=[])   # MS, ZS1, ZS2, SS
     subject_tags = Column(ARRAY(Text), default=[])      # hudební, výtvarné, technické, ...
+
+    # Public B2B catalog (Programy pro školy) opt-in
+    is_in_catalog = Column(Boolean, default=False, nullable=False)
     
     # Feedback Settings (PRO feature)
     feedback_enabled = Column(Boolean, default=True)

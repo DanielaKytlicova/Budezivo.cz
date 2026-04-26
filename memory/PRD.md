@@ -102,7 +102,7 @@ programs: + room_id (FK → rooms.id)
 
 ## Důležitá poznámka k OAuth
 Pro testování na preview prostředí je potřeba v Azure Portal přidat Redirect URI:
-`https://school-crm-saas.preview.emergentagent.com/api/auth/microsoft/callback`
+`https://arch-enhance-v59.preview.emergentagent.com/api/auth/microsoft/callback`
 
 Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 
@@ -512,3 +512,82 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] Pytest: `test_my_profile_and_naslech_removal.py` — 7/7 PASS
 - [x] Testováno: 100% backend + 100% frontend E2E (iteration_59.json)
 
+
+### Fáze 55 — Landing page redesign sekcí dle mockupů (23.4.2026)
+- [x] **Sekce „Znáte tuto realitu?"**: přepracováno ze 6 karet do porovnávacího layoutu *Bez systému* (červené karty) → šipky → *S Budeživo* (modré karty); 5 párů problém/řešení
+- [x] **Sekce Benefits (Úleva pro zaměstnance / Přínos pro vedení)**: split layout přes celou šířku — levá strana bílá (employee), pravá strana `#2B3E50` (management); každý benefit má ikonu + název + popisek; zlaté `#C4AB86` akcenty
+- [x] **Sekce „Jak to funguje?"**: rozšíření ze 3 na 4 kroky v horizontální timeline s propojovací linkou; modré kruhy `#4A6FA5` s ikonou + zlatý badge čísla
+- [x] Nové ikony importovány z lucide-react (ArrowRight, MailCheck, CheckCircle2, CalendarDays, UserPlus, Smile, atd.)
+- [x] Odstraněn nepoužívaný `painPoints` array
+- [x] Lint: ✅ No issues
+
+
+### Fáze 56 — Feature flag pro Social Proof sekci (23.4.2026)
+- [x] **Skrytí sekce Social Proof** (stats 8+/21+/173+/98% + „Důvěřují nám"): default **VYPNUTO**
+- [x] **Nový feature flag** `social_proof` automaticky vytvořen při startup seedu (`main.py startup_event`, idempotentní `INSERT ... ON CONFLICT (key) DO NOTHING`)
+- [x] `/api/public/stats` nyní čte `FeatureFlag.enabled` pro klíč `social_proof` a podle něj nastavuje `show_stats` (místo staré podmínky ≥5 institucí)
+- [x] **Superadmin UI bez úprav** — flag se automaticky objeví v existující sekci *Feature flags* s přepínačem *Globálně ZAPNUTO / Whitelist režim* (dle přání uživatele — nová sekce nevznikla)
+- [x] Testováno curl:
+  - flag OFF → `show_stats=False`, sekce skryta (ověřeno v DOM: `document.querySelector('[data-testid=social-proof-section]') === null`)
+  - PUT enabled=true → `show_stats=True`, sekce se objeví
+
+
+
+### Fáze 57 — B2B Katalog „Programy pro školy" (ETAPA 1 MVP) (25.4.2026)
+- [x] **DB schema (idempotent migrace)**: nový sloupec `programs.is_in_catalog` BOOLEAN NOT NULL DEFAULT FALSE — ALTER TABLE IF NOT EXISTS v `main.py startup_event`
+- [x] **SQLAlchemy model**: `Program.is_in_catalog` + Pydantic `ProgramBase.is_in_catalog: bool = False`
+- [x] **Backend route** `/app/backend/routes/catalog.py`:
+  - `GET /api/public/catalog` — list s filtry `?city=&age=ms|zs1|zs2|ss&category=&q=&sort=popular|newest`, paginace, facets (cities/categories/age_groups)
+  - `GET /api/public/catalog/{program_id}` — detail s description_full, institution.address
+  - Hard filtr: `is_in_catalog=TRUE AND deleted_at IS NULL AND is_published=TRUE AND status='active' AND i.deleted_at IS NULL`
+  - Reservation count z `reservations` (counted statuses: confirmed/pending_approval/done/approved)
+  - **CRITICAL FIX iter60**: `(p.target_groups)::jsonb ?| :age_codes` — sloupec je JSON, ne JSONB; cast nutný pro `?|` operátor
+- [x] **Admin toggle**: nový Switch `program-is-in-catalog` v `ProgramsPage.js` editoru programu (vedle is_published) — popisek „Zobrazit v katalogu „Programy pro školy"
+- [x] **Veřejné stránky** (oba s data-testid):
+  - `/programy-pro-skoly` (`CatalogPage.js`) — hero, search bar, 4 filtry (city/age/category/sort), URL-driven přes `useSearchParams`, aktivní filter chips, grid 3-col karet, empty state
+  - `/programy-pro-skoly/:id` (`CatalogDetailPage.js`) — cover, název, institution, meta (city/duration/capacity), categories, popis, sticky sidebar s CTA „Vybrat termín" (→ `/booking/{inst}?program={id}`) a „Nezávazně poptat" (otevře dialog → POST `/api/public/contact` s prefixem source)
+- [x] **NENÍ linkováno z hlavní stránky** (per user request) — Header/HomePage/Footer žádný odkaz, přístup pouze přes URL
+- [x] **Testing iter60**: backend 12/12 PASS po fixu age operátoru, frontend 100% PASS (list + filtry + detail + inquiry + admin Switch)
+
+
+### Fáze 58 — Katalog ETAPA 2: Inspirace & Discovery + SEO slugy (25.4.2026)
+- [x] **🔥 Sekce „Nejoblíbenější"** + **🆕 Sekce „Novinky"** nad hlavním gridem, viditelné jen když nejsou aktivní filtry/slug; kompaktní 4-sloupcové karty (`discover-card-{id}`) využívají existující endpoint s `?sort=popular&limit=4` / `?sort=newest&limit=4`
+- [x] **SEO URL slugy** `/programy-pro-skoly/{slug}` — slug client-side resolved:
+  - `ms` / `zs1` / `zs2` / `ss` → age filter (např. „Programy pro mateřské školy")
+  - `praha` / `brno` / `…` → city filter (slug porovnán proti facets.cities)
+  - `vytvarna-vychova` / `hudebni` / … → category filter
+  - Slug-aware H1: „Programy v lokalitě Brno", „Programy pro 1. stupeň ZŠ" atd.
+  - Změna filtru opouští slug a přejde na `?city=…` query (zachování URL pro sdílení)
+- [x] **Routing reorganizace**: detail přesunut na `/programy-pro-skoly/p/{id}` aby nedošlo ke kolizi se slug routou; ProgramCard a CompactProgramCard updated
+- [x] **Slugify helper** `/app/frontend/src/lib/slugify.js` (NFD strip + lowercase + dash) + `AGE_SLUGS`, `AGE_SLUG_LABELS`, `UUID_RE`
+- [x] **Testováno**: curl + screenshot — `?sort=popular&limit=4` a `?sort=newest&limit=4` vrací správně (4 + 4 položky, oba viditelné v UI), `/brno` filtruje, `/ms` filtruje, `/p/{id}` otevírá detail
+- [x] Lint: ✅ No issues
+
+
+### Fáze 59 — Landing redesign sekcí „Vše na jednom místě" + „Vyzkoušejte si to" (25.4.2026)
+- [x] **„Vše na jednom místě"** — kompletně přepracováno:
+  - Pozadí změněno na tmavě modré `#2B3E50` (per styleguide) s jemným grid backdrop
+  - **DashboardPreview komponenta** — stylizovaná ilustrace admin panelu (sidebar, header, 4 statkarty, kalendář s žluto/zlatými booking bloky — jako mockup); pouze visual, žádná data
+  - 6 feature pills níže (Automatická potvrzení, Bez registrace pro školy, Statistiky pro vedení, Správa kapacit, Online platby, Týmové role) v outline-glass stylu
+  - Odstraněn starý 6-card grid (`features` array smazán)
+- [x] **„Vyzkoušejte si to"** přepracováno na **„Nastavení za 15 minut."** dark CTA sekci:
+  - Pozadí `#2B3E50` se zlatým radial accent
+  - Eyebrow „Připraveni začít?"
+  - **Vynechány věty:** „První měsíc zdarma." a „Bez smlouvy, bez závazků." (per user)
+  - 2 CTA: „Zaregistrovat instituci" (zlaté → /register) + „Domluvit online ukázku" (outline → #contact)
+  - Divider s ikonou oka „Podívejte se, jak to uvidí váš zákazník"
+  - **Glass karta** „POHLED VAŠEHO ZÁKAZNÍKA / Jak jednoduché to bude pro učitele?" se 3 checks + zlatým „Spustit ukázku rezervace" (target="_blank") + „Otevře se v novém okně · Pouze demo data"
+- [x] Lint: ✅ + smoke screenshoty potvrdily render obou sekcí (4 cta-tlačítka, 1 dashboard-preview, 6 feature-pills, 1 try-booking-demo)
+
+
+### Fáze 60 — Reorder sekcí na hlavní stránce + smazání CTA (25.4.2026)
+- [x] **Nové pořadí sekcí** (po Hero):
+  1. Znáte tuto realitu?
+  2. Jak to funguje? (přesunuto vpřed)
+  3. Vše na jednom místě.
+  4. Úleva pro zaměstnance / Přínos pro vedení
+  5. Nastavení za 15 minut.
+  6. Tarify
+  7. FAQ
+- [x] **Smazána sekce** „Dopřejte svému týmu více času na skutečnou práci." (modré CTA před FAQ) — duplicitní s „Nastavení za 15 minut."
+- [x] Lint: ✅ + smoke screenshot ověřil nové pořadí v DOM

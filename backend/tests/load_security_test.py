@@ -8,7 +8,7 @@ import time
 import json
 import sys
 
-API_URL = sys.argv[1] if len(sys.argv) > 1 else "https://school-crm-saas.preview.emergentagent.com"
+API_URL = sys.argv[1] if len(sys.argv) > 1 else "https://arch-enhance-v59.preview.emergentagent.com"
 API = f"{API_URL}/api"
 
 RESULTS = {
@@ -231,7 +231,7 @@ async def security_test_privilege_escalation(session, token):
 
 
 async def main():
-    API_URL_VAL = sys.argv[1] if len(sys.argv) > 1 else "https://school-crm-saas.preview.emergentagent.com"
+    API_URL_VAL = sys.argv[1] if len(sys.argv) > 1 else "https://arch-enhance-v59.preview.emergentagent.com"
     
     print("=" * 60)
     print("BUDEŽIVO.CZ - ZÁTĚŽOVÝ TEST + BEZPEČNOSTNÍ AUDIT")

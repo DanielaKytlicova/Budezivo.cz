@@ -1,45 +1,39 @@
-<analysis>**original_problem_statement**: Deep security & architecture audit execution followed by consecutive iterative feature enhancements and complex bug fixes. The user requested resolving navigation UI issues, building a comprehensive Promotional Mailing / Campaign Module with relevance matching, bounce tracking, a 4-tier Subscription Plan System (Free, Start, PRO, PRO+) with strict backend feature gating, and a Superadmin Dashboard with billing order readiness. PRODUCT REQUIREMENTS: A highly secure, multi-tenant SaaS application providing School CRM, booking management with collision validation, GDPR compliance, advanced calendar integrations, robust role-based security, promotional mailings, and a subscription-based pricing architecture with automated billing hooks.
+<analysis>**original_problem_statement**: Deep security & architecture audit execution followed by consecutive iterative feature enhancements and complex bug fixes. PRODUCT REQUIREMENTS: A highly secure, multi-tenant SaaS application providing School CRM, booking management with collision validation, GDPR compliance, advanced calendar integrations, robust role-based security, promotional mailings, subscription-based pricing, and event payments. In this specific iteration, the user requested an immediate fix for a frontend crash on the , the creation of a self-service profile UI for external lecturers to manage their skills, and a complete architectural simplification of the Náslech (Observer) logic to remove duplicities.
 
 **User's preferred language**: Czech (Čeština). INSTRUCT NEXT AGENT TO RESPOND IN THE USER'S PREFERRED LANGUAGE ONLY.
 
-**what currently exists?**: A fully functional, highly secure multi-tenant SaaS application. It features unified availability logic, waitlist management, pilot event management, and a new Promotional Mailing Module (with Resend integration, auto-tagging, and bounce tracking). It also includes a newly implemented 4-tier subscription system (Free, Start, PRO, PRO+) governed by a centralized backend feature-gating config, complete with a delta-view upgrade modal and public pricing page. A Superadmin dashboard is active for platform overview, manual plan overrides, and usage metric tracking.
+**what currently exists?**: A fully functional, highly secure multi-tenant SaaS. It features booking logic, waitlists, 4-tier subscriptions, a Superadmin Dashboard, mock Comgate payments, and program photo uploads. The platform now includes structured collision transparency, comprehensive ZIP/PDF system exports, and a self-service profile page () for lecturers to manage their specializations (, , ). The complex Náslech logic has been drastically simplified.
 
 **Last working item**: 
-    - Last item agent was working: Answering the user's question regarding how the Superadmin account was created and how to access it. The agent clarified that  is hardcoded in  inside .
-    - Status: COMPLETED
+    - Last item agent was working: Fixing the frontend crash on  (caused by PDF format responses breaking JSON rendering) and implementing the missing Self-Service UI () for external lecturers. The agent also executed a major simplification of the Náslech logic by removing the  routing/DB models and  toggles.
+    - Status: USER VERIFICATION PENDING
     - Agent Testing Done: Y
-    - Which testing method agent to use?: NA (No coding required for the final response, but the prior implementation was tested using  with 100% success rate up to iteration 51)
+    - Which testing method agent to use?: NA (Testing already done via  with 100% success rate documented in )
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  *(No pending bug issues. All recent features and UI fixes were verified with 100% test success).*
+  *(No pending issues. All P0 bugs and UI omissions from the previous fork were successfully fixed and verified).*
 
 **In progress Task List**: 
   *(No tasks are currently in progress.)*
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P0) **Fakturoid Real Integration**: Implement actual API integration/webhook handler for automatic plan activation after Fakturoid invoice payment.
-    - (P1) **GoPay/Comgate Integration**: Implement payment gateway for Event applications (PRO+ feature).
+    - (P1) **Fakturoid Real Integration**: Implement actual API integration/webhook handler for automatic plan activation after Fakturoid invoice payment.
     - (P2) **i18n Language Toggle**: Implement CZ/EN switch using existing placeholder buttons.
     - (P3) **Social proof**: Add logos, references, and numbers on the landing page.
     
     Future Tasks:
     - (P4) Subscription auto-renewal scheduler and expiration logic.
-    - (P4) Promotional Mailing advanced features: Open/click statistics, scheduled background sending, advanced HTML editor.
+    - (P4) Promotional Mailing advanced features: Open/click statistics, scheduled background sending (via Celery), advanced HTML editor.
     - (P4) Usage analytics UI per plan.
 
 **Completed work in this session**
-- Removed Zájemci from sidebar and moved it to the BookingsPage header (DONE)
-- Implemented Promotional Mailing Module (CRUD, relevance engine based on tags, drafting) (DONE)
-- Integrated Resend API for actual email sending (DONE)
-- Added Auto-tagging mechanism for Schools based on names to assist mailing relevance (DONE)
-- Built Delivery Health Panel to track Resend API rate limits/bounces per contact (DONE)
-- Implemented 4-tier Subscription Plan System (Free, Start, PRO, PRO+) with central config  (DONE)
-- Created delta-view Upgrade Modal and updated Landing Page pricing (DONE)
-- Added strict backend  dependency guards across all protected endpoints (Mailings, Events, Waitlist, Outlook, Rooms, Stats, Exports) (DONE)
-- Built Superadmin Dashboard for platform overview, plan tracking, and manual overrides (DONE)
-- Added DB models for  and  (DONE)
+- Fixed  frontend crash by enforcing  parameter and adding null-safe rendering (DONE)
+- Created self-service  () for lecturers to update their skills/preferences (DONE)
+- Removed complex/duplicate Náslech logic (deleted ,  references, and  checks) (DONE)
+- Added new endpoint  for self-service updates (DONE)
+- Updated pytest suite with  to ensure regression safety (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 - None.
@@ -51,78 +45,66 @@
 
 
 **Key Technical Concepts**
-- Frontend: React, TailwindCSS, Shadcn UI, i18n JSON translations.
+- Frontend: React, TailwindCSS, Shadcn UI.
 - Backend: FastAPI, Supabase (SQLAlchemy Async), Alembic.
-- Security/Gating: Centralized  dependency mapped to 4-tier plans.
-- Architecture: Delta-view rendering dynamically filters features based on  inherited from previous tiers.
+- File Generation:  used for PDFs,  for bundles.
+- Architecture Change: Náslech (Observer mode) is no longer a separate relational record or role constraint. It is strictly a JSON array () on the User profile.
 
 **key DB schema**
-  - : added , , , , , , , .
-  - : uid=0(root) gid=0(root) groups=0(root), , , , , , etc.
-  - : tracking delivery status and match reasons.
-  - : , , , .
-  - : , .
+  - : Track skills via  (JSONB),  (JSONB),  (JSONB), and  (Text). The  column logic is deprecated.
+  - : Completely REMOVED to eliminate duplication.
 
 **changes in tech stack**
-  - Resend API heavily utilized for promotional mailings. 
-  - Subscriptions transitioned from a binary PRO flag to a complex tiered Enum logic.
+  - None.
 
 **All files of reference** 
-  -  (Source of truth for all Subscription features and backend guards)
-  -  (Contains the  whitelist)
-  -  (Public pricing definitions)
-  -  (Mailing campaigns + delivery health)
+  -  (Crash fix reference)
+  -  (New self-service UI)
+  -  (Contains  endpoint)
 
 **Areas that need refactoring**: 
-  - Mailing sending is currently using . As campaigns grow, this should be offloaded to a proper queue (e.g., Celery/Redis or APScheduler batching) to prevent memory issues and handle better rate-limit retries for Resend.
+  - Fakturoid auto-billing implementation is architecturally prepared but requires real webhooks to be fully active.
+  - Background tasks (like mailings) use ; queue systems like Celery should be considered as load grows.
 
 **key api endpoints**
-  - 
-  - 
   - 
   - 
 
 **Critical Info for New Agent** 
   - **LANGUAGE**: Always respond in Czech.
-  - **Feature Gating**: NEVER hardcode feature gating purely in the frontend. ALWAYS map new features to  inside  and protect endpoints using the  dependency.
-  - **Superadmin Access**: Superadmin is NOT a separate user role/table. It evaluates the current user's email against  in .
-  - **Billing Flow**: The architecture for Fakturoid billing is prepared ( table), but the automated webhook listener logic is not yet built.
-  - **Diacritics for PDFs**: Reminder: PDFs generated require  font, keep this in mind if extending Event or Order exports.
+  - **Náslech Architecture**: The Náslech (Observer) feature was radically simplified per user request. It is NO LONGER a separate database entity ( was deleted) and NO LONGER a separate lecturer mode ( logic was removed). It is now managed purely via the  array in the  table. Do not try to recreate the old complex observer logic.
+  - **PDF vs JSON Exports**: Remember that certain API endpoints return binary PDFs by default now. Ensure frontend calls that expect JSON data explicitly append .
 
 **documents and test reports created in this job** 
   -  (Updated)
-  -  through  (All 100% pass)
+  - 
+  -  (100% pass)
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Asked for delivery bounce evaluation and identifying invalid contacts. (Resolved)
- 2. User: Chose Option B (flag contacts with failures). (Resolved)
- 3. User: Submitted massive PRD for Subscription Plan System (Free, Start, PRO, PRO+). (Resolved)
- 4. User: Submitted PRD continuation for strict feature hierarchy without duplicates. (Resolved)
- 5. User: Requested applying  to all protected endpoints. (Resolved)
- 6. User: Requested Frontend feature gating and updating public landing page pricing. (Resolved)
- 7. User: Submitted massive PRD for Superadmin Dashboard, Billing Orders, and Fakturoid readiness. (Resolved)
- 8. User: na jaký učet byl super admin vytvořen? (What account was superadmin created on?) (Resolved)
- 9. **PENDING HUMAN MESSAGE**: None. Agent answered the Superadmin email question. Next logical step is to confirm with user whether to start the actual Fakturoid Webhook implementation or GoPay integration.
+ 1. User: Reported  crash (). Noted missing self-service UI for lecturers to add skills. Requested removing duplication in Náslech to keep it simply as a list of programs the lecturer is learning. (Resolved)
+ 2. **PENDING HUMAN MESSAGE**: None. The agent completed the tasks, successfully passed the testing subagent, and in the finish summary asked the user if they want to add a UI progress tracker for lecturer skills or move on to another task.
 
 **Project Health Check:**
 - Broken: None
-- Mocked: Fakturoid automated integration is mocked (architecture exists, but external webhooks aren't connected yet).
+- Mocked: Comgate Payment Gateway and Fakturoid billing are operating in mock/architectural-only modes until real keys are provided.
 
 **3rd Party Integrations** 
   - Supabase (Database) — requires User credentials
   - Resend (Emails) — requires User API Key
   - Microsoft Graph API (Outlook) — requires User API Key
   - Emergent Object Storage — uses Emergent LLM Key ( in )
-  - Fakturoid (Billing) — *Pending implementation*
+  - Comgate (Payments) — *MOCK Mode active*
+  - Fakturoid (Billing) — *Mocked/Pending Webhooks*
 
 **Testing status**
-  - Testing agent used after significant changes: YES (Iterations 46-51, all passed).
+  - Testing agent used after significant changes: YES (iteration_59.json, 100% passed)
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: Handled continuously via .
+  - Test files created: 
   - Known regressions: None
 
 **Credentials to test flow:**
-  -  /  (Has Superadmin access)
+  -  /  (Superadmin)
+  -  /  (Demo gallery institution)
 
 **What agent forgot to execute**
-  - The agent successfully executed all user PRDs, including the architectural readiness for Fakturoid. The actual connection/webhook listener for Fakturoid was purposefully left for the next phase as per the MVP priority rules laid out by the user in the final PRD.</analysis>
+  - All requested tasks, including the bug fix and architectural simplification, were executed successfully without omissions.</analysis>

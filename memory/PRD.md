@@ -630,3 +630,17 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - Systém (Audit log)
 - [x] **Mobile bottom nav**: filtruje group items, používá jen flat
 - [x] Lint ✅, smoke screenshot ověřil sidebar+settings struktura, redirecty fungují (curl-style probe)
+
+
+### Fáze 63 — Bug fix: dvojitý AdminLayout v Lektorském profilu (26.4.2026)
+- 🐛 **Iter62 testing agent identifikoval kritický bug**: `/admin/lecturer-profile` renderoval 2× AdminLayout (2 sidebary, 2 mobile nav), protože vnořené `MyProfilePage` a `UnifiedAvailabilityPage` měly vlastní wrapper
+- [x] **Fix**: přidán `embedded` prop do 4 komponent — `MyProfilePage`, `UnifiedAvailabilityPage`, `LecturerAvailabilityPage`, `ProgramAvailabilityView`. Když `embedded=true`, vrací pouze content; jinak fallback do `<AdminLayout>` (zpětná kompatibilita s budoucím standalone použitím)
+- [x] **LecturerProfilePage** nyní vlastní jediný `<AdminLayout>` a předává `embedded` propy dolů
+- [x] **Babel parsing fix**: refaktor IIFE pattern na lineární `const content = ...; return embedded ? content : <AdminLayout>{content}</AdminLayout>` — babel-plugin-visual-edits od Emergentu nezvládá IIFE uvnitř JSX
+- [x] LecturerAvailabilityPage `<>...</>` fragment kolem hlavního div + Dialog (sibling elementy)
+- [x] **Iter63 re-test 100% PASS**:
+  - aside=1, mobile_nav=1 ✅
+  - Toggle Programová/Osobní zachovává jediný layout
+  - 12/12 sekcí z user prompt-u zelené
+  - Backend pytest 7/7 PASS (`test_my_profile_and_naslech_removal.py`)
+  - Žádné console errors, žádné 4xx/5xx

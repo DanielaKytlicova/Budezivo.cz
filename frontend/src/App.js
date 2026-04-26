@@ -30,6 +30,7 @@ import { SettingsPage } from './pages/admin/SettingsPage';
 import { PlanPage } from './pages/admin/PlanPage';
 import { TeamPage } from './pages/admin/TeamPage';
 import { MyProfilePage } from './pages/admin/MyProfilePage';
+import { LecturerProfilePage } from './pages/admin/LecturerProfilePage';
 import FeedbackAdminPage from './pages/admin/FeedbackAdminPage';
 import { UnifiedAvailabilityPage } from './pages/admin/UnifiedAvailabilityPage';
 import { ArchivePage } from './pages/admin/ArchivePage';
@@ -157,7 +158,15 @@ function App() {
                 path="/admin/my-profile"
                 element={
                   <ProtectedRoute>
-                    <MyProfilePage />
+                    <Navigate to="/admin/lecturer-profile" replace />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/lecturer-profile"
+                element={
+                  <ProtectedRoute>
+                    <LecturerProfilePage />
                   </ProtectedRoute>
                 }
               />
@@ -173,7 +182,7 @@ function App() {
                 path="/admin/availability"
                 element={
                   <ProtectedRoute>
-                    <UnifiedAvailabilityPage />
+                    <Navigate to="/admin/lecturer-profile" replace />
                   </ProtectedRoute>
                 }
               />

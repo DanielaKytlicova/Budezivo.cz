@@ -1,0 +1,37 @@
+{
+  "summary": "Tested public prefill endpoint (privacy-first, no-enumeration) and BookingPage step-4 UX prefill. Backend pytest 4/4 PASSED. Frontend 7/7 e2e checks PASSED after manual frontend supervisor restart (webpack hadn't picked up new BookingPage code until restart).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/public/prefill", "issue": "Rate limit 20/minute did not trigger after 25 sequential public requests from the same client. The route uses a *local* Limiter() instance in routes/public.py (line 21), and main.py does NOT add SlowAPIMiddleware to the FastAPI app. The decorator-based limit may be a no-op behind kubernetes ingress (all requests share proxy IP, but the limiter never blocks). Privacy guarantees remain intact (always 200, no enumeration), but the documented brute-force mitigation is not enforced."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_public_prefill.py",
+    "/app/test_reports/pytest/iter61_prefill.xml"
+  ],
+  "action_items": [
+    "(Minor) Wire the prefill rate-limiter to the actual app: either reuse `app.state.limiter` from main.py instead of creating a fresh `Limiter()` in routes/public.py, and/or add `SlowAPIMiddleware` to the FastAPI app and a `RateLimitExceeded` handler. Without this, /api/public/prefill is effectively unrestricted.",
+    "(Note) Frontend hot-reload did not compile the newly-added BookingPage prefill code automatically; a `sudo supervisorctl restart frontend` was required for `data-testid=\"booking-prefill-hint\"` and `tryPrefillFromEmail` to appear in the bundle. After restart, all behaviours work correctly. No action needed unless hot-reload pattern repeats."
+  ],
+  "critical_code_review_comments": [
+    "routes/public.py creates its own `Limiter(key_func=get_remote_address)` local to the module instead of importing the app-level limiter; combined with the missing SlowAPIMiddleware in main.py, the @limiter.limit decorators in this file are not enforced. Confirmed empirically (25 consecutive requests, all 200).",
+    "Privacy contract on /api/public/prefill is exemplary: response is whitelisted to {school_name, contact_name, contact_phone, group_type, age_or_class, num_students, num_teachers, special_requirements}; no IDs, dates, or program/institution refs are leaked, and unknown e-mails still return 200 + {found:false}.",
+    "BookingPage.js tryPrefillFromEmail dedupes via prefilledFromEmail state — verified one API call per unique e-mail blur, regardless of repeated blur events.",
+    "Undo flow restores the pre-prefill snapshot correctly; only-fill-empty policy holds (manually-typed school_name='Moje škola' is preserved across prefill).",
+    "BookingPage.js is now 1083 lines — getting close to the 'split into smaller modules' threshold; consider extracting the contact form + prefill hook in a future iteration."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (4/4 pytest, privacy & case-insensitivity verified end-to-end)", "frontend": "100% (hint, prefill, toast, undo, dedupe, only-fill-empty, unknown-email all OK)"},
+  "test_credentials": "Public booking page — no auth. Test institution: eefb9cbf-52bf-4e20-9418-5b2f659f8d23 (Galerie Bude živo). Seed reservation present for jana.novakova@zs-botanicka.cz.",
+  "seed_data_creation": "Did not create seed; pre-existing jana.novakova@zs-botanicka.cz reservation was found in DB and exercised through both backend and frontend tests.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Public /api/public/prefill is correct on privacy/data-shape. Only outstanding concern is that the decorator-based rate limit isn't actually enforced (no SlowAPIMiddleware, local Limiter instance in routes/public.py). Frontend BookingPage step-4 prefill UX is fully working. If main agent edits BookingPage.js again, remember webpack hot-reload may need a manual frontend restart for new test selectors to land in the bundle.",
+  "rca of the issue": "Initial frontend run reported PREFILL HINT MISSING and 0 calls to /api/public/prefill — root cause: webpack-dev-server bundle.js did not contain the newly added tryPrefillFromEmail / booking-prefill-hint code (verified by curl-grep on bundle.js → 0 matches). After `sudo supervisorctl restart frontend` and ~35s recompile, the bundle contained both symbols and all e2e behaviours passed. Mitigation: when freshly-added React code isn't visible in DOM, grep the served bundle and restart frontend if missing."
+}

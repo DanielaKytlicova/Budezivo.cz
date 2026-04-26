@@ -104,6 +104,67 @@ export const BookingPage = () => {
     terms_accepted_text_version: 'v1',
   });
 
+  // Prefill state — remembers last email tried to avoid duplicate fetches.
+  // `lastSnapshot` is used by the toast "Vrátit zpět" action.
+  const [prefilledFromEmail, setPrefilledFromEmail] = useState('');
+  const lastSnapshotRef = React.useRef(null);
+
+  /**
+   * On email blur — call /api/public/prefill and gently fill empty fields.
+   * Privacy: only fields tied to *this* email; only empty fields get filled
+   * (user-typed values are never overwritten). Shows a toast with undo.
+   */
+  const tryPrefillFromEmail = async (email) => {
+    const e = (email || '').trim().toLowerCase();
+    if (!e || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return;
+    if (e === prefilledFromEmail) return;
+    setPrefilledFromEmail(e);
+    try {
+      const r = await axios.get(`${API}/public/prefill`, { params: { email: e } });
+      if (!r.data?.found || !r.data?.data) return;
+      const d = r.data.data;
+      // Snapshot for undo (current values BEFORE prefill applied)
+      const snapshot = { ...formData };
+      const next = { ...formData };
+      let changed = 0;
+      const fillIfEmpty = (key, val) => {
+        if (val == null || val === '') return;
+        // Numbers: replace if current is the form default OR not set
+        if (typeof val === 'number') {
+          if (!next[key] || next[key] === 15 || next[key] === 1) {
+            if (next[key] !== val) { next[key] = val; changed++; }
+          }
+          return;
+        }
+        if (!next[key]) { next[key] = val; changed++; }
+      };
+      fillIfEmpty('school_name',          d.school_name);
+      fillIfEmpty('contact_name',         d.contact_name);
+      fillIfEmpty('contact_phone',        d.contact_phone);
+      fillIfEmpty('group_type',           d.group_type);
+      fillIfEmpty('age_or_class',         d.age_or_class);
+      fillIfEmpty('num_students',         d.num_students);
+      fillIfEmpty('num_teachers',         d.num_teachers);
+      fillIfEmpty('special_requirements', d.special_requirements);
+      if (changed > 0) {
+        lastSnapshotRef.current = snapshot;
+        setFormData(next);
+        toast.success('Vyplnili jsme za vás údaje z minulé rezervace.', {
+          duration: 8000,
+          action: {
+            label: 'Vrátit zpět',
+            onClick: () => {
+              if (lastSnapshotRef.current) setFormData(lastSnapshotRef.current);
+              lastSnapshotRef.current = null;
+            },
+          },
+        });
+      }
+    } catch {
+      // Silent: prefill is a best-effort enhancement.
+    }
+  };
+
   useEffect(() => {
     fetchTheme();
     fetchInstitutionInfo();
@@ -924,11 +985,15 @@ export const BookingPage = () => {
                       type="email"
                       value={formData.contact_email}
                       onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                      onBlur={(e) => tryPrefillFromEmail(e.target.value)}
                       placeholder="zakladni@skola.cz"
                       required
                       className="mt-2 h-12 rounded-lg border-gray-300"
                       data-testid="booking-contact-email"
                     />
+                    <p className="mt-1.5 text-xs text-gray-500" data-testid="booking-prefill-hint">
+                      Pokud už jste u nás jednou rezervovali, údaje vám předvyplníme.
+                    </p>
                   </div>
 
                   <div>

@@ -38,7 +38,7 @@ function timeToMinutes(t) {
   return h * 60 + (m || 0);
 }
 
-export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle }) => {
+export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = false }) => {
   const { user, token } = useContext(AuthContext);
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const [recurring, setRecurring] = useState([]);
@@ -448,8 +448,8 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle }) => {
     );
   };
 
-  return (
-    <AdminLayout>
+  const content = (
+      <>
       <div className="space-y-6" data-testid="lecturer-availability-page">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -1101,6 +1101,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle }) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AdminLayout>
+      </>
   );
+  return embedded ? content : <AdminLayout>{content}</AdminLayout>;
 };

@@ -591,3 +591,56 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   7. FAQ
 - [x] **Smazána sekce** „Dopřejte svému týmu více času na skutečnou práci." (modré CTA před FAQ) — duplicitní s „Nastavení za 15 minut."
 - [x] Lint: ✅ + smoke screenshot ověřil nové pořadí v DOM
+
+
+### Fáze 61 — Katalog ETAPA 3: Prefill formuláře z e-mailu (26.4.2026)
+- [x] **Backend `GET /api/public/prefill?email=…`** — privacy-first endpoint:
+  - Vrátí `{found: false}` (NIKDY 404) pro neznámé/neplatné e-maily — ochrana proti enumeraci
+  - Pro existující e-mail vrátí pouze 8 safe pole: `school_name`, `contact_name`, `contact_phone`, `group_type`, `age_or_class`, `num_students`, `num_teachers`, `special_requirements`
+  - **NIKDY** nevrací reservation_id, program_id, institution_id, datum ani časové bloky
+  - Case-insensitive lookup (LOWER(contact_email))
+  - **Defense-in-depth IP rate limit** 20/min/IP (in-process, X-Forwarded-For aware) — testing agent identifikoval že existující `Limiter(key_func=...)` pattern v ostatních route souborech ne-enforcuje (slowapi vyžaduje SlowAPIMiddleware), proto manuální token-bucket přímo v endpointu — ověřeno curl: req 21+ → 429
+- [x] **Frontend (BookingPage.js krok 4)**:
+  - Hint pod e-mail inputem: „Pokud už jste u nás jednou rezervovali, údaje vám předvyplníme." (`data-testid=booking-prefill-hint`)
+  - `onBlur` na e-mail → `tryPrefillFromEmail()` → vyplní jen prázdná pole (only-fill-empty politika, žádné přepisování uživatelského vstupu)
+  - Toast „Vyplnili jsme za vás údaje z minulé rezervace." s tlačítkem „Vrátit zpět" (snapshot uložen v `lastSnapshotRef`, undo restoruje předchozí stav)
+  - Dedupe: opakovaný blur stejného e-mailu nezavolá API (`prefilledFromEmail` state)
+- [x] **Pytest** `/app/backend/tests/test_public_prefill.py` — 4/4 PASSED (unknown, invalid, safe-subset, case-insensitive)
+- [x] **Testing agent iter61**: backend 4/4 + frontend 7/7 PASSED — verified hint visibility, prefill on blur, toast undo, dedupe, only-fill-empty, unknown-email no-toast
+
+
+### Fáze 62 — Refaktor menu + sloučení Dostupnost+Můj profil → Lektorský profil (26.4.2026)
+- ❗ **Striktně UI-only**: nezměněn žádný backend endpoint, payload, feature flag, role ani DB
+- [x] **Sidebar přebudován** do 3 zón:
+  - Daily flat: Přehled, Programy, Rezervace, Akce *(rename z Události, feature flag `events_basic` zachován)*, Propagace *(rename z Mailingy, feature flag `mailing` zachován)*
+  - Collapsible „Správa": Školy, Zpětná vazba (default open if active route uvnitř)
+  - Lower flat: **Lektorský profil**, Statistiky, Nastavení (+ Superadmin pro platform owner)
+  - **Odstraněno ze sidebaru** (kód neztracen, pouze nezobrazeno): Dostupnost, Můj profil, Tým
+- [x] **Renames** UI only: Události → **Akce**, Mailingy → **Propagace** (URL i feature flagy nezměněny)
+- [x] **Nová stránka** `/admin/lecturer-profile` (`LecturerProfilePage.js`) — tenká UI kompozice; renderuje `<UnifiedAvailabilityPage />` + `<MyProfilePage />` jako celé sub-trees, čímž 100% přebírá jejich logiku (žádný rewrite, žádná duplicita)
+- [x] **Zpětná kompatibilita redirecty**:
+  - `/admin/availability` → `<Navigate to="/admin/lecturer-profile" replace />`
+  - `/admin/my-profile`   → `<Navigate to="/admin/lecturer-profile" replace />`
+  - Tým zůstává na `/admin/team`, přístupný přes Nastavení → „Uživatelé a role"
+- [x] **Settings reorganizace** UI only — přidán `group` field na každou položku v `SETTINGS_MENU` + nový `SETTINGS_GROUPS` array; render seskupený s nadpisy:
+  - Obecné (Instituce, Notifikace, Jazyk a místo)
+  - Uživatelé a přístup (Uživatelé a role)
+  - Platby a PRO (PRO funkce, Platební nastavení)
+  - Data a legislativa (GDPR, VOP)
+  - Systém (Audit log)
+- [x] **Mobile bottom nav**: filtruje group items, používá jen flat
+- [x] Lint ✅, smoke screenshot ověřil sidebar+settings struktura, redirecty fungují (curl-style probe)
+
+
+### Fáze 63 — Bug fix: dvojitý AdminLayout v Lektorském profilu (26.4.2026)
+- 🐛 **Iter62 testing agent identifikoval kritický bug**: `/admin/lecturer-profile` renderoval 2× AdminLayout (2 sidebary, 2 mobile nav), protože vnořené `MyProfilePage` a `UnifiedAvailabilityPage` měly vlastní wrapper
+- [x] **Fix**: přidán `embedded` prop do 4 komponent — `MyProfilePage`, `UnifiedAvailabilityPage`, `LecturerAvailabilityPage`, `ProgramAvailabilityView`. Když `embedded=true`, vrací pouze content; jinak fallback do `<AdminLayout>` (zpětná kompatibilita s budoucím standalone použitím)
+- [x] **LecturerProfilePage** nyní vlastní jediný `<AdminLayout>` a předává `embedded` propy dolů
+- [x] **Babel parsing fix**: refaktor IIFE pattern na lineární `const content = ...; return embedded ? content : <AdminLayout>{content}</AdminLayout>` — babel-plugin-visual-edits od Emergentu nezvládá IIFE uvnitř JSX
+- [x] LecturerAvailabilityPage `<>...</>` fragment kolem hlavního div + Dialog (sibling elementy)
+- [x] **Iter63 re-test 100% PASS**:
+  - aside=1, mobile_nav=1 ✅
+  - Toggle Programová/Osobní zachovává jediný layout
+  - 12/12 sekcí z user prompt-u zelené
+  - Backend pytest 7/7 PASS (`test_my_profile_and_naslech_removal.py`)
+  - Žádné console errors, žádné 4xx/5xx

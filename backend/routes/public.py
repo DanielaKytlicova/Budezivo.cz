@@ -20,6 +20,39 @@ router = APIRouter(prefix="/public", tags=["Public"])
 logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
+# In-process IP throttle for the prefill endpoint (defense-in-depth on top of
+# the response-shape protection). Process-local; sufficient for single-worker.
+import time as _time
+import threading as _threading
+_prefill_calls: dict[str, list[float]] = {}
+_prefill_lock = _threading.Lock()
+PREFILL_WINDOW_SEC = 60
+PREFILL_MAX_PER_WINDOW = 20
+
+
+def _prefill_client_ip(request: Request) -> str:
+    """Best-effort client IP, respecting X-Forwarded-For (first hop)."""
+    xff = request.headers.get("x-forwarded-for") or ""
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _prefill_check_rate(ip: str) -> bool:
+    """Return True if the request is within rate limit; False if it should be 429."""
+    now = _time.monotonic()
+    cutoff = now - PREFILL_WINDOW_SEC
+    with _prefill_lock:
+        bucket = _prefill_calls.get(ip, [])
+        bucket = [t for t in bucket if t >= cutoff]
+        if len(bucket) >= PREFILL_MAX_PER_WINDOW:
+            _prefill_calls[ip] = bucket
+            return False
+        bucket.append(now)
+        _prefill_calls[ip] = bucket
+    return True
+
+
 # Admin email for contact form submissions
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "info@budezivo.cz")
 
@@ -67,6 +100,70 @@ async def submit_contact_form(
         "status": "success",
         "message": "Děkujeme za váš zájem! Brzy vás budeme kontaktovat."
     }
+
+
+@router.get("/prefill")
+@limiter.limit("20/minute")
+async def get_prefill_for_email(
+    request: Request,
+    email: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Privacy-preserving prefill for public booking form.
+
+    If the e-mail was used in a past reservation, return ONLY non-sensitive,
+    repeatable fields (school name, contact name, phone, group type, count).
+    NEVER return reservation IDs, dates, or program/institution IDs.
+
+    Always returns 200 with `found=false` for unknown e-mails to avoid
+    enumeration. Defense-in-depth: in-process IP rate-limit (20/min/IP)
+    enforces the cap regardless of slowapi middleware availability.
+    """
+    if not _prefill_check_rate(_prefill_client_ip(request)):
+        raise HTTPException(
+            status_code=429,
+            detail="Příliš mnoho požadavků. Zkuste to prosím za chvíli.",
+        )
+
+    e = (email or "").strip().lower()
+    if not e or "@" not in e or len(e) > 254:
+        return {"found": False}
+
+    sql = """
+        SELECT school_name, contact_name, contact_phone, group_type,
+               age_or_class, num_students, num_teachers, special_requirements
+        FROM reservations
+        WHERE LOWER(contact_email) = :em
+          AND status NOT IN ('cancelled')
+        ORDER BY created_at DESC
+        LIMIT 1
+    """
+    try:
+        row = (await db.execute(text(sql), {"em": e})).fetchone()
+    except Exception:
+        logger.exception("prefill query failed")
+        return {"found": False}
+
+    if not row:
+        return {"found": False}
+
+    d = dict(row._mapping)
+    # Strip Nones; keep only the safe, repeatable subset.
+    return {
+        "found": True,
+        "data": {
+            "school_name":          d.get("school_name") or "",
+            "contact_name":         d.get("contact_name") or "",
+            "contact_phone":        d.get("contact_phone") or "",
+            "group_type":           d.get("group_type") or "",
+            "age_or_class":         d.get("age_or_class") or "",
+            "num_students":         int(d.get("num_students") or 0) or None,
+            "num_teachers":         int(d.get("num_teachers") or 0) or None,
+            "special_requirements": d.get("special_requirements") or "",
+        },
+    }
+
 
 
 @router.get("/stats")

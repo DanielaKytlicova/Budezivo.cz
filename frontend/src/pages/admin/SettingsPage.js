@@ -33,13 +33,28 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { API } from '../../config/api';
 
-// Menu položky nastavení
+// Menu položky nastavení — group key drives visual section in the hub.
 const SETTINGS_MENU = [
   {
     id: 'institution',
     icon: Building2,
     title: 'Správa instituce',
     description: 'Název, adresa, kontaktní údaje, logo',
+    group: 'general',
+  },
+  {
+    id: 'notifications',
+    icon: Bell,
+    title: 'Notifikace',
+    description: 'Nastavení mailingu a sms upozornění',
+    group: 'general',
+  },
+  {
+    id: 'locale',
+    icon: Globe,
+    title: 'Jazyk a místo',
+    description: 'Správa jazyku, časového a datového formátování',
+    group: 'general',
   },
   {
     id: 'users',
@@ -47,18 +62,7 @@ const SETTINGS_MENU = [
     title: 'Uživatelé a role',
     description: 'Správa uživatelů a oprávnění',
     link: '/admin/team',
-  },
-  {
-    id: 'notifications',
-    icon: Bell,
-    title: 'Notifikace',
-    description: 'Nastavení mailingu a sms upozornění',
-  },
-  {
-    id: 'locale',
-    icon: Globe,
-    title: 'Jazyk a místo',
-    description: 'Správa jazyku, časového a datového formátování',
+    group: 'access',
   },
   {
     id: 'pro',
@@ -66,25 +70,7 @@ const SETTINGS_MENU = [
     title: 'PRO funkce',
     description: 'CSV export, hromadná propagace, email šablony',
     isPro: true,
-  },
-  {
-    id: 'gdpr',
-    icon: Shield,
-    title: 'GDPR a správa dat',
-    description: 'Export dat, anonymizace, nastavení soukromí',
-  },
-  {
-    id: 'vop',
-    icon: FileText,
-    title: 'Obchodní podmínky (VOP)',
-    description: 'Všeobecné obchodní podmínky platformy',
-  },
-  {
-    id: 'audit',
-    icon: ClipboardList,
-    title: 'Audit log',
-    description: 'Historie všech změn a akcí v systému',
-    link: '/admin/audit-log',
+    group: 'billing',
   },
   {
     id: 'payment',
@@ -92,7 +78,39 @@ const SETTINGS_MENU = [
     title: 'Platební nastavení',
     description: 'Bankovní účet pro příjem plateb za události',
     isPro: true,
+    group: 'billing',
   },
+  {
+    id: 'gdpr',
+    icon: Shield,
+    title: 'GDPR a správa dat',
+    description: 'Export dat, anonymizace, nastavení soukromí',
+    group: 'legal',
+  },
+  {
+    id: 'vop',
+    icon: FileText,
+    title: 'Obchodní podmínky (VOP)',
+    description: 'Všeobecné obchodní podmínky platformy',
+    group: 'legal',
+  },
+  {
+    id: 'audit',
+    icon: ClipboardList,
+    title: 'Audit log',
+    description: 'Historie všech změn a akcí v systému',
+    link: '/admin/audit-log',
+    group: 'system',
+  },
+];
+
+// Grouped sections rendered in the hub (order matters).
+const SETTINGS_GROUPS = [
+  { key: 'general',  label: 'Obecné' },
+  { key: 'access',   label: 'Uživatelé a přístup' },
+  { key: 'billing',  label: 'Platby a PRO' },
+  { key: 'legal',    label: 'Data a legislativa' },
+  { key: 'system',   label: 'Systém' },
 ];
 
 const INSTITUTION_TYPES = [
@@ -451,33 +469,44 @@ export const SettingsPage = () => {
       </div>
 
       <div className="space-y-3">
-        {visibleMenu.map((item) => {
-          const Icon = item.icon;
+        {SETTINGS_GROUPS.map((group) => {
+          const itemsInGroup = visibleMenu.filter(it => (it.group || 'general') === group.key);
+          if (itemsInGroup.length === 0) return null;
           return (
-            <Card
-              key={item.id}
-              className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
-              onClick={() => item.link ? navigate(item.link) : setActiveSection(item.id)}
-              data-testid={`settings-${item.id}`}
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 border border-gray-200 rounded-lg flex items-center justify-center">
-                  <Icon className="w-6 h-6 text-gray-600" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-medium text-slate-900">{item.title}</h3>
-                    {item.isPro && (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-[#2B3E50] text-white rounded">
-                        PRO
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-500">{item.description}</p>
-                </div>
-                <ChevronRight className="w-5 h-5 text-gray-400" />
-              </div>
-            </Card>
+            <div key={group.key} className="space-y-2" data-testid={`settings-group-${group.key}`}>
+              <h2 className="text-xs font-semibold tracking-[0.18em] uppercase text-slate-500 px-1 pt-3">
+                {group.label}
+              </h2>
+              {itemsInGroup.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Card
+                    key={item.id}
+                    className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => item.link ? navigate(item.link) : setActiveSection(item.id)}
+                    data-testid={`settings-${item.id}`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 border border-gray-200 rounded-lg flex items-center justify-center">
+                        <Icon className="w-6 h-6 text-gray-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium text-slate-900">{item.title}</h3>
+                          {item.isPro && (
+                            <span className="px-2 py-0.5 text-xs font-medium bg-[#2B3E50] text-white rounded">
+                              PRO
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-500">{item.description}</p>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
           );
         })}
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from '../../i18n/useTranslation';
-import { Header } from '../../components/layout/Header';
+import { Header, BudezivoLogo } from '../../components/layout/Header';
 import { Footer } from '../../components/layout/Footer';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
@@ -900,11 +900,7 @@ const DashboardPreview = () => {
         {/* Sidebar */}
         <aside className="bg-white border-r border-slate-100 p-4 hidden md:block">
           <div className="mb-6 px-2">
-            <span className="inline-block">
-              <span className="text-base font-bold text-[#2B3E50]">Bude</span>
-              <span className="text-base font-bold bg-[#FFF1C8] px-1.5 rounded">živo</span>
-              <span className="text-base font-bold text-[#2B3E50]">.cz</span>
-            </span>
+            <BudezivoLogo showText={true} />
           </div>
           <nav className="space-y-0.5">
             {sidebarItems.map((it, i) => (

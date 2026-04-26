@@ -69,6 +69,63 @@ async def submit_contact_form(
     }
 
 
+@router.get("/prefill")
+@limiter.limit("20/minute")
+async def get_prefill_for_email(
+    request: Request,
+    email: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Privacy-preserving prefill for public booking form.
+
+    If the e-mail was used in a past reservation, return ONLY non-sensitive,
+    repeatable fields (school name, contact name, phone, group type, count).
+    NEVER return reservation IDs, dates, program/institution IDs.
+
+    Always returns 200 with `found=false` for unknown e-mails to avoid
+    enumeration. Strict rate-limit (5/min/IP) further mitigates brute force.
+    """
+    e = (email or "").strip().lower()
+    if not e or "@" not in e or len(e) > 254:
+        return {"found": False}
+
+    sql = """
+        SELECT school_name, contact_name, contact_phone, group_type,
+               age_or_class, num_students, num_teachers, special_requirements
+        FROM reservations
+        WHERE LOWER(contact_email) = :em
+          AND status NOT IN ('cancelled')
+        ORDER BY created_at DESC
+        LIMIT 1
+    """
+    try:
+        row = (await db.execute(text(sql), {"em": e})).fetchone()
+    except Exception:
+        logger.exception("prefill query failed")
+        return {"found": False}
+
+    if not row:
+        return {"found": False}
+
+    d = dict(row._mapping)
+    # Strip Nones; keep only the safe, repeatable subset.
+    return {
+        "found": True,
+        "data": {
+            "school_name":          d.get("school_name") or "",
+            "contact_name":         d.get("contact_name") or "",
+            "contact_phone":        d.get("contact_phone") or "",
+            "group_type":           d.get("group_type") or "",
+            "age_or_class":         d.get("age_or_class") or "",
+            "num_students":         int(d.get("num_students") or 0) or None,
+            "num_teachers":         int(d.get("num_teachers") or 0) or None,
+            "special_requirements": d.get("special_requirements") or "",
+        },
+    }
+
+
+
 @router.get("/stats")
 @limiter.limit("30/minute")
 async def get_public_stats(request: Request, db: AsyncSession = Depends(get_db)):

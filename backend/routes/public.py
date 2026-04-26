@@ -20,6 +20,39 @@ router = APIRouter(prefix="/public", tags=["Public"])
 logger = logging.getLogger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
+# In-process IP throttle for the prefill endpoint (defense-in-depth on top of
+# the response-shape protection). Process-local; sufficient for single-worker.
+import time as _time
+import threading as _threading
+_prefill_calls: dict[str, list[float]] = {}
+_prefill_lock = _threading.Lock()
+PREFILL_WINDOW_SEC = 60
+PREFILL_MAX_PER_WINDOW = 20
+
+
+def _prefill_client_ip(request: Request) -> str:
+    """Best-effort client IP, respecting X-Forwarded-For (first hop)."""
+    xff = request.headers.get("x-forwarded-for") or ""
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _prefill_check_rate(ip: str) -> bool:
+    """Return True if the request is within rate limit; False if it should be 429."""
+    now = _time.monotonic()
+    cutoff = now - PREFILL_WINDOW_SEC
+    with _prefill_lock:
+        bucket = _prefill_calls.get(ip, [])
+        bucket = [t for t in bucket if t >= cutoff]
+        if len(bucket) >= PREFILL_MAX_PER_WINDOW:
+            _prefill_calls[ip] = bucket
+            return False
+        bucket.append(now)
+        _prefill_calls[ip] = bucket
+    return True
+
+
 # Admin email for contact form submissions
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "info@budezivo.cz")
 
@@ -81,11 +114,18 @@ async def get_prefill_for_email(
 
     If the e-mail was used in a past reservation, return ONLY non-sensitive,
     repeatable fields (school name, contact name, phone, group type, count).
-    NEVER return reservation IDs, dates, program/institution IDs.
+    NEVER return reservation IDs, dates, or program/institution IDs.
 
     Always returns 200 with `found=false` for unknown e-mails to avoid
-    enumeration. Strict rate-limit (5/min/IP) further mitigates brute force.
+    enumeration. Defense-in-depth: in-process IP rate-limit (20/min/IP)
+    enforces the cap regardless of slowapi middleware availability.
     """
+    if not _prefill_check_rate(_prefill_client_ip(request)):
+        raise HTTPException(
+            status_code=429,
+            detail="Příliš mnoho požadavků. Zkuste to prosím za chvíli.",
+        )
+
     e = (email or "").strip().lower()
     if not e or "@" not in e or len(e) > 254:
         return {"found": False}

@@ -591,3 +591,19 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   7. FAQ
 - [x] **Smazána sekce** „Dopřejte svému týmu více času na skutečnou práci." (modré CTA před FAQ) — duplicitní s „Nastavení za 15 minut."
 - [x] Lint: ✅ + smoke screenshot ověřil nové pořadí v DOM
+
+
+### Fáze 61 — Katalog ETAPA 3: Prefill formuláře z e-mailu (26.4.2026)
+- [x] **Backend `GET /api/public/prefill?email=…`** — privacy-first endpoint:
+  - Vrátí `{found: false}` (NIKDY 404) pro neznámé/neplatné e-maily — ochrana proti enumeraci
+  - Pro existující e-mail vrátí pouze 8 safe pole: `school_name`, `contact_name`, `contact_phone`, `group_type`, `age_or_class`, `num_students`, `num_teachers`, `special_requirements`
+  - **NIKDY** nevrací reservation_id, program_id, institution_id, datum ani časové bloky
+  - Case-insensitive lookup (LOWER(contact_email))
+  - **Defense-in-depth IP rate limit** 20/min/IP (in-process, X-Forwarded-For aware) — testing agent identifikoval že existující `Limiter(key_func=...)` pattern v ostatních route souborech ne-enforcuje (slowapi vyžaduje SlowAPIMiddleware), proto manuální token-bucket přímo v endpointu — ověřeno curl: req 21+ → 429
+- [x] **Frontend (BookingPage.js krok 4)**:
+  - Hint pod e-mail inputem: „Pokud už jste u nás jednou rezervovali, údaje vám předvyplníme." (`data-testid=booking-prefill-hint`)
+  - `onBlur` na e-mail → `tryPrefillFromEmail()` → vyplní jen prázdná pole (only-fill-empty politika, žádné přepisování uživatelského vstupu)
+  - Toast „Vyplnili jsme za vás údaje z minulé rezervace." s tlačítkem „Vrátit zpět" (snapshot uložen v `lastSnapshotRef`, undo restoruje předchozí stav)
+  - Dedupe: opakovaný blur stejného e-mailu nezavolá API (`prefilledFromEmail` state)
+- [x] **Pytest** `/app/backend/tests/test_public_prefill.py` — 4/4 PASSED (unknown, invalid, safe-subset, case-insensitive)
+- [x] **Testing agent iter61**: backend 4/4 + frontend 7/7 PASSED — verified hint visibility, prefill on blur, toast undo, dedupe, only-fill-empty, unknown-email no-toast

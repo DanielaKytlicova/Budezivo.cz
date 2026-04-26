@@ -607,3 +607,26 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - Dedupe: opakovaný blur stejného e-mailu nezavolá API (`prefilledFromEmail` state)
 - [x] **Pytest** `/app/backend/tests/test_public_prefill.py` — 4/4 PASSED (unknown, invalid, safe-subset, case-insensitive)
 - [x] **Testing agent iter61**: backend 4/4 + frontend 7/7 PASSED — verified hint visibility, prefill on blur, toast undo, dedupe, only-fill-empty, unknown-email no-toast
+
+
+### Fáze 62 — Refaktor menu + sloučení Dostupnost+Můj profil → Lektorský profil (26.4.2026)
+- ❗ **Striktně UI-only**: nezměněn žádný backend endpoint, payload, feature flag, role ani DB
+- [x] **Sidebar přebudován** do 3 zón:
+  - Daily flat: Přehled, Programy, Rezervace, Akce *(rename z Události, feature flag `events_basic` zachován)*, Propagace *(rename z Mailingy, feature flag `mailing` zachován)*
+  - Collapsible „Správa": Školy, Zpětná vazba (default open if active route uvnitř)
+  - Lower flat: **Lektorský profil**, Statistiky, Nastavení (+ Superadmin pro platform owner)
+  - **Odstraněno ze sidebaru** (kód neztracen, pouze nezobrazeno): Dostupnost, Můj profil, Tým
+- [x] **Renames** UI only: Události → **Akce**, Mailingy → **Propagace** (URL i feature flagy nezměněny)
+- [x] **Nová stránka** `/admin/lecturer-profile` (`LecturerProfilePage.js`) — tenká UI kompozice; renderuje `<UnifiedAvailabilityPage />` + `<MyProfilePage />` jako celé sub-trees, čímž 100% přebírá jejich logiku (žádný rewrite, žádná duplicita)
+- [x] **Zpětná kompatibilita redirecty**:
+  - `/admin/availability` → `<Navigate to="/admin/lecturer-profile" replace />`
+  - `/admin/my-profile`   → `<Navigate to="/admin/lecturer-profile" replace />`
+  - Tým zůstává na `/admin/team`, přístupný přes Nastavení → „Uživatelé a role"
+- [x] **Settings reorganizace** UI only — přidán `group` field na každou položku v `SETTINGS_MENU` + nový `SETTINGS_GROUPS` array; render seskupený s nadpisy:
+  - Obecné (Instituce, Notifikace, Jazyk a místo)
+  - Uživatelé a přístup (Uživatelé a role)
+  - Platby a PRO (PRO funkce, Platební nastavení)
+  - Data a legislativa (GDPR, VOP)
+  - Systém (Audit log)
+- [x] **Mobile bottom nav**: filtruje group items, používá jen flat
+- [x] Lint ✅, smoke screenshot ověřil sidebar+settings struktura, redirecty fungují (curl-style probe)

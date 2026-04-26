@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../i18n/useTranslation';
 import { AuthContext } from '../../context/AuthContext';
-import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, Clock, FileText, CalendarDays, Mail, Lock, Shield, UserCircle } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, FileText, CalendarDays, Mail, Lock, Shield, GraduationCap, ChevronDown, ChevronRight } from 'lucide-react';
 import { usePlanFeatures } from '../../hooks/usePlanFeatures';
 import { UpgradeModal } from '../admin/UpgradeModal';
 import { ImpersonationBanner } from '../admin/ImpersonationBanner';
@@ -74,19 +74,31 @@ export const AdminLayout = ({ children }) => {
 
   const { hasAccess, getFeatureInfo, upgradeFeature, showUpgrade, hideUpgrade } = usePlanFeatures();
 
-  // Role-based navigation - nové role podle wireframu
+  // Role-based navigation — refactored into 3 zones (daily / správa / admin)
+  // and a collapsible "Správa" group. Items removed from sidebar but still
+  // accessible by URL: /admin/availability, /admin/my-profile, /admin/team.
   const getNavItems = () => {
     const baseItems = [
+      // ── Daily operations (flat) ──
       { path: '/admin', icon: LayoutDashboard, label: 'Přehled', testId: 'nav-dashboard', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'staff', 'viewer'] },
       { path: '/admin/programs', icon: Calendar, label: 'Programy', testId: 'nav-programs', roles: ['admin', 'spravce', 'edukator', 'staff', 'viewer'] },
       { path: '/admin/bookings', icon: BookOpen, label: 'Rezervace', testId: 'nav-bookings', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'staff', 'viewer'] },
-      { path: '/admin/schools', icon: School, label: 'Školy', testId: 'nav-schools', roles: ['admin', 'spravce', 'edukator', 'staff'] },
-      { path: '/admin/mailings', icon: Mail, label: 'Mailingy', testId: 'nav-mailings', roles: ['admin', 'spravce', 'edukator', 'staff'], featureKey: 'mailing' },
-      { path: '/admin/feedback', icon: MessageSquare, label: 'Zpětná vazba', testId: 'nav-feedback', roles: ['admin', 'spravce', 'edukator', 'staff'] },
-      { path: '/admin/availability', icon: Clock, label: 'Dostupnost', testId: 'nav-availability', roles: ['admin', 'spravce', 'edukator', 'lektor'] },
+      // Akce (rename from Události) — same URL & feature flag
+      { path: '/admin/mailings', icon: Mail, label: 'Propagace', testId: 'nav-mailings', roles: ['admin', 'spravce', 'edukator', 'staff'], featureKey: 'mailing' },
+
+      // ── Správa group (collapsible) ──
+      {
+        type: 'group', key: 'spravaGroup', label: 'Správa', testId: 'nav-sprava-group',
+        roles: ['admin', 'spravce', 'edukator', 'staff'],
+        children: [
+          { path: '/admin/schools', icon: School, label: 'Školy', testId: 'nav-schools', roles: ['admin', 'spravce', 'edukator', 'staff'] },
+          { path: '/admin/feedback', icon: MessageSquare, label: 'Zpětná vazba', testId: 'nav-feedback', roles: ['admin', 'spravce', 'edukator', 'staff'] },
+        ],
+      },
+
+      // ── Lower zone (flat) ──
+      { path: '/admin/lecturer-profile', icon: GraduationCap, label: 'Lektorský profil', testId: 'nav-lecturer-profile', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'staff', 'viewer'] },
       { path: '/admin/statistics', icon: BarChart3, label: 'Statistiky', testId: 'nav-statistics', roles: ['admin', 'spravce', 'edukator', 'staff'] },
-      { path: '/admin/team', icon: Users, label: 'Tým', testId: 'nav-team', roles: ['admin', 'spravce'] },
-      { path: '/admin/my-profile', icon: UserCircle, label: 'Můj profil', testId: 'nav-my-profile', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'staff', 'viewer'] },
       { path: '/admin/settings', icon: Settings, label: 'Nastavení', testId: 'nav-settings', roles: ['admin', 'spravce'] },
     ];
 
@@ -97,18 +109,43 @@ export const AdminLayout = ({ children }) => {
       });
     }
 
-    // Add events module only when feature flag is enabled
+    // Akce (events) module — only when feature flag enabled. Inserted between
+    // Rezervace and Propagace to keep daily-flow ordering.
     if (eventsEnabled) {
-      baseItems.splice(3, 0, {
-        path: '/admin/events', icon: CalendarDays, label: 'Události', testId: 'nav-events', roles: ['admin', 'spravce', 'edukator', 'staff'], featureKey: 'events_basic'
+      const propagaceIdx = baseItems.findIndex(it => it.path === '/admin/mailings');
+      baseItems.splice(propagaceIdx >= 0 ? propagaceIdx : 3, 0, {
+        path: '/admin/events', icon: CalendarDays, label: 'Akce', testId: 'nav-events', roles: ['admin', 'spravce', 'edukator', 'staff'], featureKey: 'events_basic'
       });
     }
 
     const userRole = user?.role || 'viewer';
-    return baseItems.filter(item => item.roles.includes(userRole));
+    // Filter top-level items by role; for groups, also filter children & drop
+    // empty groups so we don't render an empty disclosure.
+    return baseItems
+      .filter(item => item.roles.includes(userRole))
+      .map(item => {
+        if (item.type === 'group') {
+          const visibleChildren = (item.children || []).filter(c => c.roles.includes(userRole));
+          return { ...item, children: visibleChildren };
+        }
+        return item;
+      })
+      .filter(item => item.type !== 'group' || (item.children && item.children.length > 0));
   };
 
   const navItems = getNavItems();
+
+  // Collapsible group state — open by default if any child is the current route.
+  const [openGroups, setOpenGroups] = React.useState(() => {
+    const initial = {};
+    navItems.forEach(it => {
+      if (it.type === 'group') {
+        initial[it.key] = (it.children || []).some(c => c.path === location.pathname);
+      }
+    });
+    return initial;
+  });
+  const toggleGroup = (key) => setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }));
 
   const handleLogout = () => {
     logout();
@@ -156,10 +193,54 @@ export const AdminLayout = ({ children }) => {
 
           <div className="flex-1 flex flex-col px-4 py-6 space-y-1">
             {navItems.map((item) => {
+              // ── Collapsible group (e.g. "Správa") ──
+              if (item.type === 'group') {
+                const isOpen = !!openGroups[item.key];
+                const Chevron = isOpen ? ChevronDown : ChevronRight;
+                return (
+                  <div key={item.key} data-testid={item.testId}>
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(item.key)}
+                      className="w-full flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors text-slate-700 hover:bg-slate-100"
+                      aria-expanded={isOpen}
+                      data-testid={`${item.testId}-toggle`}
+                    >
+                      <Chevron className="mr-3 h-4 w-4 text-slate-500" />
+                      <span className="flex-1 text-left">{item.label}</span>
+                    </button>
+                    {isOpen && (
+                      <div className="mt-1 space-y-1 pl-4">
+                        {item.children.map((child) => {
+                          const ChildIcon = child.icon;
+                          const childActive = location.pathname === child.path;
+                          return (
+                            <Link
+                              key={child.path}
+                              to={child.path}
+                              data-testid={child.testId}
+                              className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-md transition-colors ${
+                                childActive
+                                  ? 'bg-slate-800 text-white'
+                                  : 'text-slate-700 hover:bg-slate-100'
+                              }`}
+                            >
+                              <ChildIcon className="mr-3 h-5 w-5" />
+                              {child.label}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // ── Regular flat item ──
               const Icon = item.icon;
               const isActive = location.pathname === item.path;
               const isLocked = item.featureKey && !hasAccess(item.featureKey);
-              
+
               if (isLocked) {
                 return (
                   <button
@@ -236,10 +317,12 @@ export const AdminLayout = ({ children }) => {
         {(() => {
           const userRole = user?.role || 'viewer';
           const isAdmin = ['admin', 'spravce'].includes(userRole);
-          const settingsItem = navItems.find(item => item.path === '/admin/settings');
+          // Mobile nav uses only flat items (skip collapsible groups).
+          const flatItems = navItems.filter(item => item.type !== 'group');
+          const settingsItem = flatItems.find(item => item.path === '/admin/settings');
           const mobileItems = isAdmin && settingsItem
-            ? [...navItems.slice(0, 4), settingsItem]
-            : navItems.slice(0, 4);
+            ? [...flatItems.filter(it => it.path !== '/admin/settings').slice(0, 4), settingsItem]
+            : flatItems.slice(0, 4);
           return (
             <div className={`grid gap-1 p-2 ${mobileItems.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
               {mobileItems.map((item) => {

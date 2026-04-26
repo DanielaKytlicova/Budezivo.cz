@@ -1,37 +1,30 @@
 /**
- * LecturerProfilePage — combined UI of Availability calendar + My Profile sections.
+ * LecturerProfilePage — combined view of Availability + My Profile
+ * inside a single AdminLayout shell.
  *
- * IMPORTANT: This page is a thin UI composition; it MUST NOT change any backend
- * logic, endpoints, payloads, feature flags or DB schema. It only re-uses the
- * two existing pages as render-only sub-trees.
+ * Both child pages support an `embedded` prop that returns content WITHOUT
+ * the AdminLayout wrapper, so we get exactly one layout (no duplicated
+ * sidebar / mobile nav / impersonation banner).
  *
- *   ┌──────────────────────────────────────────┐
- *   │  Calendar (UnifiedAvailabilityPage)      │
- *   ├──────────────────────────────────────────┤
- *   │  Profile sections (MyProfilePage)        │
- *   │   • Co mohu vést                         │
- *   │   • Co se chci naučit (náslech)          │
- *   │   • Preferované věkové skupiny           │
- *   │   • Základní údaje                       │
- *   │   • Poznámka od správce                  │
- *   └──────────────────────────────────────────┘
- *
- * Both child pages already wrap themselves in <AdminLayout>, so we render them
- * directly. This avoids duplicating their state/effects logic.
+ * NO backend / API / DB / role / feature-flag logic is changed — this is a
+ * pure UI composition that re-uses the existing pages' children.
  */
 import React from 'react';
+import { AdminLayout } from '../../components/layout/AdminLayout';
 import { UnifiedAvailabilityPage } from './UnifiedAvailabilityPage';
 import { MyProfilePage } from './MyProfilePage';
 
 export const LecturerProfilePage = () => (
-  <div data-testid="lecturer-profile-page">
-    {/* 1) Availability calendar — full existing logic (blocked days, time slots, capacities) */}
-    <UnifiedAvailabilityPage />
+  <AdminLayout>
+    <div className="space-y-10" data-testid="lecturer-profile-page">
+      {/* 1) Calendar / availability — full existing logic via embedded mode */}
+      <UnifiedAvailabilityPage embedded />
 
-    {/* 2) Profile sections — full existing logic (supported / learning programs, age groups, name, admin note).
-        MyProfilePage handles its own save flow via PATCH /api/team/{user_id}/lecturer-profile. */}
-    <MyProfilePage />
-  </div>
+      {/* 2) Profile sections — full existing logic via embedded mode.
+          MyProfilePage owns its own save flow → PATCH /api/team/{id}/lecturer-profile */}
+      <MyProfilePage embedded />
+    </div>
+  </AdminLayout>
 );
 
 export default LecturerProfilePage;

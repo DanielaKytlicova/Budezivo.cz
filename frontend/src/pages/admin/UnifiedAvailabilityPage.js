@@ -52,20 +52,20 @@ const STATUS_LABELS = {
   blocked_program: 'Blokace programu',
 };
 
-export const UnifiedAvailabilityPage = () => {
+export const UnifiedAvailabilityPage = ({ embedded = false }) => {
   const { user } = useContext(AuthContext);
   const [viewMode, setViewMode] = useState('personal'); // 'program' | 'personal'
 
   // If personal view, render the original LecturerAvailabilityPage with view toggle
   if (viewMode === 'personal') {
-    return <LecturerAvailabilityPage viewToggle={viewMode} onViewToggle={setViewMode} />;
+    return <LecturerAvailabilityPage viewToggle={viewMode} onViewToggle={setViewMode} embedded={embedded} />;
   }
 
-  return <ProgramAvailabilityView viewMode={viewMode} onViewModeChange={setViewMode} />;
+  return <ProgramAvailabilityView viewMode={viewMode} onViewModeChange={setViewMode} embedded={embedded} />;
 };
 
 // ============ Program Availability View ============
-const ProgramAvailabilityView = ({ viewMode, onViewModeChange }) => {
+const ProgramAvailabilityView = ({ viewMode, onViewModeChange, embedded = false }) => {
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const [programs, setPrograms] = useState([]);
   const [selectedProgram, setSelectedProgram] = useState(null);
@@ -213,8 +213,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange }) => {
     );
   };
 
-  return (
-    <AdminLayout>
+  const content = (
       <div className="space-y-6" data-testid="program-availability-page">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -339,6 +338,6 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange }) => {
           </DialogContent>
         </Dialog>
       </div>
-    </AdminLayout>
   );
+  return embedded ? content : <AdminLayout>{content}</AdminLayout>;
 };

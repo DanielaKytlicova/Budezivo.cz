@@ -20,7 +20,7 @@ const AGE_GROUPS = [
   { value: 'adults', label: 'Dospělí / veřejnost' },
 ];
 
-export const MyProfilePage = () => {
+export const MyProfilePage = ({ embedded = false }) => {
   const { user, refreshUser } = useContext(AuthContext);
   const [programs, setPrograms] = useState([]);
   const [me, setMe] = useState(null);
@@ -108,17 +108,17 @@ export const MyProfilePage = () => {
   const nameCs = (p) => p.name_cs || p.name_en || p.name || '—';
 
   if (loading) {
-    return (
-      <AdminLayout>
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-slate-500" />
-        </div>
-      </AdminLayout>
+    const loader = (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="w-8 h-8 animate-spin text-slate-500" />
+      </div>
     );
+    return embedded ? loader : <AdminLayout>{loader}</AdminLayout>;
   }
 
-  return (
-    <AdminLayout>
+  const renderContent = (innerJSX) => embedded ? innerJSX : <AdminLayout>{innerJSX}</AdminLayout>;
+
+  return renderContent((
       <div className="space-y-6 max-w-4xl" data-testid="my-profile-page">
         {/* Header */}
         <div className="flex items-center gap-3">
@@ -321,8 +321,7 @@ export const MyProfilePage = () => {
           </Button>
         </div>
       </div>
-    </AdminLayout>
-  );
+  ));
 };
 
 export default MyProfilePage;

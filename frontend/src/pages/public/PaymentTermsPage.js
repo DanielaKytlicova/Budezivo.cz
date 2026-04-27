@@ -69,14 +69,87 @@ export const PaymentTermsPage = () => {
           <section data-testid="payment-security">
             <div className="flex items-center gap-2 mb-2">
               <ShieldCheck className="w-5 h-5 text-[#4A6FA5]" />
-              <h2 className="text-lg font-semibold text-[#2B3E50]">4. Bezpečnost online plateb</h2>
+              <h2 className="text-lg font-semibold text-[#2B3E50]">4. Poskytovatel platební brány a bezpečnost online plateb</h2>
             </div>
+            <p className="text-sm text-gray-700 leading-relaxed mb-3">
+              Online platby na této platformě jsou zpracovávány platební bránou{' '}
+              <a
+                href="https://www.comgate.eu/cs/platebni-brana"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#4A6FA5] hover:underline font-semibold"
+                data-testid="comgate-gateway-link"
+              >
+                Comgate
+              </a>
+              {' '}— poskytovatelem je společnost <strong>Comgate, a.s.</strong>, IČO 27924505,
+              v souladu s mezinárodními bezpečnostními standardy <strong>PCI-DSS</strong>.
+            </p>
+
+            <div className="bg-[#EEF2F9] rounded-lg p-4 my-3 space-y-2 text-sm" data-testid="payment-methods-explainer">
+              <p className="font-semibold text-[#2B3E50]">Podporované způsoby online platby:</p>
+              <ul className="list-disc list-inside space-y-2 text-gray-700">
+                <li>
+                  <strong>Platba kartou (Visa, Mastercard)</strong> — zákazník zadá údaje své platební karty na zabezpečené stránce Comgate;
+                  v případě potřeby je vyzván k autentizaci v aplikaci své banky (3-D Secure). Po úspěšné platbě je obratem přesměrován zpět na potvrzovací stránku rezervace.{' '}
+                  <a
+                    href="https://help.comgate.cz/v1/docs/cs/platby-kartou"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#4A6FA5] hover:underline"
+                    data-testid="comgate-card-help-link"
+                  >
+                    Podrobnosti o platbě kartou
+                  </a>
+                </li>
+                <li>
+                  <strong>Platební tlačítka bank (online bankovní převod)</strong> — zákazník je přesměrován do internetového bankovnictví své banky,
+                  kde předvyplněnou platbu pouze potvrdí. Platba je zaúčtována během několika minut.{' '}
+                  <a
+                    href="https://help.comgate.cz/docs/bankovni-prevody"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#4A6FA5] hover:underline"
+                    data-testid="comgate-transfer-help-link"
+                  >
+                    Podrobnosti o bankovních převodech
+                  </a>
+                </li>
+              </ul>
+            </div>
+
             <ul className="list-disc list-inside text-sm text-gray-700 space-y-1.5 leading-relaxed">
-              <li>Online platby jsou zpracovávány platební bránou třetí strany (např. Comgate Payments, a.s., IČO 27924505) v souladu s mezinárodními standardy bezpečnosti PCI-DSS.</li>
-              <li>Údaje o platební kartě nejsou zpracovávány ani ukládány provozovatelem platformy ani pořádající institucí — kompletní zpracování probíhá výhradně na zabezpečené infrastruktuře platební brány.</li>
-              <li>Po úspěšné platbě je zákazník přesměrován zpět na potvrzovací stránku rezervace.</li>
+              <li>Údaje o platební kartě nejsou zpracovávány ani ukládány provozovatelem platformy ani pořádající institucí — kompletní zpracování probíhá výhradně na zabezpečené infrastruktuře Comgate.</li>
+              <li>Po úspěšné platbě je zákazník automaticky přesměrován zpět na potvrzovací stránku rezervace.</li>
               <li>Příjemcem online platby je <strong>pořádající instituce</strong>, ne provozovatel platformy.</li>
             </ul>
+
+            {/* Comgate contact card */}
+            <div
+              className="mt-4 border border-[#D9E1F0] rounded-lg p-4 bg-white"
+              data-testid="comgate-contact-card"
+            >
+              <p className="text-sm font-semibold text-[#2B3E50] mb-2">Kontakt na poskytovatele platební brány</p>
+              <div className="text-sm text-gray-700 space-y-0.5 leading-relaxed">
+                <p className="font-medium">Comgate, a.s.</p>
+                <p>Gočárova třída 1754/48b, 500 02 Hradec Králové</p>
+                <p>
+                  E-mail:{' '}
+                  <a href="mailto:podpora@comgate.cz" className="text-[#4A6FA5] hover:underline">
+                    podpora@comgate.cz
+                  </a>
+                </p>
+                <p>
+                  Telefon:{' '}
+                  <a href="tel:+420228224267" className="text-[#4A6FA5] hover:underline">
+                    +420 228 224 267
+                  </a>
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Reklamace a dotazy ke konkrétním platbám (např. neproběhlá nebo dvojitě stržená platba) prosím směřujte přímo na podporu Comgate uvedenou výše.
+                </p>
+              </div>
+            </div>
           </section>
 
           {/* Cena a měna */}

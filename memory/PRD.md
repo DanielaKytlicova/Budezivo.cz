@@ -701,5 +701,20 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] **End-to-end smoke test (manual screenshot)**: list → detail (1 termín auto-selected) → form → summary card s "Cena: 2500 CZK" + "Poskytovatel: Pořadatel akce" + checkboxy fungují (disabled bez consent, enabled s consent, btn text "Objednat a přejít k platbě")
 - [x] **Stale build issue**: webpack hot-reload nezachytil změny v PublicEventsPage; `sudo supervisorctl restart frontend` vyřešil. (Deja-vu z iter65 — připomínka pro budoucí refaktor.)
 
+### Fáze 67 — Comgate brand requirements (loga + kontakty + platební metody) (27.4.2026)
+- 🎯 **Compliance požadavek od Comgate**: na webu musí být uveden poskytovatel platební brány s odkazem, vysvětlení platebních metod, kontaktní údaje Comgate, a v patičce loga Comgate / Visa / Mastercard
+- [x] **PaymentTermsPage sekce 4 přepracována** na „Poskytovatel platební brány a bezpečnost online plateb":
+  - Hlavní odkaz na `https://www.comgate.eu/cs/platebni-brana` (testid `comgate-gateway-link`)
+  - Detailní vysvětlení 2 platebních metod:
+    - **Platba kartou (Visa, Mastercard)**: 3-D Secure flow + odkaz na `https://help.comgate.cz/v1/docs/cs/platby-kartou` (testid `comgate-card-help-link`)
+    - **Platební tlačítka bank** (online převod): odkaz na `https://help.comgate.cz/docs/bankovni-prevody` (testid `comgate-transfer-help-link`)
+  - **Kontaktní karta Comgate** (testid `comgate-contact-card`): Comgate, a.s., Gočárova třída 1754/48b, 500 02 Hradec Králové, podpora@comgate.cz, +420 228 224 267, s upozorněním kam směřovat reklamace plateb
+- [x] **NEW komponenta `PaymentBrandsBar.js`** (`/app/frontend/src/components/layout/`):
+  - Inline SVG loga: Comgate (gradient C + wordmark), Visa (italic 1A1F71), Mastercard (klasický red+orange+yellow překryv)
+  - Comgate logo je klikatelné → odkazuje na oficiální brand URL
+  - Testidy: `payment-brands-bar`, `brand-comgate`, `brand-visa`, `brand-mastercard`
+- [x] **Footer rozšířen**: pod copyright sekci přidán PaymentBrandsBar s eyebrow „AKCEPTUJEME ONLINE PLATBY PŘES" (left-aligned na desktop, centered na mobil); copyright v pravé části flexu
+- [x] **Smoke test**: všech 7 testidů + 4 odkazy nalezeny v DOM, loga renderována, Comgate kontakt obsahuje všechny povinné údaje (e-mail, telefon, Gočárova)
+
 
 

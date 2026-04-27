@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { PaymentBrandsBar } from './PaymentBrandsBar';
 
 // Logo Budeživo.cz pro footer - bílá varianta
 const BudezivoLogoFooter = () => (
@@ -117,8 +118,16 @@ export const Footer = () => {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-slate-600 text-center text-sm text-slate-400">
-          <p>&copy; 2026 Budeživo.cz. Všechna práva vyhrazena.</p>
+        <div className="mt-12 pt-8 border-t border-slate-600">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div className="order-2 md:order-1">
+              <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">Akceptujeme online platby přes</p>
+              <PaymentBrandsBar />
+            </div>
+            <p className="text-sm text-slate-400 order-1 md:order-2 md:text-right">
+              &copy; 2026 Budeživo.cz. Všechna práva vyhrazena.
+            </p>
+          </div>
         </div>
       </div>
     </footer>

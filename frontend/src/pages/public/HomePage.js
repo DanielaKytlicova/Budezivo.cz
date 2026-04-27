@@ -184,25 +184,44 @@ export const HomePage = () => {
     <div className="min-h-screen bg-[#F8F9FA]">
       <Header />
 
-      {/* Hero Section */}
-      <section className="bg-gradient-to-br from-[#4A6FA5] via-[#5979ad] to-[#6889bb] text-white py-20 md:py-28">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <div className="max-w-3xl">
+      {/* Hero Section — dark navy with museum photo fading from right */}
+      <section className="relative bg-[#2B3E50] text-white py-20 md:py-28 overflow-hidden">
+        {/* Photo backdrop on the right, fading to dark on the left */}
+        <div className="absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="https://customer-assets.emergentagent.com/job_bdc8108c-9554-4444-8179-a7723f12fc54/artifacts/e8wgwuu0_ChatGPT%20Image%2025.%204.%202026%2011_48_59.png"
+            alt=""
+            className="absolute inset-y-0 right-0 h-full w-full md:w-[80%] object-cover object-right"
+          />
+          {/* Left-to-right gradient mask: full dark on left → transparent on right */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#2B3E50] from-15% via-[#2B3E50]/80 via-50% to-transparent" />
+          {/* Subtle warm glow on the right (gold) for atmosphere */}
+          <div className="absolute inset-y-0 right-0 w-1/3 bg-gradient-to-l from-[#C4AB86]/10 to-transparent" />
+        </div>
+
+        <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-8">
+          <div className="max-w-2xl">
+            {/* Eyebrow with gold accent — keeps brand palette visible on dark */}
+            <p className="text-xs font-semibold tracking-[0.25em] uppercase text-[#C4AB86] mb-4 inline-flex items-center gap-2" data-testid="hero-eyebrow">
+              <span className="w-6 h-px bg-[#C4AB86]" />
+              Pro kulturní instituce
+            </p>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
-              Méně administrativy. Více prostoru pro kreativitu.
+              Méně administrativy.<br />
+              Více prostoru pro <span className="text-[#C4AB86]">kreativitu</span>.
             </h1>
-            <p className="text-lg md:text-xl text-white/90 leading-relaxed mb-8">
+            <p className="text-lg md:text-xl text-white/85 leading-relaxed mb-8">
               Spravujte rezervace školních a skupinových programů přehledně, bez e-mailového chaosu a tabulek.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link to="/register" data-testid="hero-cta-trial">
-                <Button size="lg" className="bg-[#C4AB86] text-white hover:bg-[#b39975] h-12 px-8 rounded-lg shadow-none">
+                <Button size="lg" className="bg-[#C4AB86] text-white hover:bg-[#b39975] h-12 px-8 rounded-lg shadow-lg shadow-[#C4AB86]/20">
                   Vyzkoušet zdarma
                 </Button>
               </Link>
               <Dialog open={showDemoDialog} onOpenChange={setShowDemoDialog}>
                 <DialogTrigger asChild>
-                  <Button size="lg" variant="outline" className="h-12 px-8 rounded-lg border-2 border-white text-white hover:bg-white/10" data-testid="hero-cta-demo">
+                  <Button size="lg" variant="outline" className="h-12 px-8 rounded-lg border-2 border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white" data-testid="hero-cta-demo">
                     Domluvit online ukázku
                   </Button>
                 </DialogTrigger>

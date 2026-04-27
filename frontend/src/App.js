@@ -19,6 +19,8 @@ import FeedbackPage from './pages/public/FeedbackPage';
 import AcceptInvitePage from './pages/public/AcceptInvitePage';
 import TermsPage from './pages/public/TermsPage';
 import { VopPage } from './pages/public/VopPage';
+import { ReklamacePage } from './pages/public/ReklamacePage';
+import { PaymentTermsPage } from './pages/public/PaymentTermsPage';
 
 // Admin pages
 import { DashboardPage } from './pages/admin/DashboardPage';
@@ -80,6 +82,8 @@ function App() {
               <Route path="/accept-invite" element={<AcceptInvitePage />} />
               <Route path="/terms" element={<TermsPage />} />
               <Route path="/obchodni-podminky" element={<VopPage />} />
+              <Route path="/reklamace" element={<ReklamacePage />} />
+              <Route path="/platebni-podminky" element={<PaymentTermsPage />} />
               <Route path="/events/:institutionId" element={<PublicEventsPage />} />
               <Route path="/payment/return" element={<PaymentReturnPage />} />
               <Route path="/payment/mock" element={<PaymentMockPage />} />

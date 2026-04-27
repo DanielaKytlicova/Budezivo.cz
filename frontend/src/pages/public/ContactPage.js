@@ -8,7 +8,7 @@ import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { toast } from 'sonner';
-import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react';
+import { Mail, MapPin, Clock, Send } from 'lucide-react';
 import axios from 'axios';
 import { API } from '../../config/api';
 
@@ -78,32 +78,18 @@ export const ContactPage = () => {
               </div>
             </Card>
 
-            <Card className="p-6" data-testid="contact-info-phone">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-[#4A6FA5]/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Phone className="w-6 h-6 text-[#4A6FA5]" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900 mb-1">Telefon</h3>
-                  <a href="tel:+420123456789" className="text-[#4A6FA5] hover:underline">
-                    +420 123 456 789
-                  </a>
-                  <p className="text-sm text-gray-500 mt-1">Po-Pá 9:00 - 17:00</p>
-                </div>
-              </div>
-            </Card>
-
             <Card className="p-6" data-testid="contact-info-address">
               <div className="flex items-start gap-4">
                 <div className="w-12 h-12 bg-[#4A6FA5]/10 rounded-lg flex items-center justify-center flex-shrink-0">
                   <MapPin className="w-6 h-6 text-[#4A6FA5]" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-slate-900 mb-1">Adresa</h3>
-                  <p className="text-gray-600">
-                    Budeživo.cz<br />
-                    Příkladová 123<br />
-                    110 00 Praha 1
+                  <h3 className="font-semibold text-slate-900 mb-1">Provozovatel</h3>
+                  <p className="text-gray-600 text-sm leading-relaxed">
+                    Daniela Kytlicová<br />
+                    IČO: 07407971<br />
+                    Mlýnská 538<br />
+                    <span className="text-xs text-gray-400">Není plátce DPH</span>
                   </p>
                 </div>
               </div>
@@ -115,7 +101,7 @@ export const ContactPage = () => {
                   <Clock className="w-6 h-6 text-[#4A6FA5]" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-slate-900 mb-1">Provozní doba</h3>
+                  <h3 className="font-semibold text-slate-900 mb-1">Odpovědi na dotazy</h3>
                   <p className="text-gray-600">
                     Pondělí - Pátek<br />
                     9:00 - 17:00

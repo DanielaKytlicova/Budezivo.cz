@@ -579,6 +579,27 @@ export const DashboardPage = () => {
     setModalOpen(true);
   };
 
+  // Today's bookings for "Moje rezervace dnes" widget.
+  // Visible for: lektor, edukátor, pokladní, admin, spravce.
+  // For lektor/edukator: filtered to assigned_lecturer_id == current user.
+  // For admin/spravce/pokladni: shows all institution bookings for today.
+  const myTodayBookings = useMemo(() => {
+    if (!Array.isArray(reservations) || !user) return [];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const role = user.role;
+    const personalRoles = ['lektor', 'edukator'];
+    return reservations
+      .filter(b => b.date === today && b.status !== 'cancelled')
+      .filter(b => personalRoles.includes(role)
+        ? b.assigned_lecturer_id === user.id
+        : true
+      )
+      .sort((a, b) => (a.time_block || '').localeCompare(b.time_block || ''));
+  }, [reservations, user]);
+
+  const showTodayWidget = !!user && ['admin','spravce','lektor','edukator','pokladni'].includes(user.role);
+
   if (loading) {
     return (
       <AdminLayout>
@@ -607,6 +628,68 @@ export const DashboardPage = () => {
           <h1 className="text-3xl font-bold text-slate-900">{t('dashboard.welcome')}</h1>
           <p className="text-muted-foreground mt-1">{user?.institution_name}</p>
         </div>
+
+        {/* Moje rezervace dnes — quick view for lektor/edukator/pokladni/admin */}
+        {showTodayWidget && (
+          <Card className="p-6 border-l-4 border-l-[#5a7aae]" data-testid="today-bookings-widget">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-[#5a7aae]/10 flex items-center justify-center">
+                  <CalendarIcon className="w-5 h-5 text-[#5a7aae]" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    {['lektor','edukator'].includes(user?.role) ? 'Moje rezervace dnes' : 'Rezervace dnes'}
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    {new Date().toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  </p>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-[#5a7aae] border-[#5a7aae]/30" data-testid="today-bookings-count">
+                {myTodayBookings.length} {myTodayBookings.length === 1 ? 'rezervace' : (myTodayBookings.length >= 2 && myTodayBookings.length <= 4 ? 'rezervace' : 'rezervací')}
+              </Badge>
+            </div>
+
+            {myTodayBookings.length === 0 ? (
+              <div className="py-8 text-center" data-testid="today-bookings-empty">
+                <CalendarIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                <p className="text-sm text-slate-500">
+                  {['lektor','edukator'].includes(user?.role)
+                    ? 'Dnes vás žádný program nečeká. Užijte si klidný den.'
+                    : 'Žádné rezervace na dnešek.'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {myTodayBookings.map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => handleSelectReservation(b)}
+                    className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-[#5a7aae]/5 rounded-lg border border-transparent hover:border-[#5a7aae]/20 transition-all text-left group"
+                    data-testid={`today-booking-${b.id}`}
+                  >
+                    <div className="w-14 flex-shrink-0 text-center">
+                      <div className="text-base font-bold text-[#5a7aae]">
+                        {b.time_block || '—'}
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-slate-900 truncate group-hover:text-[#5a7aae] transition-colors">
+                        {b.program_name || 'Program'}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        <School className="inline w-3 h-3 mr-1 -mt-0.5" />
+                        {b.school_name} · <Users className="inline w-3 h-3 mx-1 -mt-0.5" />{b.num_students || 0} žáků
+                      </p>
+                    </div>
+                    <StatusBadge status={b.status} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

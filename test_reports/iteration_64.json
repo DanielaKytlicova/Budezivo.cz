@@ -1,0 +1,39 @@
+{
+  "summary": "Phase 64 frontend-only verification of 5 UI/UX changes for Bude Živo CRM landing + admin: hero photo+gradient, alternating section bgs, mobile responsive Vše-na-jednom-místě, Moje rezervace dnes widget, mobile bottom-nav 'Více', and Settings 'Rychlý přístup' mobile section. ALL DOM-level acceptance criteria PASS. One environment-only overlap (Emergent preview badge sitting on top of the 5th bottom-nav slot) noted as minor.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Mobile bottom nav -> Více -> /admin/settings (preview env only)",
+        "issue": "The floating 'Made with Emergent' preview badge (fixed bottom-right) covers the centre of the 5th nav slot. document.elementFromPoint at the centre of [data-testid=\"mobile-nav-more\"] returns the Emergent badge <p>, so a user tap on the icon part of 'Více' is intercepted in the preview env. The Link itself is correctly wired (href=/admin/settings) and direct navigation/Quick-access tile clicks all work. Will not affect production deploy where the badge is absent, but bottom-nav z-index (z-50) could be raised or right padding added to keep the 5th slot fully tappable in preview.",
+        "affected_selectors": ["[data-testid='mobile-nav-more']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional: raise mobile bottom-nav z-index above the Emergent preview badge (or add right padding to the 5th slot) so the 'Více' tap target isn't covered by the floating badge in the preview environment. Production unaffected."
+  ],
+  "critical_code_review_comments": [
+    "DashboardPage.js (line 601): showTodayWidget guard `['admin','spravce','lektor','edukator','pokladni'].includes(user.role)` is correct. Empty-state copy varies by role (lektor/edukator vs others) — verified. Pluralisation badge uses Czech 1/2-4/5+ logic (line 650).",
+    "AdminLayout.js (lines 317-351): mobile bottom-nav IIFE is fine; grid-cols-{n} computed dynamically (5 confirmed live). 'Více' (data-testid='mobile-nav-more') is a React-Router <Link to='/admin/settings'> — semantically correct.",
+    "SettingsPage 'Rychlý přístup' renders 10 buttons (not <a>/<Link>) using onClick navigate; all 10 navigate correctly (verified Programy and Statistiky). Slightly less SEO-friendly than <Link> but functionally equivalent in mobile UX.",
+    "HomePage.js: 'Jak to funguje?' section bg = rgb(36,52,70) ≈ #243446 (dark navy ✓), 'Vše na jednom místě' bg = rgb(238,242,249) = #EEF2F9 (light ✓), eyebrow 'POHLED ADMINISTRÁTORA' present, dashboard-preview testid present, sidebar inside preview is `hidden md:block` (display:none on 390px ✓), inner overflow-x-auto wrapper present (1) ✓.",
+    "Hero image: museum photo backdrop renders on right side (visible from ~50% width onward) with dark-blue (#2B3E50-ish) gradient on the left half. 'kreativitu' rendered in gold (#C4AB86) ✓. CTA 'Vyzkoušet zdarma' visible ✓."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A — frontend-only request",
+    "frontend": "100% on DOM/visual acceptance criteria; 1 minor environmental overlap (Emergent badge over 5th nav slot)"
+  },
+  "test_credentials": "demo@budezivo.cz / Demo2026! (Superadmin)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Live verified on https://arch-enhance-v59.preview.emergentagent.com. Key testids confirmed in DOM: how-it-works-0..3, dashboard-preview, pain-comparison-row-0/4, today-bookings-widget, today-bookings-empty, today-bookings-count, mobile-nav-more, settings-mobile-quick-access. Section background colors verified via getComputedStyle. Mobile (390px) verified: hero readable, dashboard-preview sidebar hidden (display:none), calendar overflow-x-auto wrapper present, settings-mobile-quick-access display:block on mobile and display:none on desktop (md:hidden). Empty-state copy 'Žádné rezervace na dnešek.' confirmed for superadmin. Bottom nav grid-cols-5 confirmed. Only caveat: in the preview env the floating 'Made with Emergent' <p> overlaps the centre of the 'Více' (5th) slot; clicking via JS .click() does navigate; raw mouse click is intercepted by the badge. Production builds without the badge will not have this issue."
+}

@@ -716,5 +716,53 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] **Footer rozšířen**: pod copyright sekci přidán PaymentBrandsBar s eyebrow „AKCEPTUJEME ONLINE PLATBY PŘES" (left-aligned na desktop, centered na mobil); copyright v pravé části flexu
 - [x] **Smoke test**: všech 7 testidů + 4 odkazy nalezeny v DOM, loga renderována, Comgate kontakt obsahuje všechny povinné údaje (e-mail, telefon, Gočárova)
 
+### Fáze 68 — B2B Catalog Etapa 4: Učitelské účty (B2C) + Oblíbené + Historie + Prefill (27.4.2026)
+- 🎯 **Cíl**: registrace/přihlášení externích učitelů (mimo institucionální admin systém), uložené oblíbené programy, historie rezervací, autoprefill rezervačního formuláře pro přihlášené uživatele
+- 👤 **Volby uživatele**: 1a) vlastní JWT email/password (architektonicky připraveno na Google později), 2) MVP + prefill (ne notifikace), 3a) separátní `teacher_accounts` tabulka
+
+#### Backend
+- [x] **NEW migration `003_teacher_accounts.sql`** (idempotentní):
+  - `teacher_accounts` (id, email UNIQUE, password_hash, name, school_name, phone, auth_provider DEFAULT 'password', google_sub, is_active, last_login_at, created_at, updated_at, deleted_at)
+  - `teacher_favorites` (teacher_id FK CASCADE, program_id FK CASCADE, institution_id FK CASCADE, UNIQUE(teacher_id, program_id))
+  - `teacher_login_attempts` (identifier UNIQUE, failed_count, last_failed_at, locked_until) — pro brute-force ochranu
+- [x] **NEW modely** `TeacherAccount`, `TeacherFavorite`, `TeacherLoginAttempt` v `database/models.py`
+- [x] **NEW router `routes/teacher.py`**:
+  - **Auth**: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `PATCH /me`
+  - **Favorites**: `GET /favorites` (s embedded program data), `POST /favorites` (idempotent), `DELETE /favorites/{program_id}`
+  - **Bookings**: `GET /bookings` (filtruje rezervace podle `contact_email == teacher.email`)
+  - **JWT**: 14denní TTL, payload obsahuje `account_type='teacher'`, cookie `teacher_token` (httpOnly secure samesite=lax), Bearer fallback
+  - **Brute-force lockout**: dvojitý klíč `email:{email}` + `ip:{ip}` (z X-Forwarded-For), 5 pokusů → 15 min lockout
+  - Heslo bcrypt-hashed, bezpečné error messages bez user enumeration
+- [x] **🐛 SECURITY FIX `core/security.get_current_user`**: nyní explicitně odmítá tokeny s `account_type != 'admin'` a tokeny bez `user_id` → 401 místo 500 KeyError. Předchází leakage informací při náhodném použití teacher tokenu na admin endpoint
+- [x] **Lockout fix `routes/teacher.py`**: `_client_ip()` helper čte `X-Forwarded-For` first hop místo `request.client.host` (které za Kubernetes ingress rotuje)
+
+#### Frontend
+- [x] **NEW context `TeacherAuthContext.js`** (oddělený od institucionálního AuthContext): cookie + localStorage `bz_teacher_token` Bearer fallback (pro cross-subdomain ingress preview), automatický refresh `/me` při mountu, format API errors helper
+- [x] **NEW stránky** v `pages/teacher/`:
+  - `/ucitel/registrace` — TeacherRegisterPage (jméno, email, heslo, škola, telefon + checkbox VOP/GDPR)
+  - `/ucitel/prihlaseni` — TeacherLoginPage
+  - `/ucitel/ucet` — TeacherAccountPage s 3 tab záložkami: **Oblíbené** / **Historie** / **Profil**
+- [x] **NEW komponenta `FavoriteButton.js`** s 2 variantami:
+  - `variant='icon'` — kruhové srdíčko v top-right rohu catalog karty
+  - `variant='pill'` — pill na catalog detail page „Uložit" / „V oblíbených"
+  - Lazy fetch oblíbených při mountu (jen pokud je teacher přihlášen)
+  - Při kliknutí bez přihlášení → toast s tlačítkem „Přihlásit"
+- [x] **CatalogPage** (`programy-pro-skoly`): srdíčko v top-right rohu každé karty
+- [x] **CatalogDetailPage** (`programy-pro-skoly/p/{slug}`): pill u nadpisu programu
+- [x] **BookingPage prefill**: `useTeacherAuth` integration — pokud je teacher přihlášen, jeden-shot autofill `contact_name/email/phone/school_name` z teacher profilu (jen prázdné pole, neutrhne user input), s toast „Údaje byly předvyplněny z vašeho účtu"
+- [x] **App.js**: `TeacherAuthProvider` wrap (oddělený od `AuthProvider`), 3 nové public routy
+
+#### Test
+- [x] **Iter66 testing agent**: 13/15 backend pytest PASS + 100% frontend testable flows. 2 HIGH backend bugy nalezeny:
+  1. ❌→✅ Admin endpoint vrátil 500 KeyError při teacher tokenu — opraveno (401)
+  2. ❌→✅ Brute-force lockout nikdy nesepnul přes ingress — opraveno (X-Forwarded-For + email klíč)
+- [x] **Curl re-verifikace po opravách**:
+  - Admin login OK ✅, /me OK ✅
+  - Teacher login OK ✅
+  - **Teacher token na admin /me → HTTP 401** „Tento token nepatří administrátorovi platformy." ✅
+  - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
+- [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
+
+
 
 

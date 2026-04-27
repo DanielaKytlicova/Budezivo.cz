@@ -208,6 +208,20 @@ async def _reset_attempts(db: AsyncSession, identifier: str) -> None:
 
 # ----- Auth endpoints ---------------------------------------------------------
 
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP detection — works behind Kubernetes ingress / load balancer.
+
+    Falls back to ``request.client.host`` when the proxy header is missing.
+    """
+    xff = request.headers.get("x-forwarded-for") or request.headers.get("X-Forwarded-For")
+    if xff:
+        return xff.split(",")[0].strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "unknown"
+
+
 @router.post("/auth/register")
 async def teacher_register(
     data: TeacherRegisterIn,
@@ -244,22 +258,27 @@ async def teacher_login(
     response: Response,
     db: AsyncSession = Depends(get_db),
 ):
-    ip = request.client.host if request.client else "unknown"
-    identifier = f"{ip}:{data.email}"
+    # Lockout key — primarily by email so a single attacker who rotates IPs
+    # is still blocked. We also keep an IP-only secondary key for safety.
+    email_key = f"email:{data.email}"
+    ip = _client_ip(request)
+    ip_key = f"ip:{ip}"
 
-    if await _is_locked(db, identifier):
+    if await _is_locked(db, email_key) or await _is_locked(db, ip_key):
         raise HTTPException(status_code=429, detail="Příliš mnoho neúspěšných pokusů. Zkuste to prosím za 15 minut.")
 
     res = await db.execute(select(TeacherAccount).where(TeacherAccount.email == data.email))
     teacher = res.scalar_one_or_none()
     valid = teacher is not None and teacher.is_active and teacher.deleted_at is None and _verify_password(data.password, teacher.password_hash or "")
     if not valid:
-        await _record_failed_attempt(db, identifier)
+        await _record_failed_attempt(db, email_key)
+        await _record_failed_attempt(db, ip_key)
         raise HTTPException(status_code=401, detail="Nesprávný e-mail nebo heslo")
 
     teacher.last_login_at = datetime.now(timezone.utc)
     await db.commit()
-    await _reset_attempts(db, identifier)
+    await _reset_attempts(db, email_key)
+    await _reset_attempts(db, ip_key)
 
     token = _create_teacher_token(str(teacher.id), teacher.email)
     _set_teacher_cookie(response, token)

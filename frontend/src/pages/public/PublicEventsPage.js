@@ -24,6 +24,8 @@ export default function PublicEventsPage() {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [payingOnline, setPayingOnline] = useState(false);
+  const [gdprConsent, setGdprConsent] = useState(false);
+  const [termsConsent, setTermsConsent] = useState(false);
   const [institutionData, setInstitutionData] = useState({
     name: '',
     logoUrl: null,
@@ -75,6 +77,10 @@ export default function PublicEventsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!gdprConsent || !termsConsent) {
+      toast.error('Pro odeslání přihlášky musíte odsouhlasit obchodní podmínky a zpracování osobních údajů.');
+      return;
+    }
     setSubmitting(true);
     try {
       const emailField = selectedEvent.form_fields?.find(f => f.type === 'email');
@@ -285,6 +291,42 @@ export default function PublicEventsPage() {
             <button onClick={() => setStep('detail')} className="text-sm text-[#5a7aae] hover:underline mb-4 inline-block" data-testid="back-to-detail">
               &larr; Zpět na detail
             </button>
+
+            {/* Order summary — povinný přehled před potvrzením objednávky */}
+            <Card className="p-5 md:p-6 mb-4 bg-[#EEF2F9] border-[#D9E1F0]" data-testid="event-order-summary">
+              <h2 className="text-base font-semibold text-[#2B3E50] mb-3">Shrnutí objednávky</h2>
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between gap-4 border-b border-white/60 pb-2">
+                  <dt className="text-gray-500">Produkt</dt>
+                  <dd className="font-medium text-[#2B3E50] text-right" data-testid="summary-event-name">{selectedEvent.name}</dd>
+                </div>
+                {selectedDate && (
+                  <div className="flex justify-between gap-4 border-b border-white/60 pb-2">
+                    <dt className="text-gray-500">Termín</dt>
+                    <dd className="font-medium text-[#2B3E50] text-right" data-testid="summary-event-date">
+                      {formatDate(selectedDate.start_datetime)}
+                      {selectedDate.end_datetime && (
+                        <><br /><span className="text-xs text-gray-500">do {formatDate(selectedDate.end_datetime)}</span></>
+                      )}
+                    </dd>
+                  </div>
+                )}
+                <div className="flex justify-between gap-4 border-b border-white/60 pb-2">
+                  <dt className="text-gray-500">Cena</dt>
+                  <dd className="font-bold text-[#2B3E50] text-right text-base" data-testid="summary-event-price">
+                    {selectedEvent.price > 0 ? `${selectedEvent.price} ${selectedEvent.currency || 'Kč'}` : 'Zdarma'}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-gray-500">Poskytovatel</dt>
+                  <dd className="font-medium text-[#2B3E50] text-right" data-testid="summary-event-provider">{institutionData.name || 'Pořadatel akce'}</dd>
+                </div>
+              </dl>
+              <p className="text-xs text-gray-500 mt-3 leading-relaxed">
+                Smluvní vztah vzniká mezi vámi a pořadatelem akce. Budeživo.cz je technický zprostředkovatel rezervace a platby.
+              </p>
+            </Card>
+
             <Card className="p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-1">{selectedEvent.name}</h2>
               {selectedDate && <p className="text-sm text-gray-500 mb-2">Termín: {formatDate(selectedDate.start_datetime)}</p>}
@@ -292,8 +334,51 @@ export default function PublicEventsPage() {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 {(selectedEvent.form_fields || []).sort((a, b) => (a.order || 0) - (b.order || 0)).map(renderFormField)}
-                <Button type="submit" disabled={submitting} className="w-full bg-[#5a7aae] hover:bg-[#4a6a9e] h-12 mt-6" data-testid="submit-application-btn">
-                  {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Odesílám...</> : 'Odeslat přihlášku'}
+
+                {/* Consent checkboxes — vyžadováno pro online platby */}
+                <div className="pt-4 border-t border-gray-100 space-y-3">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={gdprConsent}
+                      onChange={e => setGdprConsent(e.target.checked)}
+                      required
+                      className="rounded mt-0.5 w-4 h-4 shrink-0"
+                      data-testid="event-gdpr-consent"
+                    />
+                    <span className="text-sm text-gray-700 leading-relaxed">
+                      Souhlasím se zpracováním osobních údajů v souladu s{' '}
+                      <a href="/gdpr" target="_blank" rel="noopener noreferrer" className="text-[#5a7aae] hover:underline" data-testid="event-gdpr-link">
+                        zásadami ochrany osobních údajů (GDPR)
+                      </a>. <span className="text-red-500">*</span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={termsConsent}
+                      onChange={e => setTermsConsent(e.target.checked)}
+                      required
+                      className="rounded mt-0.5 w-4 h-4 shrink-0"
+                      data-testid="event-terms-consent"
+                    />
+                    <span className="text-sm text-gray-700 leading-relaxed">
+                      Souhlasím s{' '}
+                      <a href="/obchodni-podminky" target="_blank" rel="noopener noreferrer" className="text-[#5a7aae] hover:underline" data-testid="event-terms-link-vop">obchodními podmínkami</a>,{' '}
+                      <a href="/reklamace" target="_blank" rel="noopener noreferrer" className="text-[#5a7aae] hover:underline" data-testid="event-terms-link-reklamace">reklamačními podmínkami</a> a{' '}
+                      <a href="/platebni-podminky" target="_blank" rel="noopener noreferrer" className="text-[#5a7aae] hover:underline" data-testid="event-terms-link-payment">platebními podmínkami</a>.
+                      Tímto závazně objednávám výše uvedenou službu. <span className="text-red-500">*</span>
+                    </span>
+                  </label>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={submitting || !gdprConsent || !termsConsent}
+                  className="w-full bg-[#5a7aae] hover:bg-[#4a6a9e] disabled:bg-gray-300 h-12 mt-6"
+                  data-testid="submit-application-btn"
+                >
+                  {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Odesílám...</> : (selectedEvent.price > 0 ? 'Objednat a přejít k platbě' : 'Závazně přihlásit')}
                 </Button>
               </form>
             </Card>

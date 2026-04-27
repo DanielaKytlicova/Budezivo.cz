@@ -683,4 +683,23 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] **App.js**: zaregistrovány routy `/reklamace` a `/platebni-podminky`
 - [x] **Testing agent iter65**: 96% PASS (23/24 live assertions). Kód-level verifikace booking step-4 testidů úspěšná; live walkthrough nelze dokončit kvůli omezení seed dat Test Muzea (žádné dostupné termíny v 8 následujících měsících)
 
+### Fáze 66 — Demo produkt B2C: Příměstský tábor + Compliance flow v Events (27.4.2026)
+- 🎯 **Účel**: vytvořit realistický B2C scénář (rodič kupuje příměstský tábor) pro demonstraci platebního flow Comgate; doplnit chybějící compliance prvky v Events flow (souhrn + checkbox souhlasu)
+- [x] **Seed skript** `/app/backend/scripts/seed_demo_camp.py` (idempotentní):
+  - Vytvoří/aktualizuje Event „Příměstský tábor – Léto 2026" pod Test Muzeum (institution `669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5`)
+  - Type `camp`, kapacita 20, cena 2500 CZK, popis 5denního programu pro děti 7-12, výtvarné dílny, prohlídky, závěrečná vernisáž
+  - 8 form_fields: jméno dítěte, věk, škola, jméno rodiče, e-mail rodiče, telefon, alergie, souhlas s focením
+  - Termín 1.–5. července 2026, 8:00–16:30
+  - Whitelistuje `events_module` flag pro Test Muzeum
+  - Vytvoří payment_settings (Comgate MOCK + QR, account 295033917/0300, IBAN CZ60..., account_name „Test Muzeum")
+- [x] **PublicEventsPage rozšíření** (`PublicEventsPage.js`):
+  - Step `form` doplněn o povinnou kartu „Shrnutí objednávky" (testid `event-order-summary`) — produkt, termín, cena, poskytovatel + textové vysvětlení smluvního vztahu
+  - Testidy: `summary-event-name`, `summary-event-date`, `summary-event-price`, `summary-event-provider`
+  - 2 nové povinné checkboxy: GDPR (`event-gdpr-consent` + link `event-gdpr-link` → /gdpr) a Terms (`event-terms-consent` + 3 linky `event-terms-link-{vop,reklamace,payment}`)
+  - Submit button disabled, dokud nejsou oba consenty zaškrtnuté; text se mění na „Objednat a přejít k platbě" při ceně > 0
+  - `handleSubmit` validuje souhlasy před POST + zobrazí toast error
+- [x] **End-to-end smoke test (manual screenshot)**: list → detail (1 termín auto-selected) → form → summary card s "Cena: 2500 CZK" + "Poskytovatel: Pořadatel akce" + checkboxy fungují (disabled bez consent, enabled s consent, btn text "Objednat a přejít k platbě")
+- [x] **Stale build issue**: webpack hot-reload nezachytil změny v PublicEventsPage; `sudo supervisorctl restart frontend` vyřešil. (Deja-vu z iter65 — připomínka pro budoucí refaktor.)
+
+
 

@@ -661,3 +661,26 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] **SettingsPage**: nová mobile-only sekce „Rychlý přístup" (testid `settings-mobile-quick-access`) — 3-sloupcový grid 9 dlaždic dle role (Přehled, Programy, Rezervace, Akce, Propagace, Školy, Zpětná vazba, Lektorský profil, Statistiky, Superadmin); skryto na desktop přes `md:hidden`
 - [x] **Testing agent iter64**: 100% DOM/visual acceptance PASS; pouze minor preview-env překryv s Emergent badge přes 5. nav slot — vyřešeno bumpem na `z-[60]`
 
+### Fáze 65 — Compliance audit pro platební bránu (Comgate) (27.4.2026)
+- 🔍 **Audit identifikoval problémy**: chybějící samostatná stránka pro reklamace/storno, chybějící samostatná stránka pro platební podmínky, footer s typem `bubezivo.cz` + bez identifikace provozovatele a právních odkazů, ContactPage s fake daty (Příkladová 123, +420 123 456 789), booking flow bez explicitního shrnutí objednávky a s odkazem jen na `/terms`
+- [x] **NEW page** `/reklamace` (`ReklamacePage.js`) — Reklamační a stornovací podmínky pro koncového zákazníka:
+  - Storno 48h předem zdarma, 14 dnů na vrácení platby, zrušení ze strany pořadatele s plnou náhradou, mimosoudní řešení sporů (ČOI + EU ODR platforma)
+  - Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538
+  - Testidy: `reklamace-page`, `reklamace-provider`, `reklamace-cancel`, `reklamace-refund`, `reklamace-organizer-cancel`, `reklamace-complaint`, `reklamace-adr`, `reklamace-contact`
+- [x] **NEW page** `/platebni-podminky` (`PaymentTermsPage.js`) — Platební a dodací podmínky:
+  - 6 sekcí: provozovatel, předmět plnění, způsoby platby (na místě / převod / online brána), bezpečnost (Comgate IČO 27924505, PCI-DSS), cena/měna (CZK), doklad o platbě, link na reklamace
+  - Testidy: `payment-terms-page`, `payment-provider`, `payment-subject`, `payment-methods`, `payment-security`, `payment-price`, `payment-receipt`, `payment-cancel-link`
+- [x] **Footer rewrite** (`Footer.js`):
+  - Opravený typo `bubezivo.cz` → `info@budezivo.cz`
+  - Nová sekce „Provozovatel" s identifikačními údaji (Daniela Kytlicová, IČO 07407971, Mlýnská 538, email) — testid `footer-provider-info`
+  - 4 právní odkazy: VOP, GDPR, Reklamace, Platební podmínky — testidy `footer-link-{vop,gdpr,reklamace,payment}`
+  - Nahrazen mailto Kontakt v patičce React Routerem `<Link to="/kontakt">`
+- [x] **ContactPage cleanup** (`ContactPage.js`): odstraněn fake telefon `+420 123 456 789`, fake adresa `Příkladová 123, Praha 1` nahrazena reálným provozovatelem (Daniela Kytlicová, IČO 07407971, Mlýnská 538); přejmenováno „Adresa" → „Provozovatel"
+- [x] **BookingPage step 4 — Shrnutí objednávky**: nová karta `booking-summary` na začátku kroku 4 s přehledem (program, datum, čas, cena z `pricing_info`, poskytovatel = instituce); textové vysvětlení že smluvní vztah vzniká mezi zákazníkem a institucí, Budeživo je technický zprostředkovatel
+- [x] **BookingPage checkboxes** doplněny o linky:
+  - GDPR checkbox: link `/gdpr` (testid `booking-gdpr-link`)
+  - Terms checkbox: 3 odkazy `/obchodni-podminky` + `/reklamace` + `/platebni-podminky` (testidy `booking-terms-link-{vop,reklamace,payment}`)
+- [x] **App.js**: zaregistrovány routy `/reklamace` a `/platebni-podminky`
+- [x] **Testing agent iter65**: 96% PASS (23/24 live assertions). Kód-level verifikace booking step-4 testidů úspěšná; live walkthrough nelze dokončit kvůli omezení seed dat Test Muzea (žádné dostupné termíny v 8 následujících měsících)
+
+

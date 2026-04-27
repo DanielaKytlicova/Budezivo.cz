@@ -313,25 +313,28 @@ export const AdminLayout = ({ children }) => {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border z-50">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border z-[60]">
         {(() => {
-          const userRole = user?.role || 'viewer';
-          const isAdmin = ['admin', 'spravce'].includes(userRole);
           // Mobile nav uses only flat items (skip collapsible groups).
           const flatItems = navItems.filter(item => item.type !== 'group');
-          const settingsItem = flatItems.find(item => item.path === '/admin/settings');
-          const mobileItems = isAdmin && settingsItem
-            ? [...flatItems.filter(it => it.path !== '/admin/settings').slice(0, 4), settingsItem]
-            : flatItems.slice(0, 4);
+          // Always reserve the 5th slot for "Více" → opens Nastavení hub which
+          // includes a mobile-only "Rychlý přístup" group with the remaining items.
+          const visibleSlots = flatItems.slice(0, 4);
+          const overflowExists = flatItems.length > 4;
+          const moreItem = overflowExists
+            ? { path: '/admin/settings', icon: Settings, label: 'Více', testId: 'nav-more' }
+            : null;
+          const mobileItems = moreItem ? [...visibleSlots, moreItem] : visibleSlots;
           return (
-            <div className={`grid gap-1 p-2 ${mobileItems.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+            <div className={`grid gap-1 p-2 ${mobileItems.length === 5 ? 'grid-cols-5' : mobileItems.length === 4 ? 'grid-cols-4' : mobileItems.length === 3 ? 'grid-cols-3' : mobileItems.length === 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
               {mobileItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.path || 
-                  (item.path === '/admin/settings' && location.pathname.startsWith('/admin/settings'));
+                const isActive = item.testId === 'nav-more'
+                  ? (location.pathname.startsWith('/admin/settings'))
+                  : location.pathname === item.path;
                 return (
                   <Link
-                    key={item.path}
+                    key={item.path + (item.testId || '')}
                     to={item.path}
                     data-testid={`mobile-${item.testId}`}
                     className={`flex flex-col items-center py-2 px-1 rounded-md ${

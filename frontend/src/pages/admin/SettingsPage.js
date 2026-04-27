@@ -28,7 +28,16 @@ import {
   Lock,
   FileText,
   ClipboardList,
-  CreditCard
+  CreditCard,
+  LayoutDashboard,
+  Calendar,
+  BookOpen,
+  School,
+  MessageSquare,
+  Mail,
+  GraduationCap,
+  BarChart3,
+  CalendarDays
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { API } from '../../config/api';
@@ -459,6 +468,29 @@ export const SettingsPage = () => {
       return true;
     });
 
+    // Mobile-only "Rychlý přístup" — items hidden from mobile bottom nav.
+    // The bottom nav only shows the first 4 flat nav items + "Více" (which leads
+    // here). All remaining admin pages are surfaced here on mobile only.
+    const role = user?.role || 'viewer';
+    const isPlatformOwner = user?.email === 'demo@budezivo.cz' || user?.email === 'admin@budezivo.cz';
+    const allMobileQuickItems = [
+      { path: '/admin', icon: LayoutDashboard, label: 'Přehled', roles: ['admin','spravce','edukator','lektor','pokladni','staff','viewer'] },
+      { path: '/admin/programs', icon: Calendar, label: 'Programy', roles: ['admin','spravce','edukator','staff','viewer'] },
+      { path: '/admin/bookings', icon: BookOpen, label: 'Rezervace', roles: ['admin','spravce','edukator','lektor','pokladni','staff','viewer'] },
+      { path: '/admin/events', icon: CalendarDays, label: 'Akce', roles: ['admin','spravce','edukator','staff'], requiresEvents: true },
+      { path: '/admin/mailings', icon: Mail, label: 'Propagace', roles: ['admin','spravce','edukator','staff'] },
+      { path: '/admin/schools', icon: School, label: 'Školy', roles: ['admin','spravce','edukator','staff'] },
+      { path: '/admin/feedback', icon: MessageSquare, label: 'Zpětná vazba', roles: ['admin','spravce','edukator','staff'] },
+      { path: '/admin/lecturer-profile', icon: GraduationCap, label: 'Lektorský profil', roles: ['admin','spravce','edukator','lektor','pokladni','staff','viewer'] },
+      { path: '/admin/statistics', icon: BarChart3, label: 'Statistiky', roles: ['admin','spravce','edukator','staff'] },
+      { path: '/admin/superadmin', icon: Shield, label: 'Superadmin', roles: ['admin','spravce'], superadminOnly: true },
+    ];
+    const mobileQuickItems = allMobileQuickItems.filter(it => {
+      if (it.requiresEvents && !eventsEnabled) return false;
+      if (it.superadminOnly && !isPlatformOwner) return false;
+      return it.roles.includes(role);
+    });
+
     return (
     <div className="space-y-4">
       <div className="flex items-center gap-4 mb-6">
@@ -466,6 +498,29 @@ export const SettingsPage = () => {
           <ArrowLeft className="w-5 h-5" />
         </button>
         <h1 className="text-xl font-semibold text-slate-900">Nastavení</h1>
+      </div>
+
+      {/* Mobile-only quick access (matches "Více" entry from bottom nav) */}
+      <div className="md:hidden space-y-2" data-testid="settings-mobile-quick-access">
+        <h2 className="text-xs font-semibold tracking-[0.18em] uppercase text-slate-500 px-1 pt-1">
+          Rychlý přístup
+        </h2>
+        <div className="grid grid-cols-3 gap-2">
+          {mobileQuickItems.map((it) => {
+            const Icon = it.icon;
+            return (
+              <button
+                key={it.path}
+                onClick={() => navigate(it.path)}
+                data-testid={`mobile-quick-${it.path.replace(/\//g, '-')}`}
+                className="flex flex-col items-center justify-center gap-1.5 py-3 px-2 bg-white border border-gray-200 rounded-xl hover:border-[#5a7aae] hover:shadow-sm transition-all text-center"
+              >
+                <Icon className="w-5 h-5 text-[#5a7aae]" />
+                <span className="text-[11px] font-medium text-slate-700 leading-tight">{it.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="space-y-3">

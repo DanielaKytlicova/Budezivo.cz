@@ -184,25 +184,46 @@ export const HomePage = () => {
     <div className="min-h-screen bg-[#F8F9FA]">
       <Header />
 
-      {/* Hero Section */}
-      <section className="bg-gradient-to-br from-[#4A6FA5] via-[#5979ad] to-[#6889bb] text-white py-20 md:py-28">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <div className="max-w-3xl">
+      {/* Hero Section — dark navy with museum photo fading from right */}
+      <section className="relative bg-[#2B3E50] text-white py-20 md:py-28 overflow-hidden">
+        {/* Photo backdrop on the right, fading to dark on the left */}
+        <div className="absolute inset-0 z-0" aria-hidden="true">
+          <img
+            src="https://customer-assets.emergentagent.com/job_bdc8108c-9554-4444-8179-a7723f12fc54/artifacts/tju1uhiz_ChatGPT%20Image%2025.%204.%202026%2011_48_59.png"
+            alt=""
+            className="absolute inset-y-0 right-0 h-full w-full md:w-[85%] object-cover object-right"
+          />
+          {/* Left-to-right gradient mask: full dark on left → transparent on right (stronger on mobile so text stays legible) */}
+          <div className="absolute inset-0 bg-gradient-to-r from-[#2B3E50] from-30% via-[#2B3E50]/85 via-55% to-transparent md:from-15% md:via-50%" />
+          {/* Bottom-up vertical fade for mobile readability */}
+          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#2B3E50] to-transparent md:hidden" />
+          {/* Subtle warm glow on the right (gold) for atmosphere */}
+          <div className="absolute inset-y-0 right-0 w-1/3 bg-gradient-to-l from-[#C4AB86]/10 to-transparent" />
+        </div>
+
+        <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-8">
+          <div className="max-w-2xl">
+            {/* Eyebrow with gold accent — keeps brand palette visible on dark */}
+            <p className="text-xs font-semibold tracking-[0.25em] uppercase text-[#C4AB86] mb-4 inline-flex items-center gap-2" data-testid="hero-eyebrow">
+              <span className="w-6 h-px bg-[#C4AB86]" />
+              Pro kulturní instituce
+            </p>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
-              Méně administrativy. Více prostoru pro kreativitu.
+              Méně administrativy.<br />
+              Více prostoru pro <span className="text-[#C4AB86]">kreativitu</span>.
             </h1>
-            <p className="text-lg md:text-xl text-white/90 leading-relaxed mb-8">
+            <p className="text-lg md:text-xl text-white/85 leading-relaxed mb-8">
               Spravujte rezervace školních a skupinových programů přehledně, bez e-mailového chaosu a tabulek.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link to="/register" data-testid="hero-cta-trial">
-                <Button size="lg" className="bg-[#C4AB86] text-white hover:bg-[#b39975] h-12 px-8 rounded-lg shadow-none">
+                <Button size="lg" className="bg-[#C4AB86] text-white hover:bg-[#b39975] h-12 px-8 rounded-lg shadow-lg shadow-[#C4AB86]/20">
                   Vyzkoušet zdarma
                 </Button>
               </Link>
               <Dialog open={showDemoDialog} onOpenChange={setShowDemoDialog}>
                 <DialogTrigger asChild>
-                  <Button size="lg" variant="outline" className="h-12 px-8 rounded-lg border-2 border-white text-white hover:bg-white/10" data-testid="hero-cta-demo">
+                  <Button size="lg" variant="outline" className="h-12 px-8 rounded-lg border-2 border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white" data-testid="hero-cta-demo">
                     Domluvit online ukázku
                   </Button>
                 </DialogTrigger>
@@ -425,17 +446,25 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {/* How It Works Section - "Jak to funguje?" 4-step timeline */}
-      <section className="py-20 bg-[#F1F4FA]" id="jak-to-funguje">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-16">
+      {/* How It Works Section - "Jak to funguje?" 4-step timeline (DARK) */}
+      <section className="py-20 bg-[#243446] relative overflow-hidden" id="jak-to-funguje">
+        {/* subtle backdrop */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 opacity-[0.05] pointer-events-none"
+          style={{
+            backgroundImage: 'radial-gradient(circle at 20% 30%, #C4AB86 0px, transparent 50%), radial-gradient(circle at 80% 70%, #4A6FA5 0px, transparent 50%)',
+          }}
+        />
+        <div className="relative max-w-7xl mx-auto px-6 md:px-8">
+          <h2 className="text-3xl md:text-4xl font-bold text-white text-center mb-16">
             Jak to funguje?
           </h2>
 
           <div className="relative max-w-5xl mx-auto">
             {/* Horizontal connecting line (desktop only) */}
             <div
-              className="hidden md:block absolute top-10 left-[12.5%] right-[12.5%] h-px bg-[#CBD4E4]"
+              className="hidden md:block absolute top-10 left-[12.5%] right-[12.5%] h-px bg-white/15"
               aria-hidden="true"
             ></div>
 
@@ -450,16 +479,16 @@ export const HomePage = () => {
                   >
                     {/* Circle with icon + step badge */}
                     <div className="relative mb-6">
-                      <div className="w-20 h-20 bg-[#4A6FA5] rounded-full flex items-center justify-center shadow-md">
+                      <div className="w-20 h-20 bg-[#4A6FA5] rounded-full flex items-center justify-center shadow-lg shadow-[#4A6FA5]/30 ring-1 ring-white/10">
                         <Icon className="w-8 h-8 text-white" strokeWidth={2} />
                       </div>
-                      <div className="absolute -top-1 -right-1 w-7 h-7 bg-[#C4AB86] rounded-full flex items-center justify-center shadow-sm ring-4 ring-[#F1F4FA]">
+                      <div className="absolute -top-1 -right-1 w-7 h-7 bg-[#C4AB86] rounded-full flex items-center justify-center shadow-sm ring-4 ring-[#243446]">
                         <span className="text-xs font-bold text-white">{item.step}</span>
                       </div>
                     </div>
 
-                    <h3 className="text-lg font-semibold text-[#2B3E50] mb-3">{item.title}</h3>
-                    <p className="text-sm text-gray-500 leading-relaxed max-w-[220px]">{item.description}</p>
+                    <h3 className="text-lg font-semibold text-white mb-3">{item.title}</h3>
+                    <p className="text-sm text-white/65 leading-relaxed max-w-[220px]">{item.description}</p>
                   </div>
                 );
               })}
@@ -468,22 +497,29 @@ export const HomePage = () => {
         </div>
       </section>
 
-      {/* Features Section — "Vše na jednom místě." with dashboard preview */}
-      <section className="py-20 md:py-24 bg-[#2B3E50] relative overflow-hidden" id="funkce">
-        {/* subtle grid backdrop */}
+      {/* Features Section — "Vše na jednom místě." with dashboard preview (LIGHT) */}
+      <section className="py-20 md:py-24 bg-[#EEF2F9] relative overflow-hidden" id="funkce">
+        {/* subtle grid backdrop with brand light blue */}
         <div
           aria-hidden="true"
-          className="absolute inset-0 opacity-[0.04] pointer-events-none"
+          className="absolute inset-0 opacity-[0.06] pointer-events-none"
           style={{
-            backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)',
+            backgroundImage: 'linear-gradient(#4A6FA5 1px, transparent 1px), linear-gradient(90deg, #4A6FA5 1px, transparent 1px)',
             backgroundSize: '64px 64px',
           }}
         />
         <div className="relative max-w-7xl mx-auto px-6 md:px-8">
-          <h2 className="text-3xl md:text-5xl font-bold text-white text-center mb-4">
+          <p className="text-xs font-semibold tracking-[0.25em] uppercase text-[#C4AB86] mb-3 text-center">
+            <span className="inline-flex items-center gap-2">
+              <span className="w-6 h-px bg-[#C4AB86]" />
+              Pohled administrátora
+              <span className="w-6 h-px bg-[#C4AB86]" />
+            </span>
+          </p>
+          <h2 className="text-3xl md:text-5xl font-bold text-[#2B3E50] text-center mb-4">
             Vše na jednom místě.
           </h2>
-          <p className="text-base md:text-lg text-white/70 text-center mb-12 md:mb-16 max-w-2xl mx-auto">
+          <p className="text-base md:text-lg text-slate-600 text-center mb-12 md:mb-16 max-w-2xl mx-auto">
             Rezervační systém navržený speciálně pro kulturní instituce
           </p>
 
@@ -503,11 +539,11 @@ export const HomePage = () => {
               return (
                 <div
                   key={i}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/[0.04] border border-white/10 backdrop-blur-sm hover:bg-white/[0.08] transition"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-white border border-[#D9E1F0] shadow-sm hover:shadow-md hover:border-[#4A6FA5]/40 transition"
                   data-testid={`feature-pill-${i}`}
                 >
-                  <Icon className="w-4 h-4 text-[#C4AB86]" strokeWidth={2} />
-                  <span className="text-sm font-medium text-white/90">{f.label}</span>
+                  <Icon className="w-4 h-4 text-[#4A6FA5]" strokeWidth={2} />
+                  <span className="text-sm font-medium text-[#2B3E50]">{f.label}</span>
                 </div>
               );
             })}
@@ -896,7 +932,7 @@ const DashboardPreview = () => {
       className="relative mx-auto max-w-5xl rounded-2xl bg-white shadow-2xl shadow-black/40 ring-1 ring-black/5 overflow-hidden"
       data-testid="dashboard-preview"
     >
-      <div className="grid grid-cols-[200px_1fr]">
+      <div className="grid grid-cols-1 md:grid-cols-[200px_1fr]">
         {/* Sidebar */}
         <aside className="bg-white border-r border-slate-100 p-4 hidden md:block">
           <div className="mb-6 px-2">
@@ -960,6 +996,8 @@ const DashboardPreview = () => {
 
           {/* Calendar grid */}
           <div className="rounded-lg bg-white border border-slate-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <div className="min-w-[520px]">
             {/* Days header */}
             <div className="grid grid-cols-[44px_repeat(7,minmax(0,1fr))] text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
               <div />
@@ -995,6 +1033,8 @@ const DashboardPreview = () => {
                 })}
               </div>
             ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>

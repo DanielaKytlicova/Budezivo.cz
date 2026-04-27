@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
+import { FavoriteButton } from '../../components/catalog/FavoriteButton';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
@@ -124,13 +125,18 @@ export default function CatalogDetailPage() {
               )}
             </div>
 
-            {/* Title */}
+            {/* Title + favorite pill */}
             <p className="text-sm text-slate-500 mb-1" data-testid="catalog-detail-institution">
               {p.institution.name}
             </p>
-            <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4" data-testid="catalog-detail-title">
-              {p.name}
-            </h1>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <h1 className="text-3xl md:text-4xl font-bold text-slate-900 flex-1" data-testid="catalog-detail-title">
+                {p.name}
+              </h1>
+              <div className="shrink-0 mt-1">
+                <FavoriteButton programId={p.id} variant="pill" />
+              </div>
+            </div>
 
             {/* Meta row */}
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-slate-500 mb-6">

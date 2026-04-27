@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import { WaitlistModal } from '../../components/public/WaitlistModal';
 import { API } from '../../config/api';
+import { useTeacherAuth } from '../../context/TeacherAuthContext';
 
 const AGE_GROUPS = {
   ms_3_6: 'MŠ (3-6 let)',
@@ -108,6 +109,23 @@ export const BookingPage = () => {
   // `lastSnapshot` is used by the toast "Vrátit zpět" action.
   const [prefilledFromEmail, setPrefilledFromEmail] = useState('');
   const lastSnapshotRef = React.useRef(null);
+
+  // Teacher auth — if a teacher is logged in we prefill contact fields once.
+  const { teacher, isAuthenticated: teacherAuthed } = useTeacherAuth();
+  const teacherPrefilledRef = React.useRef(false);
+  useEffect(() => {
+    if (!teacherAuthed || !teacher || teacherPrefilledRef.current) return;
+    teacherPrefilledRef.current = true;
+    setFormData(prev => ({
+      ...prev,
+      contact_email: prev.contact_email || teacher.email || '',
+      contact_name:  prev.contact_name  || teacher.name  || '',
+      contact_phone: prev.contact_phone || teacher.phone || '',
+      school_name:   prev.school_name   || teacher.school_name || '',
+    }));
+    if (teacher.email) setPrefilledFromEmail(teacher.email.toLowerCase());
+    toast.success('Údaje byly předvyplněny z vašeho účtu', { duration: 2500 });
+  }, [teacherAuthed, teacher]);
 
   /**
    * On email blur — call /api/public/prefill and gently fill empty fields.

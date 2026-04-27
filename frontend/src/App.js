@@ -4,6 +4,7 @@ import { Toaster } from './components/ui/sonner';
 import { LanguageProvider } from './context/LanguageContext';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { TeacherAuthProvider } from './context/TeacherAuthContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 // Public pages
@@ -46,6 +47,9 @@ import PaymentReturnPage from './pages/public/PaymentReturnPage';
 import PaymentMockPage from './pages/public/PaymentMockPage';
 import CatalogPage from './pages/public/CatalogPage';
 import CatalogDetailPage from './pages/public/CatalogDetailPage';
+import TeacherLoginPage from './pages/teacher/TeacherLoginPage';
+import TeacherRegisterPage from './pages/teacher/TeacherRegisterPage';
+import TeacherAccountPage from './pages/teacher/TeacherAccountPage';
 
 import './App.css';
 
@@ -67,7 +71,8 @@ function App() {
       <TitleUpdater />
       <LanguageProvider>
         <AuthProvider>
-          <ThemeProvider>
+          <TeacherAuthProvider>
+            <ThemeProvider>
             <Routes>
               {/* Public routes */}
               <Route path="/" element={<HomePage />} />
@@ -87,6 +92,11 @@ function App() {
               <Route path="/events/:institutionId" element={<PublicEventsPage />} />
               <Route path="/payment/return" element={<PaymentReturnPage />} />
               <Route path="/payment/mock" element={<PaymentMockPage />} />
+
+              {/* Teacher (B2C) self-service auth and account */}
+              <Route path="/ucitel/prihlaseni" element={<TeacherLoginPage />} />
+              <Route path="/ucitel/registrace" element={<TeacherRegisterPage />} />
+              <Route path="/ucitel/ucet" element={<TeacherAccountPage />} />
 
               {/* B2B catalog "Programy pro školy" — hidden from main nav, accessible by URL only */}
               <Route path="/programy-pro-skoly" element={<CatalogPage />} />
@@ -244,6 +254,7 @@ function App() {
             </Routes>
             <Toaster position="top-right" />
           </ThemeProvider>
+          </TeacherAuthProvider>
         </AuthProvider>
       </LanguageProvider>
     </BrowserRouter>

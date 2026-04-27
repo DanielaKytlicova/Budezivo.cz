@@ -9,6 +9,7 @@ import { Card } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Search, MapPin, Clock, Users, Sparkles, Filter, X, Flame, Plus } from 'lucide-react';
 import { slugify, AGE_SLUGS, AGE_SLUG_LABELS } from '../../lib/slugify';
+import { FavoriteButton } from '../../components/catalog/FavoriteButton';
 
 const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
@@ -317,11 +318,15 @@ export default function CatalogPage() {
 }
 
 const ProgramCard = ({ p }) => (
-  <Link
-    to={`/programy-pro-skoly/p/${p.id}`}
-    className="group block"
-    data-testid={`catalog-card-${p.id}`}
-  >
+  <div className="group relative h-full" data-testid={`catalog-card-${p.id}`}>
+    {/* Heart icon — positioned in top-right corner of the card */}
+    <div className="absolute top-3 right-3 z-10">
+      <FavoriteButton programId={p.id} variant="icon" />
+    </div>
+    <Link
+      to={`/programy-pro-skoly/p/${p.id}`}
+      className="block h-full"
+    >
     <Card className="overflow-hidden bg-white border border-slate-100 hover:border-[#4A6FA5]/30 hover:shadow-lg transition-all duration-300 h-full">
       {/* Image */}
       <div className="relative h-44 bg-gradient-to-br from-[#EEF2F9] to-[#F8F9FA] overflow-hidden">
@@ -382,7 +387,8 @@ const ProgramCard = ({ p }) => (
         </div>
       </div>
     </Card>
-  </Link>
+    </Link>
+  </div>
 );
 
 

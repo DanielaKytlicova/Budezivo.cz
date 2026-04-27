@@ -644,3 +644,20 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - 12/12 sekcí z user prompt-u zelené
   - Backend pytest 7/7 PASS (`test_my_profile_and_naslech_removal.py`)
   - Žádné console errors, žádné 4xx/5xx
+
+### Fáze 64 — UI/UX vylepšení landing page + Mobile nav + Today widget (27.4.2026)
+- [x] **Hero**: nová muzeální fotografie (žena u laptopu v galerii) jako pozadí; gradient `from-[#2B3E50] from-30% via-50% to-transparent` (na mobilu silnější + vertikální fade dolů pro čitelnost)
+- [x] **Sekce „Jak to funguje?"** převedena z LIGHT (`#F1F4FA`) na DARK navy (`#243446`) s bílým textem, `ring-4 ring-[#243446]` kolem zlatých step badges, jemný radial backdrop
+- [x] **Sekce „Vše na jednom místě."** převedena z DARK (`#2B3E50`) na LIGHT (`#EEF2F9`) s eyebrow „POHLED ADMINISTRÁTORA", grid backdrop v brand modré, feature pills s bílým pozadím + `border-[#D9E1F0]`
+- [x] **Mobile responsivita DashboardPreview**: `grid-cols-1 md:grid-cols-[200px_1fr]` (sidebar `hidden md:block` skrytý na mobilu), kalendář obalen `overflow-x-auto` + `min-w-[520px]` pro horizontální scroll
+- [x] **Alternace bg sekcí**: Hero(DARK) → Pain Points(LIGHT) → How It Works(DARK) → Features(LIGHT) → Benefits(SPLIT) → CTA(DARK) → Pricing(LIGHT) → FAQ(WHITE)
+- [x] **Brand barvy zachovány**: `#4A6FA5` (světle modrá) v ikonách, eyebrows a feature pills; `#C4AB86` (zlatobéžová) v step badges, ikonách a CTA
+- [x] **„Rezervace dnes" widget** (`DashboardPage.js`): nová karta nad statistikami pro role `admin`/`spravce`/`lektor`/`edukator`/`pokladni`
+  - Pro `lektor`/`edukator`: filtrováno na `assigned_lecturer_id == user.id`, label „Moje rezervace dnes", empty „Dnes vás žádný program nečeká..."
+  - Pro `admin`/`spravce`/`pokladni`: zobrazeny všechny dnešní rezervace, label „Rezervace dnes"
+  - Klik na rezervaci otevře existující ReservationDetailModal
+  - Testidy: `today-bookings-widget`, `today-bookings-count`, `today-bookings-empty`, `today-booking-{id}`
+- [x] **Mobile bottom nav**: 5. slot rezervován pro „Více" (testid `mobile-nav-more`) když existuje overflow (>4 flat items); odkazuje na `/admin/settings`
+- [x] **SettingsPage**: nová mobile-only sekce „Rychlý přístup" (testid `settings-mobile-quick-access`) — 3-sloupcový grid 9 dlaždic dle role (Přehled, Programy, Rezervace, Akce, Propagace, Školy, Zpětná vazba, Lektorský profil, Statistiky, Superadmin); skryto na desktop přes `md:hidden`
+- [x] **Testing agent iter64**: 100% DOM/visual acceptance PASS; pouze minor preview-env překryv s Emergent badge přes 5. nav slot — vyřešeno bumpem na `z-[60]`
+

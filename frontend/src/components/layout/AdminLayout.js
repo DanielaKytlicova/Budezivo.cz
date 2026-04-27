@@ -313,7 +313,7 @@ export const AdminLayout = ({ children }) => {
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border z-50">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-border z-[60]">
         {(() => {
           // Mobile nav uses only flat items (skip collapsible groups).
           const flatItems = navItems.filter(item => item.type !== 'group');

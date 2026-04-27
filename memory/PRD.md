@@ -763,6 +763,26 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
 - [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
 
+### Fáze 69 — B2B Catalog Etapa 5: Mapový pohled (27.4.2026)
+- 🎯 **Cíl**: uživatel může přepnout katalog z gridu na mapu ČR s piny podle měst
+- 👤 **Volby**: 1a) Leaflet + OpenStreetMap, 2c) MVP na úrovni měst (GPS na instituci později), 3a) toggle „Seznam | Mapa" v záhlaví katalogu
+- [x] **Dependencies**: přidán `leaflet@1.9.4` + `react-leaflet@5.0.0` (zdarma, žádné API klíče)
+- [x] **NEW lookup** `/app/frontend/src/lib/czCities.js` — static map ~70 CZ měst → [lat, lng], case-insensitive s ASCII fallback (Praha/Praha, Hradec Králové/Hradec Kralove apod.)
+- [x] **NEW komponenta** `/app/frontend/src/components/catalog/CatalogMap.js`:
+  - `<MapContainer>` center=[49.8175, 15.4730] (střed ČR), zoom=7
+  - OSM tile layer s attribution
+  - Piny agregované per město (1 pin = 1 město) s custom `L.divIcon` v brand barvě #4A6FA5 a badgem počtu programů
+  - Tooltip na hover: „Město · X programů"
+  - Popup po kliknutí: seznam až 10 programů + počet institucí + tlačítko „Filtrovat katalog na {město} →"
+  - Fallback „Bez známé polohy" sekce pod mapou pro programy bez rozpoznaného města
+  - Testidy: `catalog-map-view`, `catalog-map-container`, `map-pin-{city-slug}`, `map-popup-{city-slug}`, `map-program-link-{program_id}`, `map-filter-city-{city-slug}`, `catalog-map-unknown`
+- [x] **CatalogPage** rozšířen o view toggle:
+  - Nový `viewMode` state (`list` | `map`), persistován v URL jako `?view=mapa` (shareable)
+  - Toggle buttony „Seznam" / „Mapa" vedle počítadla výsledků (testidy `catalog-view-toggle`, `catalog-view-list`, `catalog-view-map`)
+  - Klik na „Filtrovat katalog na {město}" v popup → aktivuje city filter + přepne zpět na list
+- [x] **Smoke test**: OpenStreetMap tiles se načítají, pin pro Brno renderován s badgem „4", popup obsahuje 4 programy s data-testid links, filter-city tlačítko funkční
+
+
 
 
 

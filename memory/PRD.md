@@ -829,6 +829,45 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - Ukazuje přesný formát URL s placeholdery pro vložení do Klientského portálu Comgate
   - Odkaz „Otevřít portál" → portal.comgate.cz (`comgate-portal-link`)
   - Doporučené nastavení: HTTP POST protokol – backend
+- 🧪 **Test**: `/app/backend/tests/test_payment_return_url.py` — 8 testů PASS
+
+### Fáze 73 — Dashboard UX: skrytý today widget, viditelnost souběhu rezervací, distinktní barvy v kalendáři (28.4.2026)
+- 🎯 **3 user-reported UX požadavky** po pilotním testu Galerie U Zlatého kohouta:
+  1. „Rezervace dnes" widget zabíral místo i když nebyly žádné rezervace
+  2. Při souběhu rezervací nebylo zřejmé, proč to systém pustil — admin nevěděl, že kolize je legitimní (různí lektoři)
+  3. V kalendáři měl každý doprovodný program splývající barvu → špatně rozeznatelné
+- ✅ **#1 (`DashboardPage.js`)**: TodayBookings widget se teď renderuje pouze, když `myTodayBookings.length > 0`. Žádný empty state → méně rušení, více white space.
+- ✅ **#2 ReservationList collision visibility**:
+  - Nový helper `parseTimeRange()` parsuje `time_block` (`"10:00-11:00"` i `"10:00"`)
+  - Memoized `overlapsByBookingId` Map: pro každou rezervaci dohledá ostatní se stejným datem a překrývajícím se časem
+  - Karta nově ukazuje:
+    - Modrý pill s **přiřazeným lektorem** (`assigned_lecturer_name`) jako odpověď „proč to systém pustil"
+    - Žlutý info-box `Souběh ve stejném čase: …` s detaily ostatních souběžných rezervací včetně lektora
+    - Pokud rezervace nemá lektora a je v souběhu → zvýrazněné varování „⚠ Této rezervaci ještě není přiřazen lektor — přiřaďte ho, jinak hrozí dvojitý slot."
+  - Testidy: `reservation-lecturer-{id}`, `reservation-overlap-{id}`
+- ✅ **#3 Calendar coloring (`getReservationColor`)**:
+  - Paleta rozšířena z 6 → **12 barev** (amber, blue, rose, emerald, violet, orange, cyan, fuchsia, lime, pink, teal, indigo)
+  - Hash funkce upgradeována ze sumace charCode na **FNV-1a 32-bit** → výrazně lepší distribuce, méně kolizí na podobných názvech programů
+  - Layout pro souběžné programy: byly stackované přes sebe (`absolute inset-x-0.5` + zIndex), nyní rozdělené **vedle sebe** (`left/width = 1/total`), takže každá barva je viditelná
+  - Event teď zobrazuje i jméno lektora (pokud max 2 souběžné programy)
+  - Tooltip (`title` attr) s plnými detaily včetně lektora
+- 🧪 **UI smoke test**: Galerie U Zlatého kohouta → dashboard, list view (lektor pill + souběžný žlutý box), kalendář (12 barev, side-by-side overlap rendering) ✅
+
+
+- 🐛 **Reportovaný bug**: po dokončení reálné platby Comgate přesměroval zákazníka na `https://api.budezivo.cz/payment/return?status=paid` (API host místo frontendu) → backend vrátil holé `{"detail":"Not Found"}` JSON, platba zůstala v DB jako pending.
+- 🔍 **Root cause**: `_build_public_base_url()` použité pro `return_url` čerpalo z `request.host`, který byl `api.budezivo.cz` (frontend AJAX volá API host) → return URL skončila na backendu místo na SPA.
+- ✅ **Backend (`routes/event_payments.py`)**:
+  - **NEW helper** `_build_frontend_base_url()` — preferuje `FRONTEND_BASE_URL` env, pak `Origin` header, pak `Referer`, pak strip `api.` prefix
+  - `return_url` nyní používá `_build_frontend_base_url()`, `webhook_url` zůstává na API hostu
+  - **NEW endpoint** `GET /api/event-payments/by-ref/{ref_id}` — public lookup platby podle `application_id` (= Comgate `${refId}`); vrací stejný payload jako `by-vs/...`
+- ✅ **Backend backwards-compat (`main.py`)**: top-level `/payment/return` a `/payment/mock` na API hostu nyní redirectují (302) na frontend (strip `api.` prefix nebo `FRONTEND_BASE_URL`) — záchrana pro Comgate transakce inicializované před fixem
+- ✅ **Comgate per-request URLs (`services/payment_gateways/comgate.py`)**: `url_paid`/`url_cancelled`/`url_pending` nyní obsahují `${id}&refId=${refId}` placeholdery, které Comgate doplní automaticky
+- ✅ **Frontend (`PaymentReturnPage.js`)**: priorita lookup `refId` (přímo `/by-ref/`) > fallback `vs+institution` (`/by-vs/`); funguje s portal-configured i per-request URLs
+- ✅ **NEW komponenta `components/settings/ComgatePortalUrls.js`**:
+  - Čistý read-only blok s 4 řádky + copy tlačítky (testidy `comgate-url-{paid|cancelled|pending|notify}`, `comgate-url-copy-*`)
+  - Ukazuje přesný formát URL s placeholdery pro vložení do Klientského portálu Comgate
+  - Odkaz „Otevřít portál" → portal.comgate.cz (`comgate-portal-link`)
+  - Doporučené nastavení: HTTP POST protokol – backend
   - Frontend host se odvodí z `window.location.origin`, API host z `REACT_APP_BACKEND_URL`
 - 🧪 **Test**: `/app/backend/tests/test_payment_return_url.py` — 8 testů PASS (origin, referer, env override, api. strip, dev localhost, no-www atd.)
 - 🧪 **Curl smoke test**: `/by-ref/{uuid}` → 404 OK / `/by-ref/notauuid` → 400 OK

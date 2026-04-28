@@ -1720,7 +1720,39 @@ export const SettingsPage = () => {
 
             {(paymentSettings.payment_mode === 'gateway' || paymentSettings.payment_mode === 'both') && (
               <Card className="p-4 bg-blue-50 border-blue-200 space-y-3">
-                <p className="text-sm font-medium text-blue-800">Platební brána</p>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <p className="text-sm font-medium text-blue-800">Platební brána</p>
+                  {/* Live status badge — auto-detected from filled credentials */}
+                  {(() => {
+                    const merchant = (paymentSettings.gateway_api_key || '').trim();
+                    const secret = (paymentSettings.gateway_secret || '').trim();
+                    const provider = (paymentSettings.provider || '').toLowerCase();
+                    let mode = 'MOCK', label = 'Simulační (MOCK)', cls = 'bg-amber-100 text-amber-800 border-amber-300';
+                    if (provider === 'comgate' && merchant && secret) {
+                      if (merchant.toUpperCase().startsWith('TEST_')) {
+                        mode = 'TEST'; label = 'Sandbox (TEST)';
+                        cls = 'bg-blue-100 text-blue-800 border-blue-300';
+                      } else {
+                        mode = 'LIVE'; label = 'Produkce (LIVE)';
+                        cls = 'bg-green-100 text-green-800 border-green-300';
+                      }
+                    }
+                    return (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full border ${cls}`}
+                        data-testid={`gateway-mode-badge-${mode.toLowerCase()}`}
+                        title={
+                          mode === 'LIVE' ? 'Reálné platby od zákazníků'
+                          : mode === 'TEST' ? 'Sandbox Comgate — žádné reálné peníze'
+                          : 'Žádné reálné volání brány — pouze interní simulátor'
+                        }
+                      >
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${mode === 'LIVE' ? 'bg-green-600' : mode === 'TEST' ? 'bg-blue-600' : 'bg-amber-600'}`} />
+                        {label}
+                      </span>
+                    );
+                  })()}
+                </div>
                 <p className="text-xs text-blue-600">
                   Zatím bez klíčů aplikace funguje v simulačním režimu (mock) — zákazník vidí testovací stránku a vy můžete odzkoušet celý flow.
                   Po dodání reálných klíčů Comgate se brána automaticky přepne do produkčního / testovacího režimu.

@@ -362,23 +362,23 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
   const dayNames = ['PO', 'ÚT', 'ST', 'ČT', 'PÁ', 'SO', 'NE'];
 
   // Get color for reservation based on program — deterministic, distinct hue per program.
-  // We return inline-style hex values (NOT Tailwind class names) on purpose:
-  // dynamically-built `bg-*-400` strings inside an array literal are unreliable
-  // through Tailwind JIT/purge in production builds — some classes get stripped
-  // out of the final CSS, which collapsed every program to the same colour.
+  // Curated palette in the platform's brand spirit (slate blue / sage / sand /
+  // warm earth tones). All swatches are muted mid-tones so several events on
+  // the same week feel like a coherent gallery wall rather than a circus.
+  // Inline hex (NOT Tailwind classes) — bypasses JIT/purge stripping.
   const PROGRAM_COLORS = [
-    { bg: '#f59e0b', border: '#d97706' }, // amber
-    { bg: '#3b82f6', border: '#2563eb' }, // blue
-    { bg: '#f43f5e', border: '#e11d48' }, // rose
-    { bg: '#10b981', border: '#059669' }, // emerald
-    { bg: '#8b5cf6', border: '#7c3aed' }, // violet
-    { bg: '#fb923c', border: '#ea580c' }, // orange
-    { bg: '#06b6d4', border: '#0891b2' }, // cyan
-    { bg: '#d946ef', border: '#c026d3' }, // fuchsia
-    { bg: '#84cc16', border: '#65a30d' }, // lime
-    { bg: '#ec4899', border: '#db2777' }, // pink
-    { bg: '#14b8a6', border: '#0d9488' }, // teal
-    { bg: '#6366f1', border: '#4f46e5' }, // indigo
+    { bg: '#5a7aae', border: '#3f5a85' }, // brand slate blue
+    { bg: '#84a98c', border: '#5f8a68' }, // sage green
+    { bg: '#a8835f', border: '#7a5b3d' }, // warm sand / ochre
+    { bg: '#7d9da7', border: '#5b7a85' }, // dusty steel blue
+    { bg: '#9e8aa6', border: '#73617c' }, // muted lavender
+    { bg: '#a47366', border: '#7a5147' }, // terracotta
+    { bg: '#658c7c', border: '#46685a' }, // deep teal/sage
+    { bg: '#92738c', border: '#6a4f66' }, // dusty plum
+    { bg: '#7a8a5c', border: '#566440' }, // olive
+    { bg: '#bfa15e', border: '#8e7641' }, // mustard / antique gold
+    { bg: '#5d6f8a', border: '#404f66' }, // deeper slate
+    { bg: '#9c6a72', border: '#724a52' }, // dusty wine
   ];
 
   const getReservationColor = (reservation) => {

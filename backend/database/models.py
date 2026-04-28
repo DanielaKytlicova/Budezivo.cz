@@ -190,6 +190,10 @@ class Program(Base):
     archived_at = Column(DateTime(timezone=True))
     archived_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     archive_reason = Column(Text)
+    # Free-form curatorial note that gets rendered into the archive PDF as the
+    # "Poznámka" section. Editable from the archive page; lecturer fills this
+    # in alongside the description.
+    archive_custom_text = Column(Text)
     
     # Filtering & Tags
     age_categories = Column(ARRAY(Text), default=[])   # MS, ZS1, ZS2, SS

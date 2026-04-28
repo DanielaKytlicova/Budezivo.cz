@@ -831,6 +831,18 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - Doporučené nastavení: HTTP POST protokol – backend
 - 🧪 **Test**: `/app/backend/tests/test_payment_return_url.py` — 8 testů PASS
 
+### Fáze 75 — Archive UX simplification: direct download + custom_text v Edit dialogu (28.4.2026)
+- 🐛 **User feedback k Fázi 74**: pop-up s custom textem před stažením je rušivý — uživatelka chce „Stáhnout PDF" → okamžité stažení a možnost přidat poznámku v editaci programu (vedle ostatních polí, perzistentně).
+- ✅ **DB migrace `a47c891fc3e2`**: `programs.archive_custom_text` (Text, nullable) — perzistentní pole pro kurátorskou poznámku
+- ✅ **Backend**: `ProgramBase` Pydantic schéma má `archive_custom_text: Optional[str]`; `archive-report` payload obsahuje `program.archive_custom_text`; resolution priorita: `?custom_text=` query (one-off override) > `program.archive_custom_text` (saved) > none
+- ✅ **Frontend `ArchivePage.js`**:
+  - Odstraněn celý export dialog včetně state (`exportDialog`, `exportText`, `exporting`)
+  - Klik na „Stáhnout PDF" = přímý axios GET s `responseType: 'blob'` a okamžitý download (toast „PDF staženo")
+  - Edit dialog má novou textareu „Vlastní poznámka v PDF (volitelné)" s 2000 char limitem, počítadlem a hint o kontextu zobrazení
+  - Field se uloží spolu s ostatními poli při kliku na „Uložit změny"
+- 🧪 **38/38 pytest PASS** beze regrese; curl smoke: PUT s `archive_custom_text` → uložen v DB; GET `archive-report?format=json` vrací jej v payloadu; GET `format=pdf` vygeneruje 47kB soubor
+- 🧪 **UI smoke**: Edit dialog screenshot ukazuje pole „Vlastní poznámka v PDF" s předvyplněným textem a počítadlem 99/2000
+
 ### Fáze 74 — Archivní zpráva: Hero/Standard PDF + custom_text + edit archived program (28.4.2026)
 - 🎯 **3 user-reported požadavky** k archivnímu PDF exportu:
   1. 2 varianty PDF: **HERO** (úvodní obrázek přes celou stránku) + **STANDARD** (bez obrázku, rovnou přehled)

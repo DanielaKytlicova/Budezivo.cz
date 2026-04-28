@@ -10,7 +10,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { Archive, RotateCcw, FileText, Users, Calendar, Download, ChevronDown, ChevronUp, Pencil, ImageIcon, Loader2 } from 'lucide-react';
+import { Archive, RotateCcw, FileText, Users, Calendar, Download, ChevronDown, ChevronUp, Pencil, Loader2 } from 'lucide-react';
 import { API } from '../../config/api';
 
 export const ArchivePage = () => {
@@ -21,11 +21,6 @@ export const ArchivePage = () => {
   const [reportData, setReportData] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [expandedSchools, setExpandedSchools] = useState(false);
-
-  // Export-with-custom-text dialog state
-  const [exportDialog, setExportDialog] = useState(null); // { id, name, hasImage }
-  const [exportText, setExportText] = useState('');
-  const [exporting, setExporting] = useState(false);
 
   // Edit-archived dialog state
   const [editDialog, setEditDialog] = useState(null); // full program object
@@ -84,40 +79,26 @@ export const ArchivePage = () => {
     toast.success('Report exportován');
   };
 
-  // ---- PDF export (with optional curatorial note) ----
-  const openExportDialog = (program) => {
-    setExportDialog({
-      id: program.id,
-      name: program.name_cs || program.name_en || 'Program',
-      hasImage: !!program.image_url,
-    });
-    setExportText('');
-  };
-
-  const handleDownloadPdf = async () => {
-    if (!exportDialog) return;
-    setExporting(true);
+  // ---- PDF export — direct download (custom text comes from the program's
+  // saved `archive_custom_text` field, set via the Edit dialog).
+  const handleDownloadPdf = async (program) => {
     try {
-      const params = { format: 'pdf' };
-      if (exportText && exportText.trim()) params.custom_text = exportText.trim();
-      const res = await axios.get(`${API}/programs/${exportDialog.id}/archive-report`, {
-        params,
+      const res = await axios.get(`${API}/programs/${program.id}/archive-report`, {
+        params: { format: 'pdf' },
         responseType: 'blob',
       });
       const url = URL.createObjectURL(res.data);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `archivni_zprava_${exportDialog.name.replace(/[^\p{L}\p{N}_-]/gu, '_').slice(0, 60)}.pdf`;
+      const name = (program.name_cs || program.name_en || 'program').replace(/[^\p{L}\p{N}_-]/gu, '_').slice(0, 60);
+      link.download = `archivni_zprava_${name}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       toast.success('PDF staženo');
-      setExportDialog(null);
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Chyba při generování PDF');
-    } finally {
-      setExporting(false);
     }
   };
 
@@ -138,6 +119,7 @@ export const ArchivePage = () => {
       price: program.price ?? '',
       pricing_info: program.pricing_info || '',
       image_url: program.image_url || '',
+      archive_custom_text: program.archive_custom_text || '',
     });
   };
 
@@ -160,6 +142,7 @@ export const ArchivePage = () => {
         price: editForm.price === '' ? null : Number(editForm.price),
         pricing_info: editForm.pricing_info ?? null,
         image_url: editForm.image_url?.trim() || null,
+        archive_custom_text: editForm.archive_custom_text?.trim() || null,
       };
       // Strip server-managed fields that PUT doesn't expect on the body.
       delete merged.id;
@@ -239,7 +222,7 @@ export const ArchivePage = () => {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => openExportDialog(p)}
+                      onClick={() => handleDownloadPdf(p)}
                       data-testid={`export-pdf-${p.id}`}
                     >
                       <Download className="w-4 h-4 mr-1" />
@@ -361,72 +344,6 @@ export const ArchivePage = () => {
         </DialogContent>
       </Dialog>
 
-      {/* PDF export dialog — optional curatorial note + variant preview */}
-      <Dialog open={!!exportDialog} onOpenChange={(o) => !o && setExportDialog(null)}>
-        <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-lg" aria-describedby="export-desc">
-          <DialogHeader>
-            <DialogTitle>Stáhnout archivní zprávu — PDF</DialogTitle>
-          </DialogHeader>
-          <p id="export-desc" className="sr-only">Stáhnout PDF s volitelnou poznámkou kurátora</p>
-
-          {exportDialog && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                {exportDialog.hasImage ? (
-                  <>
-                    <ImageIcon className="w-4 h-4 text-emerald-700" />
-                    <span>
-                      Varianta: <span className="font-semibold">Hero</span> – první stránka bude úvodní obrázek programu.
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <FileText className="w-4 h-4 text-slate-500" />
-                    <span>
-                      Varianta: <span className="font-semibold">Standard</span> – PDF začne rovnou přehledem (program nemá úvodní obrázek).
-                    </span>
-                  </>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="export-text" className="text-sm">Vlastní poznámka <span className="text-gray-400 text-xs">(volitelné)</span></Label>
-                <Textarea
-                  id="export-text"
-                  value={exportText}
-                  onChange={(e) => setExportText(e.target.value)}
-                  placeholder="Např. „Program byl realizován v rámci výstavy XYZ, doplňující kurátorský komentář…&#10;&#10;Můžete použít více odstavců."
-                  className="mt-1 min-h-[120px]"
-                  maxLength={2000}
-                  data-testid="export-custom-text"
-                />
-                <p className="text-[11px] text-gray-400 mt-1">
-                  Text se zobrazí v PDF jako sekce „Poznámka" hned za přehledem programu. {exportText.length}/2000
-                </p>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setExportDialog(null)} disabled={exporting}>
-              Zrušit
-            </Button>
-            <Button
-              onClick={handleDownloadPdf}
-              disabled={exporting}
-              className="bg-slate-800 hover:bg-slate-700 text-white"
-              data-testid="export-pdf-confirm"
-            >
-              {exporting ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generuji…</>
-              ) : (
-                <><Download className="w-4 h-4 mr-2" /> Stáhnout PDF</>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Edit-archived-program dialog — only fields the lecturer originally
           filled. Statistics & feedback remain read-only. */}
       <Dialog open={!!editDialog} onOpenChange={(o) => !o && setEditDialog(null)}>
@@ -532,6 +449,21 @@ export const ArchivePage = () => {
                   placeholder="https://… nebo /uploads/programs/…"
                 />
                 <p className="text-[11px] text-gray-400 mt-1">Pokud je vyplněno, PDF dostane úvodní stránku přes celou plochu s tímto obrázkem.</p>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-custom-text">
+                  Vlastní poznámka v PDF <span className="text-gray-400 text-xs">(volitelné)</span>
+                </Label>
+                <Textarea id="edit-custom-text" data-testid="edit-custom-text"
+                  className="min-h-[120px]"
+                  value={editForm.archive_custom_text}
+                  onChange={(e) => setEditForm(f => ({ ...f, archive_custom_text: e.target.value.slice(0, 2000) }))}
+                  placeholder="Např. „Program byl realizován v rámci výstavy XYZ, doplňující kurátorský komentář…“&#10;&#10;Více odstavců můžete oddělit prázdným řádkem."
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Text se v PDF zobrazí jako sekce „Poznámka" hned za přehledem programu. {(editForm.archive_custom_text || '').length}/2000
+                </p>
               </div>
             </div>
           )}

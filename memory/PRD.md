@@ -831,7 +831,53 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - Doporučené nastavení: HTTP POST protokol – backend
 - 🧪 **Test**: `/app/backend/tests/test_payment_return_url.py` — 8 testů PASS
 
-### Fáze 73 — Dashboard UX: skrytý today widget, viditelnost souběhu rezervací, distinktní barvy v kalendáři (28.4.2026)
+### Fáze 75 — Archive UX simplification: direct download + custom_text v Edit dialogu (28.4.2026)
+- 🐛 **User feedback k Fázi 74**: pop-up s custom textem před stažením je rušivý — uživatelka chce „Stáhnout PDF" → okamžité stažení a možnost přidat poznámku v editaci programu (vedle ostatních polí, perzistentně).
+- ✅ **DB migrace `a47c891fc3e2`**: `programs.archive_custom_text` (Text, nullable) — perzistentní pole pro kurátorskou poznámku
+- ✅ **Backend**: `ProgramBase` Pydantic schéma má `archive_custom_text: Optional[str]`; `archive-report` payload obsahuje `program.archive_custom_text`; resolution priorita: `?custom_text=` query (one-off override) > `program.archive_custom_text` (saved) > none
+- ✅ **Frontend `ArchivePage.js`**:
+  - Odstraněn celý export dialog včetně state (`exportDialog`, `exportText`, `exporting`)
+  - Klik na „Stáhnout PDF" = přímý axios GET s `responseType: 'blob'` a okamžitý download (toast „PDF staženo")
+  - Edit dialog má novou textareu „Vlastní poznámka v PDF (volitelné)" s 2000 char limitem, počítadlem a hint o kontextu zobrazení
+  - Field se uloží spolu s ostatními poli při kliku na „Uložit změny"
+- 🧪 **38/38 pytest PASS** beze regrese; curl smoke: PUT s `archive_custom_text` → uložen v DB; GET `archive-report?format=json` vrací jej v payloadu; GET `format=pdf` vygeneruje 47kB soubor
+- 🧪 **UI smoke**: Edit dialog screenshot ukazuje pole „Vlastní poznámka v PDF" s předvyplněným textem a počítadlem 99/2000
+
+### Fáze 74 — Archivní zpráva: Hero/Standard PDF + custom_text + edit archived program (28.4.2026)
+- 🎯 **3 user-reported požadavky** k archivnímu PDF exportu:
+  1. 2 varianty PDF: **HERO** (úvodní obrázek přes celou stránku) + **STANDARD** (bez obrázku, rovnou přehled)
+  2. Lektor může u archivovaného programu **zpětně editovat pole, která sám vyplnil**
+  3. **Custom text** (kurátorská poznámka) přidatelný před exportem PDF
+- ✅ **Backend**: `?custom_text=` query param, `image_url` v payloadu, `_build_hero_cover()` + `_resolve_local_image()` helpers, „O programu — co se žáci naučí" H2 nad popisem, „Poznámka" sekce za přehledem
+- ✅ **Frontend `ArchivePage.js`**: 4 tlačítka (Upravit / Report / Stáhnout PDF / Obnovit), export dialog s variant detekcí + textareou (max 2000), edit dialog s editovatelnými fields (name, description, age, duration, capacity, price, pricing_info, image_url) + amber banner „Statistiky/ZV nelze měnit"
+- 🧪 7 nových PDF testů PASS, 38/38 celkem (pdf_exports + payment_security + payment_return_url + archive_pdf_hero) bez regrese
+- 🧪 UI smoke: 4 buttons, export dialog správně detekuje Standard variantu
+
+
+  1. 2 varianty PDF: **HERO** (úvodní obrázek přes celou stránku) + **STANDARD** (bez obrázku, rovnou přehled)
+  2. Lektor může u archivovaného programu **zpětně editovat pole, která sám vyplnil** (název, popis, věk, kapacita, délka, cena…); tabulky a zpětnou vazbu měnit nelze
+  3. **Custom text** (kurátorská poznámka) přidatelný před exportem PDF
+  4. Popis programu (`description_cs`) má být v PDF prominentní sekce „O programu — co se žáci naučí"
+- ✅ **Backend (`routes/programs.py`)**:
+  - `GET /api/programs/{id}/archive-report` přijímá `?custom_text=...` (URL-encoded, max ~2000 chars)
+  - Payload nově obsahuje `program.image_url`
+- ✅ **Backend (`services/export_service.py`)**:
+  - **NEW helper `_resolve_local_image()`** — vstup může být lokální cesta, `/uploads/...`, nebo http(s) URL (download do tempfile, 8s timeout, fallback na None při chybě)
+  - **NEW helper `_build_hero_cover()`** — generuje cover stránku: velký obrázek (cca 65 % výšky stránky, kind='proportional') + tmavě modrý band `#263FA8` s overlay textem (kicker, název programu, věková skupina, instituce, období) + `PageBreak`
+  - `build_archive_report_pdf(data, custom_text=None)`:
+    - HERO varianta automaticky aktivována, když `image_url` resolvuje na použitelný obrázek (lokálně i z URL)
+    - STANDARD varianta = no-op fallback při missing/broken image_url (žádná výjimka)
+    - „O programu — co se žáci naučí" jako H2 nadpis nad popisem (zachová `\n` linebreaky)
+    - „Poznámka" sekce za přehledem programu (před statistikami) když `custom_text` není prázdný
+    - Header sekce přejmenovaná z „Program" na „Přehled programu" (lepší kontext)
+- ✅ **Frontend (`ArchivePage.js`)**: 4 tlačítka per archived program: `Upravit` / `Report` / `Stáhnout PDF` / `Obnovit`
+  - **Export dialog**: card s detekovanou variantou (Hero ImageIcon vs Standard FileText) + textarea (max 2000) + counter + DialogFooter Save/Cancel; testidy `export-pdf-{id}`, `export-custom-text`, `export-pdf-confirm`
+  - **Edit dialog**: amber info banner "Statistiky/rezervace/ZV nelze měnit"; editovatelné fields: `name_cs/en`, `description_cs/en`, `age_group`, `duration`, `min/max_capacity`, `price`, `pricing_info`, `image_url` (s vysvětlivkou „Pro Hero variantu"); merguje s existujícím programem a posílá PUT → nutné odstranit server-managed fields (`id`, `created_at`, `archived_at`…); testidy `edit-archived-{id}`, `edit-name-cs`, `edit-desc-cs`, atd.
+- 🧪 **Test**: `/app/backend/tests/test_archive_pdf_hero.py` — 7 testů PASS (hero+local image, hero size delta, standard fallback, broken url fallback, custom_text size delta, empty custom_text ignorováno, description rendering)
+- 🧪 **Verifikace**: `tests/test_pdf_exports.py` (24 existing tests) PASS, `tests/test_payment_settings_security.py` (14) PASS, `tests/test_payment_return_url.py` (8) PASS — celkem **38/38 PASS**, žádná regrese
+- 🧪 **UI smoke**: Archive page ukazuje 4 buttons; Export dialog otevírá se správnou variant detekcí + textareou; Edit dialog se otevírá s předvyplněnými fields
+
+: skrytý today widget, viditelnost souběhu rezervací, distinktní barvy v kalendáři (28.4.2026)
 - 🎯 **3 user-reported UX požadavky** po pilotním testu Galerie U Zlatého kohouta:
   1. „Rezervace dnes" widget zabíral místo i když nebyly žádné rezervace
   2. Při souběhu rezervací nebylo zřejmé, proč to systém pustil — admin nevěděl, že kolize je legitimní (různí lektoři)

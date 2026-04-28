@@ -362,32 +362,29 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
   const dayNames = ['PO', 'ÚT', 'ST', 'ČT', 'PÁ', 'SO', 'NE'];
 
   // Get color for reservation based on program — deterministic, distinct hue per program.
-  // We use a curated 12-color palette so programs are visually distinguishable
-  // even when the calendar shows several different ones in the same week.
+  // Brand-defined 8-color palette. Each entry includes the foreground text colour
+  // because the palette mixes light backgrounds (cream, peach, powder blue) where
+  // white text would be unreadable.
+  const PROGRAM_COLORS = [
+    { bg: '#8DA992', border: '#6c8a72', text: '#ffffff' }, // sage
+    { bg: '#457B56', border: '#2f5d3e', text: '#ffffff' }, // forest green
+    { bg: '#FCF3D4', border: '#e7d8a3', text: '#5a4b1e' }, // cream
+    { bg: '#E5C877', border: '#bf9f4f', text: '#4d3a0c' }, // mustard
+    { bg: '#EE7D36', border: '#c45c1c', text: '#ffffff' }, // orange
+    { bg: '#FCEED8', border: '#e8d6b3', text: '#5a4524' }, // peach
+    { bg: '#DEE9FC', border: '#a8bee0', text: '#1f3461' }, // powder blue
+    { bg: '#263FA8', border: '#172a7a', text: '#ffffff' }, // deep blue
+  ];
+
   const getReservationColor = (reservation) => {
-    const palette = [
-      'bg-amber-400 border-amber-500',
-      'bg-blue-400 border-blue-500',
-      'bg-rose-400 border-rose-500',
-      'bg-emerald-400 border-emerald-500',
-      'bg-violet-400 border-violet-500',
-      'bg-orange-400 border-orange-500',
-      'bg-cyan-400 border-cyan-500',
-      'bg-fuchsia-400 border-fuchsia-500',
-      'bg-lime-500 border-lime-600',
-      'bg-pink-400 border-pink-500',
-      'bg-teal-400 border-teal-500',
-      'bg-indigo-400 border-indigo-500',
-    ];
-    // 32-bit FNV-1a hash on a stable program key — stronger distribution than
-    // a simple charCode sum (which often collides on similar program titles).
     const key = String(reservation.program_id || reservation.program_name || reservation.id || '');
+    // 32-bit FNV-1a hash → strong distribution even on similar program titles.
     let hash = 0x811c9dc5;
     for (let i = 0; i < key.length; i++) {
       hash ^= key.charCodeAt(i);
       hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
     }
-    return palette[hash % palette.length];
+    return PROGRAM_COLORS[hash % PROGRAM_COLORS.length];
   };
 
   // Parse time to get hour
@@ -477,11 +474,13 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
                       // Only render the events that *start* in this hour (first row of their slot).
                       const startingHere = reservationsAtTime.filter(isFirstHour);
                       const total = startingHere.length;
-                      return startingHere.map((reservation, rIndex) => (
+                      return startingHere.map((reservation, rIndex) => {
+                        const color = getReservationColor(reservation);
+                        return (
                         <div
                           key={reservation.id}
                           onClick={() => onSelectReservation(reservation)}
-                          className={`absolute rounded-md p-2 cursor-pointer text-white text-xs shadow-sm border-l-4 ${getReservationColor(reservation)} hover:brightness-95 transition-all overflow-hidden`}
+                          className="absolute rounded-md p-2 cursor-pointer text-xs shadow-sm hover:brightness-95 transition-all overflow-hidden"
                           style={{
                             top: '2px',
                             bottom: '2px',
@@ -489,6 +488,9 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
                             width: `calc(${(1 / total) * 100}% - 2px)`,
                             height: 'calc(120px - 4px)',
                             zIndex: rIndex + 1,
+                            backgroundColor: color.bg,
+                            borderLeft: `4px solid ${color.border}`,
+                            color: color.text,
                           }}
                           data-testid={`calendar-event-${reservation.id}`}
                           title={`${reservation.program_name || ''} · ${reservation.time_block || ''}${reservation.assigned_lecturer_name ? ' · ' + reservation.assigned_lecturer_name : ''}`}
@@ -505,7 +507,8 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
                             </div>
                           )}
                         </div>
-                      ));
+                        );
+                      });
                     })()}
                   </div>
                 );

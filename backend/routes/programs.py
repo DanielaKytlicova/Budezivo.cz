@@ -392,6 +392,7 @@ async def unarchive_program(
 async def get_archive_report(
     program_id: str,
     format: str = "pdf",
+    custom_text: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -399,6 +400,10 @@ async def get_archive_report(
 
     Default output is PDF. Pass `?format=json` for the raw machine-readable payload
     (used by internal tooling / unit tests).
+
+    Optional `custom_text` (URL-encoded) is appended to the PDF as a free-form
+    "Poznámka" section right after the program overview — useful for the
+    lecturer to add a curatorial note before exporting.
     """
     program_repo = ProgramRepositorySupabase(db)
     booking_repo = BookingRepositorySupabase(db)
@@ -451,6 +456,12 @@ async def get_archive_report(
         if bdate and (not schools_summary[sn]["last_visit"] or bdate > schools_summary[sn]["last_visit"]):
             schools_summary[sn]["last_visit"] = bdate
     
+    # Resolve effective custom text. Priority:
+    #   1. ?custom_text=... in the URL  (one-off override)
+    #   2. program.archive_custom_text  (saved on the program itself)
+    #   3. None  (no Poznámka section in the PDF)
+    effective_custom_text = custom_text if (custom_text and custom_text.strip()) else program.get("archive_custom_text")
+
     payload = {
         "report_generated_at": datetime.now(timezone.utc).isoformat(),
         "institution": {
@@ -469,6 +480,8 @@ async def get_archive_report(
             "end_date": program.get("end_date"),
             "archived_at": program.get("archived_at"),
             "archive_reason": program.get("archive_reason"),
+            "archive_custom_text": program.get("archive_custom_text"),
+            "image_url": program.get("image_url"),
         },
         "statistics": {
             "total_reservations": total_reservations,
@@ -502,7 +515,7 @@ async def get_archive_report(
     from services.export_service import build_archive_report_pdf
     from fastapi.responses import Response
     from urllib.parse import quote
-    pdf_bytes = build_archive_report_pdf(payload)
+    pdf_bytes = build_archive_report_pdf(payload, custom_text=effective_custom_text)
     safe_utf = "".join(c if c.isalnum() else "_" for c in (program.get("name_cs") or program_id))[:50]
     safe_ascii = "".join(c if c.isascii() and c.isalnum() else "_" for c in (program.get("name_cs") or program_id))[:50] or "archive_report"
     return Response(

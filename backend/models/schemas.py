@@ -105,6 +105,8 @@ class ProgramBase(BaseModel):
     # Feedback Settings (PRO)
     feedback_enabled: bool = True
     feedback_questions: List[dict] = []
+    # Archive (lecturer-editable curatorial note rendered into the archive PDF)
+    archive_custom_text: Optional[str] = None
 
     @validator('feedback_enabled', pre=True, always=True)
     def default_feedback_enabled(cls, v):

@@ -4,10 +4,13 @@ import { AuthContext } from '../../context/AuthContext';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Textarea } from '../../components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { Archive, RotateCcw, FileText, Users, Calendar, Download, ChevronDown, ChevronUp } from 'lucide-react';
+import { Archive, RotateCcw, FileText, Users, Calendar, Download, ChevronDown, ChevronUp, Pencil, Loader2, Eye } from 'lucide-react';
 import { API } from '../../config/api';
 
 export const ArchivePage = () => {
@@ -18,6 +21,11 @@ export const ArchivePage = () => {
   const [reportData, setReportData] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [expandedSchools, setExpandedSchools] = useState(false);
+
+  // Edit-archived dialog state
+  const [editDialog, setEditDialog] = useState(null); // full program object
+  const [editForm, setEditForm] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
 
   const fetchArchived = async () => {
     try {
@@ -71,6 +79,117 @@ export const ArchivePage = () => {
     toast.success('Report exportován');
   };
 
+  // ---- PDF export — direct download (custom text comes from the program's
+  // saved `archive_custom_text` field, set via the Edit dialog).
+  const fetchPdfBlob = async (programId) => {
+    const res = await axios.get(`${API}/programs/${programId}/archive-report`, {
+      params: { format: 'pdf' },
+      responseType: 'blob',
+    });
+    return res.data;
+  };
+
+  const handleDownloadPdf = async (program) => {
+    try {
+      const blob = await fetchPdfBlob(program.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const name = (program.name_cs || program.name_en || 'program').replace(/[^\p{L}\p{N}_-]/gu, '_').slice(0, 60);
+      link.download = `archivni_zprava_${name}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('PDF staženo');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Chyba při generování PDF');
+    }
+  };
+
+  // Open PDF inline in a new browser tab (no download). The blob URL is
+  // revoked after a generous delay so the new tab has time to fetch it.
+  const handlePreviewPdf = async (program) => {
+    try {
+      const blob = await fetchPdfBlob(program.id);
+      const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        toast.error('Prohlížeč zablokoval otevření nového okna — povolte pop-upy pro tuto stránku.');
+      }
+      // Defer revoke so the new tab can finish loading the blob.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Chyba při generování náhledu PDF');
+    }
+  };
+
+  // ---- Inline edit of editable archived-program fields ----
+  // Lecturer can update fields they originally filled; statistics & feedback
+  // remain read-only (computed from historical bookings).
+  const openEditDialog = (program) => {
+    setEditDialog(program);
+    setEditForm({
+      name_cs: program.name_cs || '',
+      name_en: program.name_en || '',
+      description_cs: program.description_cs || '',
+      description_en: program.description_en || '',
+      age_group: program.age_group || '',
+      duration: program.duration ?? '',
+      min_capacity: program.min_capacity ?? '',
+      max_capacity: program.max_capacity ?? '',
+      price: program.price ?? '',
+      pricing_info: program.pricing_info || '',
+      image_url: program.image_url || '',
+      archive_custom_text: program.archive_custom_text || '',
+    });
+  };
+
+  const handleSaveEdit = async ({ thenPreview = false } = {}) => {
+    if (!editDialog) return;
+    setEditSaving(true);
+    try {
+      // Merge new edited fields into the existing program payload (PUT
+      // requires the full ProgramCreate shape — preserve everything else).
+      const merged = {
+        ...editDialog,
+        name_cs: editForm.name_cs?.trim() || editDialog.name_cs,
+        name_en: editForm.name_en?.trim() || null,
+        description_cs: editForm.description_cs ?? null,
+        description_en: editForm.description_en ?? null,
+        age_group: editForm.age_group || editDialog.age_group,
+        duration: editForm.duration === '' ? null : Number(editForm.duration),
+        min_capacity: editForm.min_capacity === '' ? null : Number(editForm.min_capacity),
+        max_capacity: editForm.max_capacity === '' ? null : Number(editForm.max_capacity),
+        price: editForm.price === '' ? null : Number(editForm.price),
+        pricing_info: editForm.pricing_info ?? null,
+        image_url: editForm.image_url?.trim() || null,
+        archive_custom_text: editForm.archive_custom_text?.trim() || null,
+      };
+      // Strip server-managed fields that PUT doesn't expect on the body.
+      delete merged.id;
+      delete merged.created_at;
+      delete merged.updated_at;
+      delete merged.archived_at;
+      delete merged.archived_by;
+      delete merged.institution_id;
+      await axios.put(`${API}/programs/${editDialog.id}`, merged);
+      toast.success('Program aktualizován');
+      const editedId = editDialog.id;
+      const previewProgram = { ...editDialog, ...merged };
+      setEditDialog(null);
+      fetchArchived();
+      if (thenPreview) {
+        // Open preview after successful save — uses the just-saved data.
+        await handlePreviewPdf({ id: editedId, ...previewProgram });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Uložení selhalo');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -109,7 +228,16 @@ export const ArchivePage = () => {
                       {p.age_group && <span>Věková skupina: {p.age_group}</span>}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openEditDialog(p)}
+                      data-testid={`edit-archived-${p.id}`}
+                    >
+                      <Pencil className="w-4 h-4 mr-1" />
+                      Upravit
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -118,6 +246,24 @@ export const ArchivePage = () => {
                     >
                       <FileText className="w-4 h-4 mr-1" />
                       Report
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handlePreviewPdf(p)}
+                      data-testid={`preview-pdf-${p.id}`}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      Náhled
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDownloadPdf(p)}
+                      data-testid={`export-pdf-${p.id}`}
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Stáhnout PDF
                     </Button>
                     <Button
                       size="sm"
@@ -232,6 +378,163 @@ export const ArchivePage = () => {
           ) : (
             <p className="text-center py-8 text-gray-400">Nepodařilo se načíst report.</p>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit-archived-program dialog — only fields the lecturer originally
+          filled. Statistics & feedback remain read-only. */}
+      <Dialog open={!!editDialog} onOpenChange={(o) => !o && setEditDialog(null)}>
+        <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-2xl max-h-[85vh] overflow-y-auto" aria-describedby="edit-desc">
+          <DialogHeader>
+            <DialogTitle>Upravit archivovaný program</DialogTitle>
+          </DialogHeader>
+          <p id="edit-desc" className="sr-only">Upravte pole, která jste vyplnili při založení programu. Tabulky rezervací a zpětnou vazbu měnit nelze.</p>
+
+          {editDialog && (
+            <div className="space-y-4 text-sm" data-testid="edit-archived-form">
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Statistiky, rezervace a zpětná vazba se z bezpečnostních důvodů nedají měnit — odráží historickou skutečnost.
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="edit-name-cs">Název (CZ)</Label>
+                  <Input id="edit-name-cs" data-testid="edit-name-cs"
+                    value={editForm.name_cs}
+                    onChange={(e) => setEditForm(f => ({ ...f, name_cs: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-name-en">Název (EN)</Label>
+                  <Input id="edit-name-en" data-testid="edit-name-en"
+                    value={editForm.name_en}
+                    onChange={(e) => setEditForm(f => ({ ...f, name_en: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-desc-cs">Popis programu (CZ)</Label>
+                <Textarea id="edit-desc-cs" data-testid="edit-desc-cs"
+                  className="min-h-[140px]"
+                  value={editForm.description_cs}
+                  onChange={(e) => setEditForm(f => ({ ...f, description_cs: e.target.value }))}
+                />
+                <p className="text-[11px] text-gray-400 mt-1">Tento text se objeví v PDF jako sekce „O programu — co se žáci naučí".</p>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-desc-en">Popis programu (EN)</Label>
+                <Textarea id="edit-desc-en" data-testid="edit-desc-en"
+                  className="min-h-[80px]"
+                  value={editForm.description_en}
+                  onChange={(e) => setEditForm(f => ({ ...f, description_en: e.target.value }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div>
+                  <Label htmlFor="edit-age">Věková skupina</Label>
+                  <Input id="edit-age" data-testid="edit-age"
+                    value={editForm.age_group}
+                    onChange={(e) => setEditForm(f => ({ ...f, age_group: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-duration">Délka (min)</Label>
+                  <Input id="edit-duration" data-testid="edit-duration" type="number" min="1"
+                    value={editForm.duration}
+                    onChange={(e) => setEditForm(f => ({ ...f, duration: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-price">Cena (Kč)</Label>
+                  <Input id="edit-price" data-testid="edit-price" type="number" min="0"
+                    value={editForm.price}
+                    onChange={(e) => setEditForm(f => ({ ...f, price: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-min-cap">Min. kapacita</Label>
+                  <Input id="edit-min-cap" data-testid="edit-min-cap" type="number" min="0"
+                    value={editForm.min_capacity}
+                    onChange={(e) => setEditForm(f => ({ ...f, min_capacity: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-max-cap">Max. kapacita</Label>
+                  <Input id="edit-max-cap" data-testid="edit-max-cap" type="number" min="0"
+                    value={editForm.max_capacity}
+                    onChange={(e) => setEditForm(f => ({ ...f, max_capacity: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-pricing-info">Cenová info (text)</Label>
+                  <Input id="edit-pricing-info" data-testid="edit-pricing-info"
+                    value={editForm.pricing_info}
+                    onChange={(e) => setEditForm(f => ({ ...f, pricing_info: e.target.value }))}
+                    placeholder="např. 30 Kč / žák, pedagog zdarma"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-image">URL úvodního obrázku <span className="text-gray-400 text-xs">(pro Hero variantu PDF)</span></Label>
+                <Input id="edit-image" data-testid="edit-image"
+                  value={editForm.image_url}
+                  onChange={(e) => setEditForm(f => ({ ...f, image_url: e.target.value }))}
+                  placeholder="https://… nebo /uploads/programs/…"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">Pokud je vyplněno, PDF dostane úvodní stránku přes celou plochu s tímto obrázkem.</p>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-custom-text">
+                  Vlastní poznámka v PDF <span className="text-gray-400 text-xs">(volitelné)</span>
+                </Label>
+                <Textarea id="edit-custom-text" data-testid="edit-custom-text"
+                  className="min-h-[120px]"
+                  value={editForm.archive_custom_text}
+                  onChange={(e) => setEditForm(f => ({ ...f, archive_custom_text: e.target.value.slice(0, 2000) }))}
+                  placeholder="Např. „Program byl realizován v rámci výstavy XYZ, doplňující kurátorský komentář…“&#10;&#10;Více odstavců můžete oddělit prázdným řádkem."
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Text se v PDF zobrazí jako sekce „Poznámka" hned za přehledem programu. {(editForm.archive_custom_text || '').length}/2000
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setEditDialog(null)} disabled={editSaving}>
+              Zrušit
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleSaveEdit({ thenPreview: true })}
+              disabled={editSaving}
+              data-testid="edit-archived-save-and-preview"
+              className="border-slate-300"
+            >
+              {editSaving ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Ukládám…</>
+              ) : (
+                <><Eye className="w-4 h-4 mr-2" /> Uložit a zobrazit náhled</>
+              )}
+            </Button>
+            <Button
+              onClick={() => handleSaveEdit()}
+              disabled={editSaving}
+              className="bg-slate-800 hover:bg-slate-700 text-white"
+              data-testid="edit-archived-save"
+            >
+              {editSaving ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Ukládám…</>
+              ) : (
+                <>Uložit změny</>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AdminLayout>

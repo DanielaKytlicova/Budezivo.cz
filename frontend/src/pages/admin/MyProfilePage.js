@@ -119,7 +119,7 @@ export const MyProfilePage = ({ embedded = false }) => {
   const renderContent = (innerJSX) => embedded ? innerJSX : <AdminLayout>{innerJSX}</AdminLayout>;
 
   return renderContent((
-      <div className="space-y-6 max-w-4xl" data-testid="my-profile-page">
+      <div className="space-y-6" data-testid="my-profile-page">
         {/* Header */}
         <div className="flex items-center gap-3">
           <UserCircle className="w-7 h-7 text-slate-600" />

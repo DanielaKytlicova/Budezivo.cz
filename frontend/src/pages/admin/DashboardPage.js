@@ -362,23 +362,18 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
   const dayNames = ['PO', 'ÚT', 'ST', 'ČT', 'PÁ', 'SO', 'NE'];
 
   // Get color for reservation based on program — deterministic, distinct hue per program.
-  // Curated palette in the platform's brand spirit (slate blue / sage / sand /
-  // warm earth tones). All swatches are muted mid-tones so several events on
-  // the same week feel like a coherent gallery wall rather than a circus.
-  // Inline hex (NOT Tailwind classes) — bypasses JIT/purge stripping.
+  // Brand-defined 8-color palette. Each entry includes the foreground text colour
+  // because the palette mixes light backgrounds (cream, peach, powder blue) where
+  // white text would be unreadable.
   const PROGRAM_COLORS = [
-    { bg: '#5a7aae', border: '#3f5a85' }, // brand slate blue
-    { bg: '#84a98c', border: '#5f8a68' }, // sage green
-    { bg: '#a8835f', border: '#7a5b3d' }, // warm sand / ochre
-    { bg: '#7d9da7', border: '#5b7a85' }, // dusty steel blue
-    { bg: '#9e8aa6', border: '#73617c' }, // muted lavender
-    { bg: '#a47366', border: '#7a5147' }, // terracotta
-    { bg: '#658c7c', border: '#46685a' }, // deep teal/sage
-    { bg: '#92738c', border: '#6a4f66' }, // dusty plum
-    { bg: '#7a8a5c', border: '#566440' }, // olive
-    { bg: '#bfa15e', border: '#8e7641' }, // mustard / antique gold
-    { bg: '#5d6f8a', border: '#404f66' }, // deeper slate
-    { bg: '#9c6a72', border: '#724a52' }, // dusty wine
+    { bg: '#8DA992', border: '#6c8a72', text: '#ffffff' }, // sage
+    { bg: '#457B56', border: '#2f5d3e', text: '#ffffff' }, // forest green
+    { bg: '#FCF3D4', border: '#e7d8a3', text: '#5a4b1e' }, // cream
+    { bg: '#E5C877', border: '#bf9f4f', text: '#4d3a0c' }, // mustard
+    { bg: '#EE7D36', border: '#c45c1c', text: '#ffffff' }, // orange
+    { bg: '#FCEED8', border: '#e8d6b3', text: '#5a4524' }, // peach
+    { bg: '#DEE9FC', border: '#a8bee0', text: '#1f3461' }, // powder blue
+    { bg: '#263FA8', border: '#172a7a', text: '#ffffff' }, // deep blue
   ];
 
   const getReservationColor = (reservation) => {
@@ -485,7 +480,7 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
                         <div
                           key={reservation.id}
                           onClick={() => onSelectReservation(reservation)}
-                          className="absolute rounded-md p-2 cursor-pointer text-white text-xs shadow-sm hover:brightness-95 transition-all overflow-hidden"
+                          className="absolute rounded-md p-2 cursor-pointer text-xs shadow-sm hover:brightness-95 transition-all overflow-hidden"
                           style={{
                             top: '2px',
                             bottom: '2px',
@@ -495,6 +490,7 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
                             zIndex: rIndex + 1,
                             backgroundColor: color.bg,
                             borderLeft: `4px solid ${color.border}`,
+                            color: color.text,
                           }}
                           data-testid={`calendar-event-${reservation.id}`}
                           title={`${reservation.program_name || ''} · ${reservation.time_block || ''}${reservation.assigned_lecturer_name ? ' · ' + reservation.assigned_lecturer_name : ''}`}

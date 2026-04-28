@@ -10,7 +10,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { Archive, RotateCcw, FileText, Users, Calendar, Download, ChevronDown, ChevronUp, Pencil, Loader2 } from 'lucide-react';
+import { Archive, RotateCcw, FileText, Users, Calendar, Download, ChevronDown, ChevronUp, Pencil, Loader2, Eye } from 'lucide-react';
 import { API } from '../../config/api';
 
 export const ArchivePage = () => {
@@ -81,13 +81,18 @@ export const ArchivePage = () => {
 
   // ---- PDF export — direct download (custom text comes from the program's
   // saved `archive_custom_text` field, set via the Edit dialog).
+  const fetchPdfBlob = async (programId) => {
+    const res = await axios.get(`${API}/programs/${programId}/archive-report`, {
+      params: { format: 'pdf' },
+      responseType: 'blob',
+    });
+    return res.data;
+  };
+
   const handleDownloadPdf = async (program) => {
     try {
-      const res = await axios.get(`${API}/programs/${program.id}/archive-report`, {
-        params: { format: 'pdf' },
-        responseType: 'blob',
-      });
-      const url = URL.createObjectURL(res.data);
+      const blob = await fetchPdfBlob(program.id);
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       const name = (program.name_cs || program.name_en || 'program').replace(/[^\p{L}\p{N}_-]/gu, '_').slice(0, 60);
@@ -99,6 +104,23 @@ export const ArchivePage = () => {
       toast.success('PDF staženo');
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Chyba při generování PDF');
+    }
+  };
+
+  // Open PDF inline in a new browser tab (no download). The blob URL is
+  // revoked after a generous delay so the new tab has time to fetch it.
+  const handlePreviewPdf = async (program) => {
+    try {
+      const blob = await fetchPdfBlob(program.id);
+      const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        toast.error('Prohlížeč zablokoval otevření nového okna — povolte pop-upy pro tuto stránku.');
+      }
+      // Defer revoke so the new tab can finish loading the blob.
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Chyba při generování náhledu PDF');
     }
   };
 
@@ -123,7 +145,7 @@ export const ArchivePage = () => {
     });
   };
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = async ({ thenPreview = false } = {}) => {
     if (!editDialog) return;
     setEditSaving(true);
     try {
@@ -153,8 +175,14 @@ export const ArchivePage = () => {
       delete merged.institution_id;
       await axios.put(`${API}/programs/${editDialog.id}`, merged);
       toast.success('Program aktualizován');
+      const editedId = editDialog.id;
+      const previewProgram = { ...editDialog, ...merged };
       setEditDialog(null);
       fetchArchived();
+      if (thenPreview) {
+        // Open preview after successful save — uses the just-saved data.
+        await handlePreviewPdf({ id: editedId, ...previewProgram });
+      }
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Uložení selhalo');
     } finally {
@@ -218,6 +246,15 @@ export const ArchivePage = () => {
                     >
                       <FileText className="w-4 h-4 mr-1" />
                       Report
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handlePreviewPdf(p)}
+                      data-testid={`preview-pdf-${p.id}`}
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      Náhled
                     </Button>
                     <Button
                       size="sm"
@@ -468,12 +505,25 @@ export const ArchivePage = () => {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button variant="outline" onClick={() => setEditDialog(null)} disabled={editSaving}>
               Zrušit
             </Button>
             <Button
-              onClick={handleSaveEdit}
+              variant="outline"
+              onClick={() => handleSaveEdit({ thenPreview: true })}
+              disabled={editSaving}
+              data-testid="edit-archived-save-and-preview"
+              className="border-slate-300"
+            >
+              {editSaving ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Ukládám…</>
+              ) : (
+                <><Eye className="w-4 h-4 mr-2" /> Uložit a zobrazit náhled</>
+              )}
+            </Button>
+            <Button
+              onClick={() => handleSaveEdit()}
               disabled={editSaving}
               className="bg-slate-800 hover:bg-slate-700 text-white"
               data-testid="edit-archived-save"

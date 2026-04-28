@@ -539,8 +539,136 @@ def _footer(styles, label="Vygenerováno systémem Budeživo.cz"):
     return Paragraph(f"{label} | {datetime.now().strftime('%d.%m.%Y %H:%M')}", styles['RptFooter'])
 
 
-def build_archive_report_pdf(data: dict) -> bytes:
-    """Render a program archive report dict as a clean A4 PDF (bytes)."""
+def _resolve_local_image(url_or_path: Optional[str]) -> Optional[str]:
+    """Return a local filesystem path for a program cover image, or None.
+
+    Supports:
+      * absolute filesystem paths (`/app/uploads/...`)
+      * URL-style paths starting with `/uploads/` or `/static/` — mapped to
+        the corresponding local directory.
+
+    Remote URLs (http/https/s3) are downloaded into a tempfile so reportlab
+    can embed them. Failures return None — the caller must handle gracefully.
+    """
+    if not url_or_path:
+        return None
+    import os
+    import tempfile
+    p = str(url_or_path).strip()
+    if not p:
+        return None
+    if p.startswith("/") and not p.startswith("//"):
+        if os.path.exists(p):
+            return p
+        backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        candidate = os.path.join(backend_root, p.lstrip("/"))
+        if os.path.exists(candidate):
+            return candidate
+        return None
+    if p.startswith("http://") or p.startswith("https://"):
+        try:
+            import urllib.request
+            suffix = ".jpg"
+            for ext in (".png", ".jpg", ".jpeg", ".webp"):
+                if p.lower().split("?")[0].endswith(ext):
+                    suffix = ext
+                    break
+            req = urllib.request.Request(p, headers={"User-Agent": "BudeZivo-PDF/1.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:  # noqa: S310 — internal use
+                data = resp.read()
+            tmp = tempfile.NamedTemporaryFile(prefix="bz_cover_", suffix=suffix, delete=False)
+            tmp.write(data)
+            tmp.close()
+            return tmp.name
+        except Exception as e:
+            logger.warning(f"Could not fetch hero image {p!r}: {e}")
+            return None
+    return None
+
+
+def _build_hero_cover(prog: dict, inst: dict, stats: dict, image_path: str, styles) -> list:
+    """Build the cover page for the HERO archive PDF variant.
+
+    Layout: a large image (about 70 % of page height) followed by an overlay-
+    style dark band carrying program identifiers, then a forced page break.
+    A reportlab ``SimpleDocTemplate`` cannot render true bleed-to-edge content
+    inside a flowable frame, so we accept the standard top/bottom margin.
+    """
+    from reportlab.platypus import PageBreak
+    from reportlab.lib.pagesizes import A4 as _A4
+
+    page_w, page_h = _A4
+    available_w = page_w - (40 * mm)  # 20 mm margins on both sides
+
+    cover_styles = {
+        "kicker": ParagraphStyle(
+            "HeroKicker", parent=styles['RptBody'], textColor=colors.white,
+            fontSize=10, leading=12, fontName=_FONT_BOLD, alignment=0,
+        ),
+        "title": ParagraphStyle(
+            "HeroTitle", parent=styles['RptTitle'], textColor=colors.white,
+            fontSize=30, leading=36, fontName=_FONT_BOLD, alignment=0,
+        ),
+        "meta": ParagraphStyle(
+            "HeroMeta", parent=styles['RptBody'], textColor=colors.white,
+            fontSize=11, leading=15, fontName=_FONT_BASE, alignment=0,
+        ),
+    }
+
+    # Image sized to ~ 65 % of usable page height; reportlab preserves aspect
+    # ratio with `kind='proportional'` only when both width and height fit.
+    target_h = (page_h - (35 * mm)) * 0.65
+    try:
+        cover_img = RLImage(image_path, width=available_w, height=target_h, kind='proportional')
+    except Exception as e:
+        logger.warning(f"Hero image render failed: {e}")
+        return []
+
+    kicker = "DOPROVODNÝ PROGRAM — ARCHIVNÍ ZPRÁVA"
+    title_html = (prog.get('name') or '—').replace('&', '&amp;')
+
+    meta_lines = []
+    if prog.get('age_group'):
+        meta_lines.append(f"<b>{prog['age_group']}</b>")
+    if inst.get('name'):
+        meta_lines.append(inst['name'])
+    dr = stats.get('date_range', {}) or {}
+    if dr.get('from') or dr.get('to'):
+        meta_lines.append(f"Období: {dr.get('from') or '—'} → {dr.get('to') or '—'}")
+
+    band = Table(
+        [
+            [Paragraph(kicker, cover_styles["kicker"])],
+            [Paragraph(title_html, cover_styles["title"])],
+            [Paragraph("<br/>".join(meta_lines) or "&nbsp;", cover_styles["meta"])],
+        ],
+        colWidths=[available_w],
+    )
+    band.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#263FA8')),
+        ('LEFTPADDING', (0, 0), (-1, -1), 14),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 14),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+
+    return [cover_img, Spacer(1, 4 * mm), band, PageBreak()]
+
+
+def build_archive_report_pdf(data: dict, custom_text: Optional[str] = None) -> bytes:
+    """Render a program archive report dict as a clean A4 PDF (bytes).
+
+    Two layouts:
+      * **HERO** — when `data['program']['image_url']` resolves to an image,
+        page 1 is a full-bleed cover with the program name overlay; the report
+        body starts on page 2.
+      * **STANDARD** — without a cover image, the body starts immediately on
+        page 1.
+
+    Optional ``custom_text`` is rendered as a "Poznámka" section right after
+    the program overview, before the statistics.
+    """
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
                             leftMargin=20*mm, rightMargin=20*mm,
@@ -552,13 +680,18 @@ def build_archive_report_pdf(data: dict) -> bytes:
     inst = data.get('institution', {}) or {}
     stats = data.get('statistics', {}) or {}
 
+    # ---- HERO cover page (only when a cover image is available) ----
+    cover_path = _resolve_local_image(prog.get('image_url'))
+    if cover_path:
+        story.extend(_build_hero_cover(prog, inst, stats, cover_path, styles))
+
     story.append(Paragraph(f"Archive report – {prog.get('name', '—')}", styles['RptTitle']))
     story.append(Paragraph(
         f"{inst.get('name', '—')} &nbsp;·&nbsp; vygenerováno {data.get('report_generated_at', '')[:19]}",
         styles['RptSub'],
     ))
 
-    story.append(Paragraph("Program", styles['RptH2']))
+    story.append(Paragraph("Přehled programu", styles['RptH2']))
     story.append(_kv_table([
         ("Název", prog.get('name')),
         ("Věková kategorie", prog.get('age_group')),
@@ -569,9 +702,21 @@ def build_archive_report_pdf(data: dict) -> bytes:
         ("Archivováno", prog.get('archived_at')),
         ("Důvod archivace", prog.get('archive_reason')),
     ]))
+
+    # ---- Description ("O programu — co se žáci naučí") ----
     if prog.get('description'):
         story.append(Spacer(1, 4*mm))
-        story.append(Paragraph(prog['description'], styles['RptBody']))
+        story.append(Paragraph("O programu — co se žáci naučí", styles['RptH2']))
+        # Preserve user line-breaks; allow simple inline HTML.
+        desc_html = (prog['description'] or '').replace('\n', '<br/>')
+        story.append(Paragraph(desc_html, styles['RptBody']))
+
+    # ---- Custom curatorial note (free-form, optional) ----
+    if custom_text and custom_text.strip():
+        story.append(Spacer(1, 4*mm))
+        story.append(Paragraph("Poznámka", styles['RptH2']))
+        note_html = custom_text.strip().replace('&', '&amp;').replace('\n', '<br/>')
+        story.append(Paragraph(note_html, styles['RptBody']))
 
     story.append(Paragraph("Statistiky", styles['RptH2']))
     dr = stats.get('date_range', {}) or {}

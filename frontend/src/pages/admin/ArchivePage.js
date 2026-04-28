@@ -4,10 +4,13 @@ import { AuthContext } from '../../context/AuthContext';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Textarea } from '../../components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { Archive, RotateCcw, FileText, Users, Calendar, Download, ChevronDown, ChevronUp } from 'lucide-react';
+import { Archive, RotateCcw, FileText, Users, Calendar, Download, ChevronDown, ChevronUp, Pencil, ImageIcon, Loader2 } from 'lucide-react';
 import { API } from '../../config/api';
 
 export const ArchivePage = () => {
@@ -18,6 +21,16 @@ export const ArchivePage = () => {
   const [reportData, setReportData] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [expandedSchools, setExpandedSchools] = useState(false);
+
+  // Export-with-custom-text dialog state
+  const [exportDialog, setExportDialog] = useState(null); // { id, name, hasImage }
+  const [exportText, setExportText] = useState('');
+  const [exporting, setExporting] = useState(false);
+
+  // Edit-archived dialog state
+  const [editDialog, setEditDialog] = useState(null); // full program object
+  const [editForm, setEditForm] = useState({});
+  const [editSaving, setEditSaving] = useState(false);
 
   const fetchArchived = async () => {
     try {
@@ -71,6 +84,101 @@ export const ArchivePage = () => {
     toast.success('Report exportován');
   };
 
+  // ---- PDF export (with optional curatorial note) ----
+  const openExportDialog = (program) => {
+    setExportDialog({
+      id: program.id,
+      name: program.name_cs || program.name_en || 'Program',
+      hasImage: !!program.image_url,
+    });
+    setExportText('');
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!exportDialog) return;
+    setExporting(true);
+    try {
+      const params = { format: 'pdf' };
+      if (exportText && exportText.trim()) params.custom_text = exportText.trim();
+      const res = await axios.get(`${API}/programs/${exportDialog.id}/archive-report`, {
+        params,
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(res.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `archivni_zprava_${exportDialog.name.replace(/[^\p{L}\p{N}_-]/gu, '_').slice(0, 60)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success('PDF staženo');
+      setExportDialog(null);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Chyba při generování PDF');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // ---- Inline edit of editable archived-program fields ----
+  // Lecturer can update fields they originally filled; statistics & feedback
+  // remain read-only (computed from historical bookings).
+  const openEditDialog = (program) => {
+    setEditDialog(program);
+    setEditForm({
+      name_cs: program.name_cs || '',
+      name_en: program.name_en || '',
+      description_cs: program.description_cs || '',
+      description_en: program.description_en || '',
+      age_group: program.age_group || '',
+      duration: program.duration ?? '',
+      min_capacity: program.min_capacity ?? '',
+      max_capacity: program.max_capacity ?? '',
+      price: program.price ?? '',
+      pricing_info: program.pricing_info || '',
+      image_url: program.image_url || '',
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editDialog) return;
+    setEditSaving(true);
+    try {
+      // Merge new edited fields into the existing program payload (PUT
+      // requires the full ProgramCreate shape — preserve everything else).
+      const merged = {
+        ...editDialog,
+        name_cs: editForm.name_cs?.trim() || editDialog.name_cs,
+        name_en: editForm.name_en?.trim() || null,
+        description_cs: editForm.description_cs ?? null,
+        description_en: editForm.description_en ?? null,
+        age_group: editForm.age_group || editDialog.age_group,
+        duration: editForm.duration === '' ? null : Number(editForm.duration),
+        min_capacity: editForm.min_capacity === '' ? null : Number(editForm.min_capacity),
+        max_capacity: editForm.max_capacity === '' ? null : Number(editForm.max_capacity),
+        price: editForm.price === '' ? null : Number(editForm.price),
+        pricing_info: editForm.pricing_info ?? null,
+        image_url: editForm.image_url?.trim() || null,
+      };
+      // Strip server-managed fields that PUT doesn't expect on the body.
+      delete merged.id;
+      delete merged.created_at;
+      delete merged.updated_at;
+      delete merged.archived_at;
+      delete merged.archived_by;
+      delete merged.institution_id;
+      await axios.put(`${API}/programs/${editDialog.id}`, merged);
+      toast.success('Program aktualizován');
+      setEditDialog(null);
+      fetchArchived();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Uložení selhalo');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -109,7 +217,16 @@ export const ArchivePage = () => {
                       {p.age_group && <span>Věková skupina: {p.age_group}</span>}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openEditDialog(p)}
+                      data-testid={`edit-archived-${p.id}`}
+                    >
+                      <Pencil className="w-4 h-4 mr-1" />
+                      Upravit
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -118,6 +235,15 @@ export const ArchivePage = () => {
                     >
                       <FileText className="w-4 h-4 mr-1" />
                       Report
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openExportDialog(p)}
+                      data-testid={`export-pdf-${p.id}`}
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Stáhnout PDF
                     </Button>
                     <Button
                       size="sm"
@@ -232,6 +358,201 @@ export const ArchivePage = () => {
           ) : (
             <p className="text-center py-8 text-gray-400">Nepodařilo se načíst report.</p>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* PDF export dialog — optional curatorial note + variant preview */}
+      <Dialog open={!!exportDialog} onOpenChange={(o) => !o && setExportDialog(null)}>
+        <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-lg" aria-describedby="export-desc">
+          <DialogHeader>
+            <DialogTitle>Stáhnout archivní zprávu — PDF</DialogTitle>
+          </DialogHeader>
+          <p id="export-desc" className="sr-only">Stáhnout PDF s volitelnou poznámkou kurátora</p>
+
+          {exportDialog && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                {exportDialog.hasImage ? (
+                  <>
+                    <ImageIcon className="w-4 h-4 text-emerald-700" />
+                    <span>
+                      Varianta: <span className="font-semibold">Hero</span> – první stránka bude úvodní obrázek programu.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-4 h-4 text-slate-500" />
+                    <span>
+                      Varianta: <span className="font-semibold">Standard</span> – PDF začne rovnou přehledem (program nemá úvodní obrázek).
+                    </span>
+                  </>
+                )}
+              </div>
+
+              <div>
+                <Label htmlFor="export-text" className="text-sm">Vlastní poznámka <span className="text-gray-400 text-xs">(volitelné)</span></Label>
+                <Textarea
+                  id="export-text"
+                  value={exportText}
+                  onChange={(e) => setExportText(e.target.value)}
+                  placeholder="Např. „Program byl realizován v rámci výstavy XYZ, doplňující kurátorský komentář…&#10;&#10;Můžete použít více odstavců."
+                  className="mt-1 min-h-[120px]"
+                  maxLength={2000}
+                  data-testid="export-custom-text"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Text se zobrazí v PDF jako sekce „Poznámka" hned za přehledem programu. {exportText.length}/2000
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportDialog(null)} disabled={exporting}>
+              Zrušit
+            </Button>
+            <Button
+              onClick={handleDownloadPdf}
+              disabled={exporting}
+              className="bg-slate-800 hover:bg-slate-700 text-white"
+              data-testid="export-pdf-confirm"
+            >
+              {exporting ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generuji…</>
+              ) : (
+                <><Download className="w-4 h-4 mr-2" /> Stáhnout PDF</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit-archived-program dialog — only fields the lecturer originally
+          filled. Statistics & feedback remain read-only. */}
+      <Dialog open={!!editDialog} onOpenChange={(o) => !o && setEditDialog(null)}>
+        <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-2xl max-h-[85vh] overflow-y-auto" aria-describedby="edit-desc">
+          <DialogHeader>
+            <DialogTitle>Upravit archivovaný program</DialogTitle>
+          </DialogHeader>
+          <p id="edit-desc" className="sr-only">Upravte pole, která jste vyplnili při založení programu. Tabulky rezervací a zpětnou vazbu měnit nelze.</p>
+
+          {editDialog && (
+            <div className="space-y-4 text-sm" data-testid="edit-archived-form">
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Statistiky, rezervace a zpětná vazba se z bezpečnostních důvodů nedají měnit — odráží historickou skutečnost.
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="edit-name-cs">Název (CZ)</Label>
+                  <Input id="edit-name-cs" data-testid="edit-name-cs"
+                    value={editForm.name_cs}
+                    onChange={(e) => setEditForm(f => ({ ...f, name_cs: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-name-en">Název (EN)</Label>
+                  <Input id="edit-name-en" data-testid="edit-name-en"
+                    value={editForm.name_en}
+                    onChange={(e) => setEditForm(f => ({ ...f, name_en: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-desc-cs">Popis programu (CZ)</Label>
+                <Textarea id="edit-desc-cs" data-testid="edit-desc-cs"
+                  className="min-h-[140px]"
+                  value={editForm.description_cs}
+                  onChange={(e) => setEditForm(f => ({ ...f, description_cs: e.target.value }))}
+                />
+                <p className="text-[11px] text-gray-400 mt-1">Tento text se objeví v PDF jako sekce „O programu — co se žáci naučí".</p>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-desc-en">Popis programu (EN)</Label>
+                <Textarea id="edit-desc-en" data-testid="edit-desc-en"
+                  className="min-h-[80px]"
+                  value={editForm.description_en}
+                  onChange={(e) => setEditForm(f => ({ ...f, description_en: e.target.value }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div>
+                  <Label htmlFor="edit-age">Věková skupina</Label>
+                  <Input id="edit-age" data-testid="edit-age"
+                    value={editForm.age_group}
+                    onChange={(e) => setEditForm(f => ({ ...f, age_group: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-duration">Délka (min)</Label>
+                  <Input id="edit-duration" data-testid="edit-duration" type="number" min="1"
+                    value={editForm.duration}
+                    onChange={(e) => setEditForm(f => ({ ...f, duration: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-price">Cena (Kč)</Label>
+                  <Input id="edit-price" data-testid="edit-price" type="number" min="0"
+                    value={editForm.price}
+                    onChange={(e) => setEditForm(f => ({ ...f, price: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-min-cap">Min. kapacita</Label>
+                  <Input id="edit-min-cap" data-testid="edit-min-cap" type="number" min="0"
+                    value={editForm.min_capacity}
+                    onChange={(e) => setEditForm(f => ({ ...f, min_capacity: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-max-cap">Max. kapacita</Label>
+                  <Input id="edit-max-cap" data-testid="edit-max-cap" type="number" min="0"
+                    value={editForm.max_capacity}
+                    onChange={(e) => setEditForm(f => ({ ...f, max_capacity: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-pricing-info">Cenová info (text)</Label>
+                  <Input id="edit-pricing-info" data-testid="edit-pricing-info"
+                    value={editForm.pricing_info}
+                    onChange={(e) => setEditForm(f => ({ ...f, pricing_info: e.target.value }))}
+                    placeholder="např. 30 Kč / žák, pedagog zdarma"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-image">URL úvodního obrázku <span className="text-gray-400 text-xs">(pro Hero variantu PDF)</span></Label>
+                <Input id="edit-image" data-testid="edit-image"
+                  value={editForm.image_url}
+                  onChange={(e) => setEditForm(f => ({ ...f, image_url: e.target.value }))}
+                  placeholder="https://… nebo /uploads/programs/…"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">Pokud je vyplněno, PDF dostane úvodní stránku přes celou plochu s tímto obrázkem.</p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialog(null)} disabled={editSaving}>
+              Zrušit
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={editSaving}
+              className="bg-slate-800 hover:bg-slate-700 text-white"
+              data-testid="edit-archived-save"
+            >
+              {editSaving ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Ukládám…</>
+              ) : (
+                <>Uložit změny</>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AdminLayout>

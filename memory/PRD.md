@@ -814,6 +814,26 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - 🧪 **Curl smoke test**: PUT TEST keys → mode=TEST + masked OK; PUT empty → mode zůstává TEST (preservation OK); PUT LIVE keys → mode=LIVE + masked `••••7890`; PUT `__CLEAR__` → mode=MOCK ✅
 - 🧪 **UI smoke test**: badge přepíná zelené „Produkce (LIVE)" + „Uloženo: ••••7890" + „Tajný klíč uložen" hint po uložení reálných klíčů ✅
 
+### Fáze 72 — Comgate return-URL fix + portal URL guidance (28.4.2026)
+- 🐛 **Reportovaný bug**: po dokončení reálné platby Comgate přesměroval zákazníka na `https://api.budezivo.cz/payment/return?status=paid` (API host místo frontendu) → backend vrátil holé `{"detail":"Not Found"}` JSON, platba zůstala v DB jako pending.
+- 🔍 **Root cause**: `_build_public_base_url()` použité pro `return_url` čerpalo z `request.host`, který byl `api.budezivo.cz` (frontend AJAX volá API host) → return URL skončila na backendu místo na SPA.
+- ✅ **Backend (`routes/event_payments.py`)**:
+  - **NEW helper** `_build_frontend_base_url()` — preferuje `FRONTEND_BASE_URL` env, pak `Origin` header, pak `Referer`, pak strip `api.` prefix
+  - `return_url` nyní používá `_build_frontend_base_url()`, `webhook_url` zůstává na API hostu
+  - **NEW endpoint** `GET /api/event-payments/by-ref/{ref_id}` — public lookup platby podle `application_id` (= Comgate `${refId}`); vrací stejný payload jako `by-vs/...`
+- ✅ **Backend backwards-compat (`main.py`)**: top-level `/payment/return` a `/payment/mock` na API hostu nyní redirectují (302) na frontend (strip `api.` prefix nebo `FRONTEND_BASE_URL`) — záchrana pro Comgate transakce inicializované před fixem
+- ✅ **Comgate per-request URLs (`services/payment_gateways/comgate.py`)**: `url_paid`/`url_cancelled`/`url_pending` nyní obsahují `${id}&refId=${refId}` placeholdery, které Comgate doplní automaticky
+- ✅ **Frontend (`PaymentReturnPage.js`)**: priorita lookup `refId` (přímo `/by-ref/`) > fallback `vs+institution` (`/by-vs/`); funguje s portal-configured i per-request URLs
+- ✅ **NEW komponenta `components/settings/ComgatePortalUrls.js`**:
+  - Čistý read-only blok s 4 řádky + copy tlačítky (testidy `comgate-url-{paid|cancelled|pending|notify}`, `comgate-url-copy-*`)
+  - Ukazuje přesný formát URL s placeholdery pro vložení do Klientského portálu Comgate
+  - Odkaz „Otevřít portál" → portal.comgate.cz (`comgate-portal-link`)
+  - Doporučené nastavení: HTTP POST protokol – backend
+  - Frontend host se odvodí z `window.location.origin`, API host z `REACT_APP_BACKEND_URL`
+- 🧪 **Test**: `/app/backend/tests/test_payment_return_url.py` — 8 testů PASS (origin, referer, env override, api. strip, dev localhost, no-www atd.)
+- 🧪 **Curl smoke test**: `/by-ref/{uuid}` → 404 OK / `/by-ref/notauuid` → 400 OK
+- 🧪 **UI smoke test**: nový blok URL pro Comgate Klientský portál se renderuje pod Comgate sekcí, copy tlačítka funkční
+
 
 
 

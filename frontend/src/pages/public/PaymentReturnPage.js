@@ -11,17 +11,21 @@ import { API } from '../../config/api';
  * Called by the gateway (or our mock) after user finishes payment attempt.
  *
  * Query params used (any subset):
+ *   - refId=<application_id>   (Comgate-portal URLs substitute ${refId})
+ *   - id=<comgate_trans_id>    (Comgate-portal URLs substitute ${id})
  *   - vs=<variable_symbol>
- *   - institution=<id>         (optional; we need it to poll)
+ *   - institution=<id>         (only needed for vs fallback)
  *   - application=<id>
- *   - status=paid|cancelled    (optimistic hint from gateway)
+ *   - status=paid|cancelled|pending  (optimistic hint from gateway)
  *
- * We poll /api/event-payments/by-vs/{institution}/{vs} until we see a final state
- * (webhook is source of truth).
+ * Lookup priority:
+ *   1. /api/event-payments/by-ref/{refId}  (preferred — works with portal URLs)
+ *   2. /api/event-payments/by-vs/{institution}/{vs}  (fallback)
  */
 export default function PaymentReturnPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const refId = params.get('refId') || params.get('application');
   const vs = params.get('vs');
   const institutionId = params.get('institution') || localStorage.getItem('bz_last_payment_institution');
   const hint = params.get('status');
@@ -31,7 +35,7 @@ export default function PaymentReturnPage() {
   const [attempts, setAttempts] = useState(0);
 
   useEffect(() => {
-    if (!vs || !institutionId) {
+    if (!refId && (!vs || !institutionId)) {
       setStatus('unknown');
       return;
     }
@@ -41,7 +45,10 @@ export default function PaymentReturnPage() {
       tries += 1;
       setAttempts(tries);
       try {
-        const res = await axios.get(`${API}/event-payments/by-vs/${institutionId}/${vs}`);
+        const url = refId
+          ? `${API}/event-payments/by-ref/${refId}`
+          : `${API}/event-payments/by-vs/${institutionId}/${vs}`;
+        const res = await axios.get(url);
         if (cancelled) return;
         setDetail(res.data);
         if (res.data.payment_status === 'paid') setStatus('paid');
@@ -55,7 +62,7 @@ export default function PaymentReturnPage() {
     };
     poll();
     return () => { cancelled = true; };
-  }, [vs, institutionId, hint]);
+  }, [refId, vs, institutionId, hint]);
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center px-4" data-testid="payment-return-page">

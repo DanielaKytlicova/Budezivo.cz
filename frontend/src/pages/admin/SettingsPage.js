@@ -40,6 +40,7 @@ import {
   CalendarDays
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
+import ComgatePortalUrls from '../../components/settings/ComgatePortalUrls';
 import { API } from '../../config/api';
 
 // Menu položky nastavení — group key drives visual section in the hub.
@@ -1855,6 +1856,13 @@ export const SettingsPage = () => {
                       Tip: Merchant ID začínající <code className="font-mono">TEST_</code> přepne bránu do sandbox režimu Comgate.
                       Prázdná pole = simulační (mock) režim pro otestování přihlášek bez odeslání do banky.
                     </p>
+                    {(() => {
+                      // Compute frontend & API base URLs from the current window.
+                      const apiBase = (process.env.REACT_APP_BACKEND_URL || window.location.origin).replace(/\/$/, '');
+                      // FE host is the current admin's origin (where they actually use the app).
+                      const frontendBase = window.location.origin.replace(/\/$/, '');
+                      return <ComgatePortalUrls frontendBase={frontendBase} apiBase={apiBase} />;
+                    })()}
                   </>
                 )}
               </Card>

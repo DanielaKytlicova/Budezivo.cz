@@ -81,8 +81,11 @@ class ComgateGateway(PaymentGatewayBase):
             "lang": language,
             "country": "CZ",
             "variableSymbol": variable_symbol,
-            "url_paid": f"{return_url}?status=paid",
-            "url_cancelled": f"{return_url}?status=cancelled",
+            # ${id} = Comgate transId, ${refId} = our refId — Comgate substitutes
+            # these placeholders before redirecting the customer back.
+            "url_paid": f"{return_url}?status=paid&id=${{id}}&refId=${{refId}}",
+            "url_cancelled": f"{return_url}?status=cancelled&id=${{id}}&refId=${{refId}}",
+            "url_pending": f"{return_url}?status=pending&id=${{id}}&refId=${{refId}}",
             "url_notify": webhook_url,
         }
         try:

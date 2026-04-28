@@ -18,6 +18,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Response
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,13 +69,45 @@ async def _get_institution_and_check(db: AsyncSession, inst_id: str) -> Institut
 
 
 def _build_public_base_url(request: Request) -> str:
-    """Detect our public base URL from the incoming request (respecting proxy headers)."""
+    """Detect our public base URL from the incoming request (respecting proxy headers).
+
+    Used for the WEBHOOK URL (must point to the backend / API host).
+    """
     import os
     env = os.environ.get("PUBLIC_BASE_URL")
     if env:
         return env.rstrip("/")
     proto = request.headers.get("x-forwarded-proto", request.url.scheme)
     host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.hostname
+    return f"{proto}://{host}"
+
+
+def _build_frontend_base_url(request: Request) -> str:
+    """Detect the public-facing FRONTEND base URL (where the user's browser is).
+
+    Strategy:
+    1. Explicit env var ``FRONTEND_BASE_URL`` (e.g. ``https://budezivo.cz``).
+    2. The ``Origin`` header of the AJAX call from the frontend.
+    3. The ``Referer`` header (best-effort).
+    4. Strip a leading ``api.`` from the request host as last-resort heuristic.
+    """
+    import os
+    from urllib.parse import urlsplit
+    env = os.environ.get("FRONTEND_BASE_URL")
+    if env:
+        return env.rstrip("/")
+    origin = request.headers.get("origin")
+    if origin:
+        return origin.rstrip("/")
+    referer = request.headers.get("referer")
+    if referer:
+        parts = urlsplit(referer)
+        if parts.scheme and parts.netloc:
+            return f"{parts.scheme}://{parts.netloc}"
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.hostname or ""
+    if host.startswith("api."):
+        host = host[4:]
     return f"{proto}://{host}"
 
 
@@ -112,7 +145,8 @@ async def initiate_payment(
         )
 
     base = _build_public_base_url(request)
-    return_url = f"{base}/payment/return"
+    frontend_base = _build_frontend_base_url(request)
+    return_url = f"{frontend_base}/payment/return"
     webhook_url = f"{base}/api/event-payments/webhook/{gateway.provider_key}"
 
     # Fetch event for description
@@ -295,6 +329,48 @@ async def mock_complete(body: MockCompleteBody, db: AsyncSession = Depends(get_d
 
 
 # ---- Status polling (public) ----
+
+@router.get("/by-ref/{ref_id}")
+async def get_payment_by_ref(
+    ref_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Public lookup by ``refId`` (= application_id).
+
+    Used by the customer-return page when Comgate-portal-configured URLs are
+    in play (they substitute ``${refId}`` automatically without needing the
+    institution_id). We resolve institution from the application itself.
+    """
+    try:
+        app_uuid = uuid.UUID(ref_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Neplatný refId")
+
+    pay_result = await db.execute(
+        select(EventPayment).where(
+            EventPayment.application_id == app_uuid
+        ).order_by(EventPayment.created_at.desc()).limit(1)
+    )
+    payment = pay_result.scalar_one_or_none()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Platba nenalezena")
+
+    app_res = await db.execute(select(EventApplication).where(EventApplication.id == payment.application_id))
+    app = app_res.scalar_one_or_none()
+
+    return {
+        "payment_status": payment.status,
+        "amount": payment.amount,
+        "currency": payment.currency,
+        "provider": payment.provider,
+        "variable_symbol": payment.variable_symbol,
+        "institution_id": str(payment.institution_id),
+        "application_id": str(payment.application_id),
+        "application_status": app.status if app else None,
+        "application_payment_status": app.payment_status if app else None,
+        "paid_at": payment.paid_at.isoformat() if payment.paid_at else None,
+    }
+
 
 @router.get("/by-vs/{institution_id}/{variable_symbol}")
 async def get_payment_by_vs(

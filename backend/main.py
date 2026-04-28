@@ -223,6 +223,45 @@ async def app_root():
     return {"message": "Budeživo.cz API", "api": "/api/", "health": "/health"}
 
 
+# ============ Backwards-compat: Comgate return URL ============
+# Older Comgate transactions were initialised with `return_url` pointing at the
+# API host (e.g. https://api.budezivo.cz/payment/return). When the customer is
+# redirected back, the API host has no SPA → bounce them to the public frontend.
+
+from fastapi.responses import RedirectResponse  # noqa: E402
+import os  # noqa: E402
+
+
+@app.get("/payment/return")
+async def legacy_payment_return_redirect(request: Request):
+    """Redirect Comgate's customer-return hits on the API host to the frontend SPA."""
+    frontend = (os.environ.get("FRONTEND_BASE_URL") or "").rstrip("/")
+    if not frontend:
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+        if host.startswith("api."):
+            host = host[4:]
+        proto = request.headers.get("x-forwarded-proto", "https")
+        frontend = f"{proto}://{host}" if host else "https://budezivo.cz"
+    qs = request.url.query
+    target = f"{frontend}/payment/return" + (f"?{qs}" if qs else "")
+    return RedirectResponse(url=target, status_code=302)
+
+
+@app.get("/payment/mock")
+async def legacy_payment_mock_redirect(request: Request):
+    """Same as above but for mock simulator URL."""
+    frontend = (os.environ.get("FRONTEND_BASE_URL") or "").rstrip("/")
+    if not frontend:
+        host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+        if host.startswith("api."):
+            host = host[4:]
+        proto = request.headers.get("x-forwarded-proto", "https")
+        frontend = f"{proto}://{host}" if host else "https://budezivo.cz"
+    qs = request.url.query
+    target = f"{frontend}/payment/mock" + (f"?{qs}" if qs else "")
+    return RedirectResponse(url=target, status_code=302)
+
+
 # ============ Middleware ============
 
 app.add_middleware(

@@ -21,6 +21,7 @@ import {
   Users, 
   TrendingUp, 
   AlertCircle,
+  AlertTriangle,
   List,
   LayoutGrid,
   ChevronLeft,
@@ -31,7 +32,8 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  Eye
+  Eye,
+  User
 } from 'lucide-react';
 import { API } from '../../config/api';
 import { OnboardingWizard } from '../../components/admin/OnboardingWizard';
@@ -100,6 +102,17 @@ const StatusBadge = ({ status }) => {
 };
 
 // ============ ReservationList Component ============
+
+// Parse a time block string like "10:00-11:00" or "10:00" → {start: 10*60, end: 11*60}.
+const parseTimeRange = (tb) => {
+  if (!tb) return null;
+  const m = String(tb).match(/^(\d{1,2}):(\d{2})(?:\s*-\s*(\d{1,2}):(\d{2}))?$/);
+  if (!m) return null;
+  const start = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  const end = m[3] ? parseInt(m[3], 10) * 60 + parseInt(m[4], 10) : start + 60;
+  return { start, end };
+};
+
 const ReservationList = ({ reservations, filter, onFilterChange, onSelectReservation }) => {
   const sortedReservations = useMemo(() => {
     if (!Array.isArray(reservations)) return [];
@@ -114,6 +127,40 @@ const ReservationList = ({ reservations, filter, onFilterChange, onSelectReserva
     }
     return sorted;
   }, [reservations, filter]);
+
+  // For each reservation, find any other reservation on the same date whose
+  // time range overlaps with this one. If found, the booking is part of a
+  // *parallel run* — multiple lecturers handling concurrent programs.
+  // We expose this on the card so admins can see WHY the system permitted
+  // the booking despite an apparent time clash (different lecturers).
+  const overlapsByBookingId = useMemo(() => {
+    const map = new Map();
+    if (!Array.isArray(reservations)) return map;
+    const active = reservations.filter(r => r.status !== 'cancelled');
+    const byDate = new Map();
+    active.forEach(r => {
+      const list = byDate.get(r.date) || [];
+      list.push(r);
+      byDate.set(r.date, list);
+    });
+    byDate.forEach(list => {
+      for (let i = 0; i < list.length; i++) {
+        const a = list[i];
+        const ar = parseTimeRange(a.time_block);
+        if (!ar) continue;
+        for (let j = i + 1; j < list.length; j++) {
+          const b = list[j];
+          const br = parseTimeRange(b.time_block);
+          if (!br) continue;
+          if (ar.start < br.end && br.start < ar.end) {
+            (map.get(a.id) || map.set(a.id, []).get(a.id)).push(b);
+            (map.get(b.id) || map.set(b.id, []).get(b.id)).push(a);
+          }
+        }
+      }
+    });
+    return map;
+  }, [reservations]);
 
   const formatDate = (dateStr) => {
     try {
@@ -155,7 +202,9 @@ const ReservationList = ({ reservations, filter, onFilterChange, onSelectReserva
         </div>
       ) : (
         <div className="space-y-3">
-          {sortedReservations.map((reservation) => (
+          {sortedReservations.map((reservation) => {
+            const overlapping = overlapsByBookingId.get(reservation.id) || [];
+            return (
             <div
               key={reservation.id}
               className="bg-white border rounded-xl p-4 hover:shadow-md transition-all cursor-pointer group"
@@ -192,7 +241,43 @@ const ReservationList = ({ reservations, filter, onFilterChange, onSelectReserva
                         <Users className="w-4 h-4" />
                         {reservation.num_students || 0} žáků
                       </span>
+                      {reservation.assigned_lecturer_name && (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-[#5a7aae]/10 text-[#5a7aae] font-medium"
+                          data-testid={`reservation-lecturer-${reservation.id}`}
+                          title="Přiřazený lektor pokrývá tento čas"
+                        >
+                          <User className="w-3 h-3" />
+                          {reservation.assigned_lecturer_name}
+                        </span>
+                      )}
                     </div>
+                    {overlapping.length > 0 && (
+                      <div
+                        className="mt-2 flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5"
+                        data-testid={`reservation-overlap-${reservation.id}`}
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                        <div className="leading-snug">
+                          <span className="font-medium">Souběh ve stejném čase:</span>{' '}
+                          {overlapping.slice(0, 2).map((o, i) => (
+                            <span key={o.id}>
+                              {i > 0 && ' · '}
+                              {o.program_name || 'Program'} ({o.time_block})
+                              {o.assigned_lecturer_name
+                                ? <> – lektor: <span className="font-medium">{o.assigned_lecturer_name}</span></>
+                                : <> – <span className="font-medium text-amber-800">bez přiřazeného lektora</span></>}
+                            </span>
+                          ))}
+                          {overlapping.length > 2 && <span> +{overlapping.length - 2} další</span>}
+                          {!reservation.assigned_lecturer_name && (
+                            <div className="text-amber-800 mt-0.5">
+                              ⚠ Této rezervaci ještě není přiřazen lektor — přiřaďte ho, jinak hrozí dvojitý slot.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -210,7 +295,8 @@ const ReservationList = ({ reservations, filter, onFilterChange, onSelectReserva
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -275,19 +361,33 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
   // Day names in Czech
   const dayNames = ['PO', 'ÚT', 'ST', 'ČT', 'PÁ', 'SO', 'NE'];
 
-  // Get color for reservation based on program or status
+  // Get color for reservation based on program — deterministic, distinct hue per program.
+  // We use a curated 12-color palette so programs are visually distinguishable
+  // even when the calendar shows several different ones in the same week.
   const getReservationColor = (reservation) => {
-    const colors = [
+    const palette = [
       'bg-amber-400 border-amber-500',
       'bg-blue-400 border-blue-500',
       'bg-rose-400 border-rose-500',
       'bg-emerald-400 border-emerald-500',
-      'bg-purple-400 border-purple-500',
+      'bg-violet-400 border-violet-500',
       'bg-orange-400 border-orange-500',
+      'bg-cyan-400 border-cyan-500',
+      'bg-fuchsia-400 border-fuchsia-500',
+      'bg-lime-500 border-lime-600',
+      'bg-pink-400 border-pink-500',
+      'bg-teal-400 border-teal-500',
+      'bg-indigo-400 border-indigo-500',
     ];
-    // Simple hash based on program name or id
-    const hash = (reservation.program_id || reservation.program_name || '').split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return colors[hash % colors.length];
+    // 32-bit FNV-1a hash on a stable program key — stronger distribution than
+    // a simple charCode sum (which often collides on similar program titles).
+    const key = String(reservation.program_id || reservation.program_name || reservation.id || '');
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < key.length; i++) {
+      hash ^= key.charCodeAt(i);
+      hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
+    }
+    return palette[hash % palette.length];
   };
 
   // Parse time to get hour
@@ -373,28 +473,40 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
                     key={dayIndex} 
                     className="border-r last:border-r-0 p-0.5 relative"
                   >
-                    {reservationsAtTime.map((reservation, rIndex) => (
-                      isFirstHour(reservation) && (
+                    {(() => {
+                      // Only render the events that *start* in this hour (first row of their slot).
+                      const startingHere = reservationsAtTime.filter(isFirstHour);
+                      const total = startingHere.length;
+                      return startingHere.map((reservation, rIndex) => (
                         <div
                           key={reservation.id}
                           onClick={() => onSelectReservation(reservation)}
-                          className={`absolute inset-x-0.5 rounded-md p-2 cursor-pointer text-white text-xs shadow-sm border-l-4 ${getReservationColor(reservation)} hover:brightness-95 transition-all`}
+                          className={`absolute rounded-md p-2 cursor-pointer text-white text-xs shadow-sm border-l-4 ${getReservationColor(reservation)} hover:brightness-95 transition-all overflow-hidden`}
                           style={{
                             top: '2px',
+                            bottom: '2px',
+                            left: `calc(${(rIndex / total) * 100}% + 1px)`,
+                            width: `calc(${(1 / total) * 100}% - 2px)`,
                             height: 'calc(120px - 4px)',
-                            zIndex: rIndex + 1
+                            zIndex: rIndex + 1,
                           }}
                           data-testid={`calendar-event-${reservation.id}`}
+                          title={`${reservation.program_name || ''} · ${reservation.time_block || ''}${reservation.assigned_lecturer_name ? ' · ' + reservation.assigned_lecturer_name : ''}`}
                         >
-                          <div className="font-semibold truncate">
+                          <div className="font-semibold truncate leading-tight">
                             {reservation.program_name || reservation.school_name}
                           </div>
-                          <div className="opacity-90 truncate">
+                          <div className="opacity-90 truncate text-[10px]">
                             {reservation.time_block || '9:00'}
                           </div>
+                          {reservation.assigned_lecturer_name && total <= 2 && (
+                            <div className="opacity-90 truncate text-[10px] mt-0.5">
+                              {reservation.assigned_lecturer_name}
+                            </div>
+                          )}
                         </div>
-                      )
-                    ))}
+                      ));
+                    })()}
                   </div>
                 );
               })}
@@ -629,8 +741,9 @@ export const DashboardPage = () => {
           <p className="text-muted-foreground mt-1">{user?.institution_name}</p>
         </div>
 
-        {/* Moje rezervace dnes — quick view for lektor/edukator/pokladni/admin */}
-        {showTodayWidget && (
+        {/* Moje rezervace dnes — quick view for lektor/edukator/pokladni/admin.
+            Skryto, když nejsou žádné rezervace na dnešek (méně rušení). */}
+        {showTodayWidget && myTodayBookings.length > 0 && (
           <Card className="p-6 border-l-4 border-l-[#5a7aae]" data-testid="today-bookings-widget">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -651,43 +764,32 @@ export const DashboardPage = () => {
               </Badge>
             </div>
 
-            {myTodayBookings.length === 0 ? (
-              <div className="py-8 text-center" data-testid="today-bookings-empty">
-                <CalendarIcon className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                <p className="text-sm text-slate-500">
-                  {['lektor','edukator'].includes(user?.role)
-                    ? 'Dnes vás žádný program nečeká. Užijte si klidný den.'
-                    : 'Žádné rezervace na dnešek.'}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {myTodayBookings.map((b) => (
-                  <button
-                    key={b.id}
-                    onClick={() => handleSelectReservation(b)}
-                    className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-[#5a7aae]/5 rounded-lg border border-transparent hover:border-[#5a7aae]/20 transition-all text-left group"
-                    data-testid={`today-booking-${b.id}`}
-                  >
-                    <div className="w-14 flex-shrink-0 text-center">
-                      <div className="text-base font-bold text-[#5a7aae]">
-                        {b.time_block || '—'}
-                      </div>
+            <div className="space-y-2">
+              {myTodayBookings.map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => handleSelectReservation(b)}
+                  className="w-full flex items-center gap-3 p-3 bg-slate-50 hover:bg-[#5a7aae]/5 rounded-lg border border-transparent hover:border-[#5a7aae]/20 transition-all text-left group"
+                  data-testid={`today-booking-${b.id}`}
+                >
+                  <div className="w-14 flex-shrink-0 text-center">
+                    <div className="text-base font-bold text-[#5a7aae]">
+                      {b.time_block || '—'}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-slate-900 truncate group-hover:text-[#5a7aae] transition-colors">
-                        {b.program_name || 'Program'}
-                      </p>
-                      <p className="text-xs text-slate-500 truncate">
-                        <School className="inline w-3 h-3 mr-1 -mt-0.5" />
-                        {b.school_name} · <Users className="inline w-3 h-3 mx-1 -mt-0.5" />{b.num_students || 0} žáků
-                      </p>
-                    </div>
-                    <StatusBadge status={b.status} />
-                  </button>
-                ))}
-              </div>
-            )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-slate-900 truncate group-hover:text-[#5a7aae] transition-colors">
+                      {b.program_name || 'Program'}
+                    </p>
+                    <p className="text-xs text-slate-500 truncate">
+                      <School className="inline w-3 h-3 mr-1 -mt-0.5" />
+                      {b.school_name} · <Users className="inline w-3 h-3 mx-1 -mt-0.5" />{b.num_students || 0} žáků
+                    </p>
+                  </div>
+                  <StatusBadge status={b.status} />
+                </button>
+              ))}
+            </div>
           </Card>
         )}
 

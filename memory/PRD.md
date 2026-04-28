@@ -792,6 +792,30 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - Příprava: `statement_cache_size=0` kvůli pgbouncer „transaction" módu
 - [x] **Verifikace**: Architektura města + Čteme obrazy + Historická prohlídka nyní mají 4 time_blocks; Apr 29-30 + celé květen 2026 dostupné (14+ dní); /api/availability vrací všechny 4 sloty available
 
+### Fáze 71 — Comgate Settings UI Badge fix + webhook signature hardening (28.4.2026)
+- 🐛 **Reportovaný bug**: uživatel zadal LIVE Comgate klíče, uložil — UI badge ale stále zobrazoval „Simulační (MOCK)" a Merchant ID pole se po reloadu jevilo jako prázdné. Druhý latentní bug: opětovné uložení nastavení (např. změna IBANu) by prázdnými poli vymazalo skutečné klíče v DB.
+- 🔍 **Root cause**: `GET /events/settings/payment` z bezpečnostních důvodů popoval `gateway_api_key`/`gateway_secret` z odpovědi, ale frontend badge počítal mode lokálně z těch samých polí → po refreshi vždy detekoval MOCK.
+- ✅ **Backend (`routes/events.py`)**:
+  - **NEW helpers** `_mask_merchant()` (preserve `TEST_` prefix + last 4 chars), `_enrich_payment_settings()` (společný server-side strip + obohacení)
+  - **GET** vrací nově: `gateway_mode` (MOCK/TEST/LIVE — autoritativní z `factory._detect_mode`), `gateway_api_key_masked` (např. `TEST_••••9888`), `gateway_secret_set` (bool). Raw klíče zůstávají server-only.
+  - **PUT** preservuje stored credentials při prázdném stringu (běžný save formuláře nevymaže klíče). Explicitní vymazání přes literální sentinel `"__CLEAR__"`.
+- ✅ **Backend security hardening (`services/payment_gateways/comgate.py`)**:
+  - `parse_webhook` použije `hmac.compare_digest` (constant-time, brání timing attacks)
+  - LIVE/TEST režim s nenakonfigurovanou bránou nyní webhook **odmítne** (předtím tichá akceptace)
+  - Wrong merchant nebo wrong secret → `ValueError("Invalid Comgate webhook signature")` (route vrátí 403)
+- ✅ **Frontend (`SettingsPage.js`)**:
+  - Badge čte `paymentSettings.gateway_mode` ze serveru jako jediný zdroj pravdy + optimistický override při lokální editaci
+  - Uložené klíče zobrazeny jako neutrální hint vedle inputu: „Uloženo: ••••7890" + „Tajný klíč uložen" indikátor
+  - Placeholder se mění na „Ponechte prázdné pro zachování — vyplňte pouze pro změnu" když existují uložené klíče
+  - Tlačítko „Vymazat uložené klíče" (s confirmem) posílá `__CLEAR__` sentinel
+  - Modrý popisek s vysvětlením režimu reaguje na aktuální `gateway_mode` (LIVE / TEST / MOCK varianty)
+  - `savePaymentSettings` vyresetuje text inputy po uložení → čistý stav řízený serverem
+- 🧪 **Test**: `/app/backend/tests/test_payment_settings_security.py` — 14 testů PASS (mask helper, enrich helper, clear sentinel, 6× webhook signature scénářů včetně all-status mappings)
+- 🧪 **Curl smoke test**: PUT TEST keys → mode=TEST + masked OK; PUT empty → mode zůstává TEST (preservation OK); PUT LIVE keys → mode=LIVE + masked `••••7890`; PUT `__CLEAR__` → mode=MOCK ✅
+- 🧪 **UI smoke test**: badge přepíná zelené „Produkce (LIVE)" + „Uloženo: ••••7890" + „Tajný klíč uložen" hint po uložení reálných klíčů ✅
+
+
+
 
 
 

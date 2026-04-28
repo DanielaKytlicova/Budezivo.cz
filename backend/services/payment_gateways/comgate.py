@@ -14,6 +14,7 @@ The `mode` controls behaviour:
 - TEST: calls Comgate sandbox API with `test=true`.
 - LIVE: calls Comgate production API with `test=false`.
 """
+import hmac
 import logging
 import uuid
 from typing import Optional
@@ -117,11 +118,19 @@ class ComgateGateway(PaymentGatewayBase):
         plus transId, refId, status (PAID/CANCELLED/PENDING), price, etc.
 
         `secret` field authenticates the webhook — must match our configured secret.
+        Hardened: refuses webhooks in TEST/LIVE mode when gateway is not configured
+        (prevents spoofed "paid" notifications) and uses constant-time comparison.
         """
         provided_merchant = (payload.get("merchant") or "").strip()
         provided_secret = (payload.get("secret") or "").strip()
-        if self.mode != GatewayMode.MOCK and self._is_configured():
-            if provided_merchant != (self.merchant_id or "").strip() or provided_secret != (self.secret or "").strip():
+        if self.mode != GatewayMode.MOCK:
+            if not self._is_configured():
+                raise ValueError("Comgate webhook received but gateway is not configured")
+            expected_merchant = (self.merchant_id or "").strip()
+            expected_secret = (self.secret or "").strip()
+            merchant_ok = hmac.compare_digest(provided_merchant, expected_merchant)
+            secret_ok = hmac.compare_digest(provided_secret, expected_secret)
+            if not (merchant_ok and secret_ok):
                 raise ValueError("Invalid Comgate webhook signature")
         raw = (payload.get("status") or "").upper()
         return PaymentStatus(

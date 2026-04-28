@@ -22,6 +22,7 @@ from database.models import (
 from core.security import get_current_user
 from services.feature_flags import is_feature_enabled
 from services.plan_service import require_feature
+from services.payment_gateways.factory import _detect_mode
 
 router = APIRouter(prefix="/events", tags=["Events"])
 logger = logging.getLogger(__name__)
@@ -839,6 +840,39 @@ async def public_application_pdf(
     )
 
 
+def _mask_merchant(value: Optional[str]) -> Optional[str]:
+    """Mask Comgate Merchant ID — preserve TEST_ prefix and last 4 chars."""
+    if not value:
+        return None
+    v = value.strip()
+    if not v:
+        return None
+    if v.upper().startswith("TEST_"):
+        rest = v[5:]
+        tail = rest[-4:] if len(rest) >= 4 else rest
+        return f"TEST_••••{tail}"
+    if len(v) <= 4:
+        return "••••" + v
+    return "••••" + v[-4:]
+
+
+# Sentinel string that the frontend may send to explicitly clear a stored key.
+CLEAR_SENTINEL = "__CLEAR__"
+
+
+def _enrich_payment_settings(d: dict, settings: Optional[InstitutionPaymentSettings]) -> dict:
+    """Add public mode/masked indicators and strip raw secrets."""
+    mode = _detect_mode(settings).value.upper() if settings else "MOCK"
+    masked = _mask_merchant(getattr(settings, "gateway_api_key", None)) if settings else None
+    secret_set = bool((getattr(settings, "gateway_secret", None) or "").strip()) if settings else False
+    d.pop("gateway_api_key", None)
+    d.pop("gateway_secret", None)
+    d["gateway_mode"] = mode
+    d["gateway_api_key_masked"] = masked
+    d["gateway_secret_set"] = secret_set
+    return d
+
+
 # ============ Payment Settings ============
 
 @router.get("/settings/payment")
@@ -858,13 +892,17 @@ async def get_payment_settings(
     )
     settings = result.scalar_one_or_none()
     if not settings:
-        return {"payment_mode": "qr", "account_number": None, "bank_code": None}
+        return {
+            "payment_mode": "qr",
+            "account_number": None,
+            "bank_code": None,
+            "gateway_mode": "MOCK",
+            "gateway_api_key_masked": None,
+            "gateway_secret_set": False,
+        }
 
     d = _to_dict(settings)
-    # Don't expose secrets
-    d.pop("gateway_api_key", None)
-    d.pop("gateway_secret", None)
-    return d
+    return _enrich_payment_settings(d, settings)
 
 
 @router.put("/settings/payment")
@@ -874,7 +912,12 @@ async def update_payment_settings(
     current_user: dict = Depends(get_current_user),
     _guard=Depends(require_feature("events_payments")),
 ):
-    """Update payment settings for institution."""
+    """Update payment settings for institution.
+
+    Empty string for `gateway_api_key`/`gateway_secret` is treated as
+    "no change" (preserves existing stored credentials). To explicitly clear
+    a stored key, send the literal "__CLEAR__" sentinel.
+    """
     await require_events_module(db, current_user["institution_id"])
     inst_uuid = uuid.UUID(current_user["institution_id"])
 
@@ -891,6 +934,16 @@ async def update_payment_settings(
 
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
+        if key in ("gateway_api_key", "gateway_secret"):
+            # Preserve existing if empty/unspecified; allow explicit clear via sentinel.
+            if value is None:
+                continue
+            if isinstance(value, str):
+                if value == CLEAR_SENTINEL:
+                    setattr(settings, key, None)
+                    continue
+                if value.strip() == "":
+                    continue
         setattr(settings, key, value)
     settings.updated_at = datetime.now(timezone.utc)
 
@@ -898,9 +951,7 @@ async def update_payment_settings(
     await db.refresh(settings)
 
     d = _to_dict(settings)
-    d.pop("gateway_api_key", None)
-    d.pop("gateway_secret", None)
-    return d
+    return _enrich_payment_settings(d, settings)
 
 
 # ============ Feature Flag Admin ============

@@ -10,11 +10,12 @@ import { Textarea } from '../../components/ui/textarea';
 import { Card } from '../../components/ui/card';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { ChevronLeft, ChevronRight, CheckCircle, SlidersHorizontal, X, Download, Bell } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, SlidersHorizontal, X, Download, Bell, ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { WaitlistModal } from '../../components/public/WaitlistModal';
 import { API } from '../../config/api';
+import { useTeacherAuth } from '../../context/TeacherAuthContext';
 
 const AGE_GROUPS = {
   ms_3_6: 'MŠ (3-6 let)',
@@ -108,6 +109,23 @@ export const BookingPage = () => {
   // `lastSnapshot` is used by the toast "Vrátit zpět" action.
   const [prefilledFromEmail, setPrefilledFromEmail] = useState('');
   const lastSnapshotRef = React.useRef(null);
+
+  // Teacher auth — if a teacher is logged in we prefill contact fields once.
+  const { teacher, isAuthenticated: teacherAuthed } = useTeacherAuth();
+  const teacherPrefilledRef = React.useRef(false);
+  useEffect(() => {
+    if (!teacherAuthed || !teacher || teacherPrefilledRef.current) return;
+    teacherPrefilledRef.current = true;
+    setFormData(prev => ({
+      ...prev,
+      contact_email: prev.contact_email || teacher.email || '',
+      contact_name:  prev.contact_name  || teacher.name  || '',
+      contact_phone: prev.contact_phone || teacher.phone || '',
+      school_name:   prev.school_name   || teacher.school_name || '',
+    }));
+    if (teacher.email) setPrefilledFromEmail(teacher.email.toLowerCase());
+    toast.success('Údaje byly předvyplněny z vašeho účtu', { duration: 2500 });
+  }, [teacherAuthed, teacher]);
 
   /**
    * On email blur — call /api/public/prefill and gently fill empty fields.
@@ -868,6 +886,57 @@ export const BookingPage = () => {
         {step === 4 && (
           <form onSubmit={handleSubmit}>
             <div className="space-y-6">
+              {/* Shrnutí objednávky / rezervace — povinný přehled před potvrzením */}
+              <div
+                className="rounded-xl border border-[#D9E1F0] bg-[#EEF2F9] p-5 md:p-6"
+                data-testid="booking-summary"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <ClipboardCheck className="w-5 h-5 text-[#4A6FA5]" />
+                  <h3 className="text-lg font-semibold text-[#2B3E50]">Shrnutí rezervace</h3>
+                </div>
+                <dl className="space-y-2.5 text-sm">
+                  <div className="flex justify-between gap-4 border-b border-white/60 pb-2">
+                    <dt className="text-gray-500">Program</dt>
+                    <dd className="font-medium text-[#2B3E50] text-right" data-testid="summary-program">
+                      {selectedProgram?.name_cs || selectedProgram?.name_en || '—'}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-4 border-b border-white/60 pb-2">
+                    <dt className="text-gray-500">Termín</dt>
+                    <dd className="font-medium text-[#2B3E50] text-right" data-testid="summary-date">
+                      {formData.date
+                        ? new Date(formData.date).toLocaleDateString('cs-CZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+                        : '—'}
+                    </dd>
+                  </div>
+                  <div className="flex justify-between gap-4 border-b border-white/60 pb-2">
+                    <dt className="text-gray-500">Čas</dt>
+                    <dd className="font-medium text-[#2B3E50] text-right" data-testid="summary-time">
+                      {formData.time_block || '—'}
+                      {selectedProgram?.duration ? ` · ${selectedProgram.duration} min.` : ''}
+                    </dd>
+                  </div>
+                  {selectedProgram?.pricing_info && (
+                    <div className="flex justify-between gap-4 border-b border-white/60 pb-2">
+                      <dt className="text-gray-500">Cena</dt>
+                      <dd className="font-medium text-[#2B3E50] text-right whitespace-pre-line" data-testid="summary-price">
+                        {selectedProgram.pricing_info}
+                      </dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-gray-500">Poskytovatel</dt>
+                    <dd className="font-medium text-[#2B3E50] text-right" data-testid="summary-provider">
+                      {institutionData?.name || institutionData?.institution_name || '—'}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="text-xs text-gray-500 mt-4 leading-relaxed">
+                  Rezervaci potvrdíte níže vyplněním údajů a odsouhlasením podmínek. Smluvní vztah vzniká mezi vámi a pořádající institucí; Budeživo.cz je technickým zprostředkovatelem.
+                </p>
+              </div>
+
               <div>
                 <h2 className="text-2xl font-bold text-[#2B3E50] mb-2">Informace o skupině</h2>
                 <p className="text-gray-600 mb-4">Řekněte nám o sobě více</p>
@@ -1017,7 +1086,17 @@ export const BookingPage = () => {
                       data-testid="booking-gdpr"
                     />
                     <label htmlFor="gdpr" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
-                      Souhlasím se zpracováním osobních údajů v souladu s GDPR
+                      Souhlasím se zpracováním osobních údajů v souladu s{' '}
+                      <a
+                        href="/gdpr"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#5a7aae] hover:underline"
+                        data-testid="booking-gdpr-link"
+                      >
+                        zásadami ochrany osobních údajů (GDPR)
+                      </a>
+                      .
                     </label>
                   </div>
                   
@@ -1029,15 +1108,37 @@ export const BookingPage = () => {
                       data-testid="booking-terms"
                     />
                     <label htmlFor="terms" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
-                      Odesláním rezervace beru na vědomí, že Budezivo.cz je pouze zprostředkovatelem rezervace a nenese odpovědnost za její realizaci.{' '}
-                      <a 
-                        href="/terms" 
-                        target="_blank" 
+                      Souhlasím s{' '}
+                      <a
+                        href="/obchodni-podminky"
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="text-[#5a7aae] hover:underline"
+                        data-testid="booking-terms-link-vop"
                       >
-                        Více informací
+                        obchodními podmínkami
                       </a>
+                      ,{' '}
+                      <a
+                        href="/reklamace"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#5a7aae] hover:underline"
+                        data-testid="booking-terms-link-reklamace"
+                      >
+                        reklamačními podmínkami
+                      </a>
+                      {' '}a{' '}
+                      <a
+                        href="/platebni-podminky"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#5a7aae] hover:underline"
+                        data-testid="booking-terms-link-payment"
+                      >
+                        platebními podmínkami
+                      </a>
+                      . Beru na vědomí, že Budeživo.cz je pouze technickým zprostředkovatelem rezervace.
                     </label>
                   </div>
                 </div>

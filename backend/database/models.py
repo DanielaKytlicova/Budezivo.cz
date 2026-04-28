@@ -1141,3 +1141,68 @@ class ReservationObserver(Base):
     note = Column(Text)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     approved_at = Column(DateTime(timezone=True))
+
+
+
+# ============ TEACHER ACCOUNTS (B2C – external teacher / parent self-registration) ============
+
+class TeacherAccount(Base):
+    """
+    Self-registered external teacher / parent account.
+    Completely separate from `users` table (which holds institution staff).
+    Used for catalog favorites and booking history. Also serves as auth for the
+    public-facing B2B Catalog (Programy pro školy).
+    """
+    __tablename__ = 'teacher_accounts'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(Text, nullable=False, unique=True)
+    password_hash = Column(Text)             # nullable → reserved for future Google OAuth-only accounts
+    name = Column(Text, nullable=False)
+    school_name = Column(Text)               # optional — used for prefill of bookings
+    phone = Column(Text)
+    auth_provider = Column(Text, nullable=False, default='password')  # password | google (future)
+    google_sub = Column(Text)                # future: Google subject id
+    is_active = Column(Boolean, default=True, nullable=False)
+    last_login_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    deleted_at = Column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index('idx_teacher_accounts_email', 'email'),
+        Index('idx_teacher_accounts_google_sub', 'google_sub'),
+    )
+
+
+class TeacherFavorite(Base):
+    """A program a teacher has marked as favorite (per (teacher, program) pair)."""
+    __tablename__ = 'teacher_favorites'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    teacher_id = Column(UUID(as_uuid=True), ForeignKey('teacher_accounts.id', ondelete='CASCADE'), nullable=False)
+    program_id = Column(UUID(as_uuid=True), ForeignKey('programs.id', ondelete='CASCADE'), nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_teacher_favorites_teacher', 'teacher_id'),
+        Index('idx_teacher_favorites_program', 'program_id'),
+        Index('idx_teacher_favorites_unique', 'teacher_id', 'program_id', unique=True),
+    )
+
+
+class TeacherLoginAttempt(Base):
+    """Brute-force tracker for teacher login (IP + email key)."""
+    __tablename__ = 'teacher_login_attempts'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    identifier = Column(Text, nullable=False)   # "{ip}:{email}"
+    failed_count = Column(Integer, nullable=False, default=0)
+    last_failed_at = Column(DateTime(timezone=True))
+    locked_until = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_teacher_login_attempts_identifier', 'identifier', unique=True),
+    )

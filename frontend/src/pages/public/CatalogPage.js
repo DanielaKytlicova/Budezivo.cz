@@ -7,8 +7,10 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Card } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
-import { Search, MapPin, Clock, Users, Sparkles, Filter, X, Flame, Plus } from 'lucide-react';
+import { Search, MapPin, Clock, Users, Sparkles, Filter, X, Flame, Plus, LayoutGrid, Map as MapIcon } from 'lucide-react';
 import { slugify, AGE_SLUGS, AGE_SLUG_LABELS } from '../../lib/slugify';
+import { FavoriteButton } from '../../components/catalog/FavoriteButton';
+import { CatalogMap } from '../../components/catalog/CatalogMap';
 
 const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
@@ -24,6 +26,15 @@ export default function CatalogPage() {
   const [data, setData] = useState({ items: [], total: 0, facets: { cities: [], categories: [], age_groups: [] } });
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState(params.get('q') || '');
+
+  // View mode — list (default) vs map. Persisted in URL as ?view=mapa
+  const [viewMode, setViewMode] = useState(params.get('view') === 'mapa' ? 'map' : 'list');
+  const setView = (next) => {
+    setViewMode(next);
+    const p = new URLSearchParams(params);
+    if (next === 'map') p.set('view', 'mapa'); else p.delete('view');
+    setParams(p, { replace: true });
+  };
 
   // Discover sections (popular + newest) — only fetched/shown when no filter is active
   const [popular, setPopular] = useState([]);
@@ -276,14 +287,41 @@ export default function CatalogPage() {
             </div>
           )}
 
-          {/* Results count */}
-          <div className="flex items-center justify-between mb-4">
+          {/* Results count + View toggle */}
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
             <p className="text-sm text-slate-500" data-testid="catalog-count">
               {loading ? 'Načítání...' : `${data.total} ${data.total === 1 ? 'program' : (data.total >= 2 && data.total <= 4 ? 'programy' : 'programů')}`}
             </p>
+            <div
+              role="tablist"
+              aria-label="Zobrazení katalogu"
+              className="inline-flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg"
+              data-testid="catalog-view-toggle"
+            >
+              <button
+                type="button"
+                role="tab"
+                onClick={() => setView('list')}
+                aria-selected={viewMode === 'list'}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'list' ? 'bg-white text-[#2B3E50] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                data-testid="catalog-view-list"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" /> Seznam
+              </button>
+              <button
+                type="button"
+                role="tab"
+                onClick={() => setView('map')}
+                aria-selected={viewMode === 'map'}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${viewMode === 'map' ? 'bg-white text-[#2B3E50] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                data-testid="catalog-view-map"
+              >
+                <MapIcon className="w-3.5 h-3.5" /> Mapa
+              </button>
+            </div>
           </div>
 
-          {/* Grid */}
+          {/* Content — list or map */}
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(6)].map((_, i) => (
@@ -303,6 +341,14 @@ export default function CatalogPage() {
               <p className="text-sm text-slate-500 mb-4">Zkuste zmírnit filtry nebo hledat jinak.</p>
               <Button onClick={clearFilters} variant="outline" data-testid="catalog-empty-clear">Vymazat filtry</Button>
             </Card>
+          ) : viewMode === 'map' ? (
+            <CatalogMap
+              items={data.items}
+              onInstitutionFilter={(city) => {
+                updateFilter('city', city);
+                setView('list');
+              }}
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" data-testid="catalog-grid">
               {data.items.map((p) => <ProgramCard key={p.id} p={p} />)}
@@ -317,11 +363,15 @@ export default function CatalogPage() {
 }
 
 const ProgramCard = ({ p }) => (
-  <Link
-    to={`/programy-pro-skoly/p/${p.id}`}
-    className="group block"
-    data-testid={`catalog-card-${p.id}`}
-  >
+  <div className="group relative h-full" data-testid={`catalog-card-${p.id}`}>
+    {/* Heart icon — positioned in top-right corner of the card */}
+    <div className="absolute top-3 right-3 z-10">
+      <FavoriteButton programId={p.id} variant="icon" />
+    </div>
+    <Link
+      to={`/programy-pro-skoly/p/${p.id}`}
+      className="block h-full"
+    >
     <Card className="overflow-hidden bg-white border border-slate-100 hover:border-[#4A6FA5]/30 hover:shadow-lg transition-all duration-300 h-full">
       {/* Image */}
       <div className="relative h-44 bg-gradient-to-br from-[#EEF2F9] to-[#F8F9FA] overflow-hidden">
@@ -382,7 +432,8 @@ const ProgramCard = ({ p }) => (
         </div>
       </div>
     </Card>
-  </Link>
+    </Link>
+  </div>
 );
 
 

@@ -98,12 +98,29 @@ async def get_current_user(
     """
     Dependency that extracts and validates the current user from JWT token.
     Checks httpOnly cookie first, then Authorization header.
+
+    SECURITY: Tokens minted for non-admin account types (e.g. `account_type='teacher'`)
+    must be rejected here so admin route handlers don't crash with KeyError on
+    missing `user_id`. We require either:
+      - explicit `account_type` of admin/lecturer/staff/etc. (anything but 'teacher')
+      - OR no `account_type` field (legacy admin tokens minted before that key existed)
+      - AND a `user_id` field (mandatory for admin code paths).
     """
     token = _extract_token(request, credentials)
     try:
         payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return payload
     except pyjwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
     except pyjwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Reject non-administrative account types up front.
+    account_type = payload.get("account_type")
+    if account_type and account_type != "admin":
+        raise HTTPException(
+            status_code=401,
+            detail="Tento token nepatří administrátorovi platformy.",
+        )
+    if "user_id" not in payload:
+        raise HTTPException(status_code=401, detail="Neplatný token")
+    return payload

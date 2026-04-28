@@ -1,0 +1,32 @@
+{
+  "summary": "Frontend-only verification of Bude Živo legal/payment-compliance implementation. Verified 2 new public pages (/reklamace, /platebni-podminky), updated Footer, cleaned ContactPage, and BookingPage step-4 data-testids. 23/24 live assertions passed; booking live-flow step-4 could not be executed because Test Muzeum institution has zero available calendar days in 8 consecutive months — code-level verification via grep confirmed all required step-4 testids exist in BookingPage.js.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Booking live step-4 verification",
+        "issue": "Test Muzeum (institutionId 669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5) has NO available calendar days in any of 8 consecutive months (Duben 2026 → Listopad 2026). All 31 day-buttons per month come back with disabled=true even though some days render visual availability dots. Could not complete live booking → step 4 assertions. Code-review shows the required testids are present in BookingPage.js lines 874-912 and 1077-1119, so implementation is correct, but end-to-end UI verification is blocked by seed data.",
+        "affected_selectors": ["div.grid.grid-cols-7 > button:not([disabled])", "[data-testid^='time-block-']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional, not blocking) Seed at least one bookable date for Test Muzeum (669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5) so that the public booking flow can be end-to-end tested in future iterations. All step-4 code changes are present and grep-verified; only the live UI walkthrough could not be completed.",
+    "Note: a supervisor frontend restart was required to flush the webpack build cache before the updated ContactPage was served. After restart, fake data ('Příkladová 123', '+420 123 456 789', 'bubezivo' typo) was fully gone. Main agent should be aware that future ContactPage-style replacements may need a supervisorctl restart frontend when hot-reload seems to miss them."
+  ],
+  "critical_code_review_comments": [
+    "BookingPage.js is 1166 lines — exceeds 700-line guideline; should be split into Step1-Step4 subcomponents in a future refactor (non-blocking).",
+    "Calendar day <button>s in BookingPage.js (line 409-446) have no data-testid, making robotic E2E hard. Suggest adding data-testid={`calendar-day-${dateInfo.date}`} and data-available={hasAvailability} so downstream tests can target available days deterministically.",
+    "ReklamacePage.js and PaymentTermsPage.js both hard-code 'Verze: v1 · Účinnost: 27. 4. 2026' — fine for now but consider sourcing from a single constants file once more legal pages are added."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "96%"},
+  "seed_data_creation": "None. Used existing Test Muzeum institution provided in the review request.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All legal-compliance UI changes for payment-gateway approval are verified: (1) /reklamace and /platebni-podminky pages render correctly with all required testids, provider IČO 07407971, Daniela Kytlicová, Mlýnská 538, Comgate+PCI-DSS references, 48h storno, 14-day refund, ADR via COI, CZK currency. (2) Footer has 4 legal links (footer-link-vop/gdpr/reklamace/payment) all navigating to valid non-404 pages with H1s. (3) Footer provider info block (footer-provider-info) complete with contact email. (4) ContactPage /kontakt fully cleaned: no 'Příkladová 123', no '+420 123 456 789', no 'bubezivo' typo — now shows Provozovatel block with Daniela Kytlicová, IČO: 07407971, Mlýnská 538, info@budezivo.cz. (5) No 'bubezivo' typo present anywhere on /, /kontakt, /reklamace, /platebni-podminky. (6) Source code for BookingPage step-4 contains booking-summary, summary-program, summary-date, summary-time, summary-provider, summary-price, booking-gdpr-link (→/gdpr), booking-terms-link-vop (→/obchodni-podminky), booking-terms-link-reklamace (→/reklamace), booking-terms-link-payment (→/platebni-podminky). Live end-to-end booking step-4 walkthrough skipped due to no-availability in Test Muzeum — main agent can verify either by seeding a bookable date or by opening step 4 via React DevTools with a mocked state.",
+  "rca of the issue": "Initial run showed stale ContactPage (with fake phone/address) on preview URL even though source code had been updated — root cause was the webpack dev-server build cache; `sudo supervisorctl restart frontend` + ~20 s cold-start rebuilt the bundle, after which all ContactPage cleanliness assertions passed. No application-code fix required."
+}

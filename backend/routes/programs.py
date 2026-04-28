@@ -296,6 +296,11 @@ async def get_program(
     db: AsyncSession = Depends(get_db)
 ):
     """Get single program by ID."""
+    import uuid as _uuid
+    try:
+        _uuid.UUID(program_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=404, detail="Program not found")
     program_repo = ProgramRepositorySupabase(db)
     program = await program_repo.find_by_id(program_id, current_user["institution_id"])
     if not program:

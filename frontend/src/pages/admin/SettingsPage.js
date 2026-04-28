@@ -296,7 +296,14 @@ export const SettingsPage = () => {
   const savePaymentSettings = async () => {
     try {
       const res = await axios.put(`${API}/events/settings/payment`, paymentSettings);
-      setPaymentSettings(prev => ({ ...prev, ...res.data }));
+      // Reset secret/key inputs so the user sees the server-side masked indicator
+      // instead of stale local typing — server is source of truth post-save.
+      setPaymentSettings(prev => ({
+        ...prev,
+        ...res.data,
+        gateway_api_key: '',
+        gateway_secret: '',
+      }));
       toast.success('Platební nastavení uloženo');
     } catch {
       toast.error('Chyba při ukládání platebního nastavení');
@@ -1720,10 +1727,59 @@ export const SettingsPage = () => {
 
             {(paymentSettings.payment_mode === 'gateway' || paymentSettings.payment_mode === 'both') && (
               <Card className="p-4 bg-blue-50 border-blue-200 space-y-3">
-                <p className="text-sm font-medium text-blue-800">Platební brána</p>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <p className="text-sm font-medium text-blue-800">Platební brána</p>
+                  {/* Live status badge — server-authoritative via gateway_mode */}
+                  {(() => {
+                    const serverMode = (paymentSettings.gateway_mode || '').toUpperCase();
+                    // Optimistic local override: while user types new keys before saving,
+                    // reflect what the next save will produce.
+                    const merchant = (paymentSettings.gateway_api_key || '').trim();
+                    const secret = (paymentSettings.gateway_secret || '').trim();
+                    const provider = (paymentSettings.provider || '').toLowerCase();
+                    let mode = serverMode || 'MOCK';
+                    if (provider === 'comgate' && merchant && secret) {
+                      mode = merchant.toUpperCase().startsWith('TEST_') ? 'TEST' : 'LIVE';
+                    }
+                    const labels = {
+                      LIVE: 'Produkce (LIVE)',
+                      TEST: 'Sandbox (TEST)',
+                      MOCK: 'Simulační (MOCK)',
+                    };
+                    const classes = {
+                      LIVE: 'bg-green-100 text-green-800 border-green-300',
+                      TEST: 'bg-blue-100 text-blue-800 border-blue-300',
+                      MOCK: 'bg-amber-100 text-amber-800 border-amber-300',
+                    };
+                    const dots = {
+                      LIVE: 'bg-green-600',
+                      TEST: 'bg-blue-600',
+                      MOCK: 'bg-amber-600',
+                    };
+                    const tips = {
+                      LIVE: 'Reálné platby od zákazníků',
+                      TEST: 'Sandbox Comgate — žádné reálné peníze',
+                      MOCK: 'Žádné reálné volání brány — pouze interní simulátor',
+                    };
+                    return (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded-full border ${classes[mode]}`}
+                        data-testid={`gateway-mode-badge-${mode.toLowerCase()}`}
+                        title={tips[mode]}
+                      >
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${dots[mode]}`} />
+                        {labels[mode]}
+                      </span>
+                    );
+                  })()}
+                </div>
                 <p className="text-xs text-blue-600">
-                  Zatím bez klíčů aplikace funguje v simulačním režimu (mock) — zákazník vidí testovací stránku a vy můžete odzkoušet celý flow.
-                  Po dodání reálných klíčů Comgate se brána automaticky přepne do produkčního / testovacího režimu.
+                  {(() => {
+                    const m = (paymentSettings.gateway_mode || 'MOCK').toUpperCase();
+                    if (m === 'LIVE') return 'Brána je v produkčním režimu — všechny platby zákazníků jsou reálné a směřují přímo na váš Comgate účet.';
+                    if (m === 'TEST') return 'Brána je v sandbox režimu Comgate (Merchant ID začíná TEST_) — žádné reálné peníze, ideální pro testování end-to-end flow.';
+                    return 'Bez klíčů aplikace funguje v simulačním režimu (mock) — zákazník vidí testovací stránku a vy můžete odzkoušet celý flow. Po dodání reálných klíčů Comgate se brána automaticky přepne do produkčního / testovacího režimu.';
+                  })()}
                 </p>
                 <div>
                   <Label className="text-gray-500 text-sm">Poskytovatel</Label>
@@ -1742,26 +1798,59 @@ export const SettingsPage = () => {
                 {paymentSettings.provider === 'comgate' && (
                   <>
                     <div>
-                      <Label className="text-gray-500 text-sm">Comgate Merchant ID</Label>
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-gray-500 text-sm">Comgate Merchant ID</Label>
+                        {paymentSettings.gateway_api_key_masked && (
+                          <span className="text-[11px] text-slate-500" data-testid="gateway-merchant-stored">
+                            Uloženo: <code className="font-mono">{paymentSettings.gateway_api_key_masked}</code>
+                          </span>
+                        )}
+                      </div>
                       <Input
                         value={paymentSettings.gateway_api_key || ''}
                         onChange={e => setPaymentSettings(p => ({ ...p, gateway_api_key: e.target.value }))}
-                        placeholder="např. 123456 (pro test začněte TEST_)"
+                        placeholder={paymentSettings.gateway_api_key_masked
+                          ? 'Ponechte prázdné pro zachování — vyplňte pouze pro změnu'
+                          : 'např. 123456 (pro test začněte TEST_)'}
                         className="mt-1 font-mono"
                         data-testid="gateway-merchant"
                       />
                     </div>
                     <div>
-                      <Label className="text-gray-500 text-sm">Comgate Secret</Label>
+                      <div className="flex items-center justify-between gap-2">
+                        <Label className="text-gray-500 text-sm">Comgate Secret</Label>
+                        {paymentSettings.gateway_secret_set && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700" data-testid="gateway-secret-stored">
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                            Tajný klíč uložen
+                          </span>
+                        )}
+                      </div>
                       <Input
                         type="password"
                         value={paymentSettings.gateway_secret || ''}
                         onChange={e => setPaymentSettings(p => ({ ...p, gateway_secret: e.target.value }))}
-                        placeholder="••••••••"
+                        placeholder={paymentSettings.gateway_secret_set
+                          ? 'Ponechte prázdné pro zachování — vyplňte pouze pro změnu'
+                          : '••••••••'}
                         className="mt-1 font-mono"
                         data-testid="gateway-secret"
                       />
                     </div>
+                    {(paymentSettings.gateway_api_key_masked || paymentSettings.gateway_secret_set) && (
+                      <button
+                        type="button"
+                        className="text-xs text-red-600 hover:text-red-700 underline self-start"
+                        data-testid="gateway-clear-keys"
+                        onClick={() => {
+                          if (window.confirm('Opravdu vymazat uložené Comgate klíče? Brána se vrátí do simulačního (MOCK) režimu.')) {
+                            setPaymentSettings(p => ({ ...p, gateway_api_key: '__CLEAR__', gateway_secret: '__CLEAR__' }));
+                          }
+                        }}
+                      >
+                        Vymazat uložené klíče
+                      </button>
+                    )}
                     <p className="text-xs text-slate-500">
                       Tip: Merchant ID začínající <code className="font-mono">TEST_</code> přepne bránu do sandbox režimu Comgate.
                       Prázdná pole = simulační (mock) režim pro otestování přihlášek bez odeslání do banky.

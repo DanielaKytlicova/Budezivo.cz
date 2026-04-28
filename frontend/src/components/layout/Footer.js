@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { PaymentBrandsBar } from './PaymentBrandsBar';
 
 // Logo Budeživo.cz pro footer - bílá varianta
 const BudezivoLogoFooter = () => (
@@ -40,6 +41,17 @@ export const Footer = () => {
             <p className="text-slate-300 text-sm leading-relaxed mt-4">
               Rezervační systém pro muzea, galerie a knihovny, který zjednodušuje správu školních a skupinových programů.
             </p>
+            <div className="text-slate-400 text-xs leading-relaxed mt-4 space-y-0.5" data-testid="footer-provider-info">
+              <p className="font-semibold text-slate-300">Provozovatel</p>
+              <p>Daniela Kytlicová</p>
+              <p>IČO: 07407971</p>
+              <p>Mlýnská 538</p>
+              <p>
+                <a href="mailto:info@budezivo.cz" className="hover:text-white transition-colors">
+                  info@budezivo.cz
+                </a>
+              </p>
+            </div>
           </div>
 
           <div>
@@ -54,6 +66,11 @@ export const Footer = () => {
                 <a href="#pricing" className="text-slate-300 hover:text-white transition-colors">
                   Tarify
                 </a>
+              </li>
+              <li>
+                <Link to="/kontakt" className="text-slate-300 hover:text-white transition-colors">
+                  Kontakt
+                </Link>
               </li>
             </ul>
           </div>
@@ -76,23 +93,41 @@ export const Footer = () => {
 
           <div>
             <h4 className="font-semibold mb-4">Právní</h4>
-            <ul className="space-y-2 text-sm">
+            <ul className="space-y-2 text-sm" data-testid="footer-legal-links">
               <li>
-                <Link to="/gdpr" className="text-slate-300 hover:text-white transition-colors">
+                <Link to="/obchodni-podminky" className="text-slate-300 hover:text-white transition-colors" data-testid="footer-link-vop">
+                  Obchodní podmínky
+                </Link>
+              </li>
+              <li>
+                <Link to="/gdpr" className="text-slate-300 hover:text-white transition-colors" data-testid="footer-link-gdpr">
                   Ochrana osobních údajů
                 </Link>
               </li>
               <li>
-                <a href="mailto:info@bubezivo.cz" className="text-slate-300 hover:text-white transition-colors">
-                  Kontakt
-                </a>
+                <Link to="/reklamace" className="text-slate-300 hover:text-white transition-colors" data-testid="footer-link-reklamace">
+                  Reklamace a storno
+                </Link>
+              </li>
+              <li>
+                <Link to="/platebni-podminky" className="text-slate-300 hover:text-white transition-colors" data-testid="footer-link-payment">
+                  Platební podmínky
+                </Link>
               </li>
             </ul>
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-slate-600 text-center text-sm text-slate-400">
-          <p>&copy; 2026 Budeživo.cz. Všechna práva vyhrazena.</p>
+        <div className="mt-12 pt-8 border-t border-slate-600">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div className="order-2 md:order-1">
+              <p className="text-xs text-slate-400 uppercase tracking-wider mb-2">Akceptujeme online platby přes</p>
+              <PaymentBrandsBar />
+            </div>
+            <p className="text-sm text-slate-400 order-1 md:order-2 md:text-right">
+              &copy; 2026 Budeživo.cz. Všechna práva vyhrazena.
+            </p>
+          </div>
         </div>
       </div>
     </footer>

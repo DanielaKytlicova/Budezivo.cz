@@ -661,3 +661,163 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - [x] **SettingsPage**: nová mobile-only sekce „Rychlý přístup" (testid `settings-mobile-quick-access`) — 3-sloupcový grid 9 dlaždic dle role (Přehled, Programy, Rezervace, Akce, Propagace, Školy, Zpětná vazba, Lektorský profil, Statistiky, Superadmin); skryto na desktop přes `md:hidden`
 - [x] **Testing agent iter64**: 100% DOM/visual acceptance PASS; pouze minor preview-env překryv s Emergent badge přes 5. nav slot — vyřešeno bumpem na `z-[60]`
 
+### Fáze 65 — Compliance audit pro platební bránu (Comgate) (27.4.2026)
+- 🔍 **Audit identifikoval problémy**: chybějící samostatná stránka pro reklamace/storno, chybějící samostatná stránka pro platební podmínky, footer s typem `bubezivo.cz` + bez identifikace provozovatele a právních odkazů, ContactPage s fake daty (Příkladová 123, +420 123 456 789), booking flow bez explicitního shrnutí objednávky a s odkazem jen na `/terms`
+- [x] **NEW page** `/reklamace` (`ReklamacePage.js`) — Reklamační a stornovací podmínky pro koncového zákazníka:
+  - Storno 48h předem zdarma, 14 dnů na vrácení platby, zrušení ze strany pořadatele s plnou náhradou, mimosoudní řešení sporů (ČOI + EU ODR platforma)
+  - Provozovatel: Daniela Kytlicová, IČO 07407971, Mlýnská 538
+  - Testidy: `reklamace-page`, `reklamace-provider`, `reklamace-cancel`, `reklamace-refund`, `reklamace-organizer-cancel`, `reklamace-complaint`, `reklamace-adr`, `reklamace-contact`
+- [x] **NEW page** `/platebni-podminky` (`PaymentTermsPage.js`) — Platební a dodací podmínky:
+  - 6 sekcí: provozovatel, předmět plnění, způsoby platby (na místě / převod / online brána), bezpečnost (Comgate IČO 27924505, PCI-DSS), cena/měna (CZK), doklad o platbě, link na reklamace
+  - Testidy: `payment-terms-page`, `payment-provider`, `payment-subject`, `payment-methods`, `payment-security`, `payment-price`, `payment-receipt`, `payment-cancel-link`
+- [x] **Footer rewrite** (`Footer.js`):
+  - Opravený typo `bubezivo.cz` → `info@budezivo.cz`
+  - Nová sekce „Provozovatel" s identifikačními údaji (Daniela Kytlicová, IČO 07407971, Mlýnská 538, email) — testid `footer-provider-info`
+  - 4 právní odkazy: VOP, GDPR, Reklamace, Platební podmínky — testidy `footer-link-{vop,gdpr,reklamace,payment}`
+  - Nahrazen mailto Kontakt v patičce React Routerem `<Link to="/kontakt">`
+- [x] **ContactPage cleanup** (`ContactPage.js`): odstraněn fake telefon `+420 123 456 789`, fake adresa `Příkladová 123, Praha 1` nahrazena reálným provozovatelem (Daniela Kytlicová, IČO 07407971, Mlýnská 538); přejmenováno „Adresa" → „Provozovatel"
+- [x] **BookingPage step 4 — Shrnutí objednávky**: nová karta `booking-summary` na začátku kroku 4 s přehledem (program, datum, čas, cena z `pricing_info`, poskytovatel = instituce); textové vysvětlení že smluvní vztah vzniká mezi zákazníkem a institucí, Budeživo je technický zprostředkovatel
+- [x] **BookingPage checkboxes** doplněny o linky:
+  - GDPR checkbox: link `/gdpr` (testid `booking-gdpr-link`)
+  - Terms checkbox: 3 odkazy `/obchodni-podminky` + `/reklamace` + `/platebni-podminky` (testidy `booking-terms-link-{vop,reklamace,payment}`)
+- [x] **App.js**: zaregistrovány routy `/reklamace` a `/platebni-podminky`
+- [x] **Testing agent iter65**: 96% PASS (23/24 live assertions). Kód-level verifikace booking step-4 testidů úspěšná; live walkthrough nelze dokončit kvůli omezení seed dat Test Muzea (žádné dostupné termíny v 8 následujících měsících)
+
+### Fáze 66 — Demo produkt B2C: Příměstský tábor + Compliance flow v Events (27.4.2026)
+- 🎯 **Účel**: vytvořit realistický B2C scénář (rodič kupuje příměstský tábor) pro demonstraci platebního flow Comgate; doplnit chybějící compliance prvky v Events flow (souhrn + checkbox souhlasu)
+- [x] **Seed skript** `/app/backend/scripts/seed_demo_camp.py` (idempotentní):
+  - Vytvoří/aktualizuje Event „Příměstský tábor – Léto 2026" pod Test Muzeum (institution `669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5`)
+  - Type `camp`, kapacita 20, cena 2500 CZK, popis 5denního programu pro děti 7-12, výtvarné dílny, prohlídky, závěrečná vernisáž
+  - 8 form_fields: jméno dítěte, věk, škola, jméno rodiče, e-mail rodiče, telefon, alergie, souhlas s focením
+  - Termín 1.–5. července 2026, 8:00–16:30
+  - Whitelistuje `events_module` flag pro Test Muzeum
+  - Vytvoří payment_settings (Comgate MOCK + QR, account 295033917/0300, IBAN CZ60..., account_name „Test Muzeum")
+- [x] **PublicEventsPage rozšíření** (`PublicEventsPage.js`):
+  - Step `form` doplněn o povinnou kartu „Shrnutí objednávky" (testid `event-order-summary`) — produkt, termín, cena, poskytovatel + textové vysvětlení smluvního vztahu
+  - Testidy: `summary-event-name`, `summary-event-date`, `summary-event-price`, `summary-event-provider`
+  - 2 nové povinné checkboxy: GDPR (`event-gdpr-consent` + link `event-gdpr-link` → /gdpr) a Terms (`event-terms-consent` + 3 linky `event-terms-link-{vop,reklamace,payment}`)
+  - Submit button disabled, dokud nejsou oba consenty zaškrtnuté; text se mění na „Objednat a přejít k platbě" při ceně > 0
+  - `handleSubmit` validuje souhlasy před POST + zobrazí toast error
+- [x] **End-to-end smoke test (manual screenshot)**: list → detail (1 termín auto-selected) → form → summary card s "Cena: 2500 CZK" + "Poskytovatel: Pořadatel akce" + checkboxy fungují (disabled bez consent, enabled s consent, btn text "Objednat a přejít k platbě")
+- [x] **Stale build issue**: webpack hot-reload nezachytil změny v PublicEventsPage; `sudo supervisorctl restart frontend` vyřešil. (Deja-vu z iter65 — připomínka pro budoucí refaktor.)
+
+### Fáze 67 — Comgate brand requirements (loga + kontakty + platební metody) (27.4.2026)
+- 🎯 **Compliance požadavek od Comgate**: na webu musí být uveden poskytovatel platební brány s odkazem, vysvětlení platebních metod, kontaktní údaje Comgate, a v patičce loga Comgate / Visa / Mastercard
+- [x] **PaymentTermsPage sekce 4 přepracována** na „Poskytovatel platební brány a bezpečnost online plateb":
+  - Hlavní odkaz na `https://www.comgate.eu/cs/platebni-brana` (testid `comgate-gateway-link`)
+  - Detailní vysvětlení 2 platebních metod:
+    - **Platba kartou (Visa, Mastercard)**: 3-D Secure flow + odkaz na `https://help.comgate.cz/v1/docs/cs/platby-kartou` (testid `comgate-card-help-link`)
+    - **Platební tlačítka bank** (online převod): odkaz na `https://help.comgate.cz/docs/bankovni-prevody` (testid `comgate-transfer-help-link`)
+  - **Kontaktní karta Comgate** (testid `comgate-contact-card`): Comgate, a.s., Gočárova třída 1754/48b, 500 02 Hradec Králové, podpora@comgate.cz, +420 228 224 267, s upozorněním kam směřovat reklamace plateb
+- [x] **NEW komponenta `PaymentBrandsBar.js`** (`/app/frontend/src/components/layout/`):
+  - Inline SVG loga: Comgate (gradient C + wordmark), Visa (italic 1A1F71), Mastercard (klasický red+orange+yellow překryv)
+  - Comgate logo je klikatelné → odkazuje na oficiální brand URL
+  - Testidy: `payment-brands-bar`, `brand-comgate`, `brand-visa`, `brand-mastercard`
+- [x] **Footer rozšířen**: pod copyright sekci přidán PaymentBrandsBar s eyebrow „AKCEPTUJEME ONLINE PLATBY PŘES" (left-aligned na desktop, centered na mobil); copyright v pravé části flexu
+- [x] **Smoke test**: všech 7 testidů + 4 odkazy nalezeny v DOM, loga renderována, Comgate kontakt obsahuje všechny povinné údaje (e-mail, telefon, Gočárova)
+
+### Fáze 68 — B2B Catalog Etapa 4: Učitelské účty (B2C) + Oblíbené + Historie + Prefill (27.4.2026)
+- 🎯 **Cíl**: registrace/přihlášení externích učitelů (mimo institucionální admin systém), uložené oblíbené programy, historie rezervací, autoprefill rezervačního formuláře pro přihlášené uživatele
+- 👤 **Volby uživatele**: 1a) vlastní JWT email/password (architektonicky připraveno na Google později), 2) MVP + prefill (ne notifikace), 3a) separátní `teacher_accounts` tabulka
+
+#### Backend
+- [x] **NEW migration `003_teacher_accounts.sql`** (idempotentní):
+  - `teacher_accounts` (id, email UNIQUE, password_hash, name, school_name, phone, auth_provider DEFAULT 'password', google_sub, is_active, last_login_at, created_at, updated_at, deleted_at)
+  - `teacher_favorites` (teacher_id FK CASCADE, program_id FK CASCADE, institution_id FK CASCADE, UNIQUE(teacher_id, program_id))
+  - `teacher_login_attempts` (identifier UNIQUE, failed_count, last_failed_at, locked_until) — pro brute-force ochranu
+- [x] **NEW modely** `TeacherAccount`, `TeacherFavorite`, `TeacherLoginAttempt` v `database/models.py`
+- [x] **NEW router `routes/teacher.py`**:
+  - **Auth**: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, `PATCH /me`
+  - **Favorites**: `GET /favorites` (s embedded program data), `POST /favorites` (idempotent), `DELETE /favorites/{program_id}`
+  - **Bookings**: `GET /bookings` (filtruje rezervace podle `contact_email == teacher.email`)
+  - **JWT**: 14denní TTL, payload obsahuje `account_type='teacher'`, cookie `teacher_token` (httpOnly secure samesite=lax), Bearer fallback
+  - **Brute-force lockout**: dvojitý klíč `email:{email}` + `ip:{ip}` (z X-Forwarded-For), 5 pokusů → 15 min lockout
+  - Heslo bcrypt-hashed, bezpečné error messages bez user enumeration
+- [x] **🐛 SECURITY FIX `core/security.get_current_user`**: nyní explicitně odmítá tokeny s `account_type != 'admin'` a tokeny bez `user_id` → 401 místo 500 KeyError. Předchází leakage informací při náhodném použití teacher tokenu na admin endpoint
+- [x] **Lockout fix `routes/teacher.py`**: `_client_ip()` helper čte `X-Forwarded-For` first hop místo `request.client.host` (které za Kubernetes ingress rotuje)
+
+#### Frontend
+- [x] **NEW context `TeacherAuthContext.js`** (oddělený od institucionálního AuthContext): cookie + localStorage `bz_teacher_token` Bearer fallback (pro cross-subdomain ingress preview), automatický refresh `/me` při mountu, format API errors helper
+- [x] **NEW stránky** v `pages/teacher/`:
+  - `/ucitel/registrace` — TeacherRegisterPage (jméno, email, heslo, škola, telefon + checkbox VOP/GDPR)
+  - `/ucitel/prihlaseni` — TeacherLoginPage
+  - `/ucitel/ucet` — TeacherAccountPage s 3 tab záložkami: **Oblíbené** / **Historie** / **Profil**
+- [x] **NEW komponenta `FavoriteButton.js`** s 2 variantami:
+  - `variant='icon'` — kruhové srdíčko v top-right rohu catalog karty
+  - `variant='pill'` — pill na catalog detail page „Uložit" / „V oblíbených"
+  - Lazy fetch oblíbených při mountu (jen pokud je teacher přihlášen)
+  - Při kliknutí bez přihlášení → toast s tlačítkem „Přihlásit"
+- [x] **CatalogPage** (`programy-pro-skoly`): srdíčko v top-right rohu každé karty
+- [x] **CatalogDetailPage** (`programy-pro-skoly/p/{slug}`): pill u nadpisu programu
+- [x] **BookingPage prefill**: `useTeacherAuth` integration — pokud je teacher přihlášen, jeden-shot autofill `contact_name/email/phone/school_name` z teacher profilu (jen prázdné pole, neutrhne user input), s toast „Údaje byly předvyplněny z vašeho účtu"
+- [x] **App.js**: `TeacherAuthProvider` wrap (oddělený od `AuthProvider`), 3 nové public routy
+
+#### Test
+- [x] **Iter66 testing agent**: 13/15 backend pytest PASS + 100% frontend testable flows. 2 HIGH backend bugy nalezeny:
+  1. ❌→✅ Admin endpoint vrátil 500 KeyError při teacher tokenu — opraveno (401)
+  2. ❌→✅ Brute-force lockout nikdy nesepnul přes ingress — opraveno (X-Forwarded-For + email klíč)
+- [x] **Curl re-verifikace po opravách**:
+  - Admin login OK ✅, /me OK ✅
+  - Teacher login OK ✅
+  - **Teacher token na admin /me → HTTP 401** „Tento token nepatří administrátorovi platformy." ✅
+  - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
+- [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
+
+### Fáze 69 — B2B Catalog Etapa 5: Mapový pohled (27.4.2026)
+- 🎯 **Cíl**: uživatel může přepnout katalog z gridu na mapu ČR s piny podle měst
+- 👤 **Volby**: 1a) Leaflet + OpenStreetMap, 2c) MVP na úrovni měst (GPS na instituci později), 3a) toggle „Seznam | Mapa" v záhlaví katalogu
+- [x] **Dependencies**: přidán `leaflet@1.9.4` + `react-leaflet@5.0.0` (zdarma, žádné API klíče)
+- [x] **NEW lookup** `/app/frontend/src/lib/czCities.js` — static map ~70 CZ měst → [lat, lng], case-insensitive s ASCII fallback (Praha/Praha, Hradec Králové/Hradec Kralove apod.)
+- [x] **NEW komponenta** `/app/frontend/src/components/catalog/CatalogMap.js`:
+  - `<MapContainer>` center=[49.8175, 15.4730] (střed ČR), zoom=7
+  - OSM tile layer s attribution
+  - Piny agregované per město (1 pin = 1 město) s custom `L.divIcon` v brand barvě #4A6FA5 a badgem počtu programů
+  - Tooltip na hover: „Město · X programů"
+  - Popup po kliknutí: seznam až 10 programů + počet institucí + tlačítko „Filtrovat katalog na {město} →"
+  - Fallback „Bez známé polohy" sekce pod mapou pro programy bez rozpoznaného města
+  - Testidy: `catalog-map-view`, `catalog-map-container`, `map-pin-{city-slug}`, `map-popup-{city-slug}`, `map-program-link-{program_id}`, `map-filter-city-{city-slug}`, `catalog-map-unknown`
+- [x] **CatalogPage** rozšířen o view toggle:
+  - Nový `viewMode` state (`list` | `map`), persistován v URL jako `?view=mapa` (shareable)
+  - Toggle buttony „Seznam" / „Mapa" vedle počítadla výsledků (testidy `catalog-view-toggle`, `catalog-view-list`, `catalog-view-map`)
+  - Klik na „Filtrovat katalog na {město}" v popup → aktivuje city filter + přepne zpět na list
+- [x] **Smoke test**: OpenStreetMap tiles se načítají, pin pro Brno renderován s badgem „4", popup obsahuje 4 programy s data-testid links, filter-city tlačítko funkční
+
+### Fáze 70 — Cleanup: Test Muzeum bookable termíny (27.4.2026)
+- 🎯 **Cíl**: odstranit blocker z Iter64+66 — Test Muzeum nemělo dostatečně dostupné termíny, takže testing agent nemohl projít plným booking flow
+- 🔍 **Audit**: 3 active+published programy měly jen 1 time_block, krátké booking window, někdy lecturer collision navázanou na neexistující lectory → minimálně dostupné termíny, neuhájitelné v testech
+- [x] **NEW skript** `/app/backend/scripts/seed_test_muzeum_bookable.py` (idempotentní):
+  - Pro každý active+published program: nastaví 4 time_blocks (09:00-10:30, 10:45-12:15, 13:00-14:30, 14:45-16:15), Po-Pá available_days, booking window 1-180 dní, end_date +1 rok
+  - Vyčistí `collision_resources`, `collision_lecturer_ids`, `assigned_lecturer_id` aby programy nebyly závislé na lecturer schedules
+  - Skip pro archivované/nepublikované programy
+  - Příprava: `statement_cache_size=0` kvůli pgbouncer „transaction" módu
+- [x] **Verifikace**: Architektura města + Čteme obrazy + Historická prohlídka nyní mají 4 time_blocks; Apr 29-30 + celé květen 2026 dostupné (14+ dní); /api/availability vrací všechny 4 sloty available
+
+### Fáze 71 — Comgate Settings UI Badge fix + webhook signature hardening (28.4.2026)
+- 🐛 **Reportovaný bug**: uživatel zadal LIVE Comgate klíče, uložil — UI badge ale stále zobrazoval „Simulační (MOCK)" a Merchant ID pole se po reloadu jevilo jako prázdné. Druhý latentní bug: opětovné uložení nastavení (např. změna IBANu) by prázdnými poli vymazalo skutečné klíče v DB.
+- 🔍 **Root cause**: `GET /events/settings/payment` z bezpečnostních důvodů popoval `gateway_api_key`/`gateway_secret` z odpovědi, ale frontend badge počítal mode lokálně z těch samých polí → po refreshi vždy detekoval MOCK.
+- ✅ **Backend (`routes/events.py`)**:
+  - **NEW helpers** `_mask_merchant()` (preserve `TEST_` prefix + last 4 chars), `_enrich_payment_settings()` (společný server-side strip + obohacení)
+  - **GET** vrací nově: `gateway_mode` (MOCK/TEST/LIVE — autoritativní z `factory._detect_mode`), `gateway_api_key_masked` (např. `TEST_••••9888`), `gateway_secret_set` (bool). Raw klíče zůstávají server-only.
+  - **PUT** preservuje stored credentials při prázdném stringu (běžný save formuláře nevymaže klíče). Explicitní vymazání přes literální sentinel `"__CLEAR__"`.
+- ✅ **Backend security hardening (`services/payment_gateways/comgate.py`)**:
+  - `parse_webhook` použije `hmac.compare_digest` (constant-time, brání timing attacks)
+  - LIVE/TEST režim s nenakonfigurovanou bránou nyní webhook **odmítne** (předtím tichá akceptace)
+  - Wrong merchant nebo wrong secret → `ValueError("Invalid Comgate webhook signature")` (route vrátí 403)
+- ✅ **Frontend (`SettingsPage.js`)**:
+  - Badge čte `paymentSettings.gateway_mode` ze serveru jako jediný zdroj pravdy + optimistický override při lokální editaci
+  - Uložené klíče zobrazeny jako neutrální hint vedle inputu: „Uloženo: ••••7890" + „Tajný klíč uložen" indikátor
+  - Placeholder se mění na „Ponechte prázdné pro zachování — vyplňte pouze pro změnu" když existují uložené klíče
+  - Tlačítko „Vymazat uložené klíče" (s confirmem) posílá `__CLEAR__` sentinel
+  - Modrý popisek s vysvětlením režimu reaguje na aktuální `gateway_mode` (LIVE / TEST / MOCK varianty)
+  - `savePaymentSettings` vyresetuje text inputy po uložení → čistý stav řízený serverem
+- 🧪 **Test**: `/app/backend/tests/test_payment_settings_security.py` — 14 testů PASS (mask helper, enrich helper, clear sentinel, 6× webhook signature scénářů včetně all-status mappings)
+- 🧪 **Curl smoke test**: PUT TEST keys → mode=TEST + masked OK; PUT empty → mode zůstává TEST (preservation OK); PUT LIVE keys → mode=LIVE + masked `••••7890`; PUT `__CLEAR__` → mode=MOCK ✅
+- 🧪 **UI smoke test**: badge přepíná zelené „Produkce (LIVE)" + „Uloženo: ••••7890" + „Tajný klíč uložen" hint po uložení reálných klíčů ✅
+
+
+
+
+
+
+
+

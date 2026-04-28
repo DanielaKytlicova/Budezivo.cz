@@ -17,3 +17,12 @@
 - **Institution:** Test Muzeum (ID: 669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5)
 - Contains demo data: 7 programs, 55 reservations, 3 events, applications
 - Admin user: test@budezivo.cz (password unknown — use impersonation from superadmin)
+
+## Teacher Account (B2C self-registration — Etapa 4)
+- **Email:** ucitel.test@example.cz
+- **Password:** TestUcitel2026!
+- **Name:** Mgr. Jana Nová
+- **School:** ZŠ Komenského Praha
+- **Created:** 27.4.2026 via POST /api/teacher/auth/register
+- **Pages:** /ucitel/registrace, /ucitel/prihlaseni, /ucitel/ucet
+- **Note:** Pokud je účet zamknutý kvůli brute-force testům, vyčistěte: `DELETE FROM teacher_login_attempts;` na Supabase.

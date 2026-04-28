@@ -782,6 +782,17 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - Klik na „Filtrovat katalog na {město}" v popup → aktivuje city filter + přepne zpět na list
 - [x] **Smoke test**: OpenStreetMap tiles se načítají, pin pro Brno renderován s badgem „4", popup obsahuje 4 programy s data-testid links, filter-city tlačítko funkční
 
+### Fáze 70 — Cleanup: Test Muzeum bookable termíny (27.4.2026)
+- 🎯 **Cíl**: odstranit blocker z Iter64+66 — Test Muzeum nemělo dostatečně dostupné termíny, takže testing agent nemohl projít plným booking flow
+- 🔍 **Audit**: 3 active+published programy měly jen 1 time_block, krátké booking window, někdy lecturer collision navázanou na neexistující lectory → minimálně dostupné termíny, neuhájitelné v testech
+- [x] **NEW skript** `/app/backend/scripts/seed_test_muzeum_bookable.py` (idempotentní):
+  - Pro každý active+published program: nastaví 4 time_blocks (09:00-10:30, 10:45-12:15, 13:00-14:30, 14:45-16:15), Po-Pá available_days, booking window 1-180 dní, end_date +1 rok
+  - Vyčistí `collision_resources`, `collision_lecturer_ids`, `assigned_lecturer_id` aby programy nebyly závislé na lecturer schedules
+  - Skip pro archivované/nepublikované programy
+  - Příprava: `statement_cache_size=0` kvůli pgbouncer „transaction" módu
+- [x] **Verifikace**: Architektura města + Čteme obrazy + Historická prohlídka nyní mají 4 time_blocks; Apr 29-30 + celé květen 2026 dostupné (14+ dní); /api/availability vrací všechny 4 sloty available
+
+
 
 
 

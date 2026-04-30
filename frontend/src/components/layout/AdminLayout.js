@@ -6,6 +6,7 @@ import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users
 import { usePlanFeatures } from '../../hooks/usePlanFeatures';
 import { UpgradeModal } from '../admin/UpgradeModal';
 import { ImpersonationBanner } from '../admin/ImpersonationBanner';
+import SuperadminAlertBanner from '../SuperadminAlertBanner';
 
 // Logo Budeživo.cz - oficiální SVG
 const BudezivoLogo = ({ showText = true }) => (
@@ -185,6 +186,7 @@ export const AdminLayout = ({ children }) => {
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
       <ImpersonationBanner />
+      <SuperadminAlertBanner />
       {/* Desktop Sidebar */}
       <aside className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
         <div className="flex flex-col flex-grow border-r border-border bg-white overflow-y-auto">

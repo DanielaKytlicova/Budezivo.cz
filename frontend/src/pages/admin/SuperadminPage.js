@@ -348,7 +348,7 @@ export const SuperadminPage = () => {
                       <span className="font-medium">{o.institution_name}</span>
                       <Badge className={PLAN_BADGE[o.requested_plan] || ''}>{o.requested_plan_label}</Badge>
                       <Badge className={o.status === 'paid' ? 'bg-green-100 text-green-700' : o.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-500'}>
-                        {o.status}
+                        {o.status === 'pending' ? 'Čekající žádost' : o.status === 'paid' ? 'Zaplaceno' : o.status === 'cancelled' ? 'Zrušeno' : o.status}
                       </Badge>
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">
@@ -529,7 +529,7 @@ export const SuperadminPage = () => {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="pending">Čekající žádost</SelectItem>
                       <SelectItem value="inactive">Inactive</SelectItem>
                       <SelectItem value="expired">Expired</SelectItem>
                       <SelectItem value="cancelled">Cancelled</SelectItem>

@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { API } from '../../config/api';
 import { OnboardingWizard } from '../../components/admin/OnboardingWizard';
+import UncoveredCollisionsBanner from '../../components/UncoveredCollisionsBanner';
 import {
   Select,
   SelectContent,
@@ -743,6 +744,10 @@ export const DashboardPage = () => {
           <h1 className="text-3xl font-bold text-slate-900">{t('dashboard.welcome')}</h1>
           <p className="text-muted-foreground mt-1">{user?.institution_name}</p>
         </div>
+
+        {/* Banner pro externí/učící lektory: rezervace v kolizi bez přiřazeného lektora
+            v programech, které lektor může pokrýt (supported_program_ids / learning_program_ids) */}
+        <UncoveredCollisionsBanner user={user} reservations={reservations} />
 
         {/* Moje rezervace dnes — quick view for lektor/edukator/pokladni/admin.
             Skryto, když nejsou žádné rezervace na dnešek (méně rušení). */}

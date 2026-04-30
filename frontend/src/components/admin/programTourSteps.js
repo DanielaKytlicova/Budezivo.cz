@@ -17,7 +17,7 @@ export const PROGRAM_TOUR_STEPS = [
       '2) Nastavení — kdy se koná\n' +
       '3) Kolize — co s ním nesmí běžet souběžně\n' +
       '4) Zpětná vazba — jak ji vybírat\n\n' +
-      'Ukázku můžete kdykoli zavřít a později spustit znovu tlačítkem „Spustit ukázku".',
+      'Ukázku můžete kdykoli zavřít a později spustit znovu tlačítkem „Spustit ukázku" — pokračování začne od záložky, na které právě jste.',
     placement: 'bottom',
   },
   {
@@ -63,7 +63,8 @@ export const PROGRAM_TOUR_STEPS = [
     targetTestId: 'program-pricing-info',
     title: 'Cena pro účastníky',
     body:
-      'Volný text, např. „30,- Kč / dítě, pedagog zdarma" nebo „zdarma". Zobrazuje se na rezervační stránce vedle názvu programu i v e-mailovém potvrzení.',
+      'Volný text, např. „30,- Kč / dítě, pedagog zdarma" nebo „zdarma". Zobrazuje se na rezervační stránce vedle názvu programu i v e-mailovém potvrzení.\n\n' +
+      'Pole může zůstat nevyplněné — doporučujeme to spíše u cenově různorodé nabídky, kde nelze cenu shrnout do jedné věty (vícero variant podle typu školy, slev, sourozenců apod.).',
     placement: 'top',
   },
   {
@@ -111,17 +112,21 @@ export const PROGRAM_TOUR_STEPS = [
   {
     tab: 'settings',
     targetTestId: 'program-add-time-block',
-    title: 'Časové bloky',
+    title: 'Časové bloky — dvě možnosti',
     body:
-      'Přidejte jeden nebo více intervalů (např. 9:00–10:30 a 11:00–12:30). Systém automaticky rozseká delší bloky podle doby trvání programu, takže se učitelům nabídne každý dostupný slot.',
+      'Máte na výběr dva přístupy a můžete je libovolně kombinovat:\n\n' +
+      '🔹 **Přesný slot** (např. 9:00–10:30 u 90min programu) → systém nabídne školám právě tento jeden slot.\n\n' +
+      '🔹 **Otevřené okno** (např. 8:30–12:00 u 90min programu) → systém ho automaticky rozseká po 30 minutách na všechny možné starty: 8:30, 9:00, 9:30, 10:00, 10:30. Slot, který by přesahoval konec okna, se nezobrazí.\n\n' +
+      'Otevřené okno se hodí, když školy mohou přijít kdykoli během dopoledne. Přesné sloty preferujte u menších programů s pevnou hodinou.',
     placement: 'top',
   },
   {
     tab: 'settings',
     targetTestId: 'program-start-date',
-    title: 'Sezóna',
+    title: 'Sezóna programu',
     body:
-      'Volitelně omezte, kdy se program nabízí (např. jen školní rok). Mimo toto období bude rezervační stránka prázdná, ale program zůstane v editoru.',
+      'Volitelně omezte období, kdy se program nabízí. Mimo toto období bude rezervační stránka prázdná, ale program zůstane v editoru.\n\n' +
+      'Hodí se pro programy svázané s konkrétní událostí — například **proměnné výstavy** (program k aktuální výstavě, po jejím skončení se znepřístupní), letní/zimní variantu, vánoční dílny nebo školní rok.',
     placement: 'top',
   },
   {
@@ -133,14 +138,60 @@ export const PROGRAM_TOUR_STEPS = [
     placement: 'top',
   },
 
-  // ── Collision tab ──
+  // ── Collision tab — rozdělené do 5 kroků pro lepší pochopení ──
   {
     tab: 'collision',
     targetTestId: 'program-tab-collision',
-    title: 'Záložka Kolize',
+    title: 'Záložka Kolize — co se nesmí konat zároveň',
     body:
-      'Některé programy se nemohou konat souběžně — sdílejí lektora, místnost nebo exponáty. Tady určíte pravidla.',
+      'Tato záložka je srdcem celé rezervační logiky. Tady řeknete systému, co je s programem v konfliktu — aby nevznikla situace, kdy jeden lektor vede dvě skupiny najednou nebo se dva programy snaží sdílet jednu místnost.\n\n' +
+      'Projdeme 4 typy kolizí:\n' +
+      '1) Souběžné programy obecně\n' +
+      '2) Kontrola vytíženosti lektorů\n' +
+      '3) Sdílená místnost\n' +
+      '4) Ruční zákaz konkrétních programů\n\n' +
+      'Některé můžete kombinovat, jiné nechat vypnuté.',
     placement: 'bottom',
+  },
+  {
+    tab: 'collision',
+    targetTestId: 'collision-allow-parallel-toggle',
+    title: '1) Souběžné programy',
+    body:
+      'Hlavní přepínač:\n\n' +
+      '🔒 **Vypnuto** (výchozí, doporučeno): v daný čas může běžet pouze jeden program. Druhá rezervace na stejný čas se odmítne.\n\n' +
+      '🟢 **Zapnuto**: povolíte vést více programů paralelně (např. dvě skupiny ve dvou sálech). Systém pak respektuje pouze konkrétní zdroje (lektor / místnost) zaškrtnuté níže.',
+    placement: 'top',
+  },
+  {
+    tab: 'collision',
+    targetTestId: 'collision-resource-lecturer',
+    title: '2) Kontrola vytíženosti lektorů',
+    body:
+      'Když zaškrtnete, systém ohlídá, aby vybraní lektoři neměli ve stejný čas dva programy.\n\n' +
+      'Pod tím se objeví seznam členů týmu — vyberte ty, kterých se to týká (nebo nechte všechny). Lektor s pevnou dostupností (Lektorský profil → Dostupnost) bude navíc filtrován i podle toho, ve kterých dnech a časech reálně může.\n\n' +
+      'Pokud jich máte víc a každý vede svůj program, můžete to nechat vypnuté.',
+    placement: 'top',
+  },
+  {
+    tab: 'collision',
+    targetTestId: 'collision-resource-room',
+    title: '3) Sdílená místnost',
+    body:
+      'Pokud program potřebuje konkrétní prostor (ateliér, dílna, sál), zaškrtněte tuto volbu a níže přiřaďte místnost.\n\n' +
+      'Místnost můžete vytvořit přímo v této kartě (název + kapacita). Systém pak nedovolí, aby ji ve stejný čas obsadil jiný program.\n\n' +
+      'Tip: u programů, které se konají „kdekoli v expozici", místnost nepřiřazujte.',
+    placement: 'top',
+  },
+  {
+    tab: 'collision',
+    targetTestId: 'collision-block-program-list',
+    title: '4) Ruční omezení mezi programy',
+    body:
+      'Někdy se dva programy nesnesou z jiného důvodu, než je lektor nebo místnost — třeba sdílí specifické exponáty, jeden program ruší druhý hlukem nebo se mezi nimi přesouvá vybavení.\n\n' +
+      'Tady ručně označte programy, které se nesmí konat ve stejný čas jako tento. Funguje to oboustranně — stačí nastavit jen z jedné strany.\n\n' +
+      'Pokud se programy klidně překryjí, nechte seznam prázdný.',
+    placement: 'top',
   },
 
   // ── Feedback tab ──
@@ -149,7 +200,8 @@ export const PROGRAM_TOUR_STEPS = [
     targetTestId: 'program-tab-feedback',
     title: 'Záložka Zpětná vazba',
     body:
-      'Po dokončení programu může systém automaticky odeslat dotazník. Můžete použít výchozí (hvězdičky + doporučení) nebo přidat vlastní otázky.\n\nTímto ukázku ukončíme — držíme palce s prvním programem!',
+      'Po dokončení programu může systém automaticky odeslat dotazník. Můžete použít výchozí (hvězdičky + doporučení) nebo přidat vlastní otázky.\n\n' +
+      'Tímto ukázku ukončíme — držíme palce s prvním programem!',
     placement: 'bottom',
   },
 ];
@@ -169,7 +221,7 @@ export const PROGRAM_FIELD_HELP = {
   min_capacity:
     'Pod tímto počtem se program konat nemusí (informativní — školy uvidí poznámku).',
   pricing_info:
-    'Volný text, např. „30 Kč / dítě, pedagog zdarma" nebo „Zdarma". Zobrazí se na rezervační stránce.',
+    'Volný text, např. „30 Kč / dítě, pedagog zdarma" nebo „Zdarma". Pole může zůstat prázdné u cenově různorodé nabídky.',
   photo:
     'Hlavní fotka programu. Volitelná, ale výrazně zvyšuje míru rezervací. Maximum 5 MB.',
   requires_approval:
@@ -185,9 +237,9 @@ export const PROGRAM_FIELD_HELP = {
   days:
     'Dny v týdnu, ve kterých program běží. Pro každý den pak přidáte časové bloky.',
   time_blocks:
-    'Časová okna (např. 9:00–10:30). Delší okno se automaticky rozdělí na sloty podle doby trvání programu.',
+    'Buď přesný slot (9:00–10:30 = jeden start), nebo otevřené okno (8:30–12:00 = systém ho automaticky rozseká po 30 min na všechny možné starty 90min programu).',
   date_range:
-    'Volitelně omezte sezónu. Mimo toto období program nebude rezervovatelný.',
+    'Volitelně omezte sezónu — třeba u programů svázaných s proměnnou výstavou nebo školním rokem.',
   min_days_before:
     'Kolik dní předem se nejdříve dá rezervovat. Bránice proti „na zítra" rezervacím. Doporučujeme 7.',
   max_days_before:
@@ -197,3 +249,16 @@ export const PROGRAM_FIELD_HELP = {
   cleanup_time:
     'Doba na úklid po programu. Mezi dvěma navazujícími rezervacemi musí být alespoň tato pauza.',
 };
+
+/**
+ * Find the first step index that belongs to a given tab.
+ * Used to "resume tour from current tab" so the user doesn't have to
+ * click through 15 steps to reach the Collision section.
+ *
+ * Returns 0 (the welcome step) when the tab is unknown.
+ */
+export function getFirstStepIndexForTab(tab) {
+  if (!tab) return 0;
+  const idx = PROGRAM_TOUR_STEPS.findIndex((s) => s.tab === tab);
+  return idx >= 0 ? idx : 0;
+}

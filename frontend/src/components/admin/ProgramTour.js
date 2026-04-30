@@ -44,8 +44,11 @@ function computeRect(el) {
   };
 }
 
-export default function ProgramTour({ steps, onClose, onTabChange }) {
-  const [index, setIndex] = useState(0);
+export default function ProgramTour({ steps, onClose, onTabChange, initialIndex = 0 }) {
+  const [index, setIndex] = useState(() => {
+    const safe = Math.max(0, Math.min(initialIndex, steps.length - 1));
+    return safe;
+  });
   const [rect, setRect] = useState(null);
 
   const step = steps[index];

@@ -19,7 +19,7 @@ import { ProgramCollisionTab } from '../../components/admin/ProgramCollisionTab'
 import { ProgramFeedbackTab } from '../../components/admin/ProgramFeedbackTab';
 import { ProgramUrlModal } from '../../components/admin/ProgramUrlModal';
 import ProgramTour from '../../components/admin/ProgramTour';
-import { PROGRAM_TOUR_STEPS, PROGRAM_FIELD_HELP } from '../../components/admin/programTourSteps';
+import { PROGRAM_TOUR_STEPS, PROGRAM_FIELD_HELP, getFirstStepIndexForTab } from '../../components/admin/programTourSteps';
 import FieldTooltip from '../../components/admin/FieldTooltip';
 import { API } from '../../config/api';
 
@@ -109,6 +109,7 @@ export const ProgramsPage = () => {
   const [showValidationDialog, setShowValidationDialog] = useState(false);
   const [teamMembers, setTeamMembers] = useState([]);
   const [showTour, setShowTour] = useState(false);
+  const [tourInitialIndex, setTourInitialIndex] = useState(0);
 
   useEffect(() => {
     fetchPrograms();
@@ -472,7 +473,10 @@ export const ProgramsPage = () => {
       const isFirstProgram = programs.filter(p => p.status !== 'archived').length === 0;
       if (!seen && isFirstProgram) {
         // Wait one tick for the dialog to mount before measuring
-        setTimeout(() => setShowTour(true), 350);
+        setTimeout(() => {
+          setTourInitialIndex(0);
+          setShowTour(true);
+        }, 350);
       }
     } catch {
       /* ignore localStorage failures (private mode etc.) */
@@ -480,12 +484,12 @@ export const ProgramsPage = () => {
   };
 
   const startTour = () => {
-    if (!showDialog) {
-      // Open the editor first so the tour has targets to spotlight
-      handleCreate();
-      setTimeout(() => setShowTour(true), 400);
-      return;
-    }
+    // The button only renders inside the editor (not on the list page),
+    // so the dialog is guaranteed to be open here. We resume from the
+    // first step matching the current tab — a user inspecting Kolize
+    // doesn't need to re-click through Detail and Nastavení.
+    const idx = getFirstStepIndexForTab(activeTab);
+    setTourInitialIndex(idx);
     setShowTour(true);
   };
 
@@ -585,25 +589,14 @@ export const ProgramsPage = () => {
       {/* Header with limit info */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Programy</h1>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={startTour}
-            className="hidden sm:inline-flex border-[#C4AB86] text-[#8B6F47] hover:bg-[#FBF7EF]"
-            data-testid="program-tour-launch-btn"
-          >
-            <Sparkles className="w-4 h-4 mr-2" />
-            Spustit ukázku
-          </Button>
-          <Button
-            data-testid="create-program-button"
-            onClick={handleCreate}
-            className="bg-slate-800 text-white hover:bg-slate-700 rounded-full w-12 h-12 p-0 fixed bottom-24 md:bottom-8 right-4 md:relative md:w-auto md:h-auto md:px-4 md:py-2 md:rounded-md shadow-lg md:shadow-none"
-          >
-            <Plus className="w-5 h-5 md:mr-2" />
-            <span className="hidden md:inline">Nový program</span>
-          </Button>
-        </div>
+        <Button
+          data-testid="create-program-button"
+          onClick={handleCreate}
+          className="bg-slate-800 text-white hover:bg-slate-700 rounded-full w-12 h-12 p-0 fixed bottom-24 md:bottom-8 right-4 md:relative md:w-auto md:h-auto md:px-4 md:py-2 md:rounded-md shadow-lg md:shadow-none"
+        >
+          <Plus className="w-5 h-5 md:mr-2" />
+          <span className="hidden md:inline">Nový program</span>
+        </Button>
       </div>
 
       {/* Plan limit banner with URL generator */}
@@ -1324,7 +1317,7 @@ export const ProgramsPage = () => {
         <h2 className="text-xl font-semibold text-slate-900 flex-1">Programy</h2>
         <button
           type="button"
-          onClick={() => setShowTour(true)}
+          onClick={startTour}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-[#C4AB86] text-[#8B6F47] hover:bg-[#FBF7EF] transition-colors"
           data-testid="program-tour-launch-editor-btn"
           aria-label="Spustit ukázku"
@@ -1580,6 +1573,7 @@ export const ProgramsPage = () => {
       {showTour && (
         <ProgramTour
           steps={PROGRAM_TOUR_STEPS}
+          initialIndex={tourInitialIndex}
           onClose={closeTour}
           onTabChange={setActiveTab}
         />

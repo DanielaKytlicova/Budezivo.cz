@@ -763,6 +763,37 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
 - [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
 
+### Fáze 73 — Vylepšení textů ukázky + resume from current tab + odstranění duplicity (30.4.2026)
+- 🎯 **Zpětná vazba uživatele**: některé kroky byly příliš strohé / zavádějící, restart tour znamenal proklikat 15 kroků k Kolizím, tlačítko bylo duplicitní (list + editor)
+- [x] **Texty kroků aktualizovány**:
+  - Krok 7 (Cena pro účastníky): doplněna věta „Pole může zůstat nevyplněné — doporučujeme to spíše u cenově různorodé nabídky…"
+  - Krok 13 (Časové bloky): celý refaktor — teď vysvětluje obě strategie (Přesný slot vs. Otevřené okno) s konkrétním příkladem (8:30–12:00 + 90min program → 5 startů á 30 min)
+  - Krok 14 (Sezóna): doplněna ukázka použití „programy svázané s proměnnou výstavou, letní/zimní variantou…"
+  - Kolize rozdělena z 1 strohého kroku na **5 detailních kroků** (16-20):
+    1. Záložka Kolize — co se nesmí konat zároveň (úvod + roadmap)
+    2. Souběžné programy (přepínač paralelní/exkluzivní)
+    3. Kontrola vytíženosti lektorů (s vysvětlením vazby na rozvrh lektora v profilu)
+    4. Sdílená místnost (s tipem kdy přiřadit, kdy ne)
+    5. Ruční omezení mezi programy (sdílené exponáty, hluk, vybavení)
+  - Celkem **21 kroků** (oproti původním 17)
+- [x] **Resume from current tab** (`getFirstStepIndexForTab`):
+  - Při kliku na „Spustit ukázku" v editoru se tour spustí od **prvního kroku odpovídajícího aktuální záložce** (Detail/Nastavení/Kolize/Zpětná vazba)
+  - Uživatel může prozkoumat Kolize bez toho, aby procházel 15 kroků z Detailu
+  - Auto-launch při prvním vytváření programu zůstává od kroku 1 (welcome)
+- [x] **Odstranění duplicity**:
+  - Tlačítko `program-tour-launch-btn` odstraněno z hlavičky stránky Programy (list)
+  - Zůstává jen `program-tour-launch-editor-btn` v hlavičce editoru
+  - Nový `data-testid="collision-block-program-list"` na sekci Ruční omezení (pro spotlight v kroku 20)
+- [x] **Verifikováno end-to-end**:
+  - List page bez tour buttonu ✅
+  - Editor button viditelný ✅
+  - Resume z Kolize → start 16/21 „Záložka Kolize" + postup k 17, 18, 19, 20, 21 ✅
+  - Step 7 obsahuje „může zůstat nevyplněné" + „cenově různorodé" ✅
+  - Step 13 obsahuje „Přesný slot" + „Otevřené okno" + „rozseká" ✅
+  - Step 14 obsahuje „proměnné výstavy" ✅
+  - Lint čistý
+
+
 ### Fáze 72 — Bug fix: Spustit ukázku — kliky se proboríjely na pole pod průvodcem (30.4.2026)
 - 🐛 **Hlášené chování**: Při kliku na „Další" / „Přeskočit ukázku" se tlačítka chovala jakoby vůbec neexistovala — místo posunu na další krok se v pozadí (přes spotlight) zaškrtávaly checkboxy cílových skupin nebo se zavřel celý dialog editoru
 - 🔍 **Root cause**:

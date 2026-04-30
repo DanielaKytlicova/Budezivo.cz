@@ -763,7 +763,48 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
 - [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
 
+### Fáze 70 — Interaktivní ukázka editoru programu (auto + tlačítko + tooltips) (30.4.2026)
+- 🎯 **Cíl**: snížit cognitive load při prvním vytváření programu — nový uživatel přesně ví, co která pole znamenají, ovládá si vlastní průvodce
+- 👤 **Volba uživatele**: c) Obojí (guided tour + permanentní `(i)` tooltipy) + 4) všechny 4 záložky (Detail, Nastavení, Kolize, Zpětná vazba) + auto-spustit při prvním programu + tlačítko "Spustit ukázku" trvalé
+- [x] **NEW komponenta `ProgramTour.js`** — bespoke spotlight tour:
+  - Portál na `document.body` s overlay scrim + spotlight cutout (box-shadow technika), karta s nadpisem/popisem/buttons
+  - Auto-switch `activeTab` mezi Detail/Nastavení/Kolize/Zpětná vazba podle `step.tab`
+  - Smart placement: karta nad/pod targetem podle dostupného místa, fallback na střed obrazovky když target není v DOM
+  - Buttony Zpět / Další / Dokončit + `Přeskočit ukázku` + ✕ + scroll-into-view target před měřením
+  - Žádné externí knihovny (joyride/driver.js by přidaly ~70 kB + global CSS, který bije s brand paletou)
+- [x] **NEW komponenta `FieldTooltip.js`** — malá `(i)` ikonka vedle Labelů, click otevře Popover (Radix/shadcn) s help textem; mobile-friendly (žádný hover required)
+- [x] **NEW data `programTourSteps.js`** — 17 kroků pokrývajících všechny 4 záložky + 19 per-field help textů (`PROGRAM_FIELD_HELP`)
+- [x] **ProgramsPage integrace**:
+  - Tlačítko `program-tour-launch-btn` v hlavičce programů (gold #C4AB86 outline, viditelné desktop)
+  - Tlačítko `program-tour-launch-editor-btn` v hlavičce editoru programu (kompaktní, vždy viditelné)
+  - Auto-launch při `handleCreate()` pokud uživatel ještě nemá žádné aktivní programy a localStorage `bz_program_tour_seen_v1` je prázdné
+  - Po dokončení tour: localStorage flag uložen → další spuštění jen manuální
+  - `(i)` tooltipy připojené k 8 nejdůležitějším polím (Název, Popis, Cílové skupiny, Doba trvání, Max kapacita, Min počet, Cena, Datum začátku, Min/max dní, Příprava)
+- [x] **Brand styling**: card header s gradientem `#2B3E50 → #3a516a`, ikona Sparkles `#C4AB86`, spotlight outline `#C4AB86`, button primary `#2B3E50`
+- [x] **Testováno screenshotem**: Tour step 1, 7, 12 ověřeny + auto tab-switch funguje (Detail → Nastavení mezi stepy 11-12) + (i) ikony viditelné u všech polí
+- [x] Lint: ✅ No issues
+
+
 ### Fáze 69 — B2B Catalog Etapa 5: Mapový pohled (27.4.2026)
+- 🎯 **Cíl**: snížit cognitive load při prvním vytváření programu — nový uživatel přesně ví, co která pole znamenají, ovládá si vlastní průvodce
+- 👤 **Volba uživatele**: c) Obojí (guided tour + permanentní `(i)` tooltipy) + 4) všechny 4 záložky (Detail, Nastavení, Kolize, Zpětná vazba) + auto-spustit při prvním programu + tlačítko "Spustit ukázku" trvalé
+- [x] **NEW komponenta `ProgramTour.js`** — bespoke spotlight tour:
+  - Portál na `document.body` s overlay scrim + spotlight cutout (box-shadow technika), karta s nadpisem/popisem/buttons
+  - Auto-switch `activeTab` mezi Detail/Nastavení/Kolize/Zpětná vazba podle `step.tab`
+  - Smart placement: karta nad/pod targetem podle dostupného místa, fallback na střed obrazovky když target není v DOM
+  - Buttony Zpět / Další / Dokončit + `Přeskočit ukázku` + ✕ + scroll-into-view target před měřením
+  - Žádné externí knihovny (joyride/driver.js by přidaly ~70 kB + global CSS, který bije s brand paletou)
+- [x] **NEW komponenta `FieldTooltip.js`** — malá `(i)` ikonka vedle Labelů, click otevře Popover (Radix/shadcn) s help textem; mobile-friendly (žádný hover required)
+- [x] **NEW data `programTourSteps.js`** — 17 kroků pokrývajících všechny 4 záložky + 19 per-field help textů (`PROGRAM_FIELD_HELP`)
+- [x] **ProgramsPage integrace**:
+  - Tlačítko `program-tour-launch-btn` v hlavičce programů (gold #C4AB86 outline, viditelné desktop)
+  - Tlačítko `program-tour-launch-editor-btn` v hlavičce editoru programu (kompaktní, vždy viditelné)
+  - Auto-launch při `handleCreate()` pokud uživatel ještě nemá žádné aktivní programy a localStorage `bz_program_tour_seen_v1` je prázdné
+  - Po dokončení tour: localStorage flag uložen → další spuštění jen manuální
+  - `(i)` tooltipy připojené k 8 nejdůležitějším polím (Název, Popis, Cílové skupiny, Doba trvání, Max kapacita, Min počet, Cena, Datum začátku, Min/max dní, Příprava)
+- [x] **Brand styling**: card header s gradientem `#2B3E50 → #3a516a`, ikona Sparkles `#C4AB86`, spotlight outline `#C4AB86`, button primary `#2B3E50`
+- [x] **Testováno screenshotem**: Tour step 1, 7, 12 ověřeny + auto tab-switch funguje (Detail → Nastavení mezi stepy 11-12) + (i) ikony viditelné u všech polí
+- [x] Lint: ✅ No issues
 - 🎯 **Cíl**: uživatel může přepnout katalog z gridu na mapu ČR s piny podle měst
 - 👤 **Volby**: 1a) Leaflet + OpenStreetMap, 2c) MVP na úrovni měst (GPS na instituci později), 3a) toggle „Seznam | Mapa" v záhlaví katalogu
 - [x] **Dependencies**: přidán `leaflet@1.9.4` + `react-leaflet@5.0.0` (zdarma, žádné API klíče)

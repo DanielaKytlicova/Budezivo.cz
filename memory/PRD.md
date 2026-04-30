@@ -763,6 +763,25 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
 - [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
 
+### Fáze 74 — Tour bubble side-first placement + collision steps refactor (30.4.2026)
+- 🎯 **Zpětná vazba**: bubliny překrývaly pole, kterých se týkaly (např. krok 18/21 přes Cílové skupiny). Některé Kolize kroky měly skrytý cíl (conditional rendering za toggle).
+- [x] **Side-first placement** v `ProgramTour.js`:
+  - Nový algoritmus: nejdříve vyzkouší **vpravo** od spotlightu, pak **vlevo**, **dolů**, **nahoru**, fallback na **střed**
+  - Vertikální vystředění bubliny vůči spotlightu při bočním umístění + clamp do viewportu
+  - Honoruje `step.placement === 'left' | 'right'` jako prioritu, jinak automaticky vybere stranu s nejvíce místa
+  - `ESTIMATED_CARD_H = 280px` jako rezerva pro vertikální výpočty (zabraňuje layout thrashingu měřením skutečné výšky)
+- [x] **Retry-measure logic**: target hledá až 6× po 100 ms (celkem ~600 ms) — řeší situaci, kdy `step.tab` změna spustí React rerender a target se v DOM objeví až po mountu nového tabu
+- [x] **Collision steps refaktor** (řešení skrytých cílů):
+  - 4 separátní sub-kroky, které mířily na elementy uvnitř `{formData.allow_parallel && ...}` conditionalu, sloučeny do **3 komplexních kroků** (úvod + toggle + zdroje + ruční omezení)
+  - Všechny tyto kroky teď ukazují na trvale viditelný `collision-allow-parallel-toggle`, takže spotlight funguje vždy
+  - Bohatší body texty v markdown stylu s emoji odrážkami (🔒/🟢, 👤/🏛️) pro lepší orientaci
+  - Zachována kompletnost informace — uživatel se dozví o všech 4 typech kolizí bez nutnosti měnit svá data
+- [x] **Tour má teď celkem 20 kroků** (z původních 21 po sloučení 2 redundantních collision steps)
+- [x] **Verifikováno end-to-end na 1920×900**:
+  - Krok 1-20: žádný overlap mezi card a spotlight ✅
+  - Step 8 (Fotografie programu) jako jediný bez spotlightu — feature-flagged za tarif, bublina centrovaná, text uživatele varuje („Funkce může být omezena vaším tarifem")
+
+
 ### Fáze 73 — Vylepšení textů ukázky + resume from current tab + odstranění duplicity (30.4.2026)
 - 🎯 **Zpětná vazba uživatele**: některé kroky byly příliš strohé / zavádějící, restart tour znamenal proklikat 15 kroků k Kolizím, tlačítko bylo duplicitní (list + editor)
 - [x] **Texty kroků aktualizovány**:

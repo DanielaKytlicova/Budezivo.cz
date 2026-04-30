@@ -138,60 +138,48 @@ export const PROGRAM_TOUR_STEPS = [
     placement: 'top',
   },
 
-  // ── Collision tab — rozdělené do 5 kroků pro lepší pochopení ──
+  // ── Collision tab ──
+  // Note: detail UI for resources (lecturer/room/manual blocks) is conditionally
+  // rendered behind `formData.allow_parallel`. Instead of mutating user data
+  // during the tour, we describe all resource options inside the parallel-toggle
+  // step so the explanation is complete regardless of the current toggle state.
   {
     tab: 'collision',
     targetTestId: 'program-tab-collision',
     title: 'Záložka Kolize — co se nesmí konat zároveň',
     body:
-      'Tato záložka je srdcem celé rezervační logiky. Tady řeknete systému, co je s programem v konfliktu — aby nevznikla situace, kdy jeden lektor vede dvě skupiny najednou nebo se dva programy snaží sdílet jednu místnost.\n\n' +
-      'Projdeme 4 typy kolizí:\n' +
-      '1) Souběžné programy obecně\n' +
-      '2) Kontrola vytíženosti lektorů\n' +
-      '3) Sdílená místnost\n' +
-      '4) Ruční zákaz konkrétních programů\n\n' +
-      'Některé můžete kombinovat, jiné nechat vypnuté.',
+      'Tato záložka je srdcem rezervační logiky. Tady řeknete systému, co je s programem v konfliktu — aby nevznikla situace, kdy jeden lektor vede dvě skupiny najednou nebo se dva programy snaží sdílet jednu místnost.',
     placement: 'bottom',
   },
   {
     tab: 'collision',
     targetTestId: 'collision-allow-parallel-toggle',
-    title: '1) Souběžné programy',
+    title: '1) Souběžné programy (hlavní přepínač)',
     body:
-      'Hlavní přepínač:\n\n' +
-      '🔒 **Vypnuto** (výchozí, doporučeno): v daný čas může běžet pouze jeden program. Druhá rezervace na stejný čas se odmítne.\n\n' +
-      '🟢 **Zapnuto**: povolíte vést více programů paralelně (např. dvě skupiny ve dvou sálech). Systém pak respektuje pouze konkrétní zdroje (lektor / místnost) zaškrtnuté níže.',
-    placement: 'top',
+      '🔒 **Pouze samostatně** (výchozí, doporučeno): v daný čas může běžet pouze tento program. Druhá rezervace na stejný čas se odmítne.\n\n' +
+      '🟢 **Ano — může probíhat současně**: povolíte vést více programů paralelně (např. dvě skupiny ve dvou sálech). Po zapnutí se objeví další volby pro výběr zdrojů.',
   },
   {
     tab: 'collision',
-    targetTestId: 'collision-resource-lecturer',
-    title: '2) Kontrola vytíženosti lektorů',
+    targetTestId: 'collision-allow-parallel-toggle',
+    title: '2) Když je „současně" zapnuto — Ovlivněné zdroje',
     body:
-      'Když zaškrtnete, systém ohlídá, aby vybraní lektoři neměli ve stejný čas dva programy.\n\n' +
-      'Pod tím se objeví seznam členů týmu — vyberte ty, kterých se to týká (nebo nechte všechny). Lektor s pevnou dostupností (Lektorský profil → Dostupnost) bude navíc filtrován i podle toho, ve kterých dnech a časech reálně může.\n\n' +
-      'Pokud jich máte víc a každý vede svůj program, můžete to nechat vypnuté.',
-    placement: 'top',
+      'Po zapnutí přepínače výše se zobrazí karta „Ovlivněné zdroje" se třemi volbami:\n\n' +
+      '👤 **Lektor** — systém ohlídá, aby vybraní lektoři neměli ve stejný čas dva programy. Lektor s dostupností v profilu bude navíc filtrován podle jeho rozvrhu.\n\n' +
+      '🏛️ **Místnost** — pokud program potřebuje konkrétní prostor (ateliér, sál), přiřadíte místnost; systém pak nedovolí, aby ji ve stejný čas obsadil jiný program.\n\n' +
+      'Místnost můžete vytvořit přímo v této kartě (název + kapacita).',
   },
   {
     tab: 'collision',
-    targetTestId: 'collision-resource-room',
-    title: '3) Sdílená místnost',
+    targetTestId: 'collision-allow-parallel-toggle',
+    title: '3) Ruční omezení mezi programy',
     body:
-      'Pokud program potřebuje konkrétní prostor (ateliér, dílna, sál), zaškrtněte tuto volbu a níže přiřaďte místnost.\n\n' +
-      'Místnost můžete vytvořit přímo v této kartě (název + kapacita). Systém pak nedovolí, aby ji ve stejný čas obsadil jiný program.\n\n' +
-      'Tip: u programů, které se konají „kdekoli v expozici", místnost nepřiřazujte.',
-    placement: 'top',
-  },
-  {
-    tab: 'collision',
-    targetTestId: 'collision-block-program-list',
-    title: '4) Ruční omezení mezi programy',
-    body:
-      'Někdy se dva programy nesnesou z jiného důvodu, než je lektor nebo místnost — třeba sdílí specifické exponáty, jeden program ruší druhý hlukem nebo se mezi nimi přesouvá vybavení.\n\n' +
-      'Tady ručně označte programy, které se nesmí konat ve stejný čas jako tento. Funguje to oboustranně — stačí nastavit jen z jedné strany.\n\n' +
-      'Pokud se programy klidně překryjí, nechte seznam prázdný.',
-    placement: 'top',
+      'Karta „Ruční omezení" (zobrazí se po zapnutí souběhu) umožňuje označit konkrétní programy, které se nesmí konat ve stejný čas jako tento — i když nesdílejí lektora ani místnost.\n\n' +
+      'Hodí se pro situace jako:\n' +
+      '• Sdílené specifické exponáty (interaktivní stůl, VR brýle)\n' +
+      '• Hluk z jednoho programu by ruvšil druhý\n' +
+      '• Mezi programy se přesouvá vybavení\n\n' +
+      'Funguje oboustranně — stačí nastavit jen z jedné strany. Pokud se programy klidně překryjí, nechte seznam prázdný.',
   },
 
   // ── Feedback tab ──

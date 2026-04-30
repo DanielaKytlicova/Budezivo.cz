@@ -62,15 +62,28 @@ export default function ProgramTour({ steps, onClose, onTabChange, initialIndex 
   }, [step, onTabChange]);
 
   const measure = useCallback(() => {
-    const el = findTarget(step?.targetTestId);
-    if (!el) {
-      setRect(null);
-      return;
-    }
-    // Bring target into view first so its rect is meaningful
-    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    // Give the smooth scroll a tick to settle, then measure
-    setTimeout(() => setRect(computeRect(el)), 280);
+    // Retry measurement up to 6× over ~600 ms — useful when a step.tab change
+    // triggers React rerender and the target appears in DOM only after the
+    // tab content mounts. Without this, collision sub-steps measure before
+    // their `<Card>` exists and end up centered without a spotlight.
+    let attempts = 0;
+    const tryMeasure = () => {
+      const el = findTarget(step?.targetTestId);
+      if (!el) {
+        attempts += 1;
+        if (attempts < 6) {
+          setTimeout(tryMeasure, 100);
+        } else {
+          setRect(null);
+        }
+        return;
+      }
+      // Bring target into view first so its rect is meaningful
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      // Give the smooth scroll a tick to settle, then measure
+      setTimeout(() => setRect(computeRect(el)), 280);
+    };
+    tryMeasure();
   }, [step]);
 
   useLayoutEffect(() => {
@@ -110,22 +123,78 @@ export default function ProgramTour({ steps, onClose, onTabChange, initialIndex 
   };
 
   if (rect) {
-    const placement = step.placement || 'bottom';
     const viewportH = window.innerHeight;
     const viewportW = window.innerWidth;
+    // Estimated card height for vertical alignment fallback. The card is
+    // variable (depends on copy length); we don't measure to avoid layout
+    // thrashing — 280 px covers all current step bodies comfortably.
+    const ESTIMATED_CARD_H = 280;
+    const MARGIN = 16;
 
-    if (placement === 'top' && rect.top - CARD_OFFSET - 200 > 0) {
-      cardStyle.top = Math.max(16, rect.top - CARD_OFFSET - 200);
-    } else if (rect.top + rect.height + CARD_OFFSET + 220 < viewportH) {
+    // Side-first placement: prefer right or left of the spotlight so we
+    // never cover the field the step is talking about. Top/bottom is the
+    // fallback when neither side has room (e.g. spotlight on tab buttons
+    // that span the full dialog width).
+    const spaceRight = viewportW - (rect.left + rect.width) - MARGIN;
+    const spaceLeft = rect.left - MARGIN;
+    const spaceBelow = viewportH - (rect.top + rect.height) - MARGIN;
+    const spaceAbove = rect.top - MARGIN;
+    const needsSide = CARD_WIDTH + CARD_OFFSET;
+    const needsTopBot = ESTIMATED_CARD_H + CARD_OFFSET;
+
+    let placed = false;
+
+    // Honor explicit step.placement only when it is 'left' or 'right'
+    // (legacy 'top'/'bottom' preferences are downgraded to "fallback only"
+    // because they tend to cover the target).
+    const explicit = step.placement;
+
+    const placeRight = () => {
+      cardStyle.left = rect.left + rect.width + CARD_OFFSET;
+      cardStyle.top = Math.min(
+        Math.max(MARGIN, rect.top + rect.height / 2 - ESTIMATED_CARD_H / 2),
+        viewportH - ESTIMATED_CARD_H - MARGIN,
+      );
+      placed = true;
+    };
+    const placeLeft = () => {
+      cardStyle.left = rect.left - CARD_OFFSET - CARD_WIDTH;
+      cardStyle.top = Math.min(
+        Math.max(MARGIN, rect.top + rect.height / 2 - ESTIMATED_CARD_H / 2),
+        viewportH - ESTIMATED_CARD_H - MARGIN,
+      );
+      placed = true;
+    };
+    const placeBelow = () => {
       cardStyle.top = rect.top + rect.height + CARD_OFFSET;
-    } else {
-      cardStyle.top = Math.max(16, rect.top - CARD_OFFSET - 220);
-    }
+      let left = rect.left;
+      if (left + CARD_WIDTH > viewportW - MARGIN) left = viewportW - CARD_WIDTH - MARGIN;
+      if (left < MARGIN) left = MARGIN;
+      cardStyle.left = left;
+      placed = true;
+    };
+    const placeAbove = () => {
+      cardStyle.top = Math.max(MARGIN, rect.top - CARD_OFFSET - ESTIMATED_CARD_H);
+      let left = rect.left;
+      if (left + CARD_WIDTH > viewportW - MARGIN) left = viewportW - CARD_WIDTH - MARGIN;
+      if (left < MARGIN) left = MARGIN;
+      cardStyle.left = left;
+      placed = true;
+    };
 
-    let left = rect.left;
-    if (left + CARD_WIDTH > viewportW - 16) left = viewportW - CARD_WIDTH - 16;
-    if (left < 16) left = 16;
-    cardStyle.left = left;
+    if (explicit === 'right' && spaceRight >= needsSide) placeRight();
+    else if (explicit === 'left' && spaceLeft >= needsSide) placeLeft();
+    else if (spaceRight >= needsSide) placeRight();
+    else if (spaceLeft >= needsSide) placeLeft();
+    else if (spaceBelow >= needsTopBot) placeBelow();
+    else if (spaceAbove >= needsTopBot) placeAbove();
+
+    if (!placed) {
+      // No room anywhere → center on screen as last resort
+      cardStyle.top = '50%';
+      cardStyle.left = '50%';
+      cardStyle.transform = 'translate(-50%, -50%)';
+    }
   } else {
     // Centered fallback when target is missing
     cardStyle.top = '50%';

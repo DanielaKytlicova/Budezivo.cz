@@ -6,6 +6,7 @@ import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users
 import { usePlanFeatures } from '../../hooks/usePlanFeatures';
 import { UpgradeModal } from '../admin/UpgradeModal';
 import { ImpersonationBanner } from '../admin/ImpersonationBanner';
+import SuperadminAlertBanner from '../SuperadminAlertBanner';
 
 // Logo Budeživo.cz - oficiální SVG
 const BudezivoLogo = ({ showText = true }) => (
@@ -106,6 +107,9 @@ export const AdminLayout = ({ children }) => {
     if (user?.email === 'demo@budezivo.cz' || user?.email === 'admin@budezivo.cz') {
       baseItems.push({
         path: '/admin/superadmin', icon: Shield, label: 'Superadmin', testId: 'nav-superadmin', roles: ['admin', 'spravce']
+      });
+      baseItems.push({
+        path: '/superadmin/analytics', icon: BarChart3, label: 'Návštěvnost', testId: 'nav-analytics', roles: ['admin', 'spravce']
       });
     }
 
@@ -354,6 +358,7 @@ export const AdminLayout = ({ children }) => {
       {/* Main Content */}
       <div className="md:pl-64 pt-14 md:pt-0">
         <main className="py-6 px-4 md:px-8 pb-20 md:pb-6">
+          <SuperadminAlertBanner />
           {children}
         </main>
       </div>

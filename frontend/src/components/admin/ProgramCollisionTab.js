@@ -314,7 +314,7 @@ export const ProgramCollisionTab = ({
           </Card>
 
           {/* Ruční omezení mezi programy */}
-          <Card className="p-4 md:p-6 space-y-4">
+          <Card className="p-4 md:p-6 space-y-4" data-testid="collision-block-program-list">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-slate-900">Ruční omezení mezi programy</h3>
               <div className="relative group">

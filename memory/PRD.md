@@ -763,7 +763,148 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
 - [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
 
+### Fáze 74 — Tour bubble side-first placement + collision steps refactor (30.4.2026)
+- 🎯 **Zpětná vazba**: bubliny překrývaly pole, kterých se týkaly (např. krok 18/21 přes Cílové skupiny). Některé Kolize kroky měly skrytý cíl (conditional rendering za toggle).
+- [x] **Side-first placement** v `ProgramTour.js`:
+  - Nový algoritmus: nejdříve vyzkouší **vpravo** od spotlightu, pak **vlevo**, **dolů**, **nahoru**, fallback na **střed**
+  - Vertikální vystředění bubliny vůči spotlightu při bočním umístění + clamp do viewportu
+  - Honoruje `step.placement === 'left' | 'right'` jako prioritu, jinak automaticky vybere stranu s nejvíce místa
+  - `ESTIMATED_CARD_H = 280px` jako rezerva pro vertikální výpočty (zabraňuje layout thrashingu měřením skutečné výšky)
+- [x] **Retry-measure logic**: target hledá až 6× po 100 ms (celkem ~600 ms) — řeší situaci, kdy `step.tab` změna spustí React rerender a target se v DOM objeví až po mountu nového tabu
+- [x] **Collision steps refaktor** (řešení skrytých cílů):
+  - 4 separátní sub-kroky, které mířily na elementy uvnitř `{formData.allow_parallel && ...}` conditionalu, sloučeny do **3 komplexních kroků** (úvod + toggle + zdroje + ruční omezení)
+  - Všechny tyto kroky teď ukazují na trvale viditelný `collision-allow-parallel-toggle`, takže spotlight funguje vždy
+  - Bohatší body texty v markdown stylu s emoji odrážkami (🔒/🟢, 👤/🏛️) pro lepší orientaci
+  - Zachována kompletnost informace — uživatel se dozví o všech 4 typech kolizí bez nutnosti měnit svá data
+- [x] **Tour má teď celkem 20 kroků** (z původních 21 po sloučení 2 redundantních collision steps)
+- [x] **Verifikováno end-to-end na 1920×900**:
+  - Krok 1-20: žádný overlap mezi card a spotlight ✅
+  - Step 8 (Fotografie programu) jako jediný bez spotlightu — feature-flagged za tarif, bublina centrovaná, text uživatele varuje („Funkce může být omezena vaším tarifem")
+
+
+### Fáze 73 — Vylepšení textů ukázky + resume from current tab + odstranění duplicity (30.4.2026)
+- 🎯 **Zpětná vazba uživatele**: některé kroky byly příliš strohé / zavádějící, restart tour znamenal proklikat 15 kroků k Kolizím, tlačítko bylo duplicitní (list + editor)
+- [x] **Texty kroků aktualizovány**:
+  - Krok 7 (Cena pro účastníky): doplněna věta „Pole může zůstat nevyplněné — doporučujeme to spíše u cenově různorodé nabídky…"
+  - Krok 13 (Časové bloky): celý refaktor — teď vysvětluje obě strategie (Přesný slot vs. Otevřené okno) s konkrétním příkladem (8:30–12:00 + 90min program → 5 startů á 30 min)
+  - Krok 14 (Sezóna): doplněna ukázka použití „programy svázané s proměnnou výstavou, letní/zimní variantou…"
+  - Kolize rozdělena z 1 strohého kroku na **5 detailních kroků** (16-20):
+    1. Záložka Kolize — co se nesmí konat zároveň (úvod + roadmap)
+    2. Souběžné programy (přepínač paralelní/exkluzivní)
+    3. Kontrola vytíženosti lektorů (s vysvětlením vazby na rozvrh lektora v profilu)
+    4. Sdílená místnost (s tipem kdy přiřadit, kdy ne)
+    5. Ruční omezení mezi programy (sdílené exponáty, hluk, vybavení)
+  - Celkem **21 kroků** (oproti původním 17)
+- [x] **Resume from current tab** (`getFirstStepIndexForTab`):
+  - Při kliku na „Spustit ukázku" v editoru se tour spustí od **prvního kroku odpovídajícího aktuální záložce** (Detail/Nastavení/Kolize/Zpětná vazba)
+  - Uživatel může prozkoumat Kolize bez toho, aby procházel 15 kroků z Detailu
+  - Auto-launch při prvním vytváření programu zůstává od kroku 1 (welcome)
+- [x] **Odstranění duplicity**:
+  - Tlačítko `program-tour-launch-btn` odstraněno z hlavičky stránky Programy (list)
+  - Zůstává jen `program-tour-launch-editor-btn` v hlavičce editoru
+  - Nový `data-testid="collision-block-program-list"` na sekci Ruční omezení (pro spotlight v kroku 20)
+- [x] **Verifikováno end-to-end**:
+  - List page bez tour buttonu ✅
+  - Editor button viditelný ✅
+  - Resume z Kolize → start 16/21 „Záložka Kolize" + postup k 17, 18, 19, 20, 21 ✅
+  - Step 7 obsahuje „může zůstat nevyplněné" + „cenově různorodé" ✅
+  - Step 13 obsahuje „Přesný slot" + „Otevřené okno" + „rozseká" ✅
+  - Step 14 obsahuje „proměnné výstavy" ✅
+  - Lint čistý
+
+
+### Fáze 72 — Bug fix: Spustit ukázku — kliky se proboríjely na pole pod průvodcem (30.4.2026)
+- 🐛 **Hlášené chování**: Při kliku na „Další" / „Přeskočit ukázku" se tlačítka chovala jakoby vůbec neexistovala — místo posunu na další krok se v pozadí (přes spotlight) zaškrtávaly checkboxy cílových skupin nebo se zavřel celý dialog editoru
+- 🔍 **Root cause**:
+  1. **Radix Dialog (`react-remove-scroll`)** přidává `pointer-events: none` na rodičovské elementy `<body>`/`<html>` při otevření modalu — toto cascading do našeho `createPortal` činilo tour neklikatelným
+  2. **Radix Dialog `onInteractOutside`** detekoval každý klik mimo svůj DOM strom — náš tour je v jiném portálu, takže Radix to bral jako „klik mimo dialog" a zavíral celý editor
+  3. **Spotlight cutout** měl `pointer-events: none`, což nechávalo kliky proletět skrz na podkladový element (target group checkbox)
+- [x] **Fix v `ProgramTour.js`**:
+  - Explicitní `pointerEvents: 'auto'` na portálovém root divu, overlay i card style (přebíjí cascading z `react-remove-scroll`)
+  - Spotlight přepnutý z `pointer-events: none` na `pointerEvents: 'auto' + onClick stopPropagation` — kliky na podkladový target jsou teď zachyceny tour, ne propuštěny
+  - Card má `onClick stopPropagation` — kliky uvnitř karty se nešíří na overlay (ten by jinak volal skip)
+- [x] **Fix v `ProgramsPage.js`** Dialog:
+  - `onPointerDownOutside` + `onInteractOutside` handlery: pokud je `showTour=true` nebo cíl kliku obsahuje `[data-testid="program-tour"]`, volá se `e.preventDefault()` → Radix se nezavírá
+  - `onEscapeKeyDown`: ESC teď nejdřív zavře tour, pak teprve dialog
+- [x] **Verifikováno end-to-end**:
+  - 5 kroků Next → jsme na „Maximální kapacita" ✅
+  - Skip → tour zavřen, dialog zůstal otevřený ✅
+  - Cílové skupiny zůstaly všechny `unchecked` po průchodu tour ✅
+  - Všech 17 kroků prokliknutelných reálnými clicky (ne JS evaluate) ✅
+  - Overlay click (mimo card) → skip, dialog stále otevřen ✅
+
+
+### Fáze 71 — Tlačítka „Přidat do kalendáře" v potvrzovacích e-mailech (30.4.2026)
+- 🎯 **Cíl**: pedagog dostane potvrzení rezervace a jedním klikem si ji přidá do svého Google nebo Outlook kalendáře (bez OAuth, bez stahování souboru)
+- 👤 **Volba uživatele**: Část 1 (deep-link tlačítka) + možnost `c=i` (zachovat ICS přílohu jako fallback pro desktop klienty)
+- [x] **Backend `email_service._compute_calendar_links()`**: helper generuje 2 deep-link URLs:
+  - **Google Calendar**: `https://calendar.google.com/calendar/render?action=TEMPLATE&text=…&dates=YYYYMMDDTHHMMSSZ/YYYYMMDDTHHMMSSZ&details=…&location=…`
+  - **Outlook web**: `https://outlook.office.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=…&body=…&startdt=ISO&enddt=ISO&location=…`
+  - Datumy převedeny z `Europe/Prague` do UTC (Google vyžaduje `Z` formát, Outlook ISO+00:00)
+  - Délka eventu = `program.duration` (default 60 min)
+  - Description obsahuje název instituce, školy a počet dětí
+  - Při invalid datech vrací `{"google_calendar_url": "", "outlook_calendar_url": ""}` → tlačítka se v šabloně skryjí
+- [x] **`_build_email_context`** automaticky volá helper a propaguje URL do všech reservation-related šablon
+- [x] **`templates._calendar_buttons()`** — table-based layout (kompatibilní s Outlook desktop, Gmail iOS) se 2 tlačítky vedle sebe + drobný popisek „Nebo otevřete přiloženou rezervaci.ics…"
+  - Google tlačítko: 4 barevné puntíky brandu (#4285F4, #EA4335, #FBBC04, #34A853)
+  - Outlook tlačítko: modrá ikonka `⊞` (#0078D4)
+- [x] **Insertováno do 4 teacher-facing šablon**:
+  - `reservation_created_teacher` (po vytvoření)
+  - `reservation_confirmed` (po schválení adminem)
+  - `reservation_rescheduled` (po přesunu termínu)
+  - `reservation_reminder_teacher` (X dní před)
+- [x] **ICS příloha zachována** v `reservation_created_teacher` (Resend `attachments`) — pokrytí desktop klientů (Apple Mail, Thunderbird) i mobilů
+- [x] **Pytest** `tests/test_calendar_email_buttons.py` — 10/10 PASSED:
+  - Google URL obsahuje správné UTC datum (`20260520T070000Z` pro 09:00 Prague v květnu = CEST UTC+2)
+  - Outlook URL obsahuje ISO datum + subject + location
+  - Invalid date → empty strings, žádný crash
+  - Všechny 4 šablony obsahují obě tlačítka
+  - Při `date='bad'` se tlačítka v šabloně neobjeví (graceful hide)
+- [x] **Smoke test screenshotem**: e-mail vyrenderován, tlačítka jsou krásně vedle sebe pod detail boxem
+
+
+### Fáze 70 — Interaktivní ukázka editoru programu (auto + tlačítko + tooltips) (30.4.2026)
+- 🎯 **Cíl**: snížit cognitive load při prvním vytváření programu — nový uživatel přesně ví, co která pole znamenají, ovládá si vlastní průvodce
+- 👤 **Volba uživatele**: c) Obojí (guided tour + permanentní `(i)` tooltipy) + 4) všechny 4 záložky (Detail, Nastavení, Kolize, Zpětná vazba) + auto-spustit při prvním programu + tlačítko "Spustit ukázku" trvalé
+- [x] **NEW komponenta `ProgramTour.js`** — bespoke spotlight tour:
+  - Portál na `document.body` s overlay scrim + spotlight cutout (box-shadow technika), karta s nadpisem/popisem/buttons
+  - Auto-switch `activeTab` mezi Detail/Nastavení/Kolize/Zpětná vazba podle `step.tab`
+  - Smart placement: karta nad/pod targetem podle dostupného místa, fallback na střed obrazovky když target není v DOM
+  - Buttony Zpět / Další / Dokončit + `Přeskočit ukázku` + ✕ + scroll-into-view target před měřením
+  - Žádné externí knihovny (joyride/driver.js by přidaly ~70 kB + global CSS, který bije s brand paletou)
+- [x] **NEW komponenta `FieldTooltip.js`** — malá `(i)` ikonka vedle Labelů, click otevře Popover (Radix/shadcn) s help textem; mobile-friendly (žádný hover required)
+- [x] **NEW data `programTourSteps.js`** — 17 kroků pokrývajících všechny 4 záložky + 19 per-field help textů (`PROGRAM_FIELD_HELP`)
+- [x] **ProgramsPage integrace**:
+  - Tlačítko `program-tour-launch-btn` v hlavičce programů (gold #C4AB86 outline, viditelné desktop)
+  - Tlačítko `program-tour-launch-editor-btn` v hlavičce editoru programu (kompaktní, vždy viditelné)
+  - Auto-launch při `handleCreate()` pokud uživatel ještě nemá žádné aktivní programy a localStorage `bz_program_tour_seen_v1` je prázdné
+  - Po dokončení tour: localStorage flag uložen → další spuštění jen manuální
+  - `(i)` tooltipy připojené k 8 nejdůležitějším polím (Název, Popis, Cílové skupiny, Doba trvání, Max kapacita, Min počet, Cena, Datum začátku, Min/max dní, Příprava)
+- [x] **Brand styling**: card header s gradientem `#2B3E50 → #3a516a`, ikona Sparkles `#C4AB86`, spotlight outline `#C4AB86`, button primary `#2B3E50`
+- [x] **Testováno screenshotem**: Tour step 1, 7, 12 ověřeny + auto tab-switch funguje (Detail → Nastavení mezi stepy 11-12) + (i) ikony viditelné u všech polí
+- [x] Lint: ✅ No issues
+
+
 ### Fáze 69 — B2B Catalog Etapa 5: Mapový pohled (27.4.2026)
+- 🎯 **Cíl**: snížit cognitive load při prvním vytváření programu — nový uživatel přesně ví, co která pole znamenají, ovládá si vlastní průvodce
+- 👤 **Volba uživatele**: c) Obojí (guided tour + permanentní `(i)` tooltipy) + 4) všechny 4 záložky (Detail, Nastavení, Kolize, Zpětná vazba) + auto-spustit při prvním programu + tlačítko "Spustit ukázku" trvalé
+- [x] **NEW komponenta `ProgramTour.js`** — bespoke spotlight tour:
+  - Portál na `document.body` s overlay scrim + spotlight cutout (box-shadow technika), karta s nadpisem/popisem/buttons
+  - Auto-switch `activeTab` mezi Detail/Nastavení/Kolize/Zpětná vazba podle `step.tab`
+  - Smart placement: karta nad/pod targetem podle dostupného místa, fallback na střed obrazovky když target není v DOM
+  - Buttony Zpět / Další / Dokončit + `Přeskočit ukázku` + ✕ + scroll-into-view target před měřením
+  - Žádné externí knihovny (joyride/driver.js by přidaly ~70 kB + global CSS, který bije s brand paletou)
+- [x] **NEW komponenta `FieldTooltip.js`** — malá `(i)` ikonka vedle Labelů, click otevře Popover (Radix/shadcn) s help textem; mobile-friendly (žádný hover required)
+- [x] **NEW data `programTourSteps.js`** — 17 kroků pokrývajících všechny 4 záložky + 19 per-field help textů (`PROGRAM_FIELD_HELP`)
+- [x] **ProgramsPage integrace**:
+  - Tlačítko `program-tour-launch-btn` v hlavičce programů (gold #C4AB86 outline, viditelné desktop)
+  - Tlačítko `program-tour-launch-editor-btn` v hlavičce editoru programu (kompaktní, vždy viditelné)
+  - Auto-launch při `handleCreate()` pokud uživatel ještě nemá žádné aktivní programy a localStorage `bz_program_tour_seen_v1` je prázdné
+  - Po dokončení tour: localStorage flag uložen → další spuštění jen manuální
+  - `(i)` tooltipy připojené k 8 nejdůležitějším polím (Název, Popis, Cílové skupiny, Doba trvání, Max kapacita, Min počet, Cena, Datum začátku, Min/max dní, Příprava)
+- [x] **Brand styling**: card header s gradientem `#2B3E50 → #3a516a`, ikona Sparkles `#C4AB86`, spotlight outline `#C4AB86`, button primary `#2B3E50`
+- [x] **Testováno screenshotem**: Tour step 1, 7, 12 ověřeny + auto tab-switch funguje (Detail → Nastavení mezi stepy 11-12) + (i) ikony viditelné u všech polí
+- [x] Lint: ✅ No issues
 - 🎯 **Cíl**: uživatel může přepnout katalog z gridu na mapu ČR s piny podle měst
 - 👤 **Volby**: 1a) Leaflet + OpenStreetMap, 2c) MVP na úrovni měst (GPS na instituci později), 3a) toggle „Seznam | Mapa" v záhlaví katalogu
 - [x] **Dependencies**: přidán `leaflet@1.9.4` + `react-leaflet@5.0.0` (zdarma, žádné API klíče)
@@ -831,7 +972,37 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - Doporučené nastavení: HTTP POST protokol – backend
 - 🧪 **Test**: `/app/backend/tests/test_payment_return_url.py` — 8 testů PASS
 
-### Fáze 75 — Archive UX simplification: direct download + custom_text v Edit dialogu (28.4.2026)
+### Fáze 76 — Payment return summary + Lehká vlastní analytika návštěvnosti (28.4.2026)
+  A) Po úspěšné platbě zobrazit zákazníkovi **plnou sumarizaci objednávky** (program, termín, instituce, částka, VS, e-mail) místo holého „Platba úspěšná → Zpět".
+  B) Vlastní lehká **analytika návštěvnosti** v Superadmin sekci (page views, unikátní návštěvníci, top stránky, denní graf), bez 3rd-party.
+
+- ✅ **A) Payment Return summary (`PaymentReturnPage.js` + backend)**:
+  - Backend `GET /api/event-payments/by-ref/{ref_id}` vrací enriched payload: `event {id, title, starts_at, ends_at, image_url}`, `institution_name`, `applicant_name`, `applicant_email`, `total_amount`
+  - Frontend kompletně přepsaný: card receipt-style s ikonkami (Calendar/MapPin/User/Mail/CreditCard/Hash), 4 stavy (polling/paid/failed/unknown), tlačítka „Vytisknout potvrzení" + „Zpět na hlavní stránku"
+  - Testidy: `payment-return-page`, `payment-return-paid`, `summary-program`, `summary-date`, `summary-institution`, `summary-applicant`, `summary-email`, `summary-amount`, `summary-vs`, `summary-paid-at`, `payment-return-print`, `payment-return-home`, `payment-return-retry`
+
+- ✅ **B) Analytika návštěvnosti**:
+  - **DB migrace** `b58d127e4c91`: tabulka `page_views` (id, created_at, path, ip_hash, user_agent, session_id, referrer) + 3 indexy (created_at, session, path)
+  - **Backend `routes/analytics.py`**:
+    - `POST /api/analytics/pageview` (public, fire-and-forget, returns 202): silent-no-op když path je ignorable (`/api/`, `/static/`, `.js/.css/.png/...`), UA je bot keyword (`bot|crawler|spider|curl/|wget|...`), nebo IP odpovídá `ADMIN_IP` env
+    - **Anonymizace**: SHA-256(ip + per-day salt) pro `ip_hash`, SHA-256(ip + ua + day)[:32] pro `session_id` (= „1 návštěvník = 1 session denně")
+    - `GET /api/analytics/stats?days=N` (Superadmin only, gating: e-mail `demo@/admin@budezivo.cz` nebo role `superadmin`, override přes `SUPERADMIN_EMAILS` env)
+    - Vrací: today_views, views_7d, views_30d, unique_7d, unique_30d, total_views, top_paths (max 20), daily histogram (`day, views, unique_visitors`), range_days
+    - `ADMIN_IP` env: comma-separated IPv4+IPv6, normalizace přes `ipaddress` modul, invalidní entries skipped
+  - **Frontend `components/PageViewTracker.js`**: SPA hook na `useLocation`, debounced 150ms POST per route change, silent-fail (analytics outage neblokuje UX)
+  - **Frontend `pages/admin/SuperadminAnalyticsPage.js`** (`/superadmin/analytics`):
+    - 4 KPI karty (dnes / 7 dní / 30 dní / unikátní 30 dní) s ikonami Eye/Users
+    - Recharts LineChart `Návštěvnost v čase` (modré `#263FA8` zobrazení + sage `#84a98c` unikátní), responsive
+    - Tabulka top stránek s URL + počtem + ExternalLink ikonou (otevři v novém tabu)
+    - Filtr 7/30/90 dní jako tab buttons
+    - Hard-gate na komponentě (`<Navigate to="/admin">`) + sidebar nav „Návštěvnost" jen pro `demo@/admin@budezivo.cz`
+  - **`backend/.env`** přidána `ADMIN_IP=86.49.248.233,2a02:8309:86:d900:6909:515f:e50e:a78f` (uživatelčiny IP, IPv4 + IPv6)
+- 🧪 **Test**: `tests/test_analytics_helpers.py` — 21 testů PASS (path filtering, bot UA detection, IP normalization, hash determinism + per-day rotation, ADMIN_IP env parsing s csv + invalid skip)
+- 🧪 **Curl smoke**: normal pageview → recorded; admin IP (IPv4+IPv6) → ignored; static path → ignored; bot UA → ignored; stats endpoint vrací správně agregovaná data
+- 🧪 **UI smoke**: nová položka „Návštěvnost" v sidebaru, 4 KPI + LineChart + tabulka top stránek + filtry funkční
+- 🧪 **63/63 pytest PASS** celkem (analytics + payment + archive + pdf_exports)
+
+
 - 🐛 **User feedback k Fázi 74**: pop-up s custom textem před stažením je rušivý — uživatelka chce „Stáhnout PDF" → okamžité stažení a možnost přidat poznámku v editaci programu (vedle ostatních polí, perzistentně).
 - ✅ **DB migrace `a47c891fc3e2`**: `programs.archive_custom_text` (Text, nullable) — perzistentní pole pro kurátorskou poznámku
 - ✅ **Backend**: `ProgramBase` Pydantic schéma má `archive_custom_text: Optional[str]`; `archive-report` payload obsahuje `program.archive_custom_text`; resolution priorita: `?custom_text=` query (one-off override) > `program.archive_custom_text` (saved) > none

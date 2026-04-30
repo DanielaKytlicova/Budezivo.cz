@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Switch } from '../../components/ui/switch';
 import { Checkbox } from '../../components/ui/checkbox';
-import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, Mail, ShieldAlert, Star, AlertTriangle, FileText } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, Users, MoreVertical, Copy, Archive, Trash2, Link as LinkIcon, Mail, ShieldAlert, Star, AlertTriangle, FileText, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -18,7 +18,12 @@ import { ProgramMailingTab } from '../../components/admin/ProgramMailingTab.jsx'
 import { ProgramCollisionTab } from '../../components/admin/ProgramCollisionTab';
 import { ProgramFeedbackTab } from '../../components/admin/ProgramFeedbackTab';
 import { ProgramUrlModal } from '../../components/admin/ProgramUrlModal';
+import ProgramTour from '../../components/admin/ProgramTour';
+import { PROGRAM_TOUR_STEPS, PROGRAM_FIELD_HELP, getFirstStepIndexForTab } from '../../components/admin/programTourSteps';
+import FieldTooltip from '../../components/admin/FieldTooltip';
 import { API } from '../../config/api';
+
+const TOUR_SEEN_KEY = 'bz_program_tour_seen_v1';
 
 const DAYS = [
   { key: 'monday', label: 'Po' },
@@ -103,6 +108,8 @@ export const ProgramsPage = () => {
   const [validationWarnings, setValidationWarnings] = useState([]);
   const [showValidationDialog, setShowValidationDialog] = useState(false);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [showTour, setShowTour] = useState(false);
+  const [tourInitialIndex, setTourInitialIndex] = useState(0);
 
   useEffect(() => {
     fetchPrograms();
@@ -458,6 +465,39 @@ export const ProgramsPage = () => {
   const handleCreate = () => {
     resetForm();
     setShowDialog(true);
+    // Auto-launch the tour the first time a user opens the editor with no programs.
+    // The tour runs once per browser (localStorage flag); the manual "Spustit ukázku"
+    // button always re-runs it on demand.
+    try {
+      const seen = window.localStorage.getItem(TOUR_SEEN_KEY);
+      const isFirstProgram = programs.filter(p => p.status !== 'archived').length === 0;
+      if (!seen && isFirstProgram) {
+        // Wait one tick for the dialog to mount before measuring
+        setTimeout(() => {
+          setTourInitialIndex(0);
+          setShowTour(true);
+        }, 350);
+      }
+    } catch {
+      /* ignore localStorage failures (private mode etc.) */
+    }
+  };
+
+  const startTour = () => {
+    // The button only renders inside the editor (not on the list page),
+    // so the dialog is guaranteed to be open here. We resume from the
+    // first step matching the current tab — a user inspecting Kolize
+    // doesn't need to re-click through Detail and Nastavení.
+    const idx = getFirstStepIndexForTab(activeTab);
+    setTourInitialIndex(idx);
+    setShowTour(true);
+  };
+
+  const closeTour = (completed) => {
+    setShowTour(false);
+    if (completed) {
+      try { window.localStorage.setItem(TOUR_SEEN_KEY, '1'); } catch { /* ignore */ }
+    }
   };
 
   const toggleDay = (day) => {
@@ -549,8 +589,8 @@ export const ProgramsPage = () => {
       {/* Header with limit info */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Programy</h1>
-        <Button 
-          data-testid="create-program-button" 
+        <Button
+          data-testid="create-program-button"
           onClick={handleCreate}
           className="bg-slate-800 text-white hover:bg-slate-700 rounded-full w-12 h-12 p-0 fixed bottom-24 md:bottom-8 right-4 md:relative md:w-auto md:h-auto md:px-4 md:py-2 md:rounded-md shadow-lg md:shadow-none"
         >
@@ -730,7 +770,10 @@ export const ProgramsPage = () => {
         <h3 className="font-semibold text-slate-900">Základní informace</h3>
         
         <div>
-          <Label className="text-gray-500 text-sm">Název programu</Label>
+          <Label className="text-gray-500 text-sm">
+            Název programu
+            <FieldTooltip text={PROGRAM_FIELD_HELP.name_cs} testId="help-program-name" />
+          </Label>
           <Input
             data-testid="program-name-cs"
             value={formData.name_cs}
@@ -741,7 +784,10 @@ export const ProgramsPage = () => {
         </div>
 
         <div>
-          <Label className="text-gray-500 text-sm">Popis</Label>
+          <Label className="text-gray-500 text-sm">
+            Popis
+            <FieldTooltip text={PROGRAM_FIELD_HELP.description_cs} testId="help-program-description" />
+          </Label>
           <Textarea
             data-testid="program-description-cs"
             value={formData.description_cs}
@@ -753,7 +799,10 @@ export const ProgramsPage = () => {
         </div>
 
         <div>
-          <Label className="text-gray-500 text-sm mb-2 block">Cílové skupiny</Label>
+          <Label className="text-gray-500 text-sm mb-2 block">
+            Cílové skupiny
+            <FieldTooltip text={PROGRAM_FIELD_HELP.target_groups} testId="help-program-target-groups" />
+          </Label>
           <div className="space-y-2 mt-1">
             {TARGET_GROUPS.map(group => (
               <div key={group.value} className="flex items-center space-x-2">
@@ -805,7 +854,10 @@ export const ProgramsPage = () => {
         
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label className="text-gray-500 text-sm">Doba trvání (min)</Label>
+            <Label className="text-gray-500 text-sm">
+              Doba trvání (min)
+              <FieldTooltip text={PROGRAM_FIELD_HELP.duration} testId="help-program-duration" />
+            </Label>
             <Input
               type="number"
               data-testid="program-duration"
@@ -815,7 +867,10 @@ export const ProgramsPage = () => {
             />
           </div>
           <div>
-            <Label className="text-gray-500 text-sm">Maximální kapacita</Label>
+            <Label className="text-gray-500 text-sm">
+              Maximální kapacita
+              <FieldTooltip text={PROGRAM_FIELD_HELP.max_capacity} testId="help-program-max-capacity" />
+            </Label>
             <Input
               type="number"
               data-testid="program-max-capacity"
@@ -827,7 +882,10 @@ export const ProgramsPage = () => {
         </div>
 
         <div>
-          <Label className="text-gray-500 text-sm">Minimum účastníků</Label>
+          <Label className="text-gray-500 text-sm">
+            Minimum účastníků
+            <FieldTooltip text={PROGRAM_FIELD_HELP.min_capacity} testId="help-program-min-capacity" />
+          </Label>
           <Input
             type="number"
             data-testid="program-min-capacity"
@@ -849,7 +907,10 @@ export const ProgramsPage = () => {
           </p>
         </div>
         <div>
-          <Label className="text-gray-500 text-sm">Text o ceně</Label>
+          <Label className="text-gray-500 text-sm">
+            Text o ceně
+            <FieldTooltip text={PROGRAM_FIELD_HELP.pricing_info} testId="help-program-pricing" />
+          </Label>
           <Input
             data-testid="program-pricing-info"
             value={formData.pricing_info || ''}
@@ -1154,7 +1215,10 @@ export const ProgramsPage = () => {
         <h3 className="font-semibold text-slate-900">Termín</h3>
         <div className="space-y-4">
           <div>
-            <Label className="text-gray-500 text-sm">Začátek programu</Label>
+            <Label className="text-gray-500 text-sm">
+              Začátek programu
+              <FieldTooltip text={PROGRAM_FIELD_HELP.date_range} testId="help-program-start-date" />
+            </Label>
             <Input
               type="date"
               value={formData.start_date}
@@ -1181,7 +1245,10 @@ export const ProgramsPage = () => {
         <h3 className="font-semibold text-slate-900">Parametry rezervace</h3>
         
         <div>
-          <Label className="text-gray-500 text-sm">Minimální počet dnů před rezervací (dní)</Label>
+          <Label className="text-gray-500 text-sm">
+            Minimální počet dnů před rezervací (dní)
+            <FieldTooltip text={PROGRAM_FIELD_HELP.min_days_before} testId="help-program-min-days" />
+          </Label>
           <Input
             type="number"
             value={formData.min_days_before_booking}
@@ -1192,7 +1259,10 @@ export const ProgramsPage = () => {
         </div>
 
         <div>
-          <Label className="text-gray-500 text-sm">Maximální počet dnů před rezervací (dní)</Label>
+          <Label className="text-gray-500 text-sm">
+            Maximální počet dnů před rezervací (dní)
+            <FieldTooltip text={PROGRAM_FIELD_HELP.max_days_before} testId="help-program-max-days" />
+          </Label>
           <Input
             type="number"
             value={formData.max_days_before_booking}
@@ -1203,7 +1273,10 @@ export const ProgramsPage = () => {
         </div>
 
         <div>
-          <Label className="text-gray-500 text-sm">Potřebná doba na přípravu programu (min.)</Label>
+          <Label className="text-gray-500 text-sm">
+            Potřebná doba na přípravu programu (min.)
+            <FieldTooltip text={PROGRAM_FIELD_HELP.preparation_time} testId="help-program-prep-time" />
+          </Label>
           <Input
             type="number"
             value={formData.preparation_time}
@@ -1241,7 +1314,17 @@ export const ProgramsPage = () => {
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-xl font-semibold text-slate-900">Programy</h2>
+        <h2 className="text-xl font-semibold text-slate-900 flex-1">Programy</h2>
+        <button
+          type="button"
+          onClick={startTour}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border border-[#C4AB86] text-[#8B6F47] hover:bg-[#FBF7EF] transition-colors"
+          data-testid="program-tour-launch-editor-btn"
+          aria-label="Spustit ukázku"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Spustit ukázku</span>
+        </button>
       </div>
 
       {/* Tabs */}
@@ -1381,7 +1464,31 @@ export const ProgramsPage = () => {
         renderProgramList()
       ) : (
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
-          <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-2xl max-h-[90dvh] sm:max-h-[95vh] overflow-hidden p-0">
+          <DialogContent
+            className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-2xl max-h-[90dvh] sm:max-h-[95vh] overflow-hidden p-0"
+            onPointerDownOutside={(e) => {
+              // While the guided tour is open, its overlay/card lives in a
+              // separate portal at body root; Radix would otherwise treat
+              // every click on the tour as "outside" and dismiss the editor.
+              const target = e.target;
+              if (showTour || (target && target.closest && target.closest('[data-testid="program-tour"]'))) {
+                e.preventDefault();
+              }
+            }}
+            onInteractOutside={(e) => {
+              const target = e.target;
+              if (showTour || (target && target.closest && target.closest('[data-testid="program-tour"]'))) {
+                e.preventDefault();
+              }
+            }}
+            onEscapeKeyDown={(e) => {
+              // Escape should close the tour first, not the editor
+              if (showTour) {
+                e.preventDefault();
+                setShowTour(false);
+              }
+            }}
+          >
             <DialogHeader className="sr-only">
               <DialogTitle>{editingProgram ? 'Upravit program' : 'Nový program'}</DialogTitle>
             </DialogHeader>
@@ -1461,6 +1568,16 @@ export const ProgramsPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Guided onboarding tour */}
+      {showTour && (
+        <ProgramTour
+          steps={PROGRAM_TOUR_STEPS}
+          initialIndex={tourInitialIndex}
+          onClose={closeTour}
+          onTabChange={setActiveTab}
+        />
+      )}
     </AdminLayout>
   );
 };

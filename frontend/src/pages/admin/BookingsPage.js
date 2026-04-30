@@ -34,7 +34,8 @@ import {
   Filter,
   Download,
   CalendarPlus,
-  Bell
+  Bell,
+  AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API } from '../../config/api';
@@ -83,7 +84,44 @@ const extractErrorDetail = (detail, fallback = 'Nastala chyba') => {
   return fallback;
 };
 
-export const BookingsPage = () => {
+// Parse "10:00-11:00" or "10:00" → {start, end} in minutes-since-midnight.
+const parseTimeRange = (tb) => {
+  if (!tb) return null;
+  const m = String(tb).match(/^(\d{1,2}):(\d{2})(?:\s*-\s*(\d{1,2}):(\d{2}))?$/);
+  if (!m) return null;
+  const start = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  const end = m[3] ? parseInt(m[3], 10) * 60 + parseInt(m[4], 10) : start + 60;
+  return { start, end };
+};
+
+// Brand-palette collision group colours — same 8 tones used across the app
+// so the visual language is consistent (see DashboardPage calendar palette).
+const COLLISION_COLORS = [
+  { bg: '#EE7D36', border: '#c45c1c', fg: '#ffffff' },     // orange
+  { bg: '#263FA8', border: '#172a7a', fg: '#ffffff' },     // deep blue
+  { bg: '#457B56', border: '#2f5d3e', fg: '#ffffff' },     // forest
+  { bg: '#E5C877', border: '#bf9f4f', fg: '#4d3a0c' },     // mustard
+  { bg: '#8DA992', border: '#6c8a72', fg: '#ffffff' },     // sage
+  { bg: '#DEE9FC', border: '#a8bee0', fg: '#1f3461' },     // powder blue
+];
+
+const sortBookingsBy = (list, key) => {
+  const arr = [...list];
+  const name = b => (b.school_name || '').toLowerCase();
+  const prog = b => (b.program_name || '').toLowerCase();
+  switch (key) {
+    case 'date_asc':   return arr.sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.time_block || '').localeCompare(b.time_block || ''));
+    case 'date_desc':  return arr.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.time_block || '').localeCompare(a.time_block || ''));
+    case 'created_asc':  return arr.sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+    case 'created_desc': return arr.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    case 'program':    return arr.sort((a, b) => prog(a).localeCompare(prog(b), 'cs'));
+    case 'school':     return arr.sort((a, b) => name(a).localeCompare(name(b), 'cs'));
+    case 'students':   return arr.sort((a, b) => (b.num_students || 0) - (a.num_students || 0));
+    default:           return arr;
+  }
+};
+
+const BookingsPage = () => {
   const { t } = useTranslation();
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -147,6 +185,13 @@ export const BookingsPage = () => {
   };
 
   // Filtered bookings based on status filter and search
+  const [sortKey, setSortKey] = useState(() => {
+    try { return localStorage.getItem('bz_bookings_sort') || 'date_asc'; } catch { return 'date_asc'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('bz_bookings_sort', sortKey); } catch { /* noop */ }
+  }, [sortKey]);
+
   const filteredBookings = useMemo(() => {
     let filtered = bookings;
     if (statusFilter !== 'all') {
@@ -161,8 +206,62 @@ export const BookingsPage = () => {
         (b.program_name || '').toLowerCase().includes(q)
       );
     }
-    return filtered;
-  }, [bookings, statusFilter, searchQuery]);
+    return sortBookingsBy(filtered, sortKey);
+  }, [bookings, statusFilter, searchQuery, sortKey]);
+
+  // Collision detection: bookings on the same date with overlapping time
+  // ranges are flagged & clustered. Each cluster gets a stable group number
+  // (1, 2, …) per day so the UI can colour-code them consistently.
+  const collisionIndex = useMemo(() => {
+    const byId = new Map(); // booking id → { group: number, peers: [] }
+    const active = bookings.filter(b => b.status !== 'cancelled' && b.status !== 'rejected');
+    const byDate = new Map();
+    active.forEach(b => {
+      const list = byDate.get(b.date) || [];
+      list.push(b);
+      byDate.set(b.date, list);
+    });
+    byDate.forEach(list => {
+      // Union-find over overlapping pairs → connected components = groups.
+      const parent = new Map(list.map(b => [b.id, b.id]));
+      const find = (x) => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+      const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };
+      for (let i = 0; i < list.length; i++) {
+        const a = list[i];
+        const ar = parseTimeRange(a.time_block);
+        if (!ar) continue;
+        for (let j = i + 1; j < list.length; j++) {
+          const b = list[j];
+          const br = parseTimeRange(b.time_block);
+          if (!br) continue;
+          if (ar.start < br.end && br.start < ar.end) union(a.id, b.id);
+        }
+      }
+      // Collect components that have > 1 member (those are the real
+      // collisions). Assign deterministic group numbers by earliest start
+      // time within the cluster so numbering is stable across renders.
+      const components = new Map();
+      list.forEach(b => {
+        const root = find(b.id);
+        const arr = components.get(root) || [];
+        arr.push(b);
+        components.set(root, arr);
+      });
+      const nontrivial = Array.from(components.values()).filter(g => g.length > 1);
+      nontrivial.sort((g1, g2) => {
+        const s1 = Math.min(...g1.map(x => parseTimeRange(x.time_block)?.start ?? 1e9));
+        const s2 = Math.min(...g2.map(x => parseTimeRange(x.time_block)?.start ?? 1e9));
+        return s1 - s2;
+      });
+      nontrivial.forEach((grp, idx) => {
+        grp.forEach(b => {
+          const peers = grp.filter(x => x.id !== b.id);
+          byId.set(b.id, { group: idx + 1, peers });
+        });
+      });
+    });
+    return byId;
+  }, [bookings]);
 
   const toggleSelect = (id) => {
     setSelectedIds(prev => {
@@ -921,14 +1020,30 @@ export const BookingsPage = () => {
                 </Button>
               ))}
             </div>
-            {/* Search */}
-            <Input
-              placeholder="Hledat podle školy, kontaktu, programu..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="max-w-md"
-              data-testid="booking-search-input"
-            />
+            {/* Search + Sort */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Input
+                placeholder="Hledat podle školy, kontaktu, programu..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="max-w-md"
+                data-testid="booking-search-input"
+              />
+              <Select value={sortKey} onValueChange={setSortKey}>
+                <SelectTrigger className="w-[230px]" data-testid="booking-sort-select">
+                  <SelectValue placeholder="Řadit podle…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date_asc">Datum akce ↑ (nejbližší)</SelectItem>
+                  <SelectItem value="date_desc">Datum akce ↓ (nejpozdější)</SelectItem>
+                  <SelectItem value="created_desc">Datum rezervace ↓ (nejnovější)</SelectItem>
+                  <SelectItem value="created_asc">Datum rezervace ↑ (nejstarší)</SelectItem>
+                  <SelectItem value="program">Název programu (A → Z)</SelectItem>
+                  <SelectItem value="school">Škola (A → Z)</SelectItem>
+                  <SelectItem value="students">Počet žáků (nejvíce)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         )}
 
@@ -1041,7 +1156,7 @@ export const BookingsPage = () => {
                       </button>
                     )}
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
                         <h3 className="text-lg font-semibold text-slate-900">{booking.program_name || 'Program'}</h3>
                         {getStatusBadge(booking.status)}
                         {booking.assigned_lecturer_name && (
@@ -1050,6 +1165,29 @@ export const BookingsPage = () => {
                             {booking.assigned_lecturer_name}
                           </Badge>
                         )}
+                        {(() => {
+                          const info = collisionIndex.get(booking.id);
+                          if (!info) return null;
+                          const color = COLLISION_COLORS[(info.group - 1) % COLLISION_COLORS.length];
+                          const peerText = info.peers.map(p => {
+                            const lec = p.assigned_lecturer_name ? ` · lektor ${p.assigned_lecturer_name}` : ' · bez lektora';
+                            return `${p.program_name || 'Program'} (${p.time_block || '—'})${lec}`;
+                          }).join('\n');
+                          const missingLecturer = !booking.assigned_lecturer_name;
+                          return (
+                            <span
+                              data-testid={`booking-collision-${booking.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              title={`Kolize č. ${info.group} (stejný den & čas):\n${peerText}${missingLecturer ? '\n\n⚠ Této rezervaci chybí lektor — přiřaďte ho, jinak hrozí dvojitý slot.' : ''}`}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border cursor-help"
+                              style={{ backgroundColor: color.bg, borderColor: color.border, color: color.fg }}
+                            >
+                              <AlertTriangle className="w-3 h-3" />
+                              Kolize {info.group}
+                              <span className="opacity-80">· {info.peers.length + 1}×</span>
+                            </span>
+                          );
+                        })()}
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                         <div className="min-w-0">
@@ -1125,4 +1263,7 @@ export const BookingsPage = () => {
     </AdminLayout>
   );
 };
+
+export { BookingsPage };
+export default BookingsPage;
 

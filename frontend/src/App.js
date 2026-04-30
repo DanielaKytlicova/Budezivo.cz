@@ -42,6 +42,7 @@ import { EventsPage } from './pages/admin/EventsPage';
 import { WaitlistPage } from './pages/admin/WaitlistPage';
 import { MailingsPage } from './pages/admin/MailingsPage';
 import { SuperadminPage } from './pages/admin/SuperadminPage';
+import SuperadminAnalyticsPage from './pages/admin/SuperadminAnalyticsPage';
 import PublicEventsPage from './pages/public/PublicEventsPage';
 import PaymentReturnPage from './pages/public/PaymentReturnPage';
 import PaymentMockPage from './pages/public/PaymentMockPage';
@@ -50,6 +51,7 @@ import CatalogDetailPage from './pages/public/CatalogDetailPage';
 import TeacherLoginPage from './pages/teacher/TeacherLoginPage';
 import TeacherRegisterPage from './pages/teacher/TeacherRegisterPage';
 import TeacherAccountPage from './pages/teacher/TeacherAccountPage';
+import PageViewTracker from './components/PageViewTracker';
 
 import './App.css';
 
@@ -69,6 +71,7 @@ function App() {
   return (
     <BrowserRouter>
       <TitleUpdater />
+      <PageViewTracker />
       <LanguageProvider>
         <AuthProvider>
           <TeacherAuthProvider>
@@ -245,6 +248,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <SuperadminPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/superadmin/analytics"
+                element={
+                  <ProtectedRoute>
+                    <SuperadminAnalyticsPage />
                   </ProtectedRoute>
                 }
               />

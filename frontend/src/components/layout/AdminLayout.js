@@ -186,7 +186,6 @@ export const AdminLayout = ({ children }) => {
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
       <ImpersonationBanner />
-      <SuperadminAlertBanner />
       {/* Desktop Sidebar */}
       <aside className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
         <div className="flex flex-col flex-grow border-r border-border bg-white overflow-y-auto">
@@ -359,6 +358,7 @@ export const AdminLayout = ({ children }) => {
       {/* Main Content */}
       <div className="md:pl-64 pt-14 md:pt-0">
         <main className="py-6 px-4 md:px-8 pb-20 md:pb-6">
+          <SuperadminAlertBanner />
           {children}
         </main>
       </div>

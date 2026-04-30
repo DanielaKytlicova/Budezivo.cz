@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { AuthContext } from '../context/AuthContext';
 import { AlertCircle, X } from 'lucide-react';
@@ -26,12 +26,16 @@ const SUPERADMIN_EMAILS = ['demo@budezivo.cz', 'admin@budezivo.cz'];
 export default function SuperadminAlertBanner() {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
+  const location = useLocation();
   const [dismissed, setDismissed] = useState(false);
   const [pending, setPending] = useState(0);
 
   const isSuperadmin = !!user && (
     SUPERADMIN_EMAILS.includes(user.email) || user.role === 'superadmin'
   );
+
+  // Per user request: banner is only visible on the Superadmin page itself.
+  const onSuperadminPage = location.pathname.startsWith('/admin/superadmin');
 
   const fetchCount = useCallback(async () => {
     if (!isSuperadmin) return;
@@ -44,13 +48,13 @@ export default function SuperadminAlertBanner() {
   }, [isSuperadmin]);
 
   useEffect(() => {
-    if (!isSuperadmin) return undefined;
+    if (!isSuperadmin || !onSuperadminPage) return undefined;
     fetchCount();
     const id = setInterval(fetchCount, POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [isSuperadmin, fetchCount]);
+  }, [isSuperadmin, onSuperadminPage, fetchCount]);
 
-  if (!isSuperadmin || pending === 0 || dismissed) return null;
+  if (!isSuperadmin || !onSuperadminPage || pending === 0 || dismissed) return null;
 
   const label = pending === 1
     ? '1 čekající žádost o vyšší tarif'
@@ -58,18 +62,18 @@ export default function SuperadminAlertBanner() {
 
   return (
     <div
-      className="sticky top-0 z-40 bg-amber-100 border-b-2 border-amber-300 text-amber-900 shadow-sm"
+      className="mb-4 rounded-lg bg-amber-100 border border-amber-300 text-amber-900 shadow-sm"
       data-testid="superadmin-pending-banner"
     >
-      <div className="flex items-center gap-3 px-4 py-2 max-w-[1600px] mx-auto">
+      <div className="flex items-center gap-3 px-4 py-2">
         <AlertCircle className="w-5 h-5 flex-shrink-0" />
         <button
           type="button"
-          onClick={() => navigate('/admin/superadmin')}
+          onClick={() => navigate('/admin/superadmin?tab=orders')}
           className="text-sm font-semibold hover:underline flex-1 text-left"
           data-testid="superadmin-pending-open"
         >
-          📮 {label} — klikněte pro zobrazení a potvrzení
+          {label} — klikněte pro zobrazení a potvrzení
         </button>
         <button
           type="button"

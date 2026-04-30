@@ -831,7 +831,37 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - Doporučené nastavení: HTTP POST protokol – backend
 - 🧪 **Test**: `/app/backend/tests/test_payment_return_url.py` — 8 testů PASS
 
-### Fáze 75 — Archive UX simplification: direct download + custom_text v Edit dialogu (28.4.2026)
+### Fáze 76 — Payment return summary + Lehká vlastní analytika návštěvnosti (28.4.2026)
+  A) Po úspěšné platbě zobrazit zákazníkovi **plnou sumarizaci objednávky** (program, termín, instituce, částka, VS, e-mail) místo holého „Platba úspěšná → Zpět".
+  B) Vlastní lehká **analytika návštěvnosti** v Superadmin sekci (page views, unikátní návštěvníci, top stránky, denní graf), bez 3rd-party.
+
+- ✅ **A) Payment Return summary (`PaymentReturnPage.js` + backend)**:
+  - Backend `GET /api/event-payments/by-ref/{ref_id}` vrací enriched payload: `event {id, title, starts_at, ends_at, image_url}`, `institution_name`, `applicant_name`, `applicant_email`, `total_amount`
+  - Frontend kompletně přepsaný: card receipt-style s ikonkami (Calendar/MapPin/User/Mail/CreditCard/Hash), 4 stavy (polling/paid/failed/unknown), tlačítka „Vytisknout potvrzení" + „Zpět na hlavní stránku"
+  - Testidy: `payment-return-page`, `payment-return-paid`, `summary-program`, `summary-date`, `summary-institution`, `summary-applicant`, `summary-email`, `summary-amount`, `summary-vs`, `summary-paid-at`, `payment-return-print`, `payment-return-home`, `payment-return-retry`
+
+- ✅ **B) Analytika návštěvnosti**:
+  - **DB migrace** `b58d127e4c91`: tabulka `page_views` (id, created_at, path, ip_hash, user_agent, session_id, referrer) + 3 indexy (created_at, session, path)
+  - **Backend `routes/analytics.py`**:
+    - `POST /api/analytics/pageview` (public, fire-and-forget, returns 202): silent-no-op když path je ignorable (`/api/`, `/static/`, `.js/.css/.png/...`), UA je bot keyword (`bot|crawler|spider|curl/|wget|...`), nebo IP odpovídá `ADMIN_IP` env
+    - **Anonymizace**: SHA-256(ip + per-day salt) pro `ip_hash`, SHA-256(ip + ua + day)[:32] pro `session_id` (= „1 návštěvník = 1 session denně")
+    - `GET /api/analytics/stats?days=N` (Superadmin only, gating: e-mail `demo@/admin@budezivo.cz` nebo role `superadmin`, override přes `SUPERADMIN_EMAILS` env)
+    - Vrací: today_views, views_7d, views_30d, unique_7d, unique_30d, total_views, top_paths (max 20), daily histogram (`day, views, unique_visitors`), range_days
+    - `ADMIN_IP` env: comma-separated IPv4+IPv6, normalizace přes `ipaddress` modul, invalidní entries skipped
+  - **Frontend `components/PageViewTracker.js`**: SPA hook na `useLocation`, debounced 150ms POST per route change, silent-fail (analytics outage neblokuje UX)
+  - **Frontend `pages/admin/SuperadminAnalyticsPage.js`** (`/superadmin/analytics`):
+    - 4 KPI karty (dnes / 7 dní / 30 dní / unikátní 30 dní) s ikonami Eye/Users
+    - Recharts LineChart `Návštěvnost v čase` (modré `#263FA8` zobrazení + sage `#84a98c` unikátní), responsive
+    - Tabulka top stránek s URL + počtem + ExternalLink ikonou (otevři v novém tabu)
+    - Filtr 7/30/90 dní jako tab buttons
+    - Hard-gate na komponentě (`<Navigate to="/admin">`) + sidebar nav „Návštěvnost" jen pro `demo@/admin@budezivo.cz`
+  - **`backend/.env`** přidána `ADMIN_IP=86.49.248.233,2a02:8309:86:d900:6909:515f:e50e:a78f` (uživatelčiny IP, IPv4 + IPv6)
+- 🧪 **Test**: `tests/test_analytics_helpers.py` — 21 testů PASS (path filtering, bot UA detection, IP normalization, hash determinism + per-day rotation, ADMIN_IP env parsing s csv + invalid skip)
+- 🧪 **Curl smoke**: normal pageview → recorded; admin IP (IPv4+IPv6) → ignored; static path → ignored; bot UA → ignored; stats endpoint vrací správně agregovaná data
+- 🧪 **UI smoke**: nová položka „Návštěvnost" v sidebaru, 4 KPI + LineChart + tabulka top stránek + filtry funkční
+- 🧪 **63/63 pytest PASS** celkem (analytics + payment + archive + pdf_exports)
+
+
 - 🐛 **User feedback k Fázi 74**: pop-up s custom textem před stažením je rušivý — uživatelka chce „Stáhnout PDF" → okamžité stažení a možnost přidat poznámku v editaci programu (vedle ostatních polí, perzistentně).
 - ✅ **DB migrace `a47c891fc3e2`**: `programs.archive_custom_text` (Text, nullable) — perzistentní pole pro kurátorskou poznámku
 - ✅ **Backend**: `ProgramBase` Pydantic schéma má `archive_custom_text: Optional[str]`; `archive-report` payload obsahuje `program.archive_custom_text`; resolution priorita: `?custom_text=` query (one-off override) > `program.archive_custom_text` (saved) > none

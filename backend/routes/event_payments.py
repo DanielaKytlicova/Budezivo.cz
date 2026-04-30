@@ -358,6 +358,34 @@ async def get_payment_by_ref(
     app_res = await db.execute(select(EventApplication).where(EventApplication.id == payment.application_id))
     app = app_res.scalar_one_or_none()
 
+    # Enrich with event/institution info so the customer-return page can render
+    # a full order summary without a second API roundtrip.
+    event_info = None
+    institution_name = None
+    if app:
+        try:
+            from database.models import Event, EventDate, Institution
+            ev_res = await db.execute(select(Event).where(Event.id == app.event_id))
+            ev = ev_res.scalar_one_or_none()
+            ed = None
+            if app.event_date_id:
+                ed_res = await db.execute(select(EventDate).where(EventDate.id == app.event_date_id))
+                ed = ed_res.scalar_one_or_none()
+            inst_res = await db.execute(select(Institution).where(Institution.id == payment.institution_id))
+            inst = inst_res.scalar_one_or_none()
+            if ev:
+                event_info = {
+                    "id": str(ev.id),
+                    "title": ev.name,
+                    "starts_at": (ed.start_datetime.isoformat() if ed and ed.start_datetime else None),
+                    "ends_at": (ed.end_datetime.isoformat() if ed and ed.end_datetime else None),
+                    "image_url": ev.image_url,
+                }
+            if inst:
+                institution_name = inst.name
+        except Exception as e:
+            logger.warning(f"by-ref enrichment failed: {e}")
+
     return {
         "payment_status": payment.status,
         "amount": payment.amount,
@@ -365,10 +393,15 @@ async def get_payment_by_ref(
         "provider": payment.provider,
         "variable_symbol": payment.variable_symbol,
         "institution_id": str(payment.institution_id),
+        "institution_name": institution_name,
         "application_id": str(payment.application_id),
         "application_status": app.status if app else None,
         "application_payment_status": app.payment_status if app else None,
+        "applicant_name": app.applicant_name if app else None,
+        "applicant_email": app.applicant_email if app else None,
+        "total_amount": app.total_amount if app else None,
         "paid_at": payment.paid_at.isoformat() if payment.paid_at else None,
+        "event": event_info,
     }
 
 

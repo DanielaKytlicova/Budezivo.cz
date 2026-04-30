@@ -107,6 +107,9 @@ export const AdminLayout = ({ children }) => {
       baseItems.push({
         path: '/admin/superadmin', icon: Shield, label: 'Superadmin', testId: 'nav-superadmin', roles: ['admin', 'spravce']
       });
+      baseItems.push({
+        path: '/superadmin/analytics', icon: BarChart3, label: 'Návštěvnost', testId: 'nav-analytics', roles: ['admin', 'spravce']
+      });
     }
 
     // Akce (events) module — only when feature flag enabled. Inserted between

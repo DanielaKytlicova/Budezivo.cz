@@ -1210,3 +1210,28 @@ class TeacherLoginAttempt(Base):
     __table_args__ = (
         Index('idx_teacher_login_attempts_identifier', 'identifier', unique=True),
     )
+
+
+
+class PageView(Base):
+    """Lightweight traffic-analytics record (anonymized).
+
+    Recorded on every SPA route change via POST /api/analytics/pageview.
+    ``ip_hash`` is SHA-256 of the visitor IP + the ``ADMIN_IP`` env list is
+    excluded at write-time so the site owner doesn't skew their own stats.
+    """
+    __tablename__ = 'page_views'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    path = Column(Text, nullable=False)
+    ip_hash = Column(Text, nullable=False)
+    user_agent = Column(Text)
+    session_id = Column(Text, nullable=False)
+    referrer = Column(Text)
+
+    __table_args__ = (
+        Index('idx_page_views_created_at', 'created_at'),
+        Index('idx_page_views_session', 'session_id'),
+        Index('idx_page_views_path', 'path'),
+    )

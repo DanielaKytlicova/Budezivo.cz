@@ -96,10 +96,14 @@ export default function ProgramTour({ steps, onClose, onTabChange }) {
   const skip = () => onClose(false);
 
   // Compute card position
+  // pointerEvents: 'auto' is critical — Radix Dialog (react-remove-scroll)
+  // sets pointer-events: none on body/html when open, which propagates to our
+  // portal children. We must explicitly re-enable it on every interactive node.
   let cardStyle = {
     position: 'fixed',
     width: CARD_WIDTH,
     zIndex: 100001,
+    pointerEvents: 'auto',
   };
 
   if (rect) {
@@ -127,18 +131,28 @@ export default function ProgramTour({ steps, onClose, onTabChange }) {
   }
 
   return createPortal(
-    <div data-testid="program-tour" className="select-none">
-      {/* Overlay */}
+    <div
+      data-testid="program-tour"
+      className="select-none"
+      style={{ pointerEvents: 'auto' }}
+    >
+      {/* Overlay — blocks clicks to underlying form except spotlight area */}
       <div
         className="fixed inset-0"
-        style={{ zIndex: 99999, background: 'rgba(15,23,42,0.4)' }}
+        style={{
+          zIndex: 99999,
+          background: 'rgba(15,23,42,0.4)',
+          pointerEvents: 'auto',
+        }}
         onClick={skip}
       />
 
-      {/* Spotlight cutout */}
+      {/* Spotlight cutout — intercepts clicks so target underneath is NOT
+          accidentally activated while the tour is highlighting it. The user
+          should navigate through Next/Prev only. */}
       {rect && (
         <div
-          className="fixed pointer-events-none rounded-lg transition-all duration-200"
+          className="fixed rounded-lg transition-all duration-200"
           style={{
             top: rect.top,
             left: rect.left,
@@ -147,7 +161,10 @@ export default function ProgramTour({ steps, onClose, onTabChange }) {
             zIndex: 100000,
             boxShadow: '0 0 0 9999px rgba(15,23,42,0.55)',
             outline: '2px solid #C4AB86',
+            pointerEvents: 'auto',
+            cursor: 'default',
           }}
+          onClick={(e) => e.stopPropagation()}
           data-testid="program-tour-spotlight"
         />
       )}
@@ -157,6 +174,7 @@ export default function ProgramTour({ steps, onClose, onTabChange }) {
         className="bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden"
         style={cardStyle}
         data-testid="program-tour-card"
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-gradient-to-r from-[#2B3E50] to-[#3a516a]">
           <div className="flex items-center gap-2 text-white">

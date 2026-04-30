@@ -1471,7 +1471,31 @@ export const ProgramsPage = () => {
         renderProgramList()
       ) : (
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
-          <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-2xl max-h-[90dvh] sm:max-h-[95vh] overflow-hidden p-0">
+          <DialogContent
+            className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-2xl max-h-[90dvh] sm:max-h-[95vh] overflow-hidden p-0"
+            onPointerDownOutside={(e) => {
+              // While the guided tour is open, its overlay/card lives in a
+              // separate portal at body root; Radix would otherwise treat
+              // every click on the tour as "outside" and dismiss the editor.
+              const target = e.target;
+              if (showTour || (target && target.closest && target.closest('[data-testid="program-tour"]'))) {
+                e.preventDefault();
+              }
+            }}
+            onInteractOutside={(e) => {
+              const target = e.target;
+              if (showTour || (target && target.closest && target.closest('[data-testid="program-tour"]'))) {
+                e.preventDefault();
+              }
+            }}
+            onEscapeKeyDown={(e) => {
+              // Escape should close the tour first, not the editor
+              if (showTour) {
+                e.preventDefault();
+                setShowTour(false);
+              }
+            }}
+          >
             <DialogHeader className="sr-only">
               <DialogTitle>{editingProgram ? 'Upravit program' : 'Nový program'}</DialogTitle>
             </DialogHeader>

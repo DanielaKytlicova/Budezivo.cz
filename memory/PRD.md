@@ -763,6 +763,27 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
 - [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
 
+### Fáze 72 — Bug fix: Spustit ukázku — kliky se proboríjely na pole pod průvodcem (30.4.2026)
+- 🐛 **Hlášené chování**: Při kliku na „Další" / „Přeskočit ukázku" se tlačítka chovala jakoby vůbec neexistovala — místo posunu na další krok se v pozadí (přes spotlight) zaškrtávaly checkboxy cílových skupin nebo se zavřel celý dialog editoru
+- 🔍 **Root cause**:
+  1. **Radix Dialog (`react-remove-scroll`)** přidává `pointer-events: none` na rodičovské elementy `<body>`/`<html>` při otevření modalu — toto cascading do našeho `createPortal` činilo tour neklikatelným
+  2. **Radix Dialog `onInteractOutside`** detekoval každý klik mimo svůj DOM strom — náš tour je v jiném portálu, takže Radix to bral jako „klik mimo dialog" a zavíral celý editor
+  3. **Spotlight cutout** měl `pointer-events: none`, což nechávalo kliky proletět skrz na podkladový element (target group checkbox)
+- [x] **Fix v `ProgramTour.js`**:
+  - Explicitní `pointerEvents: 'auto'` na portálovém root divu, overlay i card style (přebíjí cascading z `react-remove-scroll`)
+  - Spotlight přepnutý z `pointer-events: none` na `pointerEvents: 'auto' + onClick stopPropagation` — kliky na podkladový target jsou teď zachyceny tour, ne propuštěny
+  - Card má `onClick stopPropagation` — kliky uvnitř karty se nešíří na overlay (ten by jinak volal skip)
+- [x] **Fix v `ProgramsPage.js`** Dialog:
+  - `onPointerDownOutside` + `onInteractOutside` handlery: pokud je `showTour=true` nebo cíl kliku obsahuje `[data-testid="program-tour"]`, volá se `e.preventDefault()` → Radix se nezavírá
+  - `onEscapeKeyDown`: ESC teď nejdřív zavře tour, pak teprve dialog
+- [x] **Verifikováno end-to-end**:
+  - 5 kroků Next → jsme na „Maximální kapacita" ✅
+  - Skip → tour zavřen, dialog zůstal otevřený ✅
+  - Cílové skupiny zůstaly všechny `unchecked` po průchodu tour ✅
+  - Všech 17 kroků prokliknutelných reálnými clicky (ne JS evaluate) ✅
+  - Overlay click (mimo card) → skip, dialog stále otevřen ✅
+
+
 ### Fáze 71 — Tlačítka „Přidat do kalendáře" v potvrzovacích e-mailech (30.4.2026)
 - 🎯 **Cíl**: pedagog dostane potvrzení rezervace a jedním klikem si ji přidá do svého Google nebo Outlook kalendáře (bez OAuth, bez stahování souboru)
 - 👤 **Volba uživatele**: Část 1 (deep-link tlačítka) + možnost `c=i` (zachovat ICS přílohu jako fallback pro desktop klienty)

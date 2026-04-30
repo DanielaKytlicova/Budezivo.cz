@@ -763,6 +763,35 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
 - [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
 
+### Fáze 71 — Tlačítka „Přidat do kalendáře" v potvrzovacích e-mailech (30.4.2026)
+- 🎯 **Cíl**: pedagog dostane potvrzení rezervace a jedním klikem si ji přidá do svého Google nebo Outlook kalendáře (bez OAuth, bez stahování souboru)
+- 👤 **Volba uživatele**: Část 1 (deep-link tlačítka) + možnost `c=i` (zachovat ICS přílohu jako fallback pro desktop klienty)
+- [x] **Backend `email_service._compute_calendar_links()`**: helper generuje 2 deep-link URLs:
+  - **Google Calendar**: `https://calendar.google.com/calendar/render?action=TEMPLATE&text=…&dates=YYYYMMDDTHHMMSSZ/YYYYMMDDTHHMMSSZ&details=…&location=…`
+  - **Outlook web**: `https://outlook.office.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent&subject=…&body=…&startdt=ISO&enddt=ISO&location=…`
+  - Datumy převedeny z `Europe/Prague` do UTC (Google vyžaduje `Z` formát, Outlook ISO+00:00)
+  - Délka eventu = `program.duration` (default 60 min)
+  - Description obsahuje název instituce, školy a počet dětí
+  - Při invalid datech vrací `{"google_calendar_url": "", "outlook_calendar_url": ""}` → tlačítka se v šabloně skryjí
+- [x] **`_build_email_context`** automaticky volá helper a propaguje URL do všech reservation-related šablon
+- [x] **`templates._calendar_buttons()`** — table-based layout (kompatibilní s Outlook desktop, Gmail iOS) se 2 tlačítky vedle sebe + drobný popisek „Nebo otevřete přiloženou rezervaci.ics…"
+  - Google tlačítko: 4 barevné puntíky brandu (#4285F4, #EA4335, #FBBC04, #34A853)
+  - Outlook tlačítko: modrá ikonka `⊞` (#0078D4)
+- [x] **Insertováno do 4 teacher-facing šablon**:
+  - `reservation_created_teacher` (po vytvoření)
+  - `reservation_confirmed` (po schválení adminem)
+  - `reservation_rescheduled` (po přesunu termínu)
+  - `reservation_reminder_teacher` (X dní před)
+- [x] **ICS příloha zachována** v `reservation_created_teacher` (Resend `attachments`) — pokrytí desktop klientů (Apple Mail, Thunderbird) i mobilů
+- [x] **Pytest** `tests/test_calendar_email_buttons.py` — 10/10 PASSED:
+  - Google URL obsahuje správné UTC datum (`20260520T070000Z` pro 09:00 Prague v květnu = CEST UTC+2)
+  - Outlook URL obsahuje ISO datum + subject + location
+  - Invalid date → empty strings, žádný crash
+  - Všechny 4 šablony obsahují obě tlačítka
+  - Při `date='bad'` se tlačítka v šabloně neobjeví (graceful hide)
+- [x] **Smoke test screenshotem**: e-mail vyrenderován, tlačítka jsou krásně vedle sebe pod detail boxem
+
+
 ### Fáze 70 — Interaktivní ukázka editoru programu (auto + tlačítko + tooltips) (30.4.2026)
 - 🎯 **Cíl**: snížit cognitive load při prvním vytváření programu — nový uživatel přesně ví, co která pole znamenají, ovládá si vlastní průvodce
 - 👤 **Volba uživatele**: c) Obojí (guided tour + permanentní `(i)` tooltipy) + 4) všechny 4 záložky (Detail, Nastavení, Kolize, Zpětná vazba) + auto-spustit při prvním programu + tlačítko "Spustit ukázku" trvalé

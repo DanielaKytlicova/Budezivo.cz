@@ -222,6 +222,66 @@ def _reservation_details_box(data: Dict[str, Any]) -> str:
     """
 
 
+def _calendar_buttons(data: Dict[str, Any]) -> str:
+    """Two side-by-side "Add to Calendar" CTA buttons (Google + Outlook web).
+
+    Hidden gracefully when calendar URLs are missing (e.g. invalid date in
+    booking_data so _compute_calendar_links returned empty strings).
+
+    Layout: tabulka místo flex/grid, protože Outlook desktop a Gmail iOS
+    flexbox/grid plně nepodporují a stále chceme dvě tlačítka vedle sebe.
+    """
+    google_url = (data.get("google_calendar_url") or "").strip()
+    outlook_url = (data.get("outlook_calendar_url") or "").strip()
+    if not google_url and not outlook_url:
+        return ""
+
+    google_btn = f"""
+        <a href="{google_url}" target="_blank" rel="noopener"
+           style="display: inline-block; padding: 12px 18px; background-color: #FFFFFF;
+                  color: #1F2937; text-decoration: none; border-radius: 8px;
+                  font-weight: 600; font-size: 14px; border: 1.5px solid #E5E7EB;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                  white-space: nowrap;">
+            <span style="color: #4285F4;">●</span>
+            <span style="color: #EA4335;">●</span>
+            <span style="color: #FBBC04;">●</span>
+            <span style="color: #34A853;">●</span>
+            &nbsp;Přidat do Google kalendáře
+        </a>
+    """ if google_url else ""
+
+    outlook_btn = f"""
+        <a href="{outlook_url}" target="_blank" rel="noopener"
+           style="display: inline-block; padding: 12px 18px; background-color: #FFFFFF;
+                  color: #1F2937; text-decoration: none; border-radius: 8px;
+                  font-weight: 600; font-size: 14px; border: 1.5px solid #E5E7EB;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+                  white-space: nowrap;">
+            <span style="color: #0078D4; font-weight: 700;">⊞</span>
+            &nbsp;Přidat do Outlooku
+        </a>
+    """ if outlook_url else ""
+
+    return f"""
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"
+               style="margin: 24px auto 8px auto; border-collapse: collapse;">
+            <tr>
+                <td style="padding: 0 6px;">{google_btn}</td>
+                <td style="padding: 0 6px;">{outlook_btn}</td>
+            </tr>
+            <tr>
+                <td colspan="2" style="text-align: center; padding-top: 8px;">
+                    <p style="margin: 0; font-size: 11px; color: #6B7280;
+                              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;">
+                        Nebo otevřete přiloženou rezervaci.ics ve svém kalendářovém klientu.
+                    </p>
+                </td>
+            </tr>
+        </table>
+    """
+
+
 def _reservation_important_notice() -> str:
     """Important notice/disclaimer for reservation emails."""
     return """
@@ -449,6 +509,8 @@ def reservation_created_teacher(data: Dict[str, Any]) -> Dict[str, str]:
 
         {_reservation_details_box(data)}
 
+        {_calendar_buttons(data)}
+
         <div style="{BASE_STYLES['alert_warning']}">
             <strong>Ceka na potvrzení</strong><br>
             O potvrzení rezervace vás budeme informovat emailem.
@@ -549,6 +611,8 @@ def reservation_confirmed(data: Dict[str, Any]) -> Dict[str, str]:
         </div>
 
         {_reservation_details_box(data)}
+
+        {_calendar_buttons(data)}
 
         <p style="{BASE_STYLES['text']}">
             Dostavte se prosím 10 minut před začátkem. V případě nemoci nás kontaktujte 2 dny předem.
@@ -781,6 +845,8 @@ def reservation_rescheduled(data: Dict[str, Any]) -> Dict[str, str]:
 
         {_reservation_details_box(data)}
 
+        {_calendar_buttons(data)}
+
         <p style="{BASE_STYLES['text']}">
             V případě, že vám nový termín nevyhovuje, kontaktujte nás prosím na
             {data.get('institution_email', '')} nebo {data.get('institution_phone', '')}.
@@ -831,6 +897,8 @@ def reservation_reminder_teacher(data: Dict[str, Any]) -> Dict[str, str]:
         </div>
 
         {_reservation_details_box(data)}
+
+        {_calendar_buttons(data)}
 
         <h2 style="{BASE_STYLES['h2']}">Nezapomente</h2>
         <ul style="color: #475569; padding-left: 20px;">

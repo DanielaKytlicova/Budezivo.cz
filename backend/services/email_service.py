@@ -462,6 +462,84 @@ async def trigger_reservation_created_emails(
     return results
 
 
+def _compute_calendar_links(
+    booking_data: Dict[str, Any],
+    program_data: Dict[str, Any],
+    institution_data: Dict[str, Any],
+) -> Dict[str, str]:
+    """Build "Add to Google Calendar" + "Add to Outlook" deep-link URLs.
+
+    Both providers accept simple GET parameters with no auth — clicking the
+    link opens the user's calendar with the event pre-filled, ready to save.
+    Returns empty strings when the booking lacks valid date/time so the
+    template can hide the buttons gracefully.
+    """
+    from urllib.parse import quote
+    try:
+        from datetime import datetime, timedelta
+        import pytz
+
+        date_str = booking_data.get("date", "")
+        time_block = booking_data.get("time_block", "")
+        duration_min = int(program_data.get("duration") or 60)
+
+        # time_block looks like "09:00-10:30" — fall back to the first token
+        start_part = time_block.split("-")[0].strip() if time_block else "09:00"
+        h_str, _, m_str = start_part.partition(":")
+        hour = int(h_str)
+        minute = int(m_str) if m_str else 0
+
+        year, month, day = (int(x) for x in date_str.split("-"))
+        prague = pytz.timezone("Europe/Prague")
+        dt_start_local = prague.localize(datetime(year, month, day, hour, minute))
+        dt_end_local = dt_start_local + timedelta(minutes=duration_min)
+
+        # Google + Outlook deep-links want UTC in YYYYMMDDTHHMMSSZ
+        gfmt = "%Y%m%dT%H%M%SZ"
+        utc_start = dt_start_local.astimezone(pytz.UTC).strftime(gfmt)
+        utc_end = dt_end_local.astimezone(pytz.UTC).strftime(gfmt)
+
+        # ISO for Outlook web
+        iso_start = dt_start_local.astimezone(pytz.UTC).isoformat()
+        iso_end = dt_end_local.astimezone(pytz.UTC).isoformat()
+    except (ValueError, IndexError, TypeError):
+        return {"google_calendar_url": "", "outlook_calendar_url": ""}
+
+    program_name = program_data.get("name_cs") or "Program"
+    institution_name = institution_data.get("name") or ""
+    location = institution_data.get("address") or institution_name
+    school_name = booking_data.get("school_name") or ""
+    children = booking_data.get("num_students") or 0
+
+    description = (
+        f"Rezervace přes Budeživo.cz\n"
+        f"Instituce: {institution_name}\n"
+        f"Škola: {school_name}\n"
+        f"Počet dětí: {children}"
+    )
+
+    google_url = (
+        "https://calendar.google.com/calendar/render?action=TEMPLATE"
+        f"&text={quote(program_name)}"
+        f"&dates={utc_start}/{utc_end}"
+        f"&details={quote(description)}"
+        f"&location={quote(location)}"
+    )
+    outlook_url = (
+        "https://outlook.office.com/calendar/0/deeplink/compose?path=/calendar/action/compose"
+        f"&rru=addevent&subject={quote(program_name)}"
+        f"&body={quote(description)}"
+        f"&startdt={quote(iso_start)}"
+        f"&enddt={quote(iso_end)}"
+        f"&location={quote(location)}"
+    )
+
+    return {
+        "google_calendar_url": google_url,
+        "outlook_calendar_url": outlook_url,
+    }
+
+
 def _build_email_context(
     booking_data: Dict[str, Any],
     program_data: Dict[str, Any],
@@ -493,6 +571,8 @@ def _build_email_context(
         "special_requirements": booking_data.get("special_requirements", ""),
         "dashboard_url": "https://budezivo.cz/admin",
     }
+    # Add Google Calendar + Outlook web "Add to calendar" deep-links
+    ctx.update(_compute_calendar_links(booking_data, program_data, institution_data))
     ctx.update(extra)
     return ctx
 

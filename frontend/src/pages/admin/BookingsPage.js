@@ -192,26 +192,10 @@ const BookingsPage = () => {
     try { localStorage.setItem('bz_bookings_sort', sortKey); } catch { /* noop */ }
   }, [sortKey]);
 
-  const filteredBookings = useMemo(() => {
-    let filtered = bookings;
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(b => b.status === statusFilter);
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(b =>
-        (b.school_name || '').toLowerCase().includes(q) ||
-        (b.contact_name || '').toLowerCase().includes(q) ||
-        (b.contact_email || '').toLowerCase().includes(q) ||
-        (b.program_name || '').toLowerCase().includes(q)
-      );
-    }
-    return sortBookingsBy(filtered, sortKey);
-  }, [bookings, statusFilter, searchQuery, sortKey]);
-
   // Collision detection: bookings on the same date with overlapping time
   // ranges are flagged & clustered. Each cluster gets a stable group number
   // (1, 2, …) per day so the UI can colour-code them consistently.
+  // Computed BEFORE filteredBookings so the "Kolize" virtual filter can use it.
   const collisionIndex = useMemo(() => {
     const byId = new Map(); // booking id → { group: number, peers: [] }
     const active = bookings.filter(b => b.status !== 'cancelled' && b.status !== 'rejected');
@@ -263,6 +247,28 @@ const BookingsPage = () => {
     return byId;
   }, [bookings]);
 
+  const filteredBookings = useMemo(() => {
+    let filtered = bookings;
+    if (statusFilter === 'collision') {
+      // "Kolize" virtual filter: show only bookings that are part of an
+      // unresolved collision cluster (collisionIndex has them with peers).
+      filtered = filtered.filter(b => collisionIndex.has(b.id));
+    } else if (statusFilter !== 'all') {
+      filtered = filtered.filter(b => b.status === statusFilter);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(b =>
+        (b.school_name || '').toLowerCase().includes(q) ||
+        (b.contact_name || '').toLowerCase().includes(q) ||
+        (b.contact_email || '').toLowerCase().includes(q) ||
+        (b.program_name || '').toLowerCase().includes(q)
+      );
+    }
+    return sortBookingsBy(filtered, sortKey);
+  }, [bookings, statusFilter, searchQuery, sortKey, collisionIndex]);
+
+
   const toggleSelect = (id) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
@@ -301,12 +307,13 @@ const BookingsPage = () => {
   };
 
   const statusCounts = useMemo(() => {
-    const counts = { all: bookings.length, pending: 0, confirmed: 0, cancelled: 0, completed: 0 };
+    const counts = { all: bookings.length, pending: 0, confirmed: 0, cancelled: 0, completed: 0, collision: 0 };
     bookings.forEach(b => {
       if (counts[b.status] !== undefined) counts[b.status]++;
     });
+    counts.collision = collisionIndex.size;
     return counts;
-  }, [bookings]);
+  }, [bookings, collisionIndex]);
 
   const updateStatus = async (id, status) => {
     try {
@@ -1006,15 +1013,25 @@ const BookingsPage = () => {
                 { key: 'confirmed', label: 'Potvrzené' },
                 { key: 'cancelled', label: 'Zrušené' },
                 { key: 'completed', label: 'Dokončené' },
+                { key: 'collision', label: 'Kolize' },
               ].map(f => (
                 <Button
                   key={f.key}
                   size="sm"
                   variant={statusFilter === f.key ? 'default' : 'outline'}
                   onClick={() => { setStatusFilter(f.key); setSelectedIds(new Set()); }}
-                  className={statusFilter === f.key ? 'bg-slate-800 text-white' : ''}
+                  className={
+                    statusFilter === f.key
+                      ? 'bg-slate-800 text-white'
+                      : (f.key === 'collision' && statusCounts.collision > 0
+                          ? 'border-amber-300 text-amber-700 hover:bg-amber-50'
+                          : '')
+                  }
                   data-testid={`filter-${f.key}`}
                 >
+                  {f.key === 'collision' && (
+                    <AlertTriangle className="w-3.5 h-3.5 mr-1 text-amber-500" />
+                  )}
                   {f.label}
                   <span className="ml-1.5 text-xs opacity-70">({statusCounts[f.key]})</span>
                 </Button>

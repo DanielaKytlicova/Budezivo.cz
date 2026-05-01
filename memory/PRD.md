@@ -763,6 +763,14 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
 - [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
 
+### Fáze 75 — Quick fixes: Kolize filter, Datum field, Comgate notice, Enter bug (1.5.2026)
+- [x] **BookingsPage**: nový filter chip „Kolize" s žlutou `AlertTriangle` ikonkou — virtuální filtr přes `collisionIndex.has(b.id)`. Refaktorováno pořadí `useMemo` (collisionIndex před filteredBookings) kvůli TDZ
+- [x] **EventsPage Formulář**: přidán typ pole `date` (Datum) do `FIELD_TYPES`. PublicEventsPage rendruje `<Input type="date" />` pro tento typ
+- [x] **EventsPage Formulář — Enter bug**: `onChange` v `select`-options textarea filtroval prázdné řádky během psaní → Enter „nedělal nic". Fix: během typing zachovává prázdné řádky, na `onBlur` se odfiltrují
+- [x] **EventsPage Platby**: modrý notice „bude dostupná v další fázi" nahrazen zelenou hláškou „Platební brána **Comgate** je aktivní"
+- [x] Otestováno end-to-end — všechny 4 fixy ověřeny screenshotem
+
+
 ### Fáze 74 — Tour bubble side-first placement + collision steps refactor (30.4.2026)
 - 🎯 **Zpětná vazba**: bubliny překrývaly pole, kterých se týkaly (např. krok 18/21 přes Cílové skupiny). Některé Kolize kroky měly skrytý cíl (conditional rendering za toggle).
 - [x] **Side-first placement** v `ProgramTour.js`:

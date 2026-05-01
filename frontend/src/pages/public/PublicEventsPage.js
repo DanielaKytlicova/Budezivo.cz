@@ -171,6 +171,9 @@ export default function PublicEventsPage() {
         {field.type === 'number' && (
           <Input type="tel" value={formValues[field.id] || ''} onChange={e => setFormValues(p => ({ ...p, [field.id]: e.target.value }))} required={field.required} className="mt-1" data-testid={`field-${field.id}`} />
         )}
+        {field.type === 'date' && (
+          <Input type="date" value={formValues[field.id] || ''} onChange={e => setFormValues(p => ({ ...p, [field.id]: e.target.value }))} required={field.required} className="mt-1" data-testid={`field-${field.id}`} />
+        )}
         {field.type === 'select' && (
           <select value={formValues[field.id] || ''} onChange={e => setFormValues(p => ({ ...p, [field.id]: e.target.value }))} required={field.required} className="mt-1 w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white" data-testid={`field-${field.id}`}>
             <option value="">Vyberte...</option>

@@ -763,6 +763,31 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
 - [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
 
+### Fáze 76 — Kontakty + Cílený mailing M2 (UI mockup) (1.5.2026)
+- 🎯 **Cíl**: nová podstránka Správa → Kontakty pro centrální evidenci kontaktů z rezervací/přihlášek + cílený mailing v dalších milnících
+- 📋 **Volba uživatele**: nejprve UI mockup (M2) → schválení → pak DB migrace (M1)
+- [x] **NEW `ContactsPage.js`** (wireframe se 9 mock kontakty pokrývajícími všechny typy):
+  - Header: titulek + wireframe banner („zatím s ukázkovými daty") + Export CSV + Přidat kontakt
+  - 4 stat karty (Celkem 9 / S marketing. souhlasem 6 / Pedagogové 5 / Veřejnost 3)
+  - Filtrovací řádek: vyhledávání (jméno/email/telefon/škola) + 3 selecty (Typ, Zdroj, Marketing souhlas)
+  - Tabulka: Jméno+škola | Email+telefon | Typ | Zdroj | Marketing badge | Poslední aktivita | Akce
+  - Slide-in detail panel (vpravo): Identita, Kontakty, Typ select + Marketing badge, Poznámka (editovatelná), Historie vazeb (chronologický seznam)
+  - `ConsentBadge` komponenta — 3 stavy: zelená „Souhlas", růžová „Bez souhlasu", šedá „Neznámé" (pro stávající kontakty bez opt-inu)
+- [x] **Marketing consent checkbox** přidán na public formuláře (M3 GDPR-compliant opt-in):
+  - `BookingPage.js` (rezervace školního programu) → `marketing_consent: false` default
+  - `PublicEventsPage.js` (přihláška na akci) → mezi GDPR a Obchodní podmínky
+  - Text: „Souhlasím se zasíláním **potenciálně relevantních nabídek** v budoucnu… Souhlas lze kdykoli odvolat. *(volitelné)*"
+- [x] **Routing + nav**:
+  - Nová položka v menu Správa → Kontakty (`Contact` ikona z lucide-react)
+  - Route `/admin/contacts` registrována v `App.js`
+- [x] Lint čistý, screenshot ověřen
+- 📌 **Dataová struktura připravená (mock matching plánovaným tabulkám)**:
+  - `contacts`: institution_id, first_name, last_name, email, phone, type (skola/pedagog/rodic/verejnost/odborna_verejnost/jine), source (skolni_rezervace/jednorazova_akce/workshop/kurz/primestsky_tabor/baby_herna/rucne), marketing_consent (true/false/null), school_name, school_type, note, created_at, last_activity
+  - `contact_links`: contact_id, type, label, date, status
+
+⏭️ **Next milestones (čeká na schválení mockupu)**: M1 (DB migrace + auto-sběr), M3 (cílený mailing 3 dynamické bloky), M4 (doklad o odeslání + CSV)
+
+
 ### Fáze 75 — Quick fixes: Kolize filter, Datum field, Comgate notice, Enter bug (1.5.2026)
 - [x] **BookingsPage**: nový filter chip „Kolize" s žlutou `AlertTriangle` ikonkou — virtuální filtr přes `collisionIndex.has(b.id)`. Refaktorováno pořadí `useMemo` (collisionIndex před filteredBookings) kvůli TDZ
 - [x] **EventsPage Formulář**: přidán typ pole `date` (Datum) do `FIELD_TYPES`. PublicEventsPage rendruje `<Input type="date" />` pro tento typ

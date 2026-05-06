@@ -25,6 +25,7 @@ export default function PublicEventsPage() {
   const [result, setResult] = useState(null);
   const [payingOnline, setPayingOnline] = useState(false);
   const [gdprConsent, setGdprConsent] = useState(false);
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [termsConsent, setTermsConsent] = useState(false);
   const [institutionData, setInstitutionData] = useState({
     name: '',
@@ -354,6 +355,20 @@ export default function PublicEventsPage() {
                       <a href="/gdpr" target="_blank" rel="noopener noreferrer" className="text-[#5a7aae] hover:underline" data-testid="event-gdpr-link">
                         zásadami ochrany osobních údajů (GDPR)
                       </a>. <span className="text-red-500">*</span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={marketingConsent}
+                      onChange={e => setMarketingConsent(e.target.checked)}
+                      className="rounded mt-0.5 w-4 h-4 shrink-0"
+                      data-testid="event-marketing-consent"
+                    />
+                    <span className="text-sm text-gray-700 leading-relaxed">
+                      Souhlasím se zasíláním <strong>potenciálně relevantních nabídek</strong> v budoucnu
+                      (např. nové akce nebo workshopy). Souhlas lze kdykoli odvolat.{' '}
+                      <span className="text-gray-400">(volitelné)</span>
                     </span>
                   </label>
                   <label className="flex items-start gap-3 cursor-pointer">

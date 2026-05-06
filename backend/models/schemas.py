@@ -145,6 +145,7 @@ class BookingBase(BaseModel):
     contact_email: EmailStr
     contact_phone: str
     gdpr_consent: bool = True
+    marketing_consent: bool = False  # M1 Phase 76 — opt-in to future promotional mailings
 
 
 class BookingCreate(BookingBase):

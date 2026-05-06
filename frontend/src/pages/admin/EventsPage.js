@@ -26,6 +26,7 @@ const FIELD_TYPES = [
   { value: 'text', label: 'Text' },
   { value: 'email', label: 'Email' },
   { value: 'number', label: 'Číslo' },
+  { value: 'date', label: 'Datum' },
   { value: 'select', label: 'Výběr' },
   { value: 'checkbox', label: 'Zaškrtávátko' },
 ];
@@ -494,7 +495,8 @@ export const EventsPage = () => {
                         <label className="text-xs text-gray-500">Možnosti výběru (každá na novém řádku):</label>
                         <textarea
                           value={(field.options || []).join('\n')}
-                          onChange={e => updateFormField(idx, 'options', e.target.value.split('\n').filter(o => o.length > 0))}
+                          onChange={e => updateFormField(idx, 'options', e.target.value.split('\n'))}
+                          onBlur={e => updateFormField(idx, 'options', e.target.value.split('\n').filter(o => o.trim().length > 0))}
                           placeholder={"Možnost 1\nMožnost 2\nMožnost 3"}
                           className="w-full text-sm border rounded-md px-3 py-2 bg-white min-h-[80px] resize-y"
                           data-testid={`form-field-options-${idx}`}
@@ -632,8 +634,10 @@ export const EventsPage = () => {
                   </Select>
                 </div>
                 {(paymentSettings?.payment_mode === 'gateway' || paymentSettings?.payment_mode === 'both') && (
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-sm text-blue-700">Platební brána (GoPay/Comgate) bude dostupná v další fázi.</p>
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                    <p className="text-sm text-emerald-700">
+                      Platební brána <strong>Comgate</strong> je aktivní. Po uložení můžete na rezervaci spustit platbu kartou.
+                    </p>
                   </div>
                 )}
                 <Button onClick={() => savePaymentSettings(paymentSettings)} className="bg-slate-800 text-white" data-testid="save-payment-btn">Uložit platební nastavení</Button>

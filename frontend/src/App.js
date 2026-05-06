@@ -28,6 +28,7 @@ import { DashboardPage } from './pages/admin/DashboardPage';
 import { ProgramsPage } from './pages/admin/ProgramsPage';
 import { BookingsPage } from './pages/admin/BookingsPage';
 import { SchoolsPage } from './pages/admin/SchoolsPage';
+import ContactsPage from './pages/admin/ContactsPage';
 import { StatisticsPage } from './pages/admin/StatisticsPage';
 import { SettingsPage } from './pages/admin/SettingsPage';
 import { PlanPage } from './pages/admin/PlanPage';
@@ -192,6 +193,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <FeedbackAdminPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin/contacts"
+                element={
+                  <ProtectedRoute>
+                    <ContactsPage />
                   </ProtectedRoute>
                 }
               />

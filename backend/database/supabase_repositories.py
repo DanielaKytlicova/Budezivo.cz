@@ -557,6 +557,7 @@ class BookingRepositorySupabase:
             terms_accepted=terms_accepted,
             terms_accepted_at=terms_accepted_at,
             terms_accepted_text_version=booking_data.get('terms_accepted_text_version', 'v1'),
+            marketing_consent=bool(booking_data.get('marketing_consent', False)),
         )
         self.db.add(booking)
         await self.db.commit()

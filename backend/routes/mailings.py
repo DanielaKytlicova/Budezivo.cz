@@ -25,6 +25,26 @@ from services.mailing_service import (
 )
 from services.plan_service import require_feature
 from services.usage_service import track_usage
+from services.feature_flags import is_feature_enabled
+
+
+CONTACTS_FEATURE_KEY = "contacts_module"
+
+
+async def require_contacts_module(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Gate targeted-mailing endpoints behind the Contacts CRM whitelist."""
+    inst_id = current_user.get("institution_id") or current_user.get("inst_id")
+    if not inst_id:
+        raise HTTPException(403, "User has no institution context")
+    enabled = await is_feature_enabled(db, CONTACTS_FEATURE_KEY, str(inst_id))
+    if not enabled:
+        raise HTTPException(
+            status_code=403,
+            detail="Cílený mailing nad Kontakty není pro tuto instituci povolen.",
+        )
 
 router = APIRouter(prefix="/mailings", tags=["Mailings"], dependencies=[Depends(require_feature("mailing"))])
 logger = logging.getLogger(__name__)
@@ -725,3 +745,216 @@ async def send_campaign(
         "total_recipients": len(recipients),
     }
 
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Phase 78 — M3/M4: Cílený mailing nad tabulkou `contacts`
+# ─────────────────────────────────────────────────────────────────────────
+
+import csv
+import io
+from fastapi.responses import StreamingResponse
+from database.models import Contact, ContactLink
+
+
+class ContactPreviewRequest(BaseModel):
+    """Targeting filters for the new contacts-based recipient preview.
+
+    All filters are optional; combining them is AND. Examples:
+      - contact_type=['pedagog'], require_consent=True → schools only, opted in
+      - event_id=<uuid> → everyone who applied to a specific event
+      - source_type=['workshop','kurz'] → past workshop / course attendees
+    """
+    contact_types: Optional[List[str]] = None       # skola | pedagog | rodic | verejnost | …
+    source_types: Optional[List[str]] = None        # primary_source filter
+    school_types: Optional[List[str]] = None        # MS | ZS | SS | VOS | VS
+    event_id: Optional[str] = None                  # contacts who linked to a specific event
+    program_id: Optional[str] = None                # contacts who linked to a specific program
+    require_consent: bool = True                    # exclude contacts without explicit consent
+    contact_ids: Optional[List[str]] = None         # explicit manual list (overrides filters when set)
+
+
+@router.post("/preview-contacts")
+async def preview_contacts(
+    data: ContactPreviewRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    _guard=Depends(require_contacts_module),
+):
+    """Return the deduplicated list of contacts that would receive a campaign.
+
+    Used by the Cílení kampaně UI to show the user *exactly* who is in the
+    pool before they click Send. Always strips duplicate emails and surfaces
+    a per-contact `consent` state so the UI can render warnings.
+    """
+    inst_id = current_user["institution_id"]
+    q = select(Contact).where(Contact.institution_id == inst_id)
+
+    if data.contact_ids:
+        try:
+            ids = [uuid.UUID(x) for x in data.contact_ids]
+        except ValueError:
+            raise HTTPException(400, "Invalid contact_ids")
+        q = q.where(Contact.id.in_(ids))
+    else:
+        if data.contact_types:
+            q = q.where(Contact.type.in_(data.contact_types))
+        if data.source_types:
+            q = q.where(Contact.primary_source.in_(data.source_types))
+        if data.school_types:
+            q = q.where(Contact.school_type.in_(data.school_types))
+        if data.event_id or data.program_id:
+            link_q = select(ContactLink.contact_id).where(ContactLink.institution_id == inst_id)
+            if data.event_id:
+                try:
+                    link_q = link_q.where(ContactLink.event_id == uuid.UUID(data.event_id))
+                except ValueError:
+                    raise HTTPException(400, "Invalid event_id")
+            if data.program_id:
+                try:
+                    link_q = link_q.where(ContactLink.program_id == uuid.UUID(data.program_id))
+                except ValueError:
+                    raise HTTPException(400, "Invalid program_id")
+            q = q.where(Contact.id.in_(link_q))
+        if data.require_consent:
+            q = q.where(Contact.marketing_consent.is_(True))
+
+    contacts = list((await db.execute(q.order_by(Contact.last_activity_at.desc().nullslast()))).scalars().all())
+
+    # Dedup by email (defensive — DB unique index already enforces it)
+    seen, deduped = set(), []
+    for c in contacts:
+        key = (c.email or '').lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(c)
+
+    return {
+        "total": len(deduped),
+        "with_consent": sum(1 for c in deduped if c.marketing_consent is True),
+        "without_consent": sum(1 for c in deduped if c.marketing_consent is False),
+        "unknown_consent": sum(1 for c in deduped if c.marketing_consent is None),
+        "recipients": [
+            {
+                "id": str(c.id),
+                "email": c.email,
+                "name": f"{c.first_name or ''} {c.last_name or ''}".strip() or None,
+                "type": c.type,
+                "primary_source": c.primary_source,
+                "school_name": c.school_name,
+                "marketing_consent": c.marketing_consent,
+            }
+            for c in deduped
+        ],
+    }
+
+
+@router.get("/{campaign_id}/recipients/export.csv")
+async def export_recipients_csv(
+    campaign_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Download the campaign's recipient list as CSV (proof-of-delivery)."""
+    try:
+        cid = uuid.UUID(campaign_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid campaign_id")
+
+    inst_id = current_user["institution_id"]
+    campaign = (await db.execute(
+        select(MailingCampaign).where(
+            MailingCampaign.id == cid,
+            MailingCampaign.institution_id == inst_id,
+        )
+    )).scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(404, "Campaign not found")
+
+    recipients = list((await db.execute(
+        select(MailingCampaignRecipient)
+        .where(MailingCampaignRecipient.campaign_id == cid)
+        .order_by(MailingCampaignRecipient.school_name.nullslast(), MailingCampaignRecipient.email)
+    )).scalars().all())
+
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=';')
+    w.writerow([
+        'E-mail', 'Jméno', 'Škola', 'Stav', 'Odesláno', 'Důvod chyby', 'ID poskytovatele',
+    ])
+    for r in recipients:
+        w.writerow([
+            r.email,
+            r.contact_name or '',
+            r.school_name or '',
+            r.status,
+            r.sent_at.isoformat() if r.sent_at else '',
+            r.failure_reason or '',
+            r.email_provider_id or '',
+        ])
+
+    buf.seek(0)
+    filename = f"prijemci-{(campaign.name or 'kampan')[:40].replace(' ', '_')}.csv"
+    return StreamingResponse(
+        iter([buf.getvalue().encode('utf-8-sig')]),
+        media_type='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/{campaign_id}/repeat")
+async def repeat_as_draft(
+    campaign_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Clone an existing campaign into a fresh `draft` so the user can adjust
+    and resend without losing the original record."""
+    try:
+        cid = uuid.UUID(campaign_id)
+    except ValueError:
+        raise HTTPException(400, "Invalid campaign_id")
+
+    inst_id = current_user["institution_id"]
+    src = (await db.execute(
+        select(MailingCampaign).where(
+            MailingCampaign.id == cid,
+            MailingCampaign.institution_id == inst_id,
+        )
+    )).scalar_one_or_none()
+    if not src:
+        raise HTTPException(404, "Campaign not found")
+
+    src_programs = list((await db.execute(
+        select(MailingCampaignProgram).where(MailingCampaignProgram.campaign_id == cid)
+    )).scalars().all())
+
+    clone = MailingCampaign(
+        institution_id=inst_id,
+        created_by=current_user.get("id"),
+        name=f"{src.name} (kopie)",
+        type=src.type,
+        status='draft',
+        recipient_mode=src.recipient_mode,
+        subject=src.subject,
+        greeting=src.greeting,
+        intro_text=src.intro_text,
+        closing_text=src.closing_text,
+        signature=src.signature,
+        content_snapshot={},
+        selection_snapshot=src.selection_snapshot or {},
+        programs_snapshot=[],
+    )
+    db.add(clone)
+    await db.flush()
+
+    for p in src_programs:
+        db.add(MailingCampaignProgram(
+            campaign_id=clone.id,
+            program_id=p.program_id,
+            display_order=p.display_order,
+        ))
+
+    await db.commit()
+    return {"id": str(clone.id), "name": clone.name, "status": clone.status}

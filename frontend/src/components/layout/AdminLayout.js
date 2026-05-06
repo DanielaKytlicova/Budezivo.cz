@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../i18n/useTranslation';
 import { AuthContext } from '../../context/AuthContext';
-import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, FileText, CalendarDays, Mail, Lock, Shield, GraduationCap, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Calendar, BookOpen, School, BarChart3, Settings, Users, LogOut, MessageSquare, FileText, CalendarDays, Mail, Lock, Shield, GraduationCap, ChevronDown, ChevronRight, Contact } from 'lucide-react';
 import { usePlanFeatures } from '../../hooks/usePlanFeatures';
 import { UpgradeModal } from '../admin/UpgradeModal';
 import { ImpersonationBanner } from '../admin/ImpersonationBanner';
@@ -57,6 +57,7 @@ export const AdminLayout = ({ children }) => {
   const navigate = useNavigate();
   const { user, logout } = React.useContext(AuthContext);
   const [eventsEnabled, setEventsEnabled] = React.useState(false);
+  const [contactsEnabled, setContactsEnabled] = React.useState(false);
 
   React.useEffect(() => {
     // Check feature flag for events module
@@ -70,7 +71,18 @@ export const AdminLayout = ({ children }) => {
         }
       } catch { /* silent */ }
     };
+    const checkContactsFlag = async () => {
+      try {
+        const API = process.env.REACT_APP_BACKEND_URL;
+        const res = await fetch(`${API}/api/contacts/check-access`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setContactsEnabled(data.enabled);
+        }
+      } catch { /* silent */ }
+    };
     checkEventsFlag();
+    checkContactsFlag();
   }, []);
 
   const { hasAccess, getFeatureInfo, upgradeFeature, showUpgrade, hideUpgrade } = usePlanFeatures();
@@ -93,6 +105,7 @@ export const AdminLayout = ({ children }) => {
         roles: ['admin', 'spravce', 'edukator', 'staff'],
         children: [
           { path: '/admin/schools', icon: School, label: 'Školy', testId: 'nav-schools', roles: ['admin', 'spravce', 'edukator', 'staff'] },
+          ...(contactsEnabled ? [{ path: '/admin/contacts', icon: Contact, label: 'Kontakty', testId: 'nav-contacts', roles: ['admin', 'spravce', 'edukator', 'staff'] }] : []),
           { path: '/admin/feedback', icon: MessageSquare, label: 'Zpětná vazba', testId: 'nav-feedback', roles: ['admin', 'spravce', 'edukator', 'staff'] },
         ],
       },

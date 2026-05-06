@@ -23,6 +23,7 @@ from core.security import get_current_user
 from services.feature_flags import is_feature_enabled
 from services.plan_service import require_feature
 from services.payment_gateways.factory import _detect_mode
+from services.contact_service import upsert_contact_from_event_application
 
 router = APIRouter(prefix="/events", tags=["Events"])
 logger = logging.getLogger(__name__)
@@ -88,6 +89,7 @@ class ApplicationCreate(BaseModel):
     applicant_email: Optional[str] = None
     applicant_name: Optional[str] = None
     note: Optional[str] = None
+    marketing_consent: bool = False
 
 
 class ApplicationStatusUpdate(BaseModel):
@@ -728,12 +730,20 @@ async def submit_application(
         applicant_email=data.applicant_email,
         applicant_name=data.applicant_name,
         note=data.note,
+        marketing_consent=bool(data.marketing_consent),
         total_amount=event.price,
         variable_symbol=vs,
     )
     db.add(application)
     await db.commit()
     await db.refresh(application)
+
+    # Phase 76 — auto-seed contact directory (best-effort)
+    try:
+        await upsert_contact_from_event_application(db, application, event)
+        await db.commit()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Contact auto-seed failed (application {application.id}): {e}")
 
     # Get payment settings
     ps_result = await db.execute(

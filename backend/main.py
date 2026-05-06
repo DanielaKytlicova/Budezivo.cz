@@ -55,6 +55,7 @@ from routes.event_payments import router as event_payments_router
 from routes.exports_bundle import router as exports_bundle_router
 from routes.teacher import router as teacher_router
 from routes.analytics import router as analytics_router
+from routes.contacts import router as contacts_router
 from models.schemas import ContactFormData, InstitutionSettings
 
 # Configure logging
@@ -143,6 +144,7 @@ api_router.include_router(event_payments_router)
 api_router.include_router(exports_bundle_router)
 api_router.include_router(teacher_router)
 api_router.include_router(analytics_router)
+api_router.include_router(contacts_router)
 
 
 # ============ Additional Routes ============
@@ -307,6 +309,10 @@ async def startup_event():
             (
                 "social_proof",
                 "Sekce Social Proof na landing page (statistiky 8+/21+/173+/98% a \u201eD\u016fv\u011bruj\u00ed n\u00e1m\u201c). Vypnuto = sekce skryta; Zapnuto glob\u00e1ln\u011b = sekce zobrazena v\u0161em n\u00e1v\u0161t\u011bvn\u00edk\u016fm.",
+            ),
+            (
+                "contacts_module",
+                "Modul Kontakty (CRM) + cílený mailing nad kontakty. Pouze pro povolené instituce — vypnuto skrývá položku „Kontakty“ v menu a režim „Vlastní výběr příjemců (kontakty)“ v Propagaci.",
             ),
         ]
         async with _Session() as s:

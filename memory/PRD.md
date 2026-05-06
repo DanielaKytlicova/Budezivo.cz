@@ -763,6 +763,86 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
 - [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
 
+### Fáze 78 — Kontakty M3 + M4: Cílený mailing nad contacts + CSV export + Repeat (1.5.2026)
+- 🎯 **Cíl**: napojit existující mailing wizard na novou tabulku `contacts` + přidat doklad o odeslání (CSV) + zopakování kampaně jako koncept
+- [x] **Backend `routes/mailings.py`** — 3 nové endpointy:
+  - `POST /api/mailings/preview-contacts` — náhled cílových příjemců dle filtrů (contact_types, source_types, school_types, event_id, program_id, require_consent, contact_ids). Vrací `total/with_consent/without_consent/unknown_consent` + dedup recipients seznam
+  - `GET /api/mailings/{id}/recipients/export.csv` — CSV příjemců kampaně (BOM UTF-8 pro Excel CZ): E-mail, Jméno, Škola, Stav, Odesláno, Důvod chyby, ID poskytovatele
+  - `POST /api/mailings/{id}/repeat` — naklonuje kampaň jako nový `draft` (kopíruje subject/greeting/intro/closing/signature/programs, ale ne snapshot — koncept začne čistý)
+- [x] **Frontend `MailingsPage.js`**:
+  - **„Typ kampaně" → „Cílení kampaně"** label
+  - 3 nové popisné módy s kontextovou nápovědou:
+    - „Nabídka doprovodného programu" → Pošlete školám nabídku jednoho konkrétního programu
+    - „Sezónní nabídka programů" → Komplexní rozesílka více programů (před začátkem školního pololetí)
+    - „Vlastní výběr příjemců (kontakty)" → Pokročilé cílení napříč Kontakty (rodiče, veřejnost, účastníci konkrétní akce)
+  - V detailu kampaně (po odeslání) přidána tlačítka:
+    - „**Stáhnout CSV příjemců**" — fetch s `responseType: 'blob'`, programatický download
+    - „**Zopakovat jako koncept**" — POST `/repeat`, otevře nový draft v editoru
+- [x] **Lint čistý**, ručně otestováno (preview-contacts vrací správné totaly s/bez consent filteru)
+
+
+### Fáze 77 — Kontakty M1 (DB + Auto-sběr) (1.5.2026)
+- 🎯 **Cíl**: napojit wireframe Kontakty (M2) na reálnou DB + auto-sběr z nových rezervací a přihlášek; mockup uživatel schválil
+- 👤 **Volby uživatele**: backfill jen od dnešního dne (žádné historické); marketing souhlas přes opt-in checkbox na public formulářích (GDPR-compliant)
+- [x] **DB**:
+  - Migrace `c93b07e1d8f2_add_contacts_tables.py` aplikována
+  - `contacts` tabulka (institution_id, first_name, last_name, email, phone, type, primary_source, school_name, school_type, marketing_consent, marketing_consent_at, note, created_at, updated_at, last_activity_at). Unikátní index `(institution_id, email)` zajišťuje deduplikaci
+  - `contact_links` tabulka (contact_id, institution_id, program_id, event_id, reservation_id, application_id, source_type, role, status, label, linked_at)
+  - Sloupec `marketing_consent` přidán do `reservations` a `event_applications` (server_default false)
+- [x] **`services/contact_service.py`** — central upsert + dedup logic:
+  - `seed_contact_from_booking_dict` (volá z bookings.py — public + auth flow)
+  - `upsert_contact_from_event_application` + dict variant (volá z events.py)
+  - Email case-insensitive dedup, `marketing_consent` je sticky-positive (jednou true, nelze tiše překlopit)
+  - Jméno se rozparsuje (last token = surname); existující ručně upravené hodnoty se NEPŘEPISUJÍ
+  - Idempotentní link insertion (replay rezervace nepřidá druhý link, jen aktualizuje status)
+  - 17 jednotkových testů (`tests/test_contacts_service.py`) — **všechny PASS**
+- [x] **`routes/contacts.py`** (`/api/contacts`):
+  - GET `/` (filter type/source/consent/search), GET `/stats`, GET `/{id}` (s linky), GET `/export.csv` (BOM UTF-8 pro Excel CZ)
+  - POST `/` (manuální přidání s deduplikací → 409 při duplicitě)
+  - PATCH `/{id}` (note, type, marketing_consent), DELETE `/{id}`
+- [x] **Auto-seed hooky** v `routes/bookings.py` (public + auth) a `routes/events.py` (přihláška na akce). Best-effort: chyba auto-seedu nikdy neblokuje rezervaci/přihlášku (jen warn log)
+- [x] **Frontend `ContactsPage.js`** napojen na real API:
+  - `useEffect` debounce search 250 ms, `axios.get` s URLSearchParams
+  - Modal pro Přidat kontakt (deduplikace 409 → toast)
+  - Detail panel s editovatelnou poznámkou, typem, marketing consent toggle, smazáním
+  - CSV download přes blob + `<a download="kontakty.csv">`
+- [x] **Marketing consent UI** (M3 GDPR opt-in z předchozí fáze) — již implementováno v `BookingPage.js` a `PublicEventsPage.js`
+- [x] Lint čistý, ručně otestováno přes curl (POST/GET/dedup) i přes UI (přidání + detail + CSV)
+
+
+### Fáze 76 — Kontakty + Cílený mailing M2 (UI mockup) (1.5.2026)
+- 🎯 **Cíl**: nová podstránka Správa → Kontakty pro centrální evidenci kontaktů z rezervací/přihlášek + cílený mailing v dalších milnících
+- 📋 **Volba uživatele**: nejprve UI mockup (M2) → schválení → pak DB migrace (M1)
+- [x] **NEW `ContactsPage.js`** (wireframe se 9 mock kontakty pokrývajícími všechny typy):
+  - Header: titulek + wireframe banner („zatím s ukázkovými daty") + Export CSV + Přidat kontakt
+  - 4 stat karty (Celkem 9 / S marketing. souhlasem 6 / Pedagogové 5 / Veřejnost 3)
+  - Filtrovací řádek: vyhledávání (jméno/email/telefon/škola) + 3 selecty (Typ, Zdroj, Marketing souhlas)
+  - Tabulka: Jméno+škola | Email+telefon | Typ | Zdroj | Marketing badge | Poslední aktivita | Akce
+  - Slide-in detail panel (vpravo): Identita, Kontakty, Typ select + Marketing badge, Poznámka (editovatelná), Historie vazeb (chronologický seznam)
+  - `ConsentBadge` komponenta — 3 stavy: zelená „Souhlas", růžová „Bez souhlasu", šedá „Neznámé" (pro stávající kontakty bez opt-inu)
+- [x] **Marketing consent checkbox** přidán na public formuláře (M3 GDPR-compliant opt-in):
+  - `BookingPage.js` (rezervace školního programu) → `marketing_consent: false` default
+  - `PublicEventsPage.js` (přihláška na akci) → mezi GDPR a Obchodní podmínky
+  - Text: „Souhlasím se zasíláním **potenciálně relevantních nabídek** v budoucnu… Souhlas lze kdykoli odvolat. *(volitelné)*"
+- [x] **Routing + nav**:
+  - Nová položka v menu Správa → Kontakty (`Contact` ikona z lucide-react)
+  - Route `/admin/contacts` registrována v `App.js`
+- [x] Lint čistý, screenshot ověřen
+- 📌 **Dataová struktura připravená (mock matching plánovaným tabulkám)**:
+  - `contacts`: institution_id, first_name, last_name, email, phone, type (skola/pedagog/rodic/verejnost/odborna_verejnost/jine), source (skolni_rezervace/jednorazova_akce/workshop/kurz/primestsky_tabor/baby_herna/rucne), marketing_consent (true/false/null), school_name, school_type, note, created_at, last_activity
+  - `contact_links`: contact_id, type, label, date, status
+
+⏭️ **Next milestones (čeká na schválení mockupu)**: M1 (DB migrace + auto-sběr), M3 (cílený mailing 3 dynamické bloky), M4 (doklad o odeslání + CSV)
+
+
+### Fáze 75 — Quick fixes: Kolize filter, Datum field, Comgate notice, Enter bug (1.5.2026)
+- [x] **BookingsPage**: nový filter chip „Kolize" s žlutou `AlertTriangle` ikonkou — virtuální filtr přes `collisionIndex.has(b.id)`. Refaktorováno pořadí `useMemo` (collisionIndex před filteredBookings) kvůli TDZ
+- [x] **EventsPage Formulář**: přidán typ pole `date` (Datum) do `FIELD_TYPES`. PublicEventsPage rendruje `<Input type="date" />` pro tento typ
+- [x] **EventsPage Formulář — Enter bug**: `onChange` v `select`-options textarea filtroval prázdné řádky během psaní → Enter „nedělal nic". Fix: během typing zachovává prázdné řádky, na `onBlur` se odfiltrují
+- [x] **EventsPage Platby**: modrý notice „bude dostupná v další fázi" nahrazen zelenou hláškou „Platební brána **Comgate** je aktivní"
+- [x] Otestováno end-to-end — všechny 4 fixy ověřeny screenshotem
+
+
 ### Fáze 74 — Tour bubble side-first placement + collision steps refactor (30.4.2026)
 - 🎯 **Zpětná vazba**: bubliny překrývaly pole, kterých se týkaly (např. krok 18/21 přes Cílové skupiny). Některé Kolize kroky měly skrytý cíl (conditional rendering za toggle).
 - [x] **Side-first placement** v `ProgramTour.js`:
@@ -1089,6 +1169,25 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - 🧪 **Test**: `/app/backend/tests/test_payment_return_url.py` — 8 testů PASS (origin, referer, env override, api. strip, dev localhost, no-www atd.)
 - 🧪 **Curl smoke test**: `/by-ref/{uuid}` → 404 OK / `/by-ref/notauuid` → 400 OK
 - 🧪 **UI smoke test**: nový blok URL pro Comgate Klientský portál se renderuje pod Comgate sekcí, copy tlačítka funkční
+
+
+### Fáze 79 — Whitelist pro modul Kontakty + cílený mailing (6.5.2026)
+- 🎯 **Cíl**: per-instituce uzamknout nové funkce M1 (Kontakty CRM) a M3+M4 (cílený mailing nad kontakty). Superadmin rozhoduje, kdo má přístup.
+- [x] **Backend** — využit existující `feature_flags` mechanismus (žádný nový sloupec na `institutions`):
+  - `main.py` startup_event seeduje nový flag `contacts_module` (default: enabled=false, allowed_institution_ids=[]) přes `INSERT ... ON CONFLICT (key) DO NOTHING`
+  - `routes/contacts.py`: nový dependency `require_contacts_module` aplikovaný per-endpoint (list/stats/export.csv/get/post/patch/delete) → 403 s českou hláškou „Modul Kontakty není pro tuto instituci povolen"
+  - `routes/contacts.py`: nový lehký endpoint `GET /api/contacts/check-access` (vrací `{"enabled": bool}`) — vždy 200, sidebar UI ho zná
+  - `routes/mailings.py`: nový dependency `require_contacts_module` aplikovaný na `POST /api/mailings/preview-contacts` (cílený mailing přes contacts) → 403 s českou hláškou „Cílený mailing nad Kontakty není pro tuto instituci povolen"
+- [x] **Frontend**:
+  - `AdminLayout.js`: paralelně s `events_module` se probuje `/api/contacts/check-access`. Položka „Kontakty" v sekci Správa se zobrazí pouze pokud je modul povolen pro danou instituci
+  - `MailingsPage.js → CampaignWizard`: nový state `contactsEnabled` se naplní z `/api/contacts/check-access`. Možnost „Vlastní výběr příjemců (kontakty)" v dropdownu „Cílení kampaně" se zobrazí pouze pokud je modul povolen
+  - `SuperadminPage.js`: nový záznam `contacts_module` v `FEATURE_FLAG_LABELS` (icon Contact, čitelný popis) — nová sekce v záložce „Feature flagy" pro per-institution whitelist přes existující batch-save UI; není potřeba nová superadmin obrazovka
+- [x] **Testing**:
+  - Pytest `/app/backend/tests/test_contacts_module_whitelist.py` — 4/4 PASS (check-access off→false, list 403, preview-contacts 403, po whitelistování všechno 200)
+  - Smoke screenshot: po whitelistování se „Kontakty" objeví v sidebaru pod Správa (Test Muzeum + Budeživo Platform whitelisted)
+  - Curl: cleanup → 403, whitelist → 200, rollback → 403 (idempotentně přes superadmin PUT s `add_institution_ids` / `remove_institution_ids`)
+- ❗ **Důležité**: cílený mailing v UI je gated na klientovi (skrytá option), ale i kdyby uživatel zaslal payload napřímo, server vrátí 403. Existující kampaně typu `single_program` / `seasonal` zůstávají dostupné všem (gated jen plánem PRO via existující `mailing` feature).
+
 
 
 

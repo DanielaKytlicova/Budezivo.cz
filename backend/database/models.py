@@ -278,6 +278,9 @@ class Reservation(Base):
     terms_accepted = Column(Boolean, default=False)
     terms_accepted_at = Column(DateTime(timezone=True))
     terms_accepted_text_version = Column(Text, default='v1')
+
+    # Marketing opt-in (M1 Phase 76 — propagates to contacts.marketing_consent)
+    marketing_consent = Column(Boolean, default=False)
     
     # Metadata
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
@@ -866,6 +869,8 @@ class EventApplication(Base):
     applicant_email = Column(Text)
     applicant_name = Column(Text)
     note = Column(Text)
+    # Marketing opt-in (M1 Phase 76)
+    marketing_consent = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
@@ -1234,4 +1239,90 @@ class PageView(Base):
         Index('idx_page_views_created_at', 'created_at'),
         Index('idx_page_views_session', 'session_id'),
         Index('idx_page_views_path', 'path'),
+    )
+
+
+
+# ──────────────────────────────────────────────────────────────────────────
+#  Contacts (Phase 76 — M1)
+#  Centralized address book auto-populated from Reservation + EventApplication.
+#  Deduplicated by (institution_id, lowercased email).
+# ──────────────────────────────────────────────────────────────────────────
+
+class Contact(Base):
+    """A single contact person belonging to an institution.
+
+    Sources: school reservations, event applications (workshops, camps,
+    baby-play sessions etc.), or a manual admin entry.
+    """
+    __tablename__ = 'contacts'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+
+    # Identity
+    first_name = Column(Text)
+    last_name = Column(Text)
+    email = Column(Text, nullable=False)         # primary identifier within institution
+    phone = Column(Text)
+
+    # Categorisation
+    type = Column(Text, default='jine')          # skola | pedagog | rodic | verejnost | odborna_verejnost | jine
+    primary_source = Column(Text)                # first source that created the contact
+
+    # School association (denormalised for filtering speed)
+    school_name = Column(Text)
+    school_type = Column(Text)                   # MS | ZS | SS | VOS | VS | null
+
+    # GDPR / marketing
+    marketing_consent = Column(Boolean)          # NULL = unknown (legacy); True = opted in; False = explicitly refused
+    marketing_consent_at = Column(DateTime(timezone=True))
+
+    # Free-form admin note
+    note = Column(Text)
+
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    last_activity_at = Column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index('idx_contacts_institution', 'institution_id'),
+        Index('idx_contacts_email_inst', 'institution_id', 'email', unique=True),
+        Index('idx_contacts_type', 'type'),
+        Index('idx_contacts_consent', 'marketing_consent'),
+    )
+
+
+class ContactLink(Base):
+    """Many-to-many between a Contact and a concrete activity (program / event).
+
+    One Contact can have many links (each booking, application, repeat visit
+    creates one row). Used by the targeted-mailing UI to filter recipients
+    by past participation.
+    """
+    __tablename__ = 'contact_links'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    contact_id = Column(UUID(as_uuid=True), ForeignKey('contacts.id', ondelete='CASCADE'), nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+
+    # Link target — exactly one of these is set
+    program_id = Column(UUID(as_uuid=True), ForeignKey('programs.id', ondelete='SET NULL'))
+    event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='SET NULL'))
+    reservation_id = Column(UUID(as_uuid=True), ForeignKey('reservations.id', ondelete='SET NULL'))
+    application_id = Column(UUID(as_uuid=True), ForeignKey('event_applications.id', ondelete='SET NULL'))
+
+    source_type = Column(Text, nullable=False)   # skolni_rezervace | jednorazova_akce | workshop | kurz | primestsky_tabor | baby_herna | rucne
+    role = Column(Text)                          # objednavajici | ucastnik | zakonny_zastupce | pedagog | skolni_kontakt
+    status = Column(Text)                        # prihlasen | potvrzeno | zaplaceno | zruseno | ucastnil_se
+    label = Column(Text)                         # human-friendly name (program/event title at link time)
+
+    linked_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_contact_links_contact', 'contact_id'),
+        Index('idx_contact_links_institution', 'institution_id'),
+        Index('idx_contact_links_program', 'program_id'),
+        Index('idx_contact_links_event', 'event_id'),
+        Index('idx_contact_links_source', 'source_type'),
     )

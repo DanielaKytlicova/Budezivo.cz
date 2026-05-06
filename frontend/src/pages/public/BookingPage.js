@@ -101,6 +101,7 @@ export const BookingPage = () => {
     contact_email: '',
     contact_phone: '',
     gdpr_consent: false,
+    marketing_consent: false,
     terms_accepted: false,
     terms_accepted_text_version: 'v1',
   });
@@ -1097,6 +1098,20 @@ export const BookingPage = () => {
                         zásadami ochrany osobních údajů (GDPR)
                       </a>
                       .
+                    </label>
+                  </div>
+
+                  <div className="flex items-start space-x-2 pt-2">
+                    <Checkbox
+                      id="marketing"
+                      checked={formData.marketing_consent}
+                      onCheckedChange={(checked) => setFormData({ ...formData, marketing_consent: checked })}
+                      data-testid="booking-marketing-consent"
+                    />
+                    <label htmlFor="marketing" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
+                      Souhlasím se zasíláním <strong>potenciálně relevantních nabídek</strong> v budoucnu
+                      (např. nové programy, akce nebo workshopy). Souhlas lze kdykoli odvolat odpovědí na
+                      jakýkoli zaslaný e-mail. <span className="text-gray-400">(volitelné)</span>
                     </label>
                   </div>
                   

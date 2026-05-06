@@ -763,6 +763,24 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
 - [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
 
+### Fáze 78 — Kontakty M3 + M4: Cílený mailing nad contacts + CSV export + Repeat (1.5.2026)
+- 🎯 **Cíl**: napojit existující mailing wizard na novou tabulku `contacts` + přidat doklad o odeslání (CSV) + zopakování kampaně jako koncept
+- [x] **Backend `routes/mailings.py`** — 3 nové endpointy:
+  - `POST /api/mailings/preview-contacts` — náhled cílových příjemců dle filtrů (contact_types, source_types, school_types, event_id, program_id, require_consent, contact_ids). Vrací `total/with_consent/without_consent/unknown_consent` + dedup recipients seznam
+  - `GET /api/mailings/{id}/recipients/export.csv` — CSV příjemců kampaně (BOM UTF-8 pro Excel CZ): E-mail, Jméno, Škola, Stav, Odesláno, Důvod chyby, ID poskytovatele
+  - `POST /api/mailings/{id}/repeat` — naklonuje kampaň jako nový `draft` (kopíruje subject/greeting/intro/closing/signature/programs, ale ne snapshot — koncept začne čistý)
+- [x] **Frontend `MailingsPage.js`**:
+  - **„Typ kampaně" → „Cílení kampaně"** label
+  - 3 nové popisné módy s kontextovou nápovědou:
+    - „Nabídka doprovodného programu" → Pošlete školám nabídku jednoho konkrétního programu
+    - „Sezónní nabídka programů" → Komplexní rozesílka více programů (před začátkem školního pololetí)
+    - „Vlastní výběr příjemců (kontakty)" → Pokročilé cílení napříč Kontakty (rodiče, veřejnost, účastníci konkrétní akce)
+  - V detailu kampaně (po odeslání) přidána tlačítka:
+    - „**Stáhnout CSV příjemců**" — fetch s `responseType: 'blob'`, programatický download
+    - „**Zopakovat jako koncept**" — POST `/repeat`, otevře nový draft v editoru
+- [x] **Lint čistý**, ručně otestováno (preview-contacts vrací správné totaly s/bez consent filteru)
+
+
 ### Fáze 77 — Kontakty M1 (DB + Auto-sběr) (1.5.2026)
 - 🎯 **Cíl**: napojit wireframe Kontakty (M2) na reálnou DB + auto-sběr z nových rezervací a přihlášek; mockup uživatel schválil
 - 👤 **Volby uživatele**: backfill jen od dnešního dne (žádné historické); marketing souhlas přes opt-in checkbox na public formulářích (GDPR-compliant)

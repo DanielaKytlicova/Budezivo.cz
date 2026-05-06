@@ -156,6 +156,14 @@ export const MailingsPage = () => {
             onClose={() => setSelectedCampaign(null)}
             onRefresh={fetchCampaigns}
             onEdit={() => { setShowWizard(true); }}
+            onRepeatCreated={async (newId) => {
+              await fetchCampaigns();
+              try {
+                const res = await axios.get(`${API}/mailings/${newId}`, { withCredentials: true });
+                setSelectedCampaign(res.data);
+                setShowWizard(true);
+              } catch { /* user can find the new draft in the list */ }
+            }}
           />
         )}
 
@@ -321,7 +329,7 @@ const DeliveryHealthPanel = () => {
 };
 
 /* ==================== CAMPAIGN DETAIL ==================== */
-const CampaignDetail = ({ campaign, onClose, onRefresh, onEdit }) => {
+const CampaignDetail = ({ campaign, onClose, onRefresh, onEdit, onRepeatCreated }) => {
   const c = campaign;
   const st = STATUS_MAP[c.status] || STATUS_MAP.draft;
 
@@ -431,6 +439,43 @@ const CampaignDetail = ({ campaign, onClose, onRefresh, onEdit }) => {
         </div>
 
         <DialogFooter>
+          {c.status !== 'draft' && (
+            <>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const res = await axios.get(`${API}/mailings/${c.id}/recipients/export.csv`, {
+                      responseType: 'blob', withCredentials: true,
+                    });
+                    const url = window.URL.createObjectURL(res.data);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `prijemci-${c.name.replace(/[^\w]/g, '_').slice(0, 40)}.csv`;
+                    document.body.appendChild(a); a.click(); a.remove();
+                    window.URL.revokeObjectURL(url);
+                  } catch { toast.error('Stažení CSV selhalo'); }
+                }}
+                data-testid="campaign-csv-export"
+              >
+                <FileText className="w-4 h-4 mr-1.5" /> Stáhnout CSV příjemců
+              </Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const res = await axios.post(`${API}/mailings/${c.id}/repeat`, {}, { withCredentials: true });
+                    toast.success(`Vytvořen koncept „${res.data.name}"`);
+                    onClose();
+                    if (onRepeatCreated) onRepeatCreated(res.data.id);
+                  } catch { toast.error('Zopakování kampaně selhalo'); }
+                }}
+                data-testid="campaign-repeat-btn"
+              >
+                <Mail className="w-4 h-4 mr-1.5" /> Zopakovat jako koncept
+              </Button>
+            </>
+          )}
           {c.status === 'draft' && (
             <Button variant="outline" onClick={onEdit} data-testid="edit-campaign-btn">
               <FileText className="w-4 h-4 mr-1.5" /> Upravit
@@ -632,15 +677,20 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
               <Input value={campaignName} onChange={e => setCampaignName(e.target.value)} placeholder="např. Nabídka programů na jaro 2026" data-testid="campaign-name-input" />
             </div>
             <div>
-              <Label>Typ kampaně</Label>
+              <Label>Cílení kampaně</Label>
               <Select value={campaignType} onValueChange={setCampaignType}>
                 <SelectTrigger data-testid="campaign-type-select"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="single_program">Jednotlivý program</SelectItem>
-                  <SelectItem value="seasonal">Sezónní nabídka</SelectItem>
-                  <SelectItem value="custom">Vlastní mailing</SelectItem>
+                  <SelectItem value="single_program">Nabídka doprovodného programu</SelectItem>
+                  <SelectItem value="seasonal">Sezónní nabídka programů</SelectItem>
+                  <SelectItem value="custom">Vlastní výběr příjemců (kontakty)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-slate-500 mt-1">
+                {campaignType === 'single_program' && 'Pošlete školám nabídku jednoho konkrétního programu. Příjemci se navrhnou automaticky podle kategorií školy.'}
+                {campaignType === 'seasonal' && 'Komplexní rozesílka více programů (např. „Nabídka pro jaro 2026"). Doporučeno před začátkem školního pololetí.'}
+                {campaignType === 'custom' && 'Pokročilé cílení napříč Kontakty (rodiče, veřejnost, účastníci konkrétní akce). Vyberte si přesně koho oslovit.'}
+              </p>
             </div>
             <div>
               <Label>Vyberte programy ({selectedProgramIds.length})</Label>
@@ -844,7 +894,7 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
               <h3 className="font-semibold text-slate-800">Souhrn kampaně</h3>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div><strong>Název:</strong> {campaignName}</div>
-                <div><strong>Typ:</strong> {campaignType === 'single_program' ? 'Jednotlivý program' : campaignType === 'seasonal' ? 'Sezónní nabídka' : 'Vlastní'}</div>
+                <div><strong>Typ:</strong> {campaignType === 'single_program' ? 'Nabídka programu' : campaignType === 'seasonal' ? 'Sezónní nabídka' : 'Vlastní výběr (kontakty)'}</div>
                 <div><strong>Programů:</strong> {selectedProgramIds.length}</div>
                 <div><strong>Příjemců:</strong> {preview?.stats?.total_contacts || '—'}</div>
                 <div><strong>Režim:</strong> {MODE_LABELS[recipientMode]}</div>

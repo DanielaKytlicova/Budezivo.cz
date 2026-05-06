@@ -763,6 +763,35 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - **5 wrong attempts → 401, 6. attempt → 429**, dokonce i správné heslo během lockoutu vrací 429 ✅
 - [x] Carry-over: BookingPage step-4 live walkthrough stále blokován seed-daty Test Muzea (žádné dostupné termíny) — nesouvisí s Etapou 4
 
+### Fáze 77 — Kontakty M1 (DB + Auto-sběr) (1.5.2026)
+- 🎯 **Cíl**: napojit wireframe Kontakty (M2) na reálnou DB + auto-sběr z nových rezervací a přihlášek; mockup uživatel schválil
+- 👤 **Volby uživatele**: backfill jen od dnešního dne (žádné historické); marketing souhlas přes opt-in checkbox na public formulářích (GDPR-compliant)
+- [x] **DB**:
+  - Migrace `c93b07e1d8f2_add_contacts_tables.py` aplikována
+  - `contacts` tabulka (institution_id, first_name, last_name, email, phone, type, primary_source, school_name, school_type, marketing_consent, marketing_consent_at, note, created_at, updated_at, last_activity_at). Unikátní index `(institution_id, email)` zajišťuje deduplikaci
+  - `contact_links` tabulka (contact_id, institution_id, program_id, event_id, reservation_id, application_id, source_type, role, status, label, linked_at)
+  - Sloupec `marketing_consent` přidán do `reservations` a `event_applications` (server_default false)
+- [x] **`services/contact_service.py`** — central upsert + dedup logic:
+  - `seed_contact_from_booking_dict` (volá z bookings.py — public + auth flow)
+  - `upsert_contact_from_event_application` + dict variant (volá z events.py)
+  - Email case-insensitive dedup, `marketing_consent` je sticky-positive (jednou true, nelze tiše překlopit)
+  - Jméno se rozparsuje (last token = surname); existující ručně upravené hodnoty se NEPŘEPISUJÍ
+  - Idempotentní link insertion (replay rezervace nepřidá druhý link, jen aktualizuje status)
+  - 17 jednotkových testů (`tests/test_contacts_service.py`) — **všechny PASS**
+- [x] **`routes/contacts.py`** (`/api/contacts`):
+  - GET `/` (filter type/source/consent/search), GET `/stats`, GET `/{id}` (s linky), GET `/export.csv` (BOM UTF-8 pro Excel CZ)
+  - POST `/` (manuální přidání s deduplikací → 409 při duplicitě)
+  - PATCH `/{id}` (note, type, marketing_consent), DELETE `/{id}`
+- [x] **Auto-seed hooky** v `routes/bookings.py` (public + auth) a `routes/events.py` (přihláška na akce). Best-effort: chyba auto-seedu nikdy neblokuje rezervaci/přihlášku (jen warn log)
+- [x] **Frontend `ContactsPage.js`** napojen na real API:
+  - `useEffect` debounce search 250 ms, `axios.get` s URLSearchParams
+  - Modal pro Přidat kontakt (deduplikace 409 → toast)
+  - Detail panel s editovatelnou poznámkou, typem, marketing consent toggle, smazáním
+  - CSV download přes blob + `<a download="kontakty.csv">`
+- [x] **Marketing consent UI** (M3 GDPR opt-in z předchozí fáze) — již implementováno v `BookingPage.js` a `PublicEventsPage.js`
+- [x] Lint čistý, ručně otestováno přes curl (POST/GET/dedup) i přes UI (přidání + detail + CSV)
+
+
 ### Fáze 76 — Kontakty + Cílený mailing M2 (UI mockup) (1.5.2026)
 - 🎯 **Cíl**: nová podstránka Správa → Kontakty pro centrální evidenci kontaktů z rezervací/přihlášek + cílený mailing v dalších milnících
 - 📋 **Volba uživatele**: nejprve UI mockup (M2) → schválení → pak DB migrace (M1)

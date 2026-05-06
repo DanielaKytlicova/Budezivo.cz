@@ -55,6 +55,7 @@ from routes.event_payments import router as event_payments_router
 from routes.exports_bundle import router as exports_bundle_router
 from routes.teacher import router as teacher_router
 from routes.analytics import router as analytics_router
+from routes.contacts import router as contacts_router
 from models.schemas import ContactFormData, InstitutionSettings
 
 # Configure logging
@@ -143,6 +144,7 @@ api_router.include_router(event_payments_router)
 api_router.include_router(exports_bundle_router)
 api_router.include_router(teacher_router)
 api_router.include_router(analytics_router)
+api_router.include_router(contacts_router)
 
 
 # ============ Additional Routes ============

@@ -32,6 +32,7 @@ from services.email_service import (
 from services.collision_service import check_booking_collision, check_lecturer_collision_for_assignment
 from services.collision_classifier import classify as classify_collision
 from services.lecturer_assignment_service import pick_main_lecturer, SOURCE_MANUAL, SOURCE_UNASSIGNED
+from services.contact_service import seed_contact_from_booking_dict
 from routes.audit import log_action
 
 from pydantic import BaseModel as PydanticBaseModel
@@ -146,6 +147,14 @@ async def create_booking(
 
     booking_repo = BookingRepositorySupabase(db)
     booking = await booking_repo.create(payload, current_user["institution_id"])
+    # Phase 76 — auto-seed contact directory (best-effort, never blocks booking)
+    try:
+        program_repo_local = ProgramRepositorySupabase(db)
+        prog = await program_repo_local.find_by_id(booking_data.program_id, current_user["institution_id"])
+        await seed_contact_from_booking_dict(db, booking, prog)
+        await db.commit()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Contact auto-seed failed (booking {booking.get('id')}): {e}")
     return booking
 
 
@@ -227,6 +236,13 @@ async def create_public_booking(
     })
 
     booking = await booking_repo.create(payload, institution_id)
+    # Phase 76 — auto-seed contact directory (best-effort, never blocks booking)
+    try:
+        prog_for_contact = await program_repo.find_by_id(booking_data.program_id, institution_id)
+        await seed_contact_from_booking_dict(db, booking, prog_for_contact)
+        await db.commit()
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"Contact auto-seed failed (public booking {booking.get('id')}): {e}")
     
     # Create or update school record
     school = await school_repo.find_by_email(institution_id, booking_data.contact_email)

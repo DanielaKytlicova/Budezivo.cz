@@ -1171,6 +1171,25 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - 🧪 **UI smoke test**: nový blok URL pro Comgate Klientský portál se renderuje pod Comgate sekcí, copy tlačítka funkční
 
 
+### Fáze 79 — Whitelist pro modul Kontakty + cílený mailing (6.5.2026)
+- 🎯 **Cíl**: per-instituce uzamknout nové funkce M1 (Kontakty CRM) a M3+M4 (cílený mailing nad kontakty). Superadmin rozhoduje, kdo má přístup.
+- [x] **Backend** — využit existující `feature_flags` mechanismus (žádný nový sloupec na `institutions`):
+  - `main.py` startup_event seeduje nový flag `contacts_module` (default: enabled=false, allowed_institution_ids=[]) přes `INSERT ... ON CONFLICT (key) DO NOTHING`
+  - `routes/contacts.py`: nový dependency `require_contacts_module` aplikovaný per-endpoint (list/stats/export.csv/get/post/patch/delete) → 403 s českou hláškou „Modul Kontakty není pro tuto instituci povolen"
+  - `routes/contacts.py`: nový lehký endpoint `GET /api/contacts/check-access` (vrací `{"enabled": bool}`) — vždy 200, sidebar UI ho zná
+  - `routes/mailings.py`: nový dependency `require_contacts_module` aplikovaný na `POST /api/mailings/preview-contacts` (cílený mailing přes contacts) → 403 s českou hláškou „Cílený mailing nad Kontakty není pro tuto instituci povolen"
+- [x] **Frontend**:
+  - `AdminLayout.js`: paralelně s `events_module` se probuje `/api/contacts/check-access`. Položka „Kontakty" v sekci Správa se zobrazí pouze pokud je modul povolen pro danou instituci
+  - `MailingsPage.js → CampaignWizard`: nový state `contactsEnabled` se naplní z `/api/contacts/check-access`. Možnost „Vlastní výběr příjemců (kontakty)" v dropdownu „Cílení kampaně" se zobrazí pouze pokud je modul povolen
+  - `SuperadminPage.js`: nový záznam `contacts_module` v `FEATURE_FLAG_LABELS` (icon Contact, čitelný popis) — nová sekce v záložce „Feature flagy" pro per-institution whitelist přes existující batch-save UI; není potřeba nová superadmin obrazovka
+- [x] **Testing**:
+  - Pytest `/app/backend/tests/test_contacts_module_whitelist.py` — 4/4 PASS (check-access off→false, list 403, preview-contacts 403, po whitelistování všechno 200)
+  - Smoke screenshot: po whitelistování se „Kontakty" objeví v sidebaru pod Správa (Test Muzeum + Budeživo Platform whitelisted)
+  - Curl: cleanup → 403, whitelist → 200, rollback → 403 (idempotentně přes superadmin PUT s `add_institution_ids` / `remove_institution_ids`)
+- ❗ **Důležité**: cílený mailing v UI je gated na klientovi (skrytá option), ale i kdyby uživatel zaslal payload napřímo, server vrátí 403. Existující kampaně typu `single_program` / `seasonal` zůstávají dostupné všem (gated jen plánem PRO via existující `mailing` feature).
+
+
+
 
 
 

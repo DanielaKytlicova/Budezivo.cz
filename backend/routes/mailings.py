@@ -25,6 +25,26 @@ from services.mailing_service import (
 )
 from services.plan_service import require_feature
 from services.usage_service import track_usage
+from services.feature_flags import is_feature_enabled
+
+
+CONTACTS_FEATURE_KEY = "contacts_module"
+
+
+async def require_contacts_module(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Gate targeted-mailing endpoints behind the Contacts CRM whitelist."""
+    inst_id = current_user.get("institution_id") or current_user.get("inst_id")
+    if not inst_id:
+        raise HTTPException(403, "User has no institution context")
+    enabled = await is_feature_enabled(db, CONTACTS_FEATURE_KEY, str(inst_id))
+    if not enabled:
+        raise HTTPException(
+            status_code=403,
+            detail="Cílený mailing nad Kontakty není pro tuto instituci povolen.",
+        )
 
 router = APIRouter(prefix="/mailings", tags=["Mailings"], dependencies=[Depends(require_feature("mailing"))])
 logger = logging.getLogger(__name__)
@@ -759,6 +779,7 @@ async def preview_contacts(
     data: ContactPreviewRequest,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    _guard=Depends(require_contacts_module),
 ):
     """Return the deduplicated list of contacts that would receive a campaign.
 

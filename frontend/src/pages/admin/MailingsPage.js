@@ -503,6 +503,22 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
   const [selectedProgramIds, setSelectedProgramIds] = useState(
     editCampaign?.programs?.map(p => p.id) || (preselectedProgram?.id ? [preselectedProgram.id] : [])
   );
+  const [contactsEnabled, setContactsEnabled] = useState(false);
+
+  useEffect(() => {
+    // Probe whether the institution has access to the Contacts module — used
+    // to gate the "custom" campaign type (Vlastní výběr příjemců). The check
+    // is silent: if it fails or the flag is off, the option simply doesn't show.
+    const probe = async () => {
+      try {
+        const res = await axios.get(`${API}/contacts/check-access`, { withCredentials: true });
+        setContactsEnabled(!!res.data?.enabled);
+      } catch {
+        setContactsEnabled(false);
+      }
+    };
+    probe();
+  }, []);
 
   // Step 2: Recipients
   const [recipientMode, setRecipientMode] = useState(editCampaign?.recipient_mode || 'relevant_only');
@@ -683,7 +699,9 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
                 <SelectContent>
                   <SelectItem value="single_program">Nabídka doprovodného programu</SelectItem>
                   <SelectItem value="seasonal">Sezónní nabídka programů</SelectItem>
-                  <SelectItem value="custom">Vlastní výběr příjemců (kontakty)</SelectItem>
+                  {contactsEnabled && (
+                    <SelectItem value="custom">Vlastní výběr příjemců (kontakty)</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-slate-500 mt-1">

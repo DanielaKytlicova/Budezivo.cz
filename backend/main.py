@@ -310,6 +310,10 @@ async def startup_event():
                 "social_proof",
                 "Sekce Social Proof na landing page (statistiky 8+/21+/173+/98% a \u201eD\u016fv\u011bruj\u00ed n\u00e1m\u201c). Vypnuto = sekce skryta; Zapnuto glob\u00e1ln\u011b = sekce zobrazena v\u0161em n\u00e1v\u0161t\u011bvn\u00edk\u016fm.",
             ),
+            (
+                "contacts_module",
+                "Modul Kontakty (CRM) + cílený mailing nad kontakty. Pouze pro povolené instituce — vypnuto skrývá položku „Kontakty“ v menu a režim „Vlastní výběr příjemců (kontakty)“ v Propagaci.",
+            ),
         ]
         async with _Session() as s:
             for key, desc in DEFAULT_FLAGS:

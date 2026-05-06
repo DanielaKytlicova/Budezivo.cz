@@ -15,7 +15,7 @@ import {
   Building2, Users, BookOpen, Calendar, Mail, BarChart3, Loader2,
   Search, ChevronRight, Crown, Shield, AlertTriangle, Check, X,
   FileText, Clock, ArrowLeft, Eye, Settings2, Trash2, BarChart2,
-  UserCog, AtSign, History, Flag, ToggleLeft, ToggleRight, Image as ImageIcon
+  UserCog, AtSign, History, Flag, ToggleLeft, ToggleRight, Image as ImageIcon, Contact
 } from 'lucide-react';
 import { API } from '../../config/api';
 
@@ -658,6 +658,11 @@ const FEATURE_FLAG_LABELS = {
     label: 'Fotografie programů',
     icon: ImageIcon,
     description: 'Umožňuje nahrát hlavní fotografii programu zobrazenou na veřejné rezervační stránce.',
+  },
+  contacts_module: {
+    label: 'Kontakty (CRM) + cílený mailing',
+    icon: Contact,
+    description: 'Modul Kontakty (centrální adresář s deduplikací z rezervací a přihlášek) a režim „Vlastní výběr příjemců (kontakty)“ v Propagaci. Vypnuto = obě funkce skryté.',
   },
 };
 

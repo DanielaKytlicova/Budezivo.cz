@@ -31,10 +31,44 @@ from services.contact_service import (
     list_contacts_for_institution,
     list_links_for_contact,
 )
+from services.feature_flags import is_feature_enabled
+
+
+CONTACTS_FEATURE_KEY = "contacts_module"
+
+
+async def require_contacts_module(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Block access unless the institution is whitelisted for the Contacts CRM."""
+    inst_id = current_user.get("institution_id") or current_user.get("inst_id")
+    if not inst_id:
+        raise HTTPException(403, "User has no institution context")
+    enabled = await is_feature_enabled(db, CONTACTS_FEATURE_KEY, str(inst_id))
+    if not enabled:
+        raise HTTPException(
+            status_code=403,
+            detail="Modul Kontakty není pro tuto instituci povolen. Kontaktujte správce platformy.",
+        )
 
 
 router = APIRouter(prefix="/contacts", tags=["Contacts"])
 logger = logging.getLogger(__name__)
+
+
+@router.get("/check-access")
+async def check_contacts_access(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Return whether the Contacts CRM module is enabled for the current
+    institution. Used by the admin sidebar to conditionally render the link."""
+    inst_id = current_user.get("institution_id") or current_user.get("inst_id")
+    if not inst_id:
+        return {"enabled": False}
+    enabled = await is_feature_enabled(db, CONTACTS_FEATURE_KEY, str(inst_id))
+    return {"enabled": enabled}
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────
@@ -157,6 +191,7 @@ async def list_contacts(
     limit: int = Query(500, ge=1, le=2000),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_contacts_module),
 ):
     inst = _institution_id_from_user(current_user)
     contacts = await list_contacts_for_institution(
@@ -171,6 +206,7 @@ async def list_contacts(
 async def contacts_stats(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_contacts_module),
 ):
     inst = _institution_id_from_user(current_user)
     base = select(func.count(Contact.id)).where(Contact.institution_id == inst)
@@ -194,6 +230,7 @@ async def export_csv(
     search: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_contacts_module),
 ):
     inst = _institution_id_from_user(current_user)
     contacts = await list_contacts_for_institution(
@@ -229,6 +266,7 @@ async def get_contact(
     contact_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_contacts_module),
 ):
     inst = _institution_id_from_user(current_user)
     res = await db.execute(
@@ -247,6 +285,7 @@ async def create_contact(
     payload: ContactCreate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_contacts_module),
 ):
     inst = _institution_id_from_user(current_user)
     email_norm = payload.email.strip().lower()
@@ -283,6 +322,7 @@ async def update_contact(
     payload: ContactUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_contacts_module),
 ):
     inst = _institution_id_from_user(current_user)
     c = (await db.execute(
@@ -306,6 +346,7 @@ async def delete_contact(
     contact_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    _guard=Depends(require_contacts_module),
 ):
     inst = _institution_id_from_user(current_user)
     c = (await db.execute(

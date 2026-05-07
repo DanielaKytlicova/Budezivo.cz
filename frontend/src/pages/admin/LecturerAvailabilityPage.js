@@ -713,8 +713,8 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
         <Card className="p-4 border border-slate-200" data-testid="google-integration-card">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${googleStatus.connected ? 'bg-rose-100' : 'bg-gray-100'}`}>
-                <CalendarDays className={`w-5 h-5 ${googleStatus.connected ? 'text-rose-600' : 'text-gray-400'}`} />
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${googleStatus.connected ? 'bg-green-100' : 'bg-gray-100'}`}>
+                <CalendarDays className={`w-5 h-5 ${googleStatus.connected ? 'text-green-600' : 'text-gray-400'}`} />
               </div>
               <div>
                 <p className="font-medium text-slate-800 text-sm">Google kalendář</p>
@@ -762,7 +762,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
                   size="sm"
                   onClick={connectGoogle}
                   disabled={googleStatus.configured === false}
-                  className="bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50"
+                  className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
                   data-testid="connect-google-btn"
                   title={googleStatus.configured === false ? 'Google OAuth není nakonfigurován' : 'Připojit Google kalendář'}
                 >

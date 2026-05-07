@@ -60,6 +60,11 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   const [outlookBlocks, setOutlookBlocks] = useState([]);
   const [outlookSyncing, setOutlookSyncing] = useState(false);
 
+  // Google Calendar integration state
+  const [googleStatus, setGoogleStatus] = useState({ connected: false, configured: false });
+  const [googleBlocks, setGoogleBlocks] = useState([]);
+  const [googleSyncing, setGoogleSyncing] = useState(false);
+
   // Forms
   const [recurringForm, setRecurringForm] = useState({
     days_of_week: [],
@@ -114,6 +119,8 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   useEffect(() => { fetchTeam(); }, [fetchTeam]);
   useEffect(() => { fetchOutlookStatus(); }, [token]);
   useEffect(() => { if (outlookStatus.connected) fetchOutlookBlocks(); }, [weekStart, lecturerId, outlookStatus.connected]);
+  useEffect(() => { fetchGoogleStatus(); }, [token]);
+  useEffect(() => { if (googleStatus.connected) fetchGoogleBlocks(); }, [weekStart, lecturerId, googleStatus.connected]);
 
   // Listen for OAuth popup messages
   useEffect(() => {
@@ -124,6 +131,12 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
         fetchOutlookBlocks();
       } else if (event.data?.type === 'outlook_error') {
         toast.error(event.data.error || 'Chyba při připojení Outlooku');
+      } else if (event.data?.type === 'google_connected') {
+        toast.success('Google kalendář připojen!');
+        fetchGoogleStatus();
+        fetchGoogleBlocks();
+      } else if (event.data?.type === 'google_error') {
+        toast.error(event.data.error || 'Chyba při připojení Google kalendáře');
       }
     };
     window.addEventListener('message', handleMessage);
@@ -192,6 +205,76 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       const res = await axios.post(`${API}/api/microsoft-calendar/blocks/${blockId}/override`, {}, { headers });
       toast.success(res.data.message);
       await fetchOutlookBlocks();
+    } catch (err) {
+      toast.error('Chyba při změně přepsání');
+    }
+  };
+
+  // ── Google Calendar integration ─────────────────────────────────────
+  const fetchGoogleStatus = async () => {
+    try {
+      const res = await axios.get(`${API}/api/google-calendar/status`, { headers });
+      setGoogleStatus(res.data);
+      if (res.data.connected) fetchGoogleBlocks();
+    } catch (err) {
+      // Probably 403 (plan gate) — silently ignore so non-PRO+ users see nothing
+      console.error('Google status fetch failed');
+    }
+  };
+
+  const fetchGoogleBlocks = async () => {
+    try {
+      const weekStr = formatDate(weekStart);
+      const endStr = formatDate(new Date(weekStart.getTime() + 6 * 86400000));
+      const params = lecturerId ? `?user_id=${lecturerId}&start=${weekStr}&end=${endStr}` : `?start=${weekStr}&end=${endStr}`;
+      const res = await axios.get(`${API}/api/google-calendar/blocks${params}`, { headers });
+      setGoogleBlocks(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error('Google blocks fetch failed');
+    }
+  };
+
+  const connectGoogle = async () => {
+    try {
+      const res = await axios.get(`${API}/api/google-calendar/connect`, { headers });
+      if (res.data.auth_url) {
+        window.open(res.data.auth_url, 'google_auth', 'width=500,height=700');
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Nepodařilo se zahájit připojení Google kalendáře';
+      toast.error(msg);
+    }
+  };
+
+  const disconnectGoogle = async () => {
+    try {
+      await axios.post(`${API}/api/google-calendar/disconnect`, {}, { headers });
+      setGoogleStatus({ connected: false, configured: googleStatus.configured });
+      setGoogleBlocks([]);
+      toast.success('Google kalendář odpojen');
+    } catch (err) {
+      toast.error('Chyba při odpojování');
+    }
+  };
+
+  const syncGoogle = async () => {
+    setGoogleSyncing(true);
+    try {
+      const res = await axios.post(`${API}/api/google-calendar/sync`, {}, { headers });
+      toast.success(res.data.message || 'Synchronizováno');
+      await fetchGoogleBlocks();
+    } catch (err) {
+      toast.error('Synchronizace selhala');
+    } finally {
+      setGoogleSyncing(false);
+    }
+  };
+
+  const toggleGoogleBlockOverride = async (blockId) => {
+    try {
+      const res = await axios.post(`${API}/api/google-calendar/blocks/${blockId}/override`, {}, { headers });
+      toast.success(res.data.message);
+      await fetchGoogleBlocks();
     } catch (err) {
       toast.error('Chyba při změně přepsání');
     }
@@ -352,12 +435,17 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       const bDate = new Date(b.start_time).toISOString().slice(0, 10);
       return bDate === dateStr;
     });
-    
-    return { avail: allAvail, offs, outlook: dayOutlook };
+    // Google blocks for this day
+    const dayGoogle = googleBlocks.filter(b => {
+      const bDate = new Date(b.start_time).toISOString().slice(0, 10);
+      return bDate === dateStr;
+    });
+
+    return { avail: allAvail, offs, outlook: dayOutlook, google: dayGoogle };
   };
 
   const renderCalendarCell = (dayIndex, hour) => {
-    const { avail, offs, outlook } = getBlocksForDay(dayIndex);
+    const { avail, offs, outlook, google } = getBlocksForDay(dayIndex);
     const cellStart = hour * 60;
     const cellEnd = (hour + 1) * 60;
 
@@ -392,8 +480,12 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       }
     }
 
-    // Check Outlook blocks
-    for (const ob of (outlook || [])) {
+    // Check Outlook + Google external blocks (treated identically — first match wins)
+    const externalBlocks = [
+      ...(outlook || []).map(b => ({ ...b, _provider: 'Outlook' })),
+      ...(google || []).map(b => ({ ...b, _provider: 'Google' })),
+    ];
+    for (const ob of externalBlocks) {
       const obStart = new Date(ob.start_time);
       const obEnd = new Date(ob.end_time);
       const obStartMin = obStart.getHours() * 60 + obStart.getMinutes();
@@ -401,7 +493,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       if (cellStart < obEndMin && cellEnd > obStartMin) {
         isOutlookBlock = true;
         isOutlookOverride = ob.override || false;
-        outlookTitle = ob.title || 'Outlook';
+        outlookTitle = `${ob._provider}: ${ob.title || ob._provider}`;
         break;
       }
     }
@@ -413,7 +505,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     if (isOutlookBlock && !isOutlookOverride) {
       bg = 'bg-slate-200 border-slate-300';
       textColor = 'text-slate-600';
-      title = `Outlook: ${outlookTitle}`;
+      title = outlookTitle;
     } else if (isOutlookBlock && isOutlookOverride) {
       bg = 'bg-amber-100 border-amber-300';
       textColor = 'text-amber-700';
@@ -617,6 +709,102 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
           )}
         </Card>
 
+        {/* Google Calendar Integration Card — mirrors Outlook */}
+        <Card className="p-4 border border-slate-200" data-testid="google-integration-card">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${googleStatus.connected ? 'bg-rose-100' : 'bg-gray-100'}`}>
+                <CalendarDays className={`w-5 h-5 ${googleStatus.connected ? 'text-rose-600' : 'text-gray-400'}`} />
+              </div>
+              <div>
+                <p className="font-medium text-slate-800 text-sm">Google kalendář</p>
+                {googleStatus.connected ? (
+                  <p className="text-xs text-green-600">
+                    Připojeno
+                    {googleStatus.last_sync_at && ` · Poslední sync: ${new Date(googleStatus.last_sync_at).toLocaleString('cs-CZ')}`}
+                  </p>
+                ) : googleStatus.configured === false ? (
+                  <p className="text-xs text-gray-500">Modul není nakonfigurován — kontaktujte správce platformy</p>
+                ) : (
+                  <p className="text-xs text-gray-500">Nepřipojeno — události z Google kalendáře neblokují rezervace</p>
+                )}
+                {googleStatus.sync_error && (
+                  <p className="text-xs text-red-500 mt-0.5">{googleStatus.sync_error}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {googleStatus.connected ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={syncGoogle}
+                    disabled={googleSyncing}
+                    data-testid="sync-google-btn"
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-1 ${googleSyncing ? 'animate-spin' : ''}`} />
+                    Sync
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={disconnectGoogle}
+                    className="text-red-600 border-red-200 hover:bg-red-50"
+                    data-testid="disconnect-google-btn"
+                  >
+                    <Unlink className="w-4 h-4 mr-1" />
+                    Odpojit
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={connectGoogle}
+                  disabled={googleStatus.configured === false}
+                  className="bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50"
+                  data-testid="connect-google-btn"
+                  title={googleStatus.configured === false ? 'Google OAuth není nakonfigurován' : 'Připojit Google kalendář'}
+                >
+                  <ExternalLink className="w-4 h-4 mr-1" />
+                  Připojit Google
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {googleBlocks.length > 0 && (
+            <div className="mt-3 pt-3 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                  {googleBlocks.length} Google {googleBlocks.length === 1 ? 'blok' : 'bloků'} tento týden
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {googleBlocks.map(block => (
+                  <button
+                    key={block.id}
+                    onClick={() => toggleGoogleBlockOverride(block.id)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      block.override
+                        ? 'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200'
+                        : 'bg-slate-100 text-slate-600 border border-slate-300 hover:bg-slate-200'
+                    }`}
+                    title={block.override ? 'Klikněte pro blokaci' : 'Klikněte pro povolení rezervací'}
+                    data-testid={`toggle-google-override-${block.id}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${block.override ? 'bg-amber-500' : 'bg-slate-400'}`} />
+                    {block.title || 'Google'}
+                    <span className="text-[10px] opacity-70">
+                      {new Date(block.start_time).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+
         {/* Legend */}
         <div className="flex items-center gap-6 text-xs">
           <div className="flex items-center gap-1.5">
@@ -629,7 +817,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-4 h-4 rounded bg-gray-100 border border-gray-300" />
-            <span className="text-gray-600">Outlook blok</span>
+            <span className="text-gray-600">Externí kalendář (Outlook / Google)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <div className="w-4 h-4 rounded bg-amber-100 border border-amber-300" />

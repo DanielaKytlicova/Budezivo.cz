@@ -45,6 +45,7 @@ from routes.audit import router as audit_router
 from routes.calendar_export import router as calendar_export_router
 from routes.rooms import router as rooms_router
 from routes.microsoft_calendar import router as ms_calendar_router
+from routes.google_calendar import router as google_calendar_router
 from routes.events import router as events_router
 from routes.unified_availability import router as unified_availability_router
 from routes.waitlist import router as waitlist_router
@@ -135,6 +136,7 @@ api_router.include_router(onboarding_router)
 api_router.include_router(audit_router)
 api_router.include_router(rooms_router)
 api_router.include_router(ms_calendar_router)
+api_router.include_router(google_calendar_router)
 api_router.include_router(events_router)
 api_router.include_router(unified_availability_router)
 api_router.include_router(waitlist_router)

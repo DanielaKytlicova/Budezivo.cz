@@ -15,6 +15,16 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 
 ## Implementované funkce
 
+### Fáze 28 — UI/UX bug fixes (16.5.2026)
+- [x] Registrace instituce: poslední krok "Přeskočit" nyní rovnou dokončí registraci a přesměruje na /admin
+- [x] ProgramsPage Nastavení: pole `preparation_time` a `cleanup_time` lze ručně přepsat na 0 (allow `min=0`, neresetuje na default)
+- [x] ProgramsPage mobile FAB "+": z-index 50 — tlačítko vždy v popředí nad kartami
+- [x] PlanPage upgrade modal: nový scrollovatelný design (max-h-[85vh]) se sekcemi Cena / Získáte / Přijdete o / Jak to bude dál; vejde se do obrazovky
+- [x] Upload loga + obrázku programu: rozšířený allowlist (PNG/JPG/JPEG/JPE/SVG/WEBP/GIF), validace dle přípony, detailní chybové hlášky a tracebacky v logu
+- [x] Logo sync: PUT /api/institution/settings se nyní propaguje i do `theme.logo_url` → veřejný booking/catalog odkaz vidí nové logo
+- [x] resolveAssetUrl helper: relativní `/api/...` cesty pro loga a obrázky programů jsou konvertovány na absolutní URL backendu (kritické pro split deployment frontend↔API host)
+
+
 ### Fáze 1-16 (předchozí)
 - Core MVP, Feedback, Team, Legal, CRM, Booking, Kolize, GDPR
 - VOP, Security, One-off bloky, Archive, Onboarding, Email Theming

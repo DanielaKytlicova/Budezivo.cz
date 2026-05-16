@@ -257,10 +257,16 @@ async def check_availability_blocks(
     blocks = result.scalars().all()
 
     for block in blocks:
+        if block.source == 'outlook':
+            source_label = 'Outlook'
+        elif block.source == 'google':
+            source_label = 'Google'
+        else:
+            source_label = 'Ruční blokace'
         return (
-            f"Lektor má blokaci v kalendáři: '{block.title or 'Outlook událost'}' "
+            f"Lektor má blokaci v kalendáři: '{block.title or source_label + ' událost'}' "
             f"({block.start_time.strftime('%H:%M')}–{block.end_time.strftime('%H:%M')}). "
-            f"Zdroj: {'Outlook' if block.source == 'outlook' else 'Ruční blokace'}."
+            f"Zdroj: {source_label}."
         )
 
     return None

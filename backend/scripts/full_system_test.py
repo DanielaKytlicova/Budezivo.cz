@@ -6,7 +6,7 @@ import asyncio, os, sys, json, time, random, uuid
 from datetime import datetime, timedelta
 import httpx
 
-API = os.environ.get("API_URL") or "https://arch-enhance-v59.preview.emergentagent.com"
+API = os.environ.get("API_URL") or "https://school-crm-pilot.preview.emergentagent.com"
 EMAILS = [
     "danny.van@seznam.cz",
     "noemi.xxx@seznam.cz",

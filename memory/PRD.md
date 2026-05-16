@@ -15,6 +15,16 @@ Budeživo.cz je komplexní SaaS platforma pro správu vzdělávacích programů,
 
 ## Implementované funkce
 
+### Fáze 28 — UI/UX bug fixes (16.5.2026)
+- [x] Registrace instituce: poslední krok "Přeskočit" nyní rovnou dokončí registraci a přesměruje na /admin
+- [x] ProgramsPage Nastavení: pole `preparation_time` a `cleanup_time` lze ručně přepsat na 0 (allow `min=0`, neresetuje na default)
+- [x] ProgramsPage mobile FAB "+": z-index 50 — tlačítko vždy v popředí nad kartami
+- [x] PlanPage upgrade modal: nový scrollovatelný design (max-h-[85vh]) se sekcemi Cena / Získáte / Přijdete o / Jak to bude dál; vejde se do obrazovky
+- [x] Upload loga + obrázku programu: rozšířený allowlist (PNG/JPG/JPEG/JPE/SVG/WEBP/GIF), validace dle přípony, detailní chybové hlášky a tracebacky v logu
+- [x] Logo sync: PUT /api/institution/settings se nyní propaguje i do `theme.logo_url` → veřejný booking/catalog odkaz vidí nové logo
+- [x] resolveAssetUrl helper: relativní `/api/...` cesty pro loga a obrázky programů jsou konvertovány na absolutní URL backendu (kritické pro split deployment frontend↔API host)
+
+
 ### Fáze 1-16 (předchozí)
 - Core MVP, Feedback, Team, Legal, CRM, Booking, Kolize, GDPR
 - VOP, Security, One-off bloky, Archive, Onboarding, Email Theming
@@ -102,7 +112,7 @@ programs: + room_id (FK → rooms.id)
 
 ## Důležitá poznámka k OAuth
 Pro testování na preview prostředí je potřeba v Azure Portal přidat Redirect URI:
-`https://arch-enhance-v59.preview.emergentagent.com/api/auth/microsoft/callback`
+`https://school-crm-pilot.preview.emergentagent.com/api/auth/microsoft/callback`
 
 Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 
@@ -1187,6 +1197,35 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
   - Smoke screenshot: po whitelistování se „Kontakty" objeví v sidebaru pod Správa (Test Muzeum + Budeživo Platform whitelisted)
   - Curl: cleanup → 403, whitelist → 200, rollback → 403 (idempotentně přes superadmin PUT s `add_institution_ids` / `remove_institution_ids`)
 - ❗ **Důležité**: cílený mailing v UI je gated na klientovi (skrytá option), ale i kdyby uživatel zaslal payload napřímo, server vrátí 403. Existující kampaně typu `single_program` / `seasonal` zůstávají dostupné všem (gated jen plánem PRO via existující `mailing` feature).
+
+
+### Fáze 80 — Google Calendar OAuth integrace pro lektory (mirror Microsoft Graph) (7.5.2026)
+- 🎯 **Cíl**: lektoři mohou připojit svůj Google kalendář vedle Outlooku; busy eventy automaticky blokují rezervace; sync každých 5 min přes APScheduler. Mirror existujícího Microsoft Graph pluginu, sjednocená logika kolizní kontroly.
+- 📋 **Volby uživatele**: 1b) připravit kód + dokumentaci, ENV prázdné → graceful "not configured", 2a) plný mirror MS funkčnosti, 3a) karta vedle Outlook v Lektorský profil → Dostupnost, 4a) společná tabulka availability_blocks (source='google'), 5a) multi-account (Outlook + Google současně)
+- [x] **Backend**: nový router `/app/backend/routes/google_calendar.py` (~620 řádků) — endpointy `GET /connect`, `GET /callback`, `GET /status`, `POST /disconnect`, `POST /sync`, `GET /blocks`, `POST /blocks/{id}/override`. Reuse `UserCalendarIntegration` modelu (`provider='google'`, sloupec `microsoft_user_id` reused pro Google sub). httpx-based OAuth (žádné nové deps). Plánové gating na `outlook_sync` (PRO+).
+- [x] **Graceful "not configured"**: bez `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` v env vrátí `/connect` → 503 s českou hláškou „Google OAuth není nakonfigurován"; `/status` → 200 s `{configured: false}`; `/blocks` → 200 [] ; scheduler job no-op. Žádný crash při importu.
+- [x] **Reuse OAuthState tabulky**: persistent state pro multi-instance bezpečnost (mirror MS pattern), TTL 10 min, idempotentní cleanup přes existující scheduler job
+- [x] **Sjednocená kolizní logika**: `services/collision_service.py` → `check_availability_blocks()` už spravně filtroval bez source filteru, jen jsem přidal čitelnou hlášku „Zdroj: Google" / „Outlook" / „Ruční blokace"
+- [x] **Bug fix v MS sync_all_integrations**: dříve syncoval VŠECHNY active integrace bez ohledu na provider — přidán `provider == 'microsoft'` filter, aby Google integrace neměly volat MS sync (a naopak)
+- [x] **APScheduler**: nový job `google_calendar_sync` paralelně k `outlook_calendar_sync`, IntervalTrigger(minutes=5), early-return pokud env keys missing
+- [x] **Frontend** (`LecturerAvailabilityPage.js`):
+  - Nová karta „Google kalendář" s ikonou (růžová) bezprostředně pod Outlook kartou (testid `google-integration-card`)
+  - Tlačítko „Připojit Google" (testid `connect-google-btn`) — automaticky disabled pokud `configured === false` s tooltipem „Google OAuth není nakonfigurován"
+  - Popup OAuth flow s `postMessage` listenerem pro `google_connected` / `google_error` events
+  - Sync / Odpojit tlačítka (testid `sync-google-btn`, `disconnect-google-btn`) zobrazené po připojení
+  - Compact "X Google bloků tento týden" lišta s override pill tlačítky (testid `toggle-google-override-{id}`)
+  - Týdenní kalendář cell renderer nyní drží Outlook + Google v jednom seznamu — first-match wins, label v tooltipu zobrazuje provider („Outlook: Meeting" / „Google: Stand-up")
+  - Legend updated: „Externí kalendář (Outlook / Google)" místo dříve jen „Outlook blok"
+- [x] **Bezpečné defaulty**: `transparency='transparent'` Google eventy přeskočeny (free time); `status='cancelled'` přeskočeny; all-day události bez explicit dateTime přeskočeny (parita s Outlookem)
+- [x] **Setup dokumentace**: `/app/memory/google_calendar_setup.md` — kompletní 6-krokový průvodce Google Cloud Console, OAuth consent screen, redirect URIs, pitfalls (refresh_token only on first consent, OAuth Testing mode 7d expiry, atd.)
+- [x] **Pytest** `/app/backend/tests/test_google_calendar_unconfigured.py` — 5/5 PASS:
+  - status returns connected=false + configured=false
+  - connect → 503 s českou hláškou
+  - blocks → 200 prázdný list
+  - disconnect idempotentní (i když integration neexistuje)
+  - parita check: MS endpointy stále fungují
+- [x] **Smoke screenshot**: Google kartu vykresluje, tlačítko „Připojit Google" disabled (faded) bez konfigurovaných keys, layout vedle Outlook karty intaktní
+- 🔑 **Pro aktivaci**: vložit do `backend/.env` `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (viz setup.md) → restart backend → tlačítko se okamžitě stane aktivním
 
 
 

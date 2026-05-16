@@ -1,113 +1,127 @@
 """
-Microsoft Outlook Calendar Integration.
-OAuth2 flow, token management, calendar sync, availability blocks.
+Google Calendar Integration — mirrors the Microsoft Outlook integration.
+
+OAuth 2.0 Authorization Code flow (offline access for refresh_token), token
+management, calendar event polling, availability blocks. Reuses the existing
+``user_calendar_integrations`` table with ``provider='google'`` and the same
+``microsoft_user_id`` column to store the Google user id (kept for schema
+parity — no migration needed).
+
+Graceful "not configured" behaviour: when GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
+are unset, ``/connect`` returns 503 with a Czech message, but all other
+endpoints (``/status``, ``/blocks``, scheduler) keep working without crashing.
 """
+from __future__ import annotations
+
 import logging
 import os
 import uuid
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from urllib.parse import urlencode, urlparse
 
 import httpx
-import msal
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
-from fastapi.responses import RedirectResponse
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select, and_, delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
 from database.supabase import get_db
-from database.models import UserCalendarIntegration, AvailabilityBlock, OAuthState, Program
+from database.models import (
+    UserCalendarIntegration, AvailabilityBlock, OAuthState, Program,
+)
 from services.plan_service import require_feature
 
-router = APIRouter(prefix="/microsoft-calendar", tags=["Microsoft Calendar"], dependencies=[Depends(require_feature("outlook_sync"))])
+
+router = APIRouter(
+    prefix="/google-calendar",
+    tags=["Google Calendar"],
+    dependencies=[Depends(require_feature("outlook_sync"))],
+)
 logger = logging.getLogger(__name__)
+
 
 # ── Config ──────────────────────────────────────────────────────────
 
-CLIENT_ID = os.environ.get("MICROSOFT_CLIENT_ID", "")
-CLIENT_SECRET = os.environ.get("MICROSOFT_CLIENT_SECRET", "")
-TENANT_ID = os.environ.get("MICROSOFT_TENANT_ID", "")
-REDIRECT_URI = os.environ.get("MICROSOFT_REDIRECT_URI", "")
+CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "")
 
-AUTHORITY = "https://login.microsoftonline.com/common"
-SCOPES = ["Calendars.Read", "User.Read", "offline_access"]
-GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+AUTH_URI = "https://accounts.google.com/o/oauth2/v2/auth"
+TOKEN_URI = "https://oauth2.googleapis.com/token"
+USERINFO_URI = "https://www.googleapis.com/oauth2/v2/userinfo"
+CALENDAR_EVENTS_URI = (
+    "https://www.googleapis.com/calendar/v3/calendars/primary/events"
+)
 
+SCOPES = [
+    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/userinfo.email",
+]
+PROVIDER = "google"
+SOURCE = "google"
 OAUTH_STATE_TTL_MINUTES = 10
+
+
+def _is_configured() -> bool:
+    return bool(CLIENT_ID and CLIENT_SECRET)
 
 
 def _get_redirect_uri(request: Request) -> str:
     """Build redirect URI from the current request's public-facing host."""
-    # Prefer X-Forwarded-Host (set by reverse proxy/ingress)
     fwd_host = request.headers.get("x-forwarded-host")
     fwd_proto = request.headers.get("x-forwarded-proto", "https")
     if fwd_host:
-        return f"{fwd_proto}://{fwd_host}/api/microsoft-calendar/callback"
-    
-    # Fallback: use Origin/Referer header
+        return f"{fwd_proto}://{fwd_host}/api/google-calendar/callback"
     origin = request.headers.get("origin") or request.headers.get("referer")
     if origin:
-        from urllib.parse import urlparse
         parsed = urlparse(origin)
         base = f"{parsed.scheme}://{parsed.netloc}"
-        return f"{base}/api/microsoft-calendar/callback"
-    
-    return REDIRECT_URI or "https://budezivo.cz/api/microsoft-calendar/callback"
-
-
-def _get_msal_app():
-    return msal.ConfidentialClientApplication(
-        client_id=CLIENT_ID,
-        authority=AUTHORITY,
-        client_credential=CLIENT_SECRET,
-    )
+        return f"{base}/api/google-calendar/callback"
+    return REDIRECT_URI or "https://budezivo.cz/api/google-calendar/callback"
 
 
 # ── OAuth Flow ──────────────────────────────────────────────────────
 
 
 @router.get("/connect")
-async def connect_outlook(
+async def connect_google(
     request: Request,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Step 1: Redirect user to Microsoft login.
-    Frontend opens this URL in a new window/popup.
-    """
-    if not CLIENT_ID or not CLIENT_SECRET:
-        raise HTTPException(status_code=500, detail="Microsoft OAuth není nakonfigurován")
+    """Step 1: build the Google consent URL and persist OAuth state."""
+    if not _is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Google OAuth není nakonfigurován. Kontaktujte správce platformy.",
+        )
 
     redirect = _get_redirect_uri(request)
-
     state = secrets.token_urlsafe(32)
 
-    # Persist state in DB (replaces in-memory dict)
-    oauth_state = OAuthState(
+    db.add(OAuthState(
         state=state,
         user_id=uuid.UUID(current_user["user_id"]),
         institution_id=uuid.UUID(current_user["institution_id"]),
         redirect_uri=redirect,
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=OAUTH_STATE_TTL_MINUTES),
-    )
-    db.add(oauth_state)
+    ))
     await db.commit()
 
     params = {
         "client_id": CLIENT_ID,
         "response_type": "code",
         "redirect_uri": redirect,
-        "response_mode": "query",
         "scope": " ".join(SCOPES),
         "state": state,
-        "prompt": "consent",
+        "access_type": "offline",     # required to receive refresh_token
+        "prompt": "consent",          # force refresh_token on every consent
+        "include_granted_scopes": "true",
     }
-    from urllib.parse import urlencode
-    auth_url = f"{AUTHORITY}/oauth2/v2.0/authorize?{urlencode(params)}"
-    return {"auth_url": auth_url}
+    return {"auth_url": f"{AUTH_URI}?{urlencode(params)}"}
 
 
 @router.get("/callback")
@@ -118,21 +132,15 @@ async def oauth_callback(
     error_description: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Step 2: Microsoft redirects here with authorization code.
-    Exchange code for tokens, store in DB, close popup.
-    """
+    """Step 2: exchange the authorization code for tokens and persist them."""
     if error:
-        logger.error(f"OAuth error: {error} - {error_description}")
+        logger.error(f"Google OAuth error: {error} - {error_description}")
         return _close_popup_html(f"Chyba: {error_description or error}")
 
     if not code or not state:
         return _close_popup_html("Chybí autorizační kód")
 
-    # Look up state from DB (replaces in-memory dict)
-    result = await db.execute(
-        select(OAuthState).where(OAuthState.state == state)
-    )
+    result = await db.execute(select(OAuthState).where(OAuthState.state == state))
     oauth_row = result.scalar_one_or_none()
     if not oauth_row or oauth_row.expires_at < datetime.now(timezone.utc):
         if oauth_row:
@@ -145,16 +153,14 @@ async def oauth_callback(
         "institution_id": str(oauth_row.institution_id),
         "redirect_uri": oauth_row.redirect_uri,
     }
-    # Delete used state
     await db.delete(oauth_row)
     await db.commit()
 
-    # Exchange code for tokens — use redirect_uri matching the one used in /connect
-    redirect = user_data.get("redirect_uri", REDIRECT_URI)
+    redirect = user_data.get("redirect_uri") or REDIRECT_URI
     try:
         token_data = await _exchange_code_for_tokens(code, redirect)
     except Exception as e:
-        logger.error(f"Token exchange failed: {e}")
+        logger.error(f"Google token exchange failed: {e}")
         return _close_popup_html(f"Nepodařilo se získat token: {e}")
 
     access_token = token_data.get("access_token")
@@ -162,38 +168,40 @@ async def oauth_callback(
     expires_in = token_data.get("expires_in", 3600)
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
-    # Get Microsoft user profile
-    ms_user_id = None
+    # Pull user identity (email) for diagnostics & to store as google_user_id
+    google_user_id = None
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                f"{GRAPH_BASE}/me",
+                USERINFO_URI,
                 headers={"Authorization": f"Bearer {access_token}"},
                 timeout=15,
             )
             if resp.status_code == 200:
                 profile = resp.json()
-                ms_user_id = profile.get("id")
+                # Prefer the stable "id" field; fall back to email.
+                google_user_id = profile.get("id") or profile.get("email")
     except Exception as e:
-        logger.warning(f"Failed to get MS profile: {e}")
+        logger.warning(f"Google userinfo failed: {e}")
 
-    # Upsert integration record
     user_uuid = uuid.UUID(user_data["user_id"])
     inst_uuid = uuid.UUID(user_data["institution_id"])
 
     result = await db.execute(
         select(UserCalendarIntegration).where(and_(
             UserCalendarIntegration.user_id == user_uuid,
-            UserCalendarIntegration.provider == "microsoft",
+            UserCalendarIntegration.provider == PROVIDER,
         ))
     )
     integration = result.scalar_one_or_none()
 
     if integration:
         integration.access_token = access_token
-        integration.refresh_token = refresh_token
+        # Google only returns refresh_token on first consent; preserve old one.
+        if refresh_token:
+            integration.refresh_token = refresh_token
         integration.expires_at = expires_at
-        integration.microsoft_user_id = ms_user_id
+        integration.microsoft_user_id = google_user_id  # reused col
         integration.is_active = True
         integration.sync_error = None
         integration.updated_at = datetime.now(timezone.utc)
@@ -201,24 +209,23 @@ async def oauth_callback(
         integration = UserCalendarIntegration(
             user_id=user_uuid,
             institution_id=inst_uuid,
-            provider="microsoft",
+            provider=PROVIDER,
             access_token=access_token,
             refresh_token=refresh_token,
             expires_at=expires_at,
-            microsoft_user_id=ms_user_id,
+            microsoft_user_id=google_user_id,
             is_active=True,
         )
         db.add(integration)
 
     await db.commit()
 
-    # Trigger initial sync
     try:
         await _sync_calendar_events(db, integration)
     except Exception as e:
-        logger.error(f"Initial sync failed: {e}")
+        logger.error(f"Initial Google sync failed: {e}")
 
-    return _close_popup_html(None)  # Success
+    return _close_popup_html(None)
 
 
 @router.get("/status")
@@ -226,22 +233,23 @@ async def get_connection_status(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Check if the current user has an active Outlook connection."""
+    """Return whether the current user has an active Google connection."""
     user_uuid = uuid.UUID(current_user["user_id"])
     result = await db.execute(
         select(UserCalendarIntegration).where(and_(
             UserCalendarIntegration.user_id == user_uuid,
-            UserCalendarIntegration.provider == "microsoft",
+            UserCalendarIntegration.provider == PROVIDER,
         ))
     )
     integration = result.scalar_one_or_none()
 
     if not integration or not integration.is_active:
-        return {"connected": False}
+        return {"connected": False, "configured": _is_configured()}
 
     return {
         "connected": True,
-        "microsoft_user_id": integration.microsoft_user_id,
+        "configured": _is_configured(),
+        "google_user_id": integration.microsoft_user_id,
         "last_sync_at": integration.last_sync_at.isoformat() if integration.last_sync_at else None,
         "sync_error": integration.sync_error,
         "expires_at": integration.expires_at.isoformat() if integration.expires_at else None,
@@ -249,31 +257,27 @@ async def get_connection_status(
 
 
 @router.post("/disconnect")
-async def disconnect_outlook(
+async def disconnect_google(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Remove Outlook connection and all synced blocks."""
+    """Remove Google connection and all synced blocks."""
     user_uuid = uuid.UUID(current_user["user_id"])
 
-    # Delete availability blocks from outlook
     await db.execute(
         delete(AvailabilityBlock).where(and_(
             AvailabilityBlock.user_id == user_uuid,
-            AvailabilityBlock.source == "outlook",
+            AvailabilityBlock.source == SOURCE,
         ))
     )
-
-    # Delete integration
     await db.execute(
         delete(UserCalendarIntegration).where(and_(
             UserCalendarIntegration.user_id == user_uuid,
-            UserCalendarIntegration.provider == "microsoft",
+            UserCalendarIntegration.provider == PROVIDER,
         ))
     )
-
     await db.commit()
-    return {"message": "Outlook odpojen, synchronizované bloky smazány"}
+    return {"message": "Google kalendář odpojen, synchronizované bloky smazány"}
 
 
 @router.post("/sync")
@@ -281,25 +285,25 @@ async def trigger_sync(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Manually trigger calendar sync."""
+    """Manually trigger calendar sync for the current user."""
     user_uuid = uuid.UUID(current_user["user_id"])
     result = await db.execute(
         select(UserCalendarIntegration).where(and_(
             UserCalendarIntegration.user_id == user_uuid,
-            UserCalendarIntegration.provider == "microsoft",
+            UserCalendarIntegration.provider == PROVIDER,
             UserCalendarIntegration.is_active == True,
         ))
     )
     integration = result.scalar_one_or_none()
     if not integration:
-        raise HTTPException(status_code=404, detail="Outlook není připojen")
+        raise HTTPException(status_code=404, detail="Google kalendář není připojen")
 
     try:
         count = await _sync_calendar_events(db, integration)
-        return {"message": f"Synchronizováno {count} událostí z Outlooku", "synced_count": count}
+        return {"message": f"Synchronizováno {count} událostí z Google kalendáře", "synced_count": count}
     except Exception as e:
-        logger.error(f"Manual sync failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Synchronizace selhala: {str(e)}")
+        logger.error(f"Manual Google sync failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Synchronizace selhala: {e}")
 
 
 # ── Availability Blocks API ─────────────────────────────────────────
@@ -313,26 +317,27 @@ async def list_blocks(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List availability blocks (outlook + manual) for the institution."""
+    """List Google availability blocks for the institution."""
     inst_uuid = uuid.UUID(current_user["institution_id"])
-    conditions = [AvailabilityBlock.institution_id == inst_uuid]
-
+    conditions = [
+        AvailabilityBlock.institution_id == inst_uuid,
+        AvailabilityBlock.source == SOURCE,
+    ]
     if user_id:
         conditions.append(AvailabilityBlock.user_id == uuid.UUID(user_id))
-
     if start:
-        conditions.append(AvailabilityBlock.end_time >= datetime.fromisoformat(start).replace(tzinfo=timezone.utc))
+        conditions.append(
+            AvailabilityBlock.end_time >= datetime.fromisoformat(start).replace(tzinfo=timezone.utc)
+        )
     if end:
-        conditions.append(AvailabilityBlock.start_time <= datetime.fromisoformat(f"{end}T23:59:59").replace(tzinfo=timezone.utc))
+        conditions.append(
+            AvailabilityBlock.start_time <= datetime.fromisoformat(f"{end}T23:59:59").replace(tzinfo=timezone.utc)
+        )
 
     result = await db.execute(
-        select(AvailabilityBlock)
-        .where(and_(*conditions))
-        .order_by(AvailabilityBlock.start_time)
+        select(AvailabilityBlock).where(and_(*conditions)).order_by(AvailabilityBlock.start_time)
     )
-    blocks = result.scalars().all()
-
-    return [_block_to_dict(b) for b in blocks]
+    return [_block_to_dict(b) for b in result.scalars().all()]
 
 
 @router.post("/blocks/{block_id}/override")
@@ -341,12 +346,13 @@ async def toggle_override(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Toggle override on an Outlook block (allow/disallow bookings)."""
+    """Toggle override on a Google block (allow/disallow bookings during it)."""
     inst_uuid = uuid.UUID(current_user["institution_id"])
     result = await db.execute(
         select(AvailabilityBlock).where(and_(
             AvailabilityBlock.id == uuid.UUID(block_id),
             AvailabilityBlock.institution_id == inst_uuid,
+            AvailabilityBlock.source == SOURCE,
         ))
     )
     block = result.scalar_one_or_none()
@@ -358,28 +364,23 @@ async def toggle_override(
     await db.commit()
 
     action = "povoleny" if block.override else "blokovány"
-    return {
-        "message": f"Rezervace {action} v tomto čase",
-        "block": _block_to_dict(block),
-    }
+    return {"message": f"Rezervace {action} v tomto čase", "block": _block_to_dict(block)}
 
 
 # ── Internal Helpers ────────────────────────────────────────────────
 
 
-async def _exchange_code_for_tokens(code: str, redirect_uri: str = None) -> dict:
+async def _exchange_code_for_tokens(code: str, redirect_uri: str) -> dict:
     """Exchange authorization code for access + refresh tokens."""
-    token_url = f"{AUTHORITY}/oauth2/v2.0/token"
     data = {
+        "code": code,
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
-        "code": code,
-        "redirect_uri": redirect_uri or REDIRECT_URI,
+        "redirect_uri": redirect_uri,
         "grant_type": "authorization_code",
-        "scope": " ".join(SCOPES),
     }
     async with httpx.AsyncClient() as client:
-        resp = await client.post(token_url, data=data, timeout=30)
+        resp = await client.post(TOKEN_URI, data=data, timeout=30)
         if resp.status_code != 200:
             raise Exception(f"Token endpoint returned {resp.status_code}: {resp.text}")
         return resp.json()
@@ -390,41 +391,36 @@ async def _refresh_access_token(integration: UserCalendarIntegration) -> Optiona
     if not integration.refresh_token:
         return None
 
-    token_url = f"{AUTHORITY}/oauth2/v2.0/token"
     data = {
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
         "refresh_token": integration.refresh_token,
         "grant_type": "refresh_token",
-        "scope": " ".join(SCOPES),
     }
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.post(token_url, data=data, timeout=30)
+            resp = await client.post(TOKEN_URI, data=data, timeout=30)
             if resp.status_code == 200:
-                token_data = resp.json()
-                integration.access_token = token_data["access_token"]
-                if token_data.get("refresh_token"):
-                    integration.refresh_token = token_data["refresh_token"]
-                integration.expires_at = datetime.now(timezone.utc) + timedelta(seconds=token_data.get("expires_in", 3600))
+                td = resp.json()
+                integration.access_token = td["access_token"]
+                if td.get("refresh_token"):
+                    integration.refresh_token = td["refresh_token"]
+                integration.expires_at = datetime.now(timezone.utc) + timedelta(seconds=td.get("expires_in", 3600))
                 integration.sync_error = None
-                return token_data["access_token"]
-            else:
-                logger.error(f"Token refresh failed: {resp.status_code} {resp.text}")
-                integration.sync_error = f"Token refresh failed: {resp.status_code}"
-                return None
+                return td["access_token"]
+            logger.error(f"Google token refresh failed: {resp.status_code} {resp.text}")
+            integration.sync_error = f"Token refresh failed: {resp.status_code}"
+            return None
     except Exception as e:
-        logger.error(f"Token refresh exception: {e}")
+        logger.error(f"Google token refresh exception: {e}")
         integration.sync_error = str(e)
         return None
 
 
 async def _get_valid_token(db: AsyncSession, integration: UserCalendarIntegration) -> Optional[str]:
-    """Get a valid access token, refreshing if needed."""
+    """Return a valid access token, refreshing if needed."""
     if integration.expires_at and integration.expires_at > datetime.now(timezone.utc) + timedelta(minutes=5):
         return integration.access_token
-
-    # Token expired or expiring soon — refresh
     new_token = await _refresh_access_token(integration)
     if new_token:
         await db.commit()
@@ -432,102 +428,60 @@ async def _get_valid_token(db: AsyncSession, integration: UserCalendarIntegratio
 
 
 async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarIntegration) -> int:
-    """
-    Sync Outlook calendar events into availability_blocks.
-    Fetches events for a window based on the institution's max booking horizon + 60 day buffer.
-    Default: 180 days. Adapts dynamically to max_days_before_booking setting.
-    """
+    """Pull events from primary Google calendar into ``availability_blocks`` (source='google')."""
     token = await _get_valid_token(db, integration)
     if not token:
         integration.sync_error = "Nepodařilo se obnovit token"
         await db.commit()
         raise Exception("Token refresh failed")
 
-    # Determine sync window from institution's max_days_before_booking
-    sync_days = 180  # default
+    # Window: max(180d, max booking horizon + 60d) — same logic as Outlook.
+    sync_days = 180
     try:
         result = await db.execute(
-            select(Program.max_days_before_booking).where(
-                and_(
-                    Program.institution_id == integration.institution_id,
-                    Program.status == 'active'
-                )
-            )
+            select(Program.max_days_before_booking).where(and_(
+                Program.institution_id == integration.institution_id,
+                Program.status == 'active',
+            ))
         )
         max_values = [row[0] for row in result.fetchall() if row[0] is not None]
         if max_values:
-            sync_days = max(max_values) + 60  # max booking window + 60 day buffer
-            sync_days = max(sync_days, 180)   # at least 180 days
+            sync_days = max(max(max_values) + 60, 180)
     except Exception as e:
-        logger.warning(f"Could not determine sync window, using default {sync_days}d: {e}")
+        logger.warning(f"Could not determine Google sync window, using {sync_days}d: {e}")
 
     now = datetime.now(timezone.utc)
     end_date = now + timedelta(days=sync_days)
-    logger.info(f"Outlook sync window: {sync_days} days for institution {integration.institution_id}")
-
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Prefer": 'outlook.timezone="Europe/Prague"',
-    }
-    params = {
-        "startDateTime": now.isoformat(),
-        "endDateTime": end_date.isoformat(),
-        "$top": 250,
-        "$select": "id,subject,start,end,showAs,isAllDay",
+    headers = {"Authorization": f"Bearer {token}"}
+    base_params = {
+        "timeMin": now.isoformat(),
+        "timeMax": end_date.isoformat(),
+        "singleEvents": "true",     # expand recurring instances
+        "orderBy": "startTime",
+        "maxResults": 250,
+        "showDeleted": "false",
     }
 
     all_events = []
-    url = f"{GRAPH_BASE}/me/calendarView"
-
+    page_token = None
     try:
         async with httpx.AsyncClient() as client:
-            while url:
-                resp = await client.get(url, headers=headers, params=params, timeout=30)
+            while True:
+                params = dict(base_params)
+                if page_token:
+                    params["pageToken"] = page_token
+                resp = await client.get(CALENDAR_EVENTS_URI, headers=headers, params=params, timeout=30)
                 if resp.status_code != 200:
-                    error_body = resp.text
-                    error_msg = f"Graph API error {resp.status_code}: {error_body[:500]}"
+                    error_msg = f"Google Calendar API error {resp.status_code}: {resp.text[:500]}"
                     logger.error(error_msg)
-                    
-                    # If 401, try to decode token scopes for debugging
-                    try:
-                        import base64, json as _json
-                        token_parts = token.split(".")
-                        if len(token_parts) >= 2:
-                            padded = token_parts[1] + "=" * (4 - len(token_parts[1]) % 4)
-                            payload = _json.loads(base64.b64decode(padded))
-                            logger.error(f"Token scopes (scp): {payload.get('scp', 'NONE')}")
-                            logger.error(f"Token roles: {payload.get('roles', 'NONE')}")
-                            logger.error(f"Token aud: {payload.get('aud', 'NONE')}")
-                    except Exception as te:
-                        logger.error(f"Could not decode token: {te}")
-                    
-                    # If calendarView fails, try /me/events as fallback
-                    if "/calendarView" in url and resp.status_code == 401:
-                        logger.info("Trying /me/events as fallback...")
-                        fallback_url = f"{GRAPH_BASE}/me/events"
-                        fallback_params = {
-                            "$top": 250,
-                            "$select": "id,subject,start,end,showAs,isAllDay",
-                            "$filter": f"start/dateTime ge '{now.strftime('%Y-%m-%dT%H:%M:%S')}'",
-                            "$orderby": "start/dateTime",
-                        }
-                        resp2 = await client.get(fallback_url, headers=headers, params=fallback_params, timeout=30)
-                        if resp2.status_code == 200:
-                            logger.info("Fallback /me/events succeeded!")
-                            all_events.extend(resp2.json().get("value", []))
-                            url = None
-                            continue
-                        else:
-                            logger.error(f"Fallback /me/events also failed: {resp2.status_code} {resp2.text[:300]}")
-                    
                     integration.sync_error = error_msg
                     await db.commit()
                     raise Exception(error_msg)
-
                 data = resp.json()
-                all_events.extend(data.get("value", []))
-                url = data.get("@odata.nextLink")
-                params = {}  # nextLink already contains params
+                all_events.extend(data.get("items", []))
+                page_token = data.get("nextPageToken")
+                if not page_token:
+                    break
     except httpx.HTTPError as e:
         integration.sync_error = str(e)
         await db.commit()
@@ -536,72 +490,67 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
     user_uuid = integration.user_id
     inst_uuid = integration.institution_id
 
-    # Get existing outlook blocks for this user
     result = await db.execute(
         select(AvailabilityBlock).where(and_(
             AvailabilityBlock.user_id == user_uuid,
-            AvailabilityBlock.source == "outlook",
+            AvailabilityBlock.source == SOURCE,
         ))
     )
-    existing_blocks = {b.external_event_id: b for b in result.scalars().all()}
+    existing = {b.external_event_id: b for b in result.scalars().all()}
 
-    synced_event_ids = set()
+    synced_ids: set[str] = set()
     count = 0
-
-    for event in all_events:
-        event_id = event.get("id")
-        if not event_id:
+    for ev in all_events:
+        ev_id = ev.get("id")
+        if not ev_id:
+            continue
+        # Google event ``transparency`` == 'transparent' means "show as free".
+        if ev.get("transparency") == "transparent":
+            continue
+        if ev.get("status") == "cancelled":
             continue
 
-        # Only sync events that block time (busy, oof, tentative)
-        show_as = event.get("showAs", "busy")
-        if show_as == "free":
-            continue
+        title = ev.get("summary") or "Google událost"
+        start_obj = ev.get("start") or {}
+        end_obj = ev.get("end") or {}
 
-        title = event.get("subject", "Outlook událost")
-        start_str = event.get("start", {}).get("dateTime", "")
-        end_str = event.get("end", {}).get("dateTime", "")
+        # Skip pure all-day events (only date, no dateTime) — these don't block
+        # specific time slots. We could expand to all-day blockers later.
+        start_str = start_obj.get("dateTime")
+        end_str = end_obj.get("dateTime")
+        if not start_str or not end_str:
+            continue
 
         try:
             start_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
             end_dt = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
-            # Ensure timezone aware
-            if start_dt.tzinfo is None:
-                import pytz
-                prague = pytz.timezone("Europe/Prague")
-                start_dt = prague.localize(start_dt)
-                end_dt = prague.localize(end_dt)
         except (ValueError, IndexError):
             continue
 
-        synced_event_ids.add(event_id)
+        synced_ids.add(ev_id)
 
-        if event_id in existing_blocks:
-            # Update existing block
-            block = existing_blocks[event_id]
+        if ev_id in existing:
+            block = existing[ev_id]
             block.start_time = start_dt
             block.end_time = end_dt
             block.title = title
             block.updated_at = datetime.now(timezone.utc)
-            # Keep override as-is (user explicitly set it)
         else:
-            # Create new block
-            block = AvailabilityBlock(
+            db.add(AvailabilityBlock(
                 user_id=user_uuid,
                 institution_id=inst_uuid,
                 start_time=start_dt,
                 end_time=end_dt,
-                source="outlook",
-                external_event_id=event_id,
+                source=SOURCE,
+                external_event_id=ev_id,
                 title=title,
                 override=False,
-            )
-            db.add(block)
+            ))
         count += 1
 
-    # Delete blocks for events that no longer exist (unless override=True)
-    for ext_id, block in existing_blocks.items():
-        if ext_id not in synced_event_ids and not block.override:
+    # Drop stale events (unless overridden by an admin).
+    for ext_id, block in existing.items():
+        if ext_id not in synced_ids and not block.override:
             await db.delete(block)
 
     integration.last_sync_at = datetime.now(timezone.utc)
@@ -609,7 +558,7 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
     integration.updated_at = datetime.now(timezone.utc)
     await db.commit()
 
-    logger.info(f"Synced {count} Outlook events for user {user_uuid}")
+    logger.info(f"Synced {count} Google events for user {user_uuid}")
     return count
 
 
@@ -626,15 +575,25 @@ def _block_to_dict(block: AvailabilityBlock) -> dict:
     }
 
 
-def _close_popup_html(error: Optional[str]) -> "HTMLResponse":
-    """Return HTML that communicates result to parent window and closes popup."""
-    from fastapi.responses import HTMLResponse
-    # Use restrictive targetOrigin — read from env for production safety
-    origin = os.environ.get("FRONTEND_URL", os.environ.get("CORS_ORIGINS", "").split(",")[0] if os.environ.get("CORS_ORIGINS") else "*")
+def _close_popup_html(error: Optional[str]) -> HTMLResponse:
+    """Return HTML that postMessages the parent window then closes the popup."""
+    origin = os.environ.get(
+        "FRONTEND_URL",
+        os.environ.get("CORS_ORIGINS", "").split(",")[0]
+        if os.environ.get("CORS_ORIGINS") else "*",
+    )
     if error:
-        script = f'window.opener && window.opener.postMessage({{type:"outlook_error",error:"{error}"}}, "{origin}"); window.close();'
+        # Escape user-controlled error text for embedding in JS string literal.
+        safe = (error or "").replace("\\", "\\\\").replace('"', '\\"')
+        script = (
+            f'window.opener && window.opener.postMessage('
+            f'{{type:"google_error",error:"{safe}"}}, "{origin}"); window.close();'
+        )
     else:
-        script = f'window.opener && window.opener.postMessage({{type:"outlook_connected"}}, "{origin}"); window.close();'
+        script = (
+            f'window.opener && window.opener.postMessage('
+            f'{{type:"google_connected"}}, "{origin}"); window.close();'
+        )
     html = f"""<!DOCTYPE html><html><body>
     <p>{"Chyba: " + error if error else "Připojeno! Toto okno se zavře..."}</p>
     <script>{script}</script>
@@ -645,14 +604,18 @@ def _close_popup_html(error: Optional[str]) -> "HTMLResponse":
 # ── Background Sync (called from scheduler) ─────────────────────────
 
 
-async def sync_all_integrations():
-    """Sync all active Microsoft integrations. Called from APScheduler."""
-    from database.supabase import async_session_maker
-    async with async_session_maker() as db:
+async def sync_all_integrations() -> None:
+    """Sync all active Google integrations. Called from APScheduler every 5 min."""
+    if not _is_configured():
+        # No env keys → nothing to do; avoid noisy DB hits.
+        return
+
+    from database.supabase import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(UserCalendarIntegration).where(and_(
                 UserCalendarIntegration.is_active == True,
-                UserCalendarIntegration.provider == "microsoft",
+                UserCalendarIntegration.provider == PROVIDER,
             ))
         )
         integrations = result.scalars().all()
@@ -660,6 +623,6 @@ async def sync_all_integrations():
         for integration in integrations:
             try:
                 await _sync_calendar_events(db, integration)
-                logger.info(f"Background sync completed for user {integration.user_id}")
+                logger.info(f"Background Google sync completed for user {integration.user_id}")
             except Exception as e:
-                logger.error(f"Background sync failed for user {integration.user_id}: {e}")
+                logger.error(f"Background Google sync failed for user {integration.user_id}: {e}")

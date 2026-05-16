@@ -1,0 +1,50 @@
+{
+  "summary": "Tested 6-bug fix batch: logo upload + theme sync, PUT institution settings sync, program image upload (PRO_PLUS), unsupported file rejection, plan upgrade modal viewport fit, mobile FAB z-index, register skip-step-4, and booking page logo URL. Backend 19/19 PASS. Frontend 3/5 verified PASS, 2 inconclusive due to test-selector/route mismatches that need main-agent clarification.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Public registration skip step 4", "issue": "Navigating to /registrace redirects (200) to landing page / and renders no form inputs. Either the route was not added or the path is different than the task description claims. The 'register-skip-step4' testid could not be reached.", "affected_selectors": ["[data-testid=register-skip-step4]", "/registrace"]},
+      {"flow": "Programs editor prep/cleanup time", "issue": "Inputs `program-preparation-time` / `program-cleanup-time` are not present in the visible Detail tab. Switching to the second tab via `button[role=tab]:has-text('Nastavení')` returned 0 matches — tab buttons likely use different role/markup. Needs main-agent verification of the correct testid/tab and a quick selector confirmation; functional behaviour (typing 0) could not be empirically verified by the test agent.", "affected_selectors": ["[data-testid=program-preparation-time]", "[data-testid=program-cleanup-time]", "button[role=tab]:has-text('Nastavení')"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_logo_theme_sync_and_program_image.py",
+    "/app/backend/tests/test_logo_upload.py",
+    "/app/test_reports/pytest/iter_new_logo_program.xml"
+  ],
+  "passed_tests": [
+    "Backend: POST /api/settings/logo/upload PNG -> 200, logo_url returned, /api/institution/settings.logo_url synced, /api/settings/theme/public/{id}.logo_url synced",
+    "Backend: PUT /api/institution/settings {logo_url} -> propagates to /api/settings/theme/public/{id}",
+    "Backend: POST /api/programs/{id}/image/upload PNG on PRO_PLUS -> 200, image_url returned and persisted on program",
+    "Backend: Upload of .txt rejected with HTTP 400 (both logo and program image)",
+    "Backend: All 14 regression tests in test_logo_upload.py pass (JPG/SVG/WebP, size limit, public serve, 404, auth required, theme save)",
+    "Frontend: /admin/plan select-plan-start opens dialog at y=54 height=972 -> fits 1080 viewport (top & bottom within bounds); internal overflow:auto scrollHeight 985 > clientHeight 756; Cancel + Objednat buttons present; red 'Přijdete o' section present (green 'Získáte navíc' correctly absent for downgrade from PRO+ to Start)",
+    "Frontend: Mobile (390x800) /admin/programs FAB testid=create-program-button position:fixed z-index:50; elementFromPoint at center returns the button itself; click opens create-program modal",
+    "Frontend: /booking/{institution_id} BookingHeader img[data-testid=institution-logo-img].src is absolute https URL (resolveAssetUrl works), image loads (complete=true, naturalWidth>0)"
+  ],
+  "action_items": [
+    "Verify the public registration route - the task references /registrace but navigating to /registrace returns the landing page. Either add a router entry for /registrace or update the test plan with the actual URL.",
+    "Confirm/add data-testids `program-preparation-time` and `program-cleanup-time` for the Nastavení/Konfigurace tab inputs in ProgramsPage.js. The tab buttons may not be using role=tab — please ensure they are reachable by stable testids (e.g. data-testid=program-tab-settings).",
+    "Manual self-test recommended: in /admin/programs editor open Nastavení tab and verify '0' can be typed into preparation_time and cleanup_time and survives blur."
+  ],
+  "critical_code_review_comments": [
+    "The new resolveAssetUrl helper in /app/frontend/src/config/api.js is verified working — booking page now serves absolute URLs.",
+    "Backend update_institution_settings sync to public theme works for both raw PUT body and after logo upload — good.",
+    "Consider adding the `register-skip-step4` testid only after confirming the /registrace route mounts the RegisterPage component."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_logo_theme_sync_and_program_image.py (new pytest file, 5 tests)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "60% (3/5 confirmed, 2 inconclusive due to selector/route issues)"},
+  "test_credentials": "demo@budezivo.cz / Demo2026! (PRO_PLUS, institution c18a10b9-4dd0-4779-86b9-b68dae21c71f)",
+  "seed_data_creation": "Tests upload small 1x1 PNG/JPG/SVG/WebP fixtures as logos and program images. Last uploaded logo at /api/settings/logo/budezivo/logos/c18a10b9-.../c32d7342-...png is the current institution logo (1x1 px) and may need replacing with a real logo for visual QA.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend tests are stable (19/19). Re-run requires REACT_APP_BACKEND_URL exported in env. For frontend: prep/cleanup inputs are in the Programs editor's Nastavení tab; the selector button[role=tab]:has-text('Nastavení') did not match — main agent should verify markup. /registrace route does not currently mount RegisterPage — confirm correct path before re-testing skip-step-4. Plan modal & mobile FAB & booking logo verified working.",
+  "rca of the issue": "Two task items could not be verified: (1) /registrace returns the landing page rather than the RegisterPage — likely the route is registered under a different path (e.g. /registrovat, /vyzkouset-zdarma) or the SPA fallback isn't wired; reproduction: GET https://school-crm-pilot.preview.emergentagent.com/registrace -> 200 but rendered DOM has 0 inputs and same buttons as / landing. (2) Program editor's prep/cleanup-time fields are on a non-Detail tab; the test agent could not switch tabs because the implementation likely uses custom button elements (without role=tab) for the Detail/Nastavení/Kolize tabs. Mitigation: main agent to confirm route mounts and tab testids."
+}

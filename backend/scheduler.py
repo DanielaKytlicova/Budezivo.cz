@@ -563,6 +563,22 @@ def start_scheduler():
         replace_existing=True,
         misfire_grace_time=300
     )
+
+    # Google calendar sync — every 5 minutes (parallel to Outlook)
+    async def _run_google_sync():
+        try:
+            from routes.google_calendar import sync_all_integrations as _g
+            await _g()
+        except Exception as e:
+            logger.error(f"Google sync scheduler error: {e}")
+
+    scheduler.add_job(
+        _run_google_sync,
+        IntervalTrigger(minutes=5),
+        id='google_calendar_sync',
+        replace_existing=True,
+        misfire_grace_time=300
+    )
     
     # Cleanup expired OAuth states & refresh tokens: run hourly
     async def _cleanup_auth_tokens():

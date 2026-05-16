@@ -19,7 +19,7 @@ from database.models import (
     Institution,
 )
 
-API = "https://arch-enhance-v59.preview.emergentagent.com"
+API = "https://school-crm-pilot.preview.emergentagent.com"
 DB_URL = os.environ["DATABASE_URL"].replace("postgresql://", "postgresql+asyncpg://")
 INST = "eefb9cbf-52bf-4e20-9418-5b2f659f8d23"  # Galerie U Zlatého kohouta
 

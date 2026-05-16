@@ -13,7 +13,7 @@ import time
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://arch-enhance-v59.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://school-crm-pilot.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "demo@budezivo.cz"
 ADMIN_PASSWORD = "Demo2026!"
 INSTITUTION_ID = "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"  # Test Muzeum (PRO+)

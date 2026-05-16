@@ -199,66 +199,88 @@ export const PlanPage = () => {
         {/* ===== Switch modal (delta view) ===== */}
         {switchTarget && (
           <Dialog open onOpenChange={() => { setSwitchTarget(null); setDiff(null); }}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>
-                  {diff?.is_upgrade ? 'Upgrade' : 'Změna'} na {targetPlanData?.label}
+            <DialogContent className="max-w-lg max-h-[85vh] sm:max-h-[90vh] flex flex-col p-0 overflow-hidden">
+              <DialogHeader className="px-6 pt-6 pb-3 border-b shrink-0">
+                <DialogTitle className="flex items-center gap-2 text-lg">
+                  {diff?.is_upgrade ? <ArrowUp className="w-5 h-5 text-green-600" /> : <ArrowDown className="w-5 h-5 text-amber-600" />}
+                  {diff?.is_upgrade ? 'Upgrade' : 'Změna'} na <Badge className={PLAN_STYLE[switchTarget]?.badge || ''}>{targetPlanData?.label}</Badge>
                 </DialogTitle>
               </DialogHeader>
 
-              {diffLoading ? (
-                <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin" /></div>
-              ) : diff ? (
-                <div className="space-y-4 py-2">
-                  {/* Price */}
-                  <div className="bg-slate-50 rounded-lg p-3 text-sm flex justify-between">
-                    <span>Cena:</span>
-                    <strong>{(PLAN_PRICES[switchTarget]?.[billingCycle] || 0).toLocaleString('cs-CZ')} Kč / {billingCycle === 'monthly' ? 'měsíc' : 'rok'}</strong>
-                  </div>
-
-                  {/* Gained */}
-                  {diff.gained.length > 0 && (
-                    <div>
-                      <p className="text-sm font-semibold text-green-700 mb-1.5 flex items-center gap-1">
-                        <ArrowUp className="w-4 h-4" /> Získáte navíc:
-                      </p>
-                      <ul className="space-y-1">
-                        {diff.gained.map(f => (
-                          <li key={f.key} className="flex items-center gap-2 text-sm text-green-800 bg-green-50 rounded px-2 py-1">
-                            <Check className="w-4 h-4 text-green-500 shrink-0" /> {f.label}
-                          </li>
-                        ))}
-                      </ul>
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                {diffLoading ? (
+                  <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
+                ) : diff ? (
+                  <div className="space-y-5">
+                    {/* Cena - hlavička */}
+                    <div className="rounded-xl border-2 p-4" style={{ borderColor: PLAN_STYLE[switchTarget]?.accent || '#3B82F6', backgroundColor: (PLAN_STYLE[switchTarget]?.bg || 'bg-slate-50').startsWith('bg-') ? undefined : undefined }}>
+                      <div className={`${PLAN_STYLE[switchTarget]?.bg || 'bg-slate-50'} -m-4 p-4 rounded-xl`}>
+                        <div className="flex items-baseline justify-between">
+                          <div>
+                            <p className="text-xs uppercase tracking-wide text-slate-500 font-medium">Cena plánu</p>
+                            <p className="text-3xl font-bold text-slate-900 mt-1">
+                              {(PLAN_PRICES[switchTarget]?.[billingCycle] || 0).toLocaleString('cs-CZ')}
+                              <span className="text-base font-normal text-slate-500 ml-1">Kč / {billingCycle === 'monthly' ? 'měsíc' : 'rok'}</span>
+                            </p>
+                          </div>
+                          <Crown className="w-8 h-8" style={{ color: PLAN_STYLE[switchTarget]?.accent || '#3B82F6' }} />
+                        </div>
+                      </div>
                     </div>
-                  )}
 
-                  {/* Lost */}
-                  {diff.lost.length > 0 && (
-                    <div>
-                      <p className="text-sm font-semibold text-red-700 mb-1.5 flex items-center gap-1">
-                        <ArrowDown className="w-4 h-4" /> Přijdete o:
-                      </p>
-                      <ul className="space-y-1">
-                        {diff.lost.map(f => (
-                          <li key={f.key} className="flex items-center gap-2 text-sm text-red-800 bg-red-50 rounded px-2 py-1">
-                            <Minus className="w-4 h-4 text-red-400 shrink-0" /> {f.label}
-                          </li>
-                        ))}
-                      </ul>
+                    {/* Sekce: Získáte */}
+                    {diff.gained.length > 0 && (
+                      <div className="rounded-xl border border-green-200 bg-green-50/50 overflow-hidden">
+                        <div className="px-4 py-2.5 bg-green-100/70 border-b border-green-200 flex items-center gap-2">
+                          <ArrowUp className="w-4 h-4 text-green-700" />
+                          <p className="text-sm font-semibold text-green-900">Získáte navíc ({diff.gained.length})</p>
+                        </div>
+                        <ul className="divide-y divide-green-100">
+                          {diff.gained.map(f => (
+                            <li key={f.key} className="flex items-start gap-2.5 px-4 py-2.5 text-sm text-slate-800">
+                              <Check className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
+                              <span>{f.label}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Sekce: Přijdete o */}
+                    {diff.lost.length > 0 && (
+                      <div className="rounded-xl border border-red-200 bg-red-50/50 overflow-hidden">
+                        <div className="px-4 py-2.5 bg-red-100/70 border-b border-red-200 flex items-center gap-2">
+                          <ArrowDown className="w-4 h-4 text-red-700" />
+                          <p className="text-sm font-semibold text-red-900">Přijdete o ({diff.lost.length})</p>
+                        </div>
+                        <ul className="divide-y divide-red-100">
+                          {diff.lost.map(f => (
+                            <li key={f.key} className="flex items-start gap-2.5 px-4 py-2.5 text-sm text-slate-800">
+                              <Minus className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                              <span>{f.label}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Sekce: Jak to bude dál */}
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="text-sm text-amber-900">
+                          <p className="font-semibold mb-1">Jak to bude dál?</p>
+                          <p>Po potvrzení vám zašleme fakturu na e-mail. Plán bude aktivován do 24 hodin po přijetí platby.</p>
+                        </div>
+                      </div>
                     </div>
-                  )}
-
-                  {/* Payment note */}
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                    <AlertTriangle className="w-4 h-4 inline mr-1" />
-                    Po potvrzení vám bude zaslána faktura. Plán bude aktivován po přijetí platby.
                   </div>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
 
-              <DialogFooter className="gap-2">
+              <DialogFooter className="gap-2 px-6 py-4 border-t bg-slate-50 shrink-0">
                 <Button variant="outline" onClick={() => { setSwitchTarget(null); setDiff(null); }}>Zrušit</Button>
-                <Button onClick={handleConfirmSwitch} disabled={requesting || diffLoading} data-testid="confirm-plan-request-btn">
+                <Button onClick={handleConfirmSwitch} disabled={requesting || diffLoading} data-testid="confirm-plan-request-btn" className="text-white" style={{ backgroundColor: PLAN_STYLE[switchTarget]?.accent || '#3B82F6' }}>
                   {requesting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <ArrowRight className="w-4 h-4 mr-1" />}
                   Objednat
                 </Button>

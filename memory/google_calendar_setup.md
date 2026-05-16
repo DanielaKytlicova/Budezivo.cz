@@ -42,10 +42,10 @@ HTTP 503 from `/api/google-calendar/connect`.
 3. Name: `Budeživo backend`
 4. Authorized JavaScript origins:
    - `https://budezivo.cz`
-   - `https://arch-enhance-v59.preview.emergentagent.com` (preview env, optional)
+   - `https://school-crm-pilot.preview.emergentagent.com` (preview env, optional)
 5. Authorized redirect URIs:
    - `https://budezivo.cz/api/google-calendar/callback`
-   - `https://arch-enhance-v59.preview.emergentagent.com/api/google-calendar/callback`
+   - `https://school-crm-pilot.preview.emergentagent.com/api/google-calendar/callback`
 6. Click **Create** → copy the Client ID and Client Secret
 
 ### 5. Add credentials to backend `.env`

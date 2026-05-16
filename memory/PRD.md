@@ -102,7 +102,7 @@ programs: + room_id (FK → rooms.id)
 
 ## Důležitá poznámka k OAuth
 Pro testování na preview prostředí je potřeba v Azure Portal přidat Redirect URI:
-`https://arch-enhance-v59.preview.emergentagent.com/api/auth/microsoft/callback`
+`https://school-crm-pilot.preview.emergentagent.com/api/auth/microsoft/callback`
 
 Aktuálně je nastaveno pouze: `https://budezivo.cz/api/auth/microsoft/callback`
 

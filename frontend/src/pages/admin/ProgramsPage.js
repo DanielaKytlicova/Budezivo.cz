@@ -21,7 +21,7 @@ import { ProgramUrlModal } from '../../components/admin/ProgramUrlModal';
 import ProgramTour from '../../components/admin/ProgramTour';
 import { PROGRAM_TOUR_STEPS, PROGRAM_FIELD_HELP, getFirstStepIndexForTab } from '../../components/admin/programTourSteps';
 import FieldTooltip from '../../components/admin/FieldTooltip';
-import { API } from '../../config/api';
+import { API, resolveAssetUrl } from '../../config/api';
 
 const TOUR_SEEN_KEY = 'bz_program_tour_seen_v1';
 
@@ -592,7 +592,7 @@ export const ProgramsPage = () => {
         <Button
           data-testid="create-program-button"
           onClick={handleCreate}
-          className="bg-slate-800 text-white hover:bg-slate-700 rounded-full w-12 h-12 p-0 fixed bottom-24 md:bottom-8 right-4 md:relative md:w-auto md:h-auto md:px-4 md:py-2 md:rounded-md shadow-lg md:shadow-none"
+          className="bg-slate-800 text-white hover:bg-slate-700 rounded-full w-12 h-12 p-0 fixed bottom-24 md:bottom-8 right-4 md:relative md:w-auto md:h-auto md:px-4 md:py-2 md:rounded-md shadow-lg md:shadow-none z-50"
         >
           <Plus className="w-5 h-5 md:mr-2" />
           <span className="hidden md:inline">Nový program</span>
@@ -939,7 +939,7 @@ export const ProgramsPage = () => {
           {formData.image_url ? (
             <div className="flex flex-col md:flex-row gap-4 items-start">
               <img
-                src={`${process.env.REACT_APP_BACKEND_URL}${formData.image_url}`}
+                src={resolveAssetUrl(formData.image_url)}
                 alt="Náhled fotografie programu"
                 className="w-full md:w-64 h-40 object-cover rounded-lg border border-slate-200"
                 data-testid="program-photo-preview"
@@ -1279,8 +1279,20 @@ export const ProgramsPage = () => {
           </Label>
           <Input
             type="number"
-            value={formData.preparation_time}
-            onChange={(e) => setFormData({ ...formData, preparation_time: parseInt(e.target.value) || 10 })}
+            min="0"
+            value={formData.preparation_time ?? ''}
+            onChange={(e) => {
+              const raw = e.target.value;
+              setFormData({
+                ...formData,
+                preparation_time: raw === '' ? '' : Math.max(0, parseInt(raw, 10) || 0),
+              });
+            }}
+            onBlur={(e) => {
+              if (e.target.value === '') {
+                setFormData({ ...formData, preparation_time: 0 });
+              }
+            }}
             className="mt-1 bg-white"
             data-testid="program-preparation-time"
           />
@@ -1290,8 +1302,20 @@ export const ProgramsPage = () => {
           <Label className="text-gray-500 text-sm">Potřebný čas na úklid programu (min.)</Label>
           <Input
             type="number"
-            value={formData.cleanup_time}
-            onChange={(e) => setFormData({ ...formData, cleanup_time: parseInt(e.target.value) || 30 })}
+            min="0"
+            value={formData.cleanup_time ?? ''}
+            onChange={(e) => {
+              const raw = e.target.value;
+              setFormData({
+                ...formData,
+                cleanup_time: raw === '' ? '' : Math.max(0, parseInt(raw, 10) || 0),
+              });
+            }}
+            onBlur={(e) => {
+              if (e.target.value === '') {
+                setFormData({ ...formData, cleanup_time: 0 });
+              }
+            }}
             className="mt-1 bg-white"
             data-testid="program-cleanup-time"
           />

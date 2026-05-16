@@ -1,39 +1,45 @@
-<analysis>**original_problem_statement**: Deep security & architecture audit execution followed by consecutive iterative feature enhancements and complex bug fixes. PRODUCT REQUIREMENTS: A highly secure, multi-tenant SaaS application providing School CRM, booking management with collision validation, GDPR compliance, advanced calendar integrations, robust role-based security, promotional mailings, subscription-based pricing, and event payments. In this specific iteration, the user requested an immediate fix for a frontend crash on the , the creation of a self-service profile UI for external lecturers to manage their skills, and a complete architectural simplification of the Náslech (Observer) logic to remove duplicities.
+<analysis>**original_problem_statement**: Pilot launch preparation and consecutive iterative feature enhancements. PRODUCT REQUIREMENTS: A highly secure, multi-tenant SaaS application providing School CRM, booking management, GDPR compliance, advanced calendar integrations, and event payments. In this session, the user requested an admin whitelist toggle for the Kontakty (Contacts) CRM / Targeted mailing features, followed by the implementation of Google Calendar OAuth integration for lecturers.
 
 **User's preferred language**: Czech (Čeština). INSTRUCT NEXT AGENT TO RESPOND IN THE USER'S PREFERRED LANGUAGE ONLY.
 
-**what currently exists?**: A fully functional, highly secure multi-tenant SaaS. It features booking logic, waitlists, 4-tier subscriptions, a Superadmin Dashboard, mock Comgate payments, and program photo uploads. The platform now includes structured collision transparency, comprehensive ZIP/PDF system exports, and a self-service profile page () for lecturers to manage their specializations (, , ). The complex Náslech logic has been drastically simplified.
+**what currently exists?**: A fully functional, highly secure multi-tenant SaaS. It features an interactive UI tour, Outlook Calendar integrations, and a Contacts CRM system that automatically deduplicates contacts. Newly added: Feature flag whitelisting for the Contacts module, and full Google Calendar OAuth integration (mirroring Microsoft Graph) for lecturers to sync availability and block bookings.
 
 **Last working item**: 
-    - Last item agent was working: Fixing the frontend crash on  (caused by PDF format responses breaking JSON rendering) and implementing the missing Self-Service UI () for external lecturers. The agent also executed a major simplification of the Náslech logic by removing the  routing/DB models and  toggles.
+    - Last item agent was working: Assisting the user with Google Calendar OAuth setup in Google Cloud Console. The integration code is fully deployed and  is configured with valid Client ID and Secret. However, the user encountered a 403 access_denied error during their test flow because the Google OAuth consent screen is in Testing mode and their email isn't added to the Test users list. The agent provided step-by-step instructions to add the email.
     - Status: USER VERIFICATION PENDING
     - Agent Testing Done: Y
-    - Which testing method agent to use?: NA (Testing already done via  with 100% success rate documented in )
+    - Which testing method agent to use?: Both (Frontend testing for UI flow, or wait for user to confirm OAuth success).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  *(No pending issues. All P0 bugs and UI omissions from the previous fork were successfully fixed and verified).*
+  Issue 1: User facing Google OAuth 403 access_denied (P0)
+  - Issue Detail:
+     - Attempted fixes: Agent provided step-by-step instructions to add the user's email to Test users in Google Cloud Console or to Publish the app.
+     - Next debug checklist: Check user's response to see if they successfully added their email to the Test Users list in Google Cloud Console (OAuth consent screen) and if the OAuth flow now successfully redirects back with a valid token.
+     - Why fix this issue and what will be achieved with the fix?: Unblocks the user from using the newly integrated Google Calendar sync feature.
+     - Status: USER VERIFICATION PENDING
+     - Is recurring issue?: N
+     - Should Test frontend/backend/both after fix?: NA (Dependent on user completing the OAuth flow).
 
 **In progress Task List**: 
-  *(No tasks are currently in progress.)*
+  *(No tasks are currently in progress).*
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
     - (P1) **Fakturoid Real Integration**: Implement actual API integration/webhook handler for automatic plan activation after Fakturoid invoice payment.
     - (P2) **i18n Language Toggle**: Implement CZ/EN switch using existing placeholder buttons.
-    - (P3) **Social proof**: Add logos, references, and numbers on the landing page.
+    - (P3) **Social proof**: CMS UI for managing Social proof logos and references on the landing page.
     
     Future Tasks:
     - (P4) Subscription auto-renewal scheduler and expiration logic.
-    - (P4) Promotional Mailing advanced features: Open/click statistics, scheduled background sending (via Celery), advanced HTML editor.
     - (P4) Usage analytics UI per plan.
 
 **Completed work in this session**
-- Fixed  frontend crash by enforcing  parameter and adding null-safe rendering (DONE)
-- Created self-service  () for lecturers to update their skills/preferences (DONE)
-- Removed complex/duplicate Náslech logic (deleted ,  references, and  checks) (DONE)
-- Added new endpoint  for self-service updates (DONE)
-- Updated pytest suite with  to ensure regression safety (DONE)
+- Implemented feature flag whitelisting for Contacts CRM and Targeted Mailing via  flag in  service (DONE)
+- Implemented full Google Calendar OAuth integration (, APScheduler sync,  blocks) mirroring Microsoft Graph (DONE)
+- Added Google Calendar connection UI in  and modified the calendar grid to display Google blocks (DONE)
+- Configured Google Client ID and Secret in backend  (DONE)
+- Updated the Připojit Google button color to green per user request (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 - None.
@@ -45,66 +51,93 @@
 
 
 **Key Technical Concepts**
-- Frontend: React, TailwindCSS, Shadcn UI.
-- Backend: FastAPI, Supabase (SQLAlchemy Async), Alembic.
-- File Generation:  used for PDFs,  for bundles.
-- Architecture Change: Náslech (Observer mode) is no longer a separate relational record or role constraint. It is strictly a JSON array () on the User profile.
+- Frontend: React, TailwindCSS.
+- Backend: FastAPI, Supabase (SQLAlchemy Async), Python APScheduler.
+- **Calendar Integration**: OAuth 2.0 flow for Google Calendar API ( scope). Tokens are stored in . An APScheduler job syncs events to , which the  reads to block overlapping bookings.
 
 **key DB schema**
-  - : Track skills via  (JSONB),  (JSONB),  (JSONB), and  (Text). The  column logic is deprecated.
-  - : Completely REMOVED to eliminate duplication.
+  - : Stores  ('outlook' or 'google'), , , .
+  - : Stores synced calendar events with  ('outlook' or 'google').
+  - : Added  for whitelisting.
 
 **changes in tech stack**
-  - None.
+  - Added Google OAuth.
 
 **All files of reference** 
-  -  (Crash fix reference)
-  -  (New self-service UI)
-  -  (Contains  endpoint)
+  - 
+  - 
+  - 
+  - 
+  - 
+  -  (Contains newly added  and )
 
 **Areas that need refactoring**: 
-  - Fakturoid auto-billing implementation is architecturally prepared but requires real webhooks to be fully active.
-  - Background tasks (like mailings) use ; queue systems like Celery should be considered as load grows.
+  - None identified.
 
 **key api endpoints**
+  - 
+  - 
   - 
   - 
 
 **Critical Info for New Agent** 
   - **LANGUAGE**: Always respond in Czech.
-  - **Náslech Architecture**: The Náslech (Observer) feature was radically simplified per user request. It is NO LONGER a separate database entity ( was deleted) and NO LONGER a separate lecturer mode ( logic was removed). It is now managed purely via the  array in the  table. Do not try to recreate the old complex observer logic.
-  - **PDF vs JSON Exports**: Remember that certain API endpoints return binary PDFs by default now. Ensure frontend calls that expect JSON data explicitly append .
+  - **Google OAuth State**: The code is 100% finished and credentials are in . However, the app in Google Cloud Console is in Testing mode. The user MUST add their email to the Test users list in GCP to stop getting the  error during login. The agent's last message provided instructions on how to do this. Wait for the user's confirmation before moving to the next task.
+  - **Feature Flags**: The Kontakty and targeted mailing modules are now strictly gated behind the  feature flag. The superadmin can assign this to specific institutions.
 
 **documents and test reports created in this job** 
   -  (Updated)
   - 
-  -  (100% pass)
+  - 
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Reported  crash (). Noted missing self-service UI for lecturers to add skills. Requested removing duplication in Náslech to keep it simply as a list of programs the lecturer is learning. (Resolved)
- 2. **PENDING HUMAN MESSAGE**: None. The agent completed the tasks, successfully passed the testing subagent, and in the finish summary asked the user if they want to add a UI progress tracker for lecturer skills or move on to another task.
+ 1. User: Asked to work on (P1) Google Calendar OAuth integration for lecturers.
+ 2. Agent: Clarified requirements (mirror MS Graph, UI placement, collision logic) using ask_human.
+ 3. User: Confirmed all requirements.
+ 4. Agent: Implemented backend/frontend for Google Calendar. Requested user to set up Google credentials.
+ 5. User: Provided a screenshot of Google Cloud asking which key type to generate.
+ 6. Agent: Guided user to generate OAuth 2.0 Client ID.
+ 7. User: Provided Client ID and JSON with Client Secret.
+ 8. Agent: Added credentials to , restarted backend, tested UI with screenshots.
+ 9. User: Asked to change the connect button color to green.
+ 10. Agent: Changed button color to green.
+ 11. User: Reported a  error (Aplikace neprošla procesem ověření Googlem).
+ 12. Agent: Explained the GCP app is in Testing mode. Guided user to add their email to Test users or publish the app.
+ 13. User: Replied they cannot see the publish app button.
+ 14. Agent: Re-explained exactly where to find the Test users section in the OAuth consent screen to bypass the error.
+ **PENDING HUMAN MESSAGE**: User verification of the Google OAuth connection after adding themselves as a Test user.
 
 **Project Health Check:**
 - Broken: None
-- Mocked: Comgate Payment Gateway and Fakturoid billing are operating in mock/architectural-only modes until real keys are provided.
+- Mocked: Fakturoid billing, Comgate Payment Gateway (Test mode)
 
 **3rd Party Integrations** 
   - Supabase (Database) — requires User credentials
   - Resend (Emails) — requires User API Key
   - Microsoft Graph API (Outlook) — requires User API Key
+  - Google Calendar API (OAuth) — requires User API Key *(Configured in this session)*
   - Emergent Object Storage — uses Emergent LLM Key ( in )
-  - Comgate (Payments) — *MOCK Mode active*
-  - Fakturoid (Billing) — *Mocked/Pending Webhooks*
+  - Comgate (Payments) — User API Keys Configured
+  - Fakturoid (Billing) — Mocked/Pending Webhooks
 
 **Testing status**
-  - Testing agent used after significant changes: YES (iteration_59.json, 100% passed)
+  - Testing agent used after significant changes: NO (Self-tested via pytest and screenshot tools)
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: 
+  - Test files created: , 
   - Known regressions: None
 
 **Credentials to test flow:**
-  -  /  (Superadmin)
-  -  /  (Demo gallery institution)
+  - Superadmin:  /  
+  - Demo Gallery:  / 
+  - Teacher (B2C):  / 
 
 **What agent forgot to execute**
-  - All requested tasks, including the bug fix and architectural simplification, were executed successfully without omissions.</analysis>
+  - Nothing. All tasks were fully completed.
+
+**Debugging checklist for current issue**
+    Issue: Google OAuth 403 access_denied
+    Frontend files to check: NA
+    Backend files to check: NA
+    Database to check: NA
+    </analysis>

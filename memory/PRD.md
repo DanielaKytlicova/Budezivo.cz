@@ -1218,6 +1218,37 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - 🔑 **Pro aktivaci**: vložit do `backend/.env` `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (viz setup.md) → restart backend → tlačítko se okamžitě stane aktivním
 
 
+### Fáze 81 — Premium editorial PDF render systém (19.5.2026)
+- 🎯 **Cíl**: nahradit existující systémový PDF export („vypadá jako úřední dokument") za premium editorial PDF report vhodný pro výroční zprávy galerií, grantové žádosti a prezentační účely pro kulturní instituce.
+- 📋 **Volby uživatele**: bez změny API/DB/modelů/routes/frontendu — pouze vizuální vrstva. Tech stack: ReportLab + Pillow + Matplotlib. Endpoint URL nezměněno (`/api/programs/{id}/archive-report?format=pdf`).
+- [x] **Nová modulární vrstva** `/app/backend/services/pdf/` (5 souborů, ~1300 řádků):
+  - `pdf_styles.py` — design tokeny (PRIMARY #303E4F, ACCENT #C0AC8B, SECONDARY #596F9C, LIGHT_BG #F4F6F9, TEXT, TEXT_LIGHT, BORDER), DejaVu Sans font registrace pro CZ diakritiku, 12 ParagraphStyle definic (Eyebrow, H1/H2/H3, Body, KpiNumber, Quote, Caption, atd.), status pill barvy
+  - `pdf_helpers.py` — `resolve_local_image` (path/URL/uploads), `center_crop_to_aspect` (Pillow EXIF-aware crop + downscale), `fmt_int/fmt_date/fmt_period/truncate` Czech locale helpers
+  - `pdf_charts.py` — minimalistické Stripe/Notion-style charts (Agg backend): `status_donut_png` (donut s centered total + legendou), `top_schools_bar_png` (horizontal bar, top N), `_apply_minimalist_style` strip default mpl chrome
+  - `pdf_components.py` — flowable building blocks: `HeroCover` (full-bleed A4 cover s scrim + info-box + gold accent + watermark), `kpi_cards` (4 dashboard tiles s color strip), `info_grid` (2-col label/value), `light_card` (rounded soft bg), `gallery_grid` (3-col uniform thumbs s center-crop), `schools_table` & `bookings_table` (zebra rows, no harsh grids), `quote_card` (gold left bar, ornamental ", star rating), `section_header` (eyebrow + H2 + gold rule), `status_pill_table`
+  - `pdf_renderer.py` — public API `render_program_report(data, custom_text=None) -> bytes`, kompletní 8-sekční layout s `BaseDocTemplate` + dual page templates (Cover frame s 0-margin / Content frame s footer onPage callback: hairline + page #, watermark)
+- [x] **Backward compatibility**: `services.export_service.build_archive_report_pdf` zachován jako wrapper → deleguje na `services.pdf.render_program_report`. Žádný caller, route ani frontend nemusel být měněn. Stará implementace přejmenována na `_legacy_build_archive_report_pdf` jako emergency fallback.
+- [x] **Null-safe**: pokud sekce data nemá (žádné fotky/feedback/booky/schools), prostě se vynechá, layout se nerozbije, žádný error/placeholder. Cover funguje i bez `image_url` (solid navy + gold accent fallback).
+- [x] **8 sekcí** (vše gated podle existence dat): Cover hero · 01 Přehled programu · 02 Klíčové ukazatele (KPI) · 03 O programu (popis + curatorial note) · 04 Fotogalerie (3×3 grid) · 05 Statistiky a návštěvnost (donut + bar charts) · 06 Přehled škol (zebra table) · 07 Rezervace (s colored status pills) · 08 Zpětná vazba (quote cards)
+- [x] **Typografie**: DejaVu Sans / DejaVu Sans Bold — plná CZ diakritika ověřená (ě, š, č, ř, ž, ý, á, í, é, ú, ů, ť, ď, ň). DejaVu nemá italic, místo toho zlaté ornamentální uvozovky pro quote feeling.
+- [x] **Charts**: matplotlib registrován s DejaVu fontem, Agg backend (server-safe), muted palette s S.CHART_PALETTE, stripped default chrome (top/right spines off, light grid, font #6B7A8D)
+- [x] **Cover stránka**: full-bleed A4 image s center-crop, dark scrim 55% pro čitelnost, rounded info-box vpravo dole (105×60mm, navy 92% opacity, gold 1.6mm accent strip nahoře), title wrap pro dlouhé názvy, period + institution + age_group, Budeživo.cz watermark
+- [x] **Footer body stran**: hairline 0.4pt + page number centered + „Budeživo.cz" vodoznak vpravo (#A5B0BF nenápadné)
+- [x] **Pytest** `/app/backend/tests/test_pdf_renderer.py` — **8/8 PASS**:
+  - full payload → valid PDF (103 KB, 4 stránky)
+  - custom_text curatorial note rendering
+  - minimal/empty payload (jen cover + intro, žádný crash)
+  - bez bookings/schools sekcí
+  - bez feedback sekce
+  - very long program names (>80 chars wrapping v info-boxu)
+  - legacy `build_archive_report_pdf` wrapper delegace
+  - DejaVu font embedded v PDF stream
+- [x] **E2E**: `GET /api/programs/{id}/archive-report?format=pdf` → HTTP 200, application/pdf, 73 KB (původní demo data) / 103 KB (full sample s feedback + bookings)
+- [x] **Visual smoke test**: pdf2image render všech 4 stran + AI analýza každé stránky → kompletní layout, žádné překryvy, žádné rozbité fonty, status pill správně barevný, zlatý accent, donut + bar charts vykresleny správně
+- 📦 **Dependencies**: přidán `matplotlib==3.10.9` do `requirements.txt` (vedle existující `pillow==12.1.0` a `reportlab==4.4.10`)
+- 🚫 **Zachováno**: 0 změn v DB schématech / Alembic migrations / API contractech / frontend kódu / autentizaci / business logic / rolích — jak vyžadovalo zadání
+
+
 
 
 

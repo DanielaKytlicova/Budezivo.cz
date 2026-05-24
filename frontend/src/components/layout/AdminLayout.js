@@ -14,7 +14,7 @@ const BudezivoLogo = ({ showText = true }) => (
     {showText ? (
       <svg 
         viewBox="0 0 265.42 73.09" 
-        className="w-[200px] h-auto"
+        className="h-10 w-auto"
         aria-label="Budeživo.cz"
       >
         <defs>
@@ -202,7 +202,7 @@ export const AdminLayout = ({ children }) => {
       {/* Desktop Sidebar */}
       <aside className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
         <div className="flex flex-col flex-grow border-r border-border bg-white overflow-y-auto">
-          <div className="flex items-center flex-shrink-0 px-4 py-5 border-b border-border">
+          <div className="flex items-center flex-shrink-0 px-6 py-6 border-b border-border">
             <Link to="/">
               <BudezivoLogo />
             </Link>

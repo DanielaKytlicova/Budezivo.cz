@@ -657,18 +657,19 @@ def _build_hero_cover(prog: dict, inst: dict, stats: dict, image_path: str, styl
 
 
 def build_archive_report_pdf(data: dict, custom_text: Optional[str] = None) -> bytes:
-    """Render a program archive report dict as a clean A4 PDF (bytes).
+    """Render a program archive report as a premium editorial-style A4 PDF.
 
-    Two layouts:
-      * **HERO** — when `data['program']['image_url']` resolves to an image,
-        page 1 is a full-bleed cover with the program name overlay; the report
-        body starts on page 2.
-      * **STANDARD** — without a cover image, the body starts immediately on
-        page 1.
-
-    Optional ``custom_text`` is rendered as a "Poznámka" section right after
-    the program overview, before the statistics.
+    The implementation has been migrated to ``services.pdf`` (a dedicated PDF
+    render layer with cover hero, KPI dashboard, minimal charts, gallery and
+    quote cards). The function signature, callers and endpoint behaviour are
+    unchanged for backward compatibility.
     """
+    from services.pdf import render_program_report
+    return render_program_report(data, custom_text=custom_text)
+
+
+def _legacy_build_archive_report_pdf(data: dict, custom_text: Optional[str] = None) -> bytes:  # noqa: C901
+    """Legacy renderer kept only as an emergency fallback. Not exported."""
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
                             leftMargin=20*mm, rightMargin=20*mm,

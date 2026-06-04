@@ -1249,6 +1249,30 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - 🚫 **Zachováno**: 0 změn v DB schématech / Alembic migrations / API contractech / frontend kódu / autentizaci / business logic / rolích — jak vyžadovalo zadání
 
 
+### Fáze 82 — Smart re-invite flow (soft-deleted user recovery) (4.6.2026)
+- 🎯 **Cíl**: vyřešit reálný incident `pokornyromy@gmail.com` — uživatel se omylem zaregistroval jako vlastní instituce, instituce byla soft-deletedovaná, ale unique-constraint na e-mail blokoval znovu-pozvání jiným adminem. Cílem zachovat původní jméno + heslo uživatele, ať Roman vidí novou instituci, kam je pozván, bez nutnosti změny hesla.
+- 📋 **Volby uživatele**: zvolena cesta B (Krok 1 + drobný invite-flow patch, žádný membership refaktor — odloženo do P4 backlog)
+- [x] **DB cleanup** přes `cd /app/backend && python3` jednorázový skript:
+  - Detekováno: 1 soft-deleted user (`deleted_at=2026-06-04`), instituce „Technické muzeum Liberec" stále aktivní jako vlastník
+  - Hard-delete blokován FK constraint na `audit_logs` (správně — auditní stopu nemažeme)
+  - Použito alternativní řešení: dočasné přejmenování e-mailu → patch invite flow → obnovení e-mailu → reaktivace přes API. Audit trail zachován.
+- [x] **Backend** (`routes/team.py`): kompletně přepsán endpoint `POST /api/team/invite`, nově rozlišuje 4 případy:
+  - **A. Nový e-mail** → klasické vytvoření s temp_password (`mode: "created"`)
+  - **B. Soft-deleted user kdekoliv** → reaktivace + reassign do instituce zvoucího admina, **zachováno `password_hash` + `name`** (mode: "reactivated"). Update jen: `institution_id`, `role`, `status='active'`, `deleted_at=NULL`, `lecturer_mode`, `invited_by`, `updated_at`
+  - **C. Aktivní člen stejné instituce** → idempotentní přátelská hláška, žádná chyba (mode: "noop_already_member")
+  - **D. Aktivní v jiné instituci**:
+    - Běžný admin → HTTP 409 s českou hláškou „kontaktujte správce platformy"
+    - Superadmin (`email in SUPERADMIN_EMAILS`) → force-move + `mode: "moved_by_superadmin"`
+- [x] **Roman Pokorný reálně reaktivován**: e-mail `pokornyromy@gmail.com`, jméno „Roman Pokorný", role změněna z `admin` (vlastní instituce) na `edukator` (přiřazen k Budeživo Platform). password_hash (bcrypt, 60 znaků) **bit-by-bit zachován** — Roman se přihlásí původním heslem a uvidí dashboard Budeživo Platform místo své omylem vytvořené instituce.
+- [x] **Pytest** `/app/backend/tests/test_team_invite_flow.py` — **5/5 PASS**:
+  - new user → created s temp_password
+  - existing in same inst → idempotentní noop_already_member
+  - soft-deleted → reactivated + ověřeno `password_hash` ≡ original
+  - invalid role → 400
+  - empty email → 400/422
+- ❗ **Co NEbylo provedeno** (cesta C, plný memberships refaktor): nová tabulka `institution_memberships`, JWT switcher, multi-tenant role per institution. Pokud user potřebuje *jeden uživatel = více institucí současně*, vrátíme se k tomu jako samostatná fáze. Aktuálně každý uživatel = jedna instituce (per cesta B).
+
+
 
 
 

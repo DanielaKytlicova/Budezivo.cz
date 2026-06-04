@@ -1273,6 +1273,48 @@ mailing_recipient_programs: id, recipient_id, program_id, program_name, program_
 - ❗ **Co NEbylo provedeno** (cesta C, plný memberships refaktor): nová tabulka `institution_memberships`, JWT switcher, multi-tenant role per institution. Pokud user potřebuje *jeden uživatel = více institucí současně*, vrátíme se k tomu jako samostatná fáze. Aktuálně každý uživatel = jedna instituce (per cesta B).
 
 
+### Fáze 83 — Duplicate-institution protection + Join-request workflow (4.6.2026)
+- 🎯 **Cíl**: zabránit omylem vytvořeným duplicitním institucím + umožnit uživatelům požádat o vstup do existující instituce (admin schvaluje + vybírá roli).
+- 📋 **Volby uživatele**: 1a) Alembic migrace, 2c) tvrdé (IČO) i slabé (název+město) duplicity, 3a) 3 samostatné e-mail šablony (CZ).
+- [x] **DB** — nová tabulka `institution_join_requests` (Alembic migrace `4a03e6106002`, čistě additive, žádná změna na existujících tabulkách):
+  - Sloupce: `id`, `institution_id`, `user_id?`, `email`, `name?`, `message?`, `status` (`pending|approved|rejected`), `assigned_role?`, `created_at`, `reviewed_by?`, `reviewed_at?`, `review_note?`
+  - 3 indexy: `idx_join_req_email`, `idx_join_req_institution`, `idx_join_req_status`
+- [x] **Backend service** `/app/backend/services/institution_duplicate_service.py`:
+  - **STRONG match**: IČO exact (po normalizaci na samé číslice) → block registrace
+  - **WEAK match**: ≥80% trigram-based similarity na slugified názvech + stejné město → warning UI
+  - Helper `_slugify` zbavuje diakritiky + non-alpha; `_normalize_ico` izoluje digity; `_name_similarity` používá trigram Jaccard
+- [x] **Backend routes** `/app/backend/routes/institution_join.py` (5 endpointů):
+  - `POST /api/institutions/check-duplicate` (public pre-flight)
+  - `POST /api/institutions/{id}/join-request` (anonymous OR logged-in submit, auto-fill user_id pokud přihlášen)
+  - `GET /api/institutions/{id}/join-requests` (admin-only listing)
+  - `POST /api/institutions/{id}/join-requests/{req_id}/approve` (admin schvaluje + vybere role; reaktivuje existing user NEBO vytvoří nový s temp_password)
+  - `POST /api/institutions/{id}/join-requests/{req_id}/reject` (admin zamítne + volitelná poznámka)
+- [x] **Backend route** `GET /api/superadmin/join-requests` — cross-institution view pro superadmina
+- [x] **Backend register guard** (`routes/auth.py`): backend-side enforcement duplicate check — HTTP 409 s `code: 'institution_duplicate'` + lista matches. Frontend pre-flight check je jen UX, finální blok je server-side (nelze obejít).
+- [x] **Helper** `get_current_user_optional` v `core/security.py` — pro endpointy přístupné jak anonymně tak přihlášeně
+- [x] **E-mail šablony** v `templates/emails/templates.py`:
+  - `join_request_received` (CZ) — admin instituce dostane „Máte novou žádost o vstup do týmu" se jménem/e-mailem/zprávou + CTA do adminu
+  - `join_request_approved` (CZ) — žadatel dostane „Vaše žádost byla schválena" + role + (pokud nový účet) dočasné heslo + login URL; pokud existing user → „přihlaste se svými stávajícími údaji"
+  - `join_request_rejected` (CZ) — žadatel dostane „Vaše žádost nebyla schválena" + volitelná poznámka admina + kontakt na support
+- [x] **Frontend** `RegisterPage.js`:
+  - Pre-flight call na `/check-duplicate` před každým registrace submitem
+  - **Duplicate modal** s 2 vizuálními variantami: amber pro strong, blue pro weak. Obsahuje seznam matched institucí (clickable na otevření join-request formu) + 3 CTA: „Odeslat žádost o přijetí" / „Přesto vytvořit" (jen weak) / „Zpět" + link „Kontaktovat podporu"
+  - **Join-request form modal** s textareou pro zprávu (max 500 znaků), zobrazí auto-fill jméno/e-mail z registrace
+  - Defense in depth: i kdyby user obešel pre-flight, backend 409 response taky vyvolá modal
+- [x] **Frontend** `TeamPage.js`:
+  - Nová zelená sekce „Žádosti o přijetí do týmu" se zobrazením jména, e-mailu, citace zprávy, datumu
+  - 2 tlačítka per žádost: **Schválit** (otevře modal s role-select dropdown) / **Zamítnout** (otevře modal s textareou pro poznámku)
+  - Po schválení toast s temp_password (pokud byl vytvořen nový účet) nebo info o reaktivaci
+  - Sekce se schová pokud admin nemá žádné pending žádosti nebo nemá oprávnění (403 z API)
+- [x] **Pytest** `/app/backend/tests/test_join_requests.py` — **11/11 PASS**:
+  - duplicate detection: empty / strong match (IČO) / register backend block (409)
+  - submission: anonymous, duplicate pending (409), already member (409)
+  - admin review: list + approve s role, reject s poznámkou, regular admin can't review other inst (403), can't process already-processed (400)
+  - superadmin cross-institution view
+- [x] **Smoke UI screenshot**: Team Page s pending žádostí, zelená sekce viditelná, Schválit/Zamítnout tlačítka, zpráva v citaci, datum
+- ❗ **Co je „idempotentní pojistka"** mimo specifikaci, ale dělá UX bezpečnější: backend-side validace nikdy nevrátí matoucí „account already exists" — místo toho vždy odpovídající strukturovaný stav (already_member 409, pending_already 409, ne-člen → ok)
+
+
 
 
 

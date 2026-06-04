@@ -18,7 +18,7 @@ from database.supabase import get_db
 from database.models import (
     Institution, User, Program, Reservation, Event, EventApplication,
     MailingCampaign, WaitlistEntry, BillingOrder, UsageMetric, AuditLog,
-    FeatureFlag,
+    FeatureFlag, InstitutionJoinRequest,
 )
 from database.supabase_repositories import InstitutionRepositorySupabase
 from services.plan_service import PLAN_LIMITS, PLAN_LABELS
@@ -86,6 +86,46 @@ async def require_superadmin(current_user: dict = Depends(get_current_user)):
     if current_user.get("email") not in SUPERADMIN_EMAILS:
         raise HTTPException(status_code=403, detail="Přístup pouze pro superadmina platformy")
     return current_user
+
+
+# ── Cross-institution join requests (Phase 83) ─────────────────────
+
+
+@router.get("/join-requests")
+async def superadmin_list_all_join_requests(
+    status: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    _admin: dict = Depends(require_superadmin),
+):
+    """Cross-institution view of every join request in the system."""
+    conds = []
+    if status:
+        conds.append(InstitutionJoinRequest.status == status)
+    q = select(
+        InstitutionJoinRequest, Institution.name.label("inst_name"),
+    ).join(Institution, Institution.id == InstitutionJoinRequest.institution_id)
+    if conds:
+        q = q.where(and_(*conds))
+    q = q.order_by(InstitutionJoinRequest.created_at.desc()).limit(500)
+    rows = (await db.execute(q)).all()
+    return [
+        {
+            "id": str(r.InstitutionJoinRequest.id),
+            "institution_id": str(r.InstitutionJoinRequest.institution_id),
+            "institution_name": r.inst_name,
+            "user_id": str(r.InstitutionJoinRequest.user_id) if r.InstitutionJoinRequest.user_id else None,
+            "email": r.InstitutionJoinRequest.email,
+            "name": r.InstitutionJoinRequest.name,
+            "message": r.InstitutionJoinRequest.message,
+            "status": r.InstitutionJoinRequest.status,
+            "assigned_role": r.InstitutionJoinRequest.assigned_role,
+            "created_at": r.InstitutionJoinRequest.created_at.isoformat() if r.InstitutionJoinRequest.created_at else None,
+            "reviewed_by": str(r.InstitutionJoinRequest.reviewed_by) if r.InstitutionJoinRequest.reviewed_by else None,
+            "reviewed_at": r.InstitutionJoinRequest.reviewed_at.isoformat() if r.InstitutionJoinRequest.reviewed_at else None,
+            "review_note": r.InstitutionJoinRequest.review_note,
+        }
+        for r in rows
+    ]
 
 
 # ---- Pydantic models ----

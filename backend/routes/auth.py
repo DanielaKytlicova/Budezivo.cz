@@ -134,6 +134,35 @@ async def register(
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    # Phase 83: backend duplicate-institution guard. Frontend pre-flight check
+    # may warn the user, but the final block must live here so it cannot be
+    # bypassed by skipping the check.
+    from services.institution_duplicate_service import find_duplicate_institutions
+    duplicates = await find_duplicate_institutions(
+        db,
+        name=user_data.institution_name,
+        ico_dic=user_data.ico_dic,
+        city=user_data.city,
+    )
+    strong = [d for d in duplicates if d.match_strength == "strong"]
+    if strong:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "institution_duplicate",
+                "message": (
+                    "Tato instituce je již v systému aktivní. Pokud k ní patříte, "
+                    "můžete odeslat žádost o přijetí do týmu."
+                ),
+                "matches": [
+                    {
+                        "id": d.id, "name": d.name, "city": d.city,
+                        "ico_dic": d.ico_dic, "reason": d.reason,
+                    } for d in strong
+                ],
+            },
+        )
+
     institution = await institution_repo.create({
         "name": user_data.institution_name,
         "type": user_data.institution_type,

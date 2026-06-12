@@ -1,27 +1,35 @@
-<analysis>**original_problem_statement**: Deep security & architecture audit execution followed by consecutive iterative feature enhancements and complex bug fixes. PRODUCT REQUIREMENTS: A highly secure, multi-tenant SaaS application providing School CRM, booking management with collision validation, GDPR compliance, advanced calendar integrations, robust role-based security, promotional mailings, subscription-based pricing, and event payments. In this specific iteration, the user requested an immediate fix for a frontend crash on the , the creation of a self-service profile UI for external lecturers to manage their skills, and a complete architectural simplification of the Náslech (Observer) logic to remove duplicities.
+<analysis>**original_problem_statement**: Deep security & architecture audit execution followed by consecutive iterative feature enhancements and complex bug fixes. PRODUCT REQUIREMENTS: A highly secure, multi-tenant SaaS application providing School CRM, booking management, GDPR compliance, advanced calendar integrations, robust role-based security, promotional mailings, and event payments. In this session, the user requested feature whitelisting for the new CRM, a Google Calendar OAuth integration (mirroring MS Graph), an overhauled premium editorial PDF reporting system, a smart re-invite flow to handle soft-deleted user collisions, and a pre-registration duplicate institution detector with a Join Request approval workflow.
 
-**User's preferred language**: Czech (Čeština). INSTRUCT NEXT AGENT TO RESPOND IN THE USER'S PREFERRED LANGUAGE ONLY.
+**User's preferred language**: Czech (Čeština). 
+**INSTRUCT NEXT AGENT TO RESPOND IN THE USER'S PREFERRED LANGUAGE ONLY (CZECH).**
 
-**what currently exists?**: A fully functional, highly secure multi-tenant SaaS. It features booking logic, waitlists, 4-tier subscriptions, a Superadmin Dashboard, mock Comgate payments, and program photo uploads. The platform now includes structured collision transparency, comprehensive ZIP/PDF system exports, and a self-service profile page () for lecturers to manage their specializations (, , ). The complex Náslech logic has been drastically simplified.
+**what currently exists?**: A fully functional, highly secure multi-tenant SaaS. It features an advanced CRM/Mailing system gated by superadmin feature flags. Lecturers can now sync both Outlook and Google Calendars simultaneously for automatic booking collision detection. The application generates premium, editorial-style PDF reports (using ReportLab/Matplotlib) without relying on frontend rendering. The team invitation flow intelligently reactivates soft-deleted users without losing their credentials. Registration includes backend-enforced duplicate institution detection, prompting users to submit a Join Request (managed via admin and superadmin dashboards).
 
 **Last working item**: 
-    - Last item agent was working: Fixing the frontend crash on  (caused by PDF format responses breaking JSON rendering) and implementing the missing Self-Service UI () for external lecturers. The agent also executed a major simplification of the Náslech logic by removing the  routing/DB models and  toggles.
-    - Status: USER VERIFICATION PENDING
-    - Agent Testing Done: Y
-    - Which testing method agent to use?: NA (Testing already done via  with 100% success rate documented in )
+    - Last item agent was working: Hard-deleting a mistakenly created, soft-deleted institution (Technické muzeum Liberec, id ) after successfully migrating the user Roman Pokorný to the correct active institution. The deletion was blocked by foreign key constraints (dependent programs and audit logs).
+    - Status: IN PROGRESS
+    - Agent Testing Done: N
+    - Which testing method agent to use?: Python -c / bash (SQL script for cascade deletion).
     - User Testing Done: N
 
 **All Pending/In progress Issue list**: 
-  *(No pending issues. All P0 bugs and UI omissions from the previous fork were successfully fixed and verified).*
+  Issue 1: Hard Delete Soft-Deleted Institution (P0)
+  - Issue Detail:
+     - Attempted fixes: Agent tried to run , but it failed due to foreign key constraints (1 program, 4 audit_logs).
+     - Next debug checklist: Write a python script using SQLAlchemy to manually delete the dependent  and  associated with , then delete the institution itself. 
+     - Why fix this issue and what will be achieved with the fix?: Fulfills the user's final explicit request to clean up the database after fixing a user collision.
+     - Status: IN PROGRESS
+     - Is recurring issue?: N
+     - Should Test frontend/backend/both after fix?: NA (DB operation only)
 
 **In progress Task List**: 
-  *(No tasks are currently in progress.)*
+  *(No feature tasks currently in progress, only the DB cleanup mentioned above).*
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - (P1) **Fakturoid Real Integration**: Implement actual API integration/webhook handler for automatic plan activation after Fakturoid invoice payment.
+    - (P1) **Fakturoid Real Integration**: Implement actual API integration/webhook handler for automatic plan activation and invoice generation after Fakturoid webhook triggers. *(Agent has explicitly prepped for this next).*
     - (P2) **i18n Language Toggle**: Implement CZ/EN switch using existing placeholder buttons.
-    - (P3) **Social proof**: Add logos, references, and numbers on the landing page.
+    - (P3) **Social proof**: Add CMS UI for managing Social proof logos and references on the landing page.
     
     Future Tasks:
     - (P4) Subscription auto-renewal scheduler and expiration logic.
@@ -29,11 +37,13 @@
     - (P4) Usage analytics UI per plan.
 
 **Completed work in this session**
-- Fixed  frontend crash by enforcing  parameter and adding null-safe rendering (DONE)
-- Created self-service  () for lecturers to update their skills/preferences (DONE)
-- Removed complex/duplicate Náslech logic (deleted ,  references, and  checks) (DONE)
-- Added new endpoint  for self-service updates (DONE)
-- Updated pytest suite with  to ensure regression safety (DONE)
+- Phase 79: Implemented Superadmin Feature Flag whitelisting for Contacts/Mailing CRM modules (DONE)
+- Phase 80: Implemented Google Calendar OAuth 2.0 integration & APScheduler sync () (DONE)
+- UI Fix: Enlarged sidebar logo in  (DONE)
+- Phase 81: Built a premium editorial PDF renderer () using ReportLab, Matplotlib, and Pillow (DONE)
+- Phase 82: Overhauled Team Invite flow to reactivate soft-deleted users and preserve bcrypt passwords/names (DONE)
+- Phase 83: Implemented pre-registration duplicate institution detection and a full Join Request approval workflow (DONE)
+- DB Fix: Manually moved user Roman Pokorný to correct institution while preserving credentials (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 - None.
@@ -47,64 +57,93 @@
 **Key Technical Concepts**
 - Frontend: React, TailwindCSS, Shadcn UI.
 - Backend: FastAPI, Supabase (SQLAlchemy Async), Alembic.
-- File Generation:  used for PDFs,  for bundles.
-- Architecture Change: Náslech (Observer mode) is no longer a separate relational record or role constraint. It is strictly a JSON array () on the User profile.
+- **Calendar Integrations**: Uses APScheduler for background polling (every 5 mins). Both Outlook and Google blocks are merged in  to prevent double-bookings.
+- **PDF Generation**: Strictly backend-driven using . Uses bundled  fonts for perfect Czech diacritic support.
+- **Soft Deletes**: Heavy use of  timestamps for users/institutions. The invite flow now gracefully handles unique email constraints by reactivating soft-deleted records.
 
 **key DB schema**
-  - : Track skills via  (JSONB),  (JSONB),  (JSONB), and  (Text). The  column logic is deprecated.
-  - : Completely REMOVED to eliminate duplication.
+  -  (NEW): uid=0(root) gid=0(root) groups=0(root), , , , , , .
+  - : Differentiates calendars by  ('microsoft' or 'google').
 
 **changes in tech stack**
-  - None.
+  - Added , , , and  (for testing) to .
 
 **All files of reference** 
-  -  (Crash fix reference)
-  -  (New self-service UI)
-  -  (Contains  endpoint)
+  -  (Core of the new PDF system)
+  -  (Contains the complex invite/reactivation logic)
+  -  (Contains the join-request interceptor)
+  -  (Google OAuth routes)
+  -  (Agent heavily relied on Pytests for all features)
 
 **Areas that need refactoring**: 
-  - Fakturoid auto-billing implementation is architecturally prepared but requires real webhooks to be fully active.
-  - Background tasks (like mailings) use ; queue systems like Celery should be considered as load grows.
+  - Fakturoid billing is architecturally prepared but requires real webhooks to be fully active.
 
 **key api endpoints**
+  - 
+  - 
   - 
   - 
 
 **Critical Info for New Agent** 
   - **LANGUAGE**: Always respond in Czech.
-  - **Náslech Architecture**: The Náslech (Observer) feature was radically simplified per user request. It is NO LONGER a separate database entity ( was deleted) and NO LONGER a separate lecturer mode ( logic was removed). It is now managed purely via the  array in the  table. Do not try to recreate the old complex observer logic.
-  - **PDF vs JSON Exports**: Remember that certain API endpoints return binary PDFs by default now. Ensure frontend calls that expect JSON data explicitly append .
+  - **Security Warning**: The user pasted a GitHub Personal Access Token () in the chat history. The previous agent warned them to revoke it. **DO NOT** attempt to use or save this token. Ensure the user relies on the Save to Github platform feature.
+  - **PDF Fonts**: When modifying PDF generation, you MUST use the bundled  fonts located in . Standard ReportLab fonts (Helvetica/Times) will break Czech diacritics (ě, š, č, ř, ž).
+  - **Unique Emails**: The  table has a strict unique constraint on . Always account for  (soft-deleted users) when implementing any auth or invitation flows.
 
 **documents and test reports created in this job** 
-  -  (Updated)
+  -  (Updated with Phase 79-83 completions)
+  -  (Instructions for user on Google OAuth)
   - 
-  -  (100% pass)
+  - 
+  - 
+  - 
+  - 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Reported  crash (). Noted missing self-service UI for lecturers to add skills. Requested removing duplication in Náslech to keep it simply as a list of programs the lecturer is learning. (Resolved)
- 2. **PENDING HUMAN MESSAGE**: None. The agent completed the tasks, successfully passed the testing subagent, and in the finish summary asked the user if they want to add a UI progress tracker for lecturer skills or move on to another task.
+ 1. User: Asked to change Google connection button to green. (Resolved)
+ 2. User: Reported Google Verification Access Blocked error.
+ 3. Agent: Explained Testing mode vs Production mode in Google Cloud Console.
+ 4. User: Had trouble finding the Publish App button.
+ 5. Agent: Guided user through UI, confirmed OAuth succeeded in backend logs.
+ 6. User: Asked if Outlook and Google can run simultaneously and risks involved.
+ 7. Agent: Explained architecture supports both seamlessly via the collision service.
+ 8. User: Asked to significantly enlarge the sidebar logo. (Resolved)
+ 9. User: Provided a massive prompt to overhaul PDF generation to premium editorial standards. (Resolved)
+ 10. User: Shared a GitHub token and asked how to update it on Railway.
+ 11. Agent: Warned about token security, explained Railway's OAuth vs ENV integration.
+ 12. User: Asked to fix Roman Pokorný's cross-institution invite issue and implement a massive Join-Request / Duplicate Institution feature. (Resolved)
+ 13. **PENDING HUMAN MESSAGE**: User requested moving Roman manually (Done) and to hard-delete the mistakenly created soft-deleted institution from June 4th (id ). *(Blocked by FK constraints, pending cascade cleanup).*
 
 **Project Health Check:**
-- Broken: None
-- Mocked: Comgate Payment Gateway and Fakturoid billing are operating in mock/architectural-only modes until real keys are provided.
+- Broken: Hard delete of old institution failing due to foreign keys.
+- Mocked: Fakturoid billing, Comgate Payment Gateway (Test mode).
 
 **3rd Party Integrations** 
   - Supabase (Database) — requires User credentials
   - Resend (Emails) — requires User API Key
   - Microsoft Graph API (Outlook) — requires User API Key
-  - Emergent Object Storage — uses Emergent LLM Key ( in )
-  - Comgate (Payments) — *MOCK Mode active*
-  - Fakturoid (Billing) — *Mocked/Pending Webhooks*
+  - Google Calendar API (OAuth) — requires User API Key ( /  in )
+  - Emergent Object Storage — uses Emergent LLM Key
+  - Comgate (Payments) — User API Keys Configured
+  - Fakturoid (Billing) — Mocked/Pending Webhooks
 
 **Testing status**
-  - Testing agent used after significant changes: YES (iteration_59.json, 100% passed)
+  - Testing agent used after significant changes: NO (Self-tested via extensive Pytest suites and Screenshot tool for every phase).
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: 
-  - Known regressions: None
+  - Test files created: 5 comprehensive suites in  (see documents section).
+  - Known regressions: None.
 
 **Credentials to test flow:**
-  -  /  (Superadmin)
-  -  /  (Demo gallery institution)
+  - Superadmin: 
+  - Reactivated User: 
 
 **What agent forgot to execute**
-  - All requested tasks, including the bug fix and architectural simplification, were executed successfully without omissions.</analysis>
+  - The final requested hard delete of the soft-deleted institution  was not completed because the agent hit a PostgreSQL Foreign Key constraint error on dependent  and  just before the context window closed.
+
+**Debugging checklist for current issue**
+    Issue: Hard delete of soft-deleted institution failing due to foreign key constraints.
+    Database to check:
+    - Write a short python script to execute:
+      1. 
+      2. 
+      3. </analysis>

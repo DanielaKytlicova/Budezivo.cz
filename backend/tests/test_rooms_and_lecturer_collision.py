@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 # Add backend to path for importing collision_service
 sys.path.insert(0, '/app/backend')
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://arch-enhance-v59.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://audit-backend-fixes.preview.emergentagent.com')
 
 # Test credentials
 TEST_EMAIL = "demo@budezivo.cz"

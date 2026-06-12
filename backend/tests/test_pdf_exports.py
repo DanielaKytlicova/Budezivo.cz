@@ -12,7 +12,7 @@ import zipfile
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://arch-enhance-v59.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://audit-backend-fixes.preview.emergentagent.com").rstrip("/")
 GALLERY_INSTITUTION_ID = "eefb9cbf-52bf-4e20-9418-5b2f659f8d23"
 
 

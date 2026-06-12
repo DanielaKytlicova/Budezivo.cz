@@ -7,7 +7,7 @@ import requests
 import os
 import time
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://arch-enhance-v59.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://audit-backend-fixes.preview.emergentagent.com')
 
 # Test credentials
 ADMIN_EMAIL = "demo@budezivo.cz"

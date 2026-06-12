@@ -3,6 +3,7 @@ Team management routes.
 Uses Supabase (PostgreSQL) for database operations.
 """
 import uuid
+import secrets
 import logging
 from datetime import datetime, timezone
 from typing import List
@@ -79,7 +80,9 @@ async def invite_team_member(
 
     # ── Case A: brand-new user — classic invite ──
     if not existing:
-        temp_password = str(uuid.uuid4())[:8]
+        # Security audit P2: use a cryptographically strong temporary password
+        # (was `uuid.uuid4()[:8]` — low-entropy, predictable hex slice).
+        temp_password = secrets.token_urlsafe(12)
         await user_repo.create({
             "name": invite_data.name,
             "email": email,

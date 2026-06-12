@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+import secrets
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -284,7 +285,8 @@ async def approve_join_request(
         mode = "reactivated"
     else:
         # Create a fresh account so the requester can log in immediately
-        temp_password = str(uuid.uuid4())[:8]
+        # Security audit P2: strong temporary password (was low-entropy uuid slice).
+        temp_password = secrets.token_urlsafe(12)
         user_repo = UserRepositorySupabase(db)
         await user_repo.create({
             "name": req.name or req.email.split("@")[0],

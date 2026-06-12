@@ -5,7 +5,7 @@ Tracks feature usage counts for product analytics.
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import UsageMetric
@@ -65,3 +65,67 @@ async def get_institution_usage(db: AsyncSession, institution_id: str) -> list:
         }
         for m in metrics
     ]
+
+
+NEAR_LIMIT_THRESHOLD = 0.8  # 80 % → show "blížíte se limitu" banner
+
+
+def _quota_block(used: int, limit: int) -> dict:
+    """Build a single quota descriptor. limit == -1 means unlimited."""
+    unlimited = limit is None or limit < 0
+    if unlimited:
+        return {
+            "used": used, "limit": -1, "unlimited": True,
+            "percent": 0, "remaining": None, "near_limit": False, "over_limit": False,
+        }
+    percent = int(round((used / limit) * 100)) if limit > 0 else 100
+    return {
+        "used": used,
+        "limit": limit,
+        "unlimited": False,
+        "percent": min(percent, 999),
+        "remaining": max(0, limit - used),
+        "near_limit": used >= limit * NEAR_LIMIT_THRESHOLD and used < limit,
+        "over_limit": used >= limit,
+    }
+
+
+async def get_plan_quota_usage(
+    db: AsyncSession, institution_id: str, plan: str, plan_status: str = "active"
+) -> dict:
+    """Soft-limit usage snapshot: current programs + this-month bookings vs plan
+    limits. SOFT only — never blocks; drives UI banners + upgrade prompts.
+
+    `enforced=False` documents that hard enforcement is intentionally deferred
+    (architecture-ready: flip to True post-pilot to start blocking).
+    """
+    from database.models import Program, Reservation
+    from services.plan_service import get_plan_limits
+
+    limits = get_plan_limits(plan, plan_status)
+
+    programs_used = (await db.execute(
+        select(func.count(Program.id)).where(and_(
+            Program.institution_id == institution_id,
+            Program.status != 'archived',
+        ))
+    )).scalar() or 0
+
+    now = datetime.now(timezone.utc)
+    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    bookings_used = (await db.execute(
+        select(func.count(Reservation.id)).where(and_(
+            Reservation.institution_id == institution_id,
+            Reservation.status != 'cancelled',
+            Reservation.created_at >= month_start,
+        ))
+    )).scalar() or 0
+
+    return {
+        "plan": plan,
+        "plan_status": plan_status,
+        "enforced": False,
+        "period": now.strftime("%Y-%m"),
+        "programs": _quota_block(programs_used, limits.get("programs_limit", -1)),
+        "bookings_month": _quota_block(bookings_used, limits.get("bookings_monthly_limit", -1)),
+    }

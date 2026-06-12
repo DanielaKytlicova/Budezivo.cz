@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
 from database.supabase import get_db
+from sqlalchemy import update
+from database.models import AuditLog, RefreshToken, UserCalendarIntegration
 from database.supabase_repositories import (
     UserRepositorySupabase,
     BookingRepositorySupabase,
@@ -217,6 +219,31 @@ async def anonymize_personal_data(
         "name": "Anonymizováno",
         "status": "anonymized",
     })
+
+    # GDPR Art. 17 — scrub the user's PII across related records while KEEPING the
+    # rows themselves so aggregated statistics / historical reports stay intact.
+    uid = current_user["user_id"]
+
+    # 1) Audit trail: keep the action history (counts, types, timestamps) but
+    #    remove the identifiable e-mail.
+    await db.execute(
+        update(AuditLog).where(AuditLog.user_id == uid).values(user_email=anonymized_email)
+    )
+
+    # 2) Kill all sessions — revoke refresh tokens so the anonymized account
+    #    cannot be used anymore.
+    await db.execute(
+        update(RefreshToken).where(RefreshToken.user_id == uid).values(revoked=True)
+    )
+
+    # 3) Purge stored OAuth/calendar tokens (sensitive secrets + external IDs).
+    await db.execute(
+        update(UserCalendarIntegration)
+        .where(UserCalendarIntegration.user_id == uid)
+        .values(access_token=None, refresh_token=None, microsoft_user_id=None, is_active=False)
+    )
+
+    await db.commit()
 
     logger.info(f"GDPR anonymization for user {current_user['user_id']}")
 

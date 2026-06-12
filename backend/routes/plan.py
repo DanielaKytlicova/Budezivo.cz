@@ -78,6 +78,27 @@ async def get_available_plans():
     return {"plans": get_plan_hierarchy()}
 
 
+@router.get("/usage")
+async def get_plan_usage(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Soft-limit usage snapshot (programs + this-month bookings vs plan limits).
+
+    SOFT only — never blocks. Drives the dashboard usage meters and upgrade
+    banners. Hard enforcement is deferred until after the pilot phase.
+    """
+    inst_repo = InstitutionRepositorySupabase(db)
+    inst = await inst_repo.find_by_id(current_user["institution_id"])
+    if not inst:
+        raise HTTPException(status_code=404, detail="Instituce nenalezena")
+    from services.usage_service import get_plan_quota_usage
+    return await get_plan_quota_usage(
+        db, current_user["institution_id"],
+        inst.get("plan", "free"), inst.get("plan_status", "active"),
+    )
+
+
 @router.get("/diff")
 async def get_plan_diff(
     from_plan: str,

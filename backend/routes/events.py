@@ -4,6 +4,7 @@ Handles: Events CRUD, EventDates, Applications, Payments, Feature flags.
 """
 import uuid
 import random
+import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -12,7 +13,53 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, delete
+from sqlalchemy import select, func, and_, delete, text
+
+# A10 — application statuses that occupy a real capacity seat (waitlist + rejected
+# do NOT count against capacity).
+OCCUPYING_STATUSES = ('pending', 'approved')
+
+
+async def _resolve_application_status(db, event, event_date_uuid) -> str:
+    """Atomically decide whether a new application gets a confirmed seat
+    ('pending') or goes onto the WAITLIST ('waitlist').
+
+    Uses a transaction-scoped PostgreSQL advisory lock keyed on the event/date so
+    concurrent submissions can't overbook (race-safe). Capacity <= 0 / None means
+    unlimited → always 'pending'.
+    """
+    if event_date_uuid:
+        ed = (await db.execute(
+            select(EventDate).where(EventDate.id == event_date_uuid)
+        )).scalar_one_or_none()
+        capacity = (ed.capacity_override if ed and ed.capacity_override is not None
+                    else event.capacity)
+    else:
+        capacity = event.capacity
+
+    if not capacity or capacity <= 0:
+        return 'pending'
+
+    lock_basis = str(event_date_uuid) if event_date_uuid else str(event.id)
+    lock_key = int(hashlib.sha256(lock_basis.encode()).hexdigest()[:15], 16)
+    await db.execute(text("SELECT pg_advisory_xact_lock(:k)"), {"k": lock_key})
+
+    if event_date_uuid:
+        cond = and_(
+            EventApplication.event_date_id == event_date_uuid,
+            EventApplication.status.in_(OCCUPYING_STATUSES),
+        )
+    else:
+        cond = and_(
+            EventApplication.event_id == event.id,
+            EventApplication.event_date_id.is_(None),
+            EventApplication.status.in_(OCCUPYING_STATUSES),
+        )
+    occupied = (await db.execute(
+        select(func.count(EventApplication.id)).where(cond)
+    )).scalar() or 0
+
+    return 'waitlist' if occupied >= capacity else 'pending'
 
 from database.supabase import get_db
 from database.models import (
@@ -438,9 +485,10 @@ async def update_application_status(
     await require_events_module(db, current_user["institution_id"])
 
     result = await db.execute(
-        select(EventApplication).where(
-            EventApplication.id == uuid.UUID(application_id)
-        )
+        select(EventApplication).where(and_(
+            EventApplication.id == uuid.UUID(application_id),
+            EventApplication.institution_id == uuid.UUID(current_user["institution_id"]),
+        ))
     )
     app = result.scalar_one_or_none()
     if not app:
@@ -678,16 +726,24 @@ async def get_public_event_detail(
     dates_out = []
     for d in dates:
         dd = _to_dict(d)
-        # Count approved applications for this date
+        # Count seat-occupying applications for this date (waitlist/rejected excluded)
         cnt = await db.execute(
             select(func.count(EventApplication.id)).where(and_(
                 EventApplication.event_date_id == d.id,
-                EventApplication.status != 'rejected',
+                EventApplication.status.in_(OCCUPYING_STATUSES),
             ))
         )
         dd["applications_count"] = cnt.scalar() or 0
+        wl = await db.execute(
+            select(func.count(EventApplication.id)).where(and_(
+                EventApplication.event_date_id == d.id,
+                EventApplication.status == 'waitlist',
+            ))
+        )
+        dd["waitlist_count"] = wl.scalar() or 0
         dd["capacity"] = d.capacity_override or event.capacity
-        dd["spots_left"] = dd["capacity"] - dd["applications_count"]
+        dd["spots_left"] = max(0, dd["capacity"] - dd["applications_count"])
+        dd["is_full"] = dd["capacity"] > 0 and dd["applications_count"] >= dd["capacity"]
         dates_out.append(dd)
 
     ev_dict["dates"] = dates_out
@@ -719,13 +775,19 @@ async def submit_application(
     if not event:
         raise HTTPException(status_code=404, detail="Událost nenalezena")
 
+    event_date_uuid = uuid.UUID(data.event_date_id) if data.event_date_id else None
+
+    # A10 — race-safe capacity check. When full → onto the waitlist, not rejected.
+    app_status = await _resolve_application_status(db, event, event_date_uuid)
+    is_waitlisted = app_status == 'waitlist'
+
     # Generate variable symbol
     vs = _generate_variable_symbol()
 
     application = EventApplication(
         institution_id=inst_uuid,
         event_id=event.id,
-        event_date_id=uuid.UUID(data.event_date_id) if data.event_date_id else None,
+        event_date_id=event_date_uuid,
         applicant_data=data.applicant_data,
         applicant_email=data.applicant_email,
         applicant_name=data.applicant_name,
@@ -733,6 +795,7 @@ async def submit_application(
         marketing_consent=bool(data.marketing_consent),
         total_amount=event.price,
         variable_symbol=vs,
+        status=app_status,
     )
     db.add(application)
     await db.commit()
@@ -753,9 +816,10 @@ async def submit_application(
     )
     pay_settings = ps_result.scalar_one_or_none()
 
-    # Create QR payment if applicable
+    # Create QR payment if applicable (skip for waitlisted — they pay only once
+    # a seat opens up and they're moved off the waitlist).
     qr_payload = None
-    if pay_settings and pay_settings.account_number and event.price > 0:
+    if not is_waitlisted and pay_settings and pay_settings.account_number and event.price > 0:
         qr_payload = _generate_qr_payload(
             account_number=pay_settings.account_number,
             bank_code=pay_settings.bank_code or "",
@@ -791,6 +855,7 @@ async def submit_application(
         ),
     } if pay_settings else None
     resp["pdf_url"] = f"/api/events/public/{institution_id}/application/{str(application.id)}/pdf"
+    resp["waitlisted"] = is_waitlisted
 
     return resp
 

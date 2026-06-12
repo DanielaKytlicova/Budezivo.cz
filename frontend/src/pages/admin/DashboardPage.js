@@ -38,6 +38,7 @@ import {
 import { API } from '../../config/api';
 import { OnboardingWizard } from '../../components/admin/OnboardingWizard';
 import UncoveredCollisionsBanner from '../../components/UncoveredCollisionsBanner';
+import { PlanUsageBanner } from '../../components/admin/PlanUsageBanner';
 import {
   Select,
   SelectContent,
@@ -744,6 +745,9 @@ export const DashboardPage = () => {
           <h1 className="text-3xl font-bold text-slate-900">{t('dashboard.welcome')}</h1>
           <p className="text-muted-foreground mt-1">{user?.institution_name}</p>
         </div>
+
+        {/* Soft plan-limit usage meters + upgrade prompt (admin/spravce only) */}
+        {['admin', 'spravce'].includes(user?.role) && <PlanUsageBanner />}
 
         {/* Banner pro externí/učící lektory: rezervace v kolizi bez přiřazeného lektora
             v programech, které lektor může pokrýt (supported_program_ids / learning_program_ids) */}

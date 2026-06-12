@@ -241,8 +241,9 @@ export const EventsPage = () => {
       pending: 'bg-amber-100 text-amber-700',
       approved: 'bg-green-100 text-green-700',
       rejected: 'bg-red-100 text-red-700',
+      waitlist: 'bg-orange-100 text-orange-700',
     };
-    const labels = { pending: 'Čeká', approved: 'Schváleno', rejected: 'Zamítnuto' };
+    const labels = { pending: 'Čeká', approved: 'Schváleno', rejected: 'Zamítnuto', waitlist: 'Čekací listina' };
     return <span className={`px-2 py-0.5 text-xs rounded-full ${map[status] || 'bg-gray-100'}`}>{labels[status] || status}</span>;
   };
 
@@ -587,6 +588,9 @@ export const EventsPage = () => {
                               <Button size="sm" variant="outline" className="text-green-600" onClick={() => updateApplicationStatus(app.id, 'approved')} data-testid={`approve-app-${app.id}`}>Schválit</Button>
                               <Button size="sm" variant="outline" className="text-red-600" onClick={() => updateApplicationStatus(app.id, 'rejected')} data-testid={`reject-app-${app.id}`}>Zamítnout</Button>
                             </>
+                          )}
+                          {app.status === 'waitlist' && (
+                            <Button size="sm" variant="outline" className="text-orange-600" onClick={() => updateApplicationStatus(app.id, 'pending')} data-testid={`promote-app-${app.id}`}>Posunout z čekací listiny</Button>
                           )}
                           {app.payment_status !== 'paid' && app.total_amount > 0 && (
                             <Button size="sm" variant="outline" className="text-slate-600" onClick={() => updateApplicationStatus(app.id, null, 'paid')} data-testid={`mark-paid-${app.id}`}>Označit zaplaceno</Button>

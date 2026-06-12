@@ -77,3 +77,8 @@ test_result.md
 memory/
 frontend/node_modules/.cache/default-development/1.pack
 frontend/node_modules/.cache/default-development/5.pack
+.credentials
+
+# Platform-generated run summary (artifact — not needed to run the app).
+# Keep .emergent/emergent.yml tracked; ignore only the volatile summary.
+.emergent/summary.txt

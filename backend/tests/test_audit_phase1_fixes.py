@@ -37,6 +37,24 @@ def test_secrets_generator_entropy():
     assert len(samples) == 1000
 
 
+def test_byref_email_is_masked():
+    """P2 #3: public by-ref lookup must mask the applicant e-mail."""
+    from routes.event_payments import _mask_email
+    assert _mask_email("jan.novak@skola.cz") == "ja***@skola.cz"
+    assert _mask_email("a@x.cz") == "a***@x.cz"
+    assert _mask_email(None) is None
+    # the route response must use the masking helper, not the raw column
+    src = _read("routes/event_payments.py")
+    assert '"applicant_email": _mask_email(' in src
+
+
+def test_prefill_rate_limit_tightened():
+    """P2 #4: prefill enumeration cap lowered from 20 to <=6/min."""
+    src = _read("routes/public.py")
+    assert "PREFILL_MAX_PER_WINDOW = 6" in src
+    assert '@limiter.limit("6/minute")' in src
+
+
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main([__file__, "-v"]))

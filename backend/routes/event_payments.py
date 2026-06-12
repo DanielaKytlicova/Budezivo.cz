@@ -44,6 +44,20 @@ class InitiateBody(BaseModel):
 
 # ---- Helpers ----
 
+def _mask_email(email: str | None) -> str | None:
+    """GDPR: partially mask an e-mail for public confirmation pages so a third
+    party who knows only the (unguessable) refId can't harvest the full address.
+    e.g. ``jan.novak@skola.cz`` -> ``ja***@skola.cz``."""
+    if not email or "@" not in email:
+        return email
+    local, _, domain = email.partition("@")
+    if len(local) <= 2:
+        masked_local = local[0] + "***"
+    else:
+        masked_local = local[:2] + "***"
+    return f"{masked_local}@{domain}"
+
+
 def _to_dict(obj) -> dict:
     if obj is None:
         return None
@@ -398,7 +412,7 @@ async def get_payment_by_ref(
         "application_status": app.status if app else None,
         "application_payment_status": app.payment_status if app else None,
         "applicant_name": app.applicant_name if app else None,
-        "applicant_email": app.applicant_email if app else None,
+        "applicant_email": _mask_email(app.applicant_email) if app else None,
         "total_amount": app.total_amount if app else None,
         "paid_at": payment.paid_at.isoformat() if payment.paid_at else None,
         "event": event_info,

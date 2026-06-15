@@ -171,8 +171,34 @@ def _to_dict(obj) -> dict:
 
 
 def _generate_variable_symbol() -> str:
-    """Generate a unique 10-digit variable symbol."""
+    """Generate a random 10-digit variable symbol (no uniqueness guarantee).
+
+    Prefer `_generate_unique_variable_symbol` which checks for collisions.
+    """
     return str(random.randint(1000000000, 9999999999))
+
+
+async def _generate_unique_variable_symbol(db, institution_id, max_attempts: int = 12) -> str:
+    """Generate a 10-digit VS that is unique within the institution.
+
+    VS is matched per-tenant (institution_id + variable_symbol) by the payment
+    lookups/reconciliation, so a duplicate inside the same institution could
+    mis-link a manual/QR bank transfer to the wrong application. We retry until
+    we find a free VS among existing EventApplications of this institution.
+    """
+    for _ in range(max_attempts):
+        vs = _generate_variable_symbol()
+        existing = await db.execute(
+            select(EventApplication.id).where(and_(
+                EventApplication.institution_id == institution_id,
+                EventApplication.variable_symbol == vs,
+            )).limit(1)
+        )
+        if existing.scalar_one_or_none() is None:
+            return vs
+    # Astronomically unlikely fallback (institution would need ~billions of rows).
+    logger.warning(f"VS uniqueness fallback after {max_attempts} attempts for institution {institution_id}")
+    return _generate_variable_symbol()
 
 
 def _generate_qr_payload(
@@ -781,8 +807,9 @@ async def submit_application(
     app_status = await _resolve_application_status(db, event, event_date_uuid)
     is_waitlisted = app_status == 'waitlist'
 
-    # Generate variable symbol
-    vs = _generate_variable_symbol()
+    # Generate variable symbol (unique within the institution to avoid
+    # mis-linking manual/QR bank transfers to the wrong application).
+    vs = await _generate_unique_variable_symbol(db, inst_uuid)
 
     application = EventApplication(
         institution_id=inst_uuid,

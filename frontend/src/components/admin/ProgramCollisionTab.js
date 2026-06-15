@@ -101,6 +101,44 @@ export const ProgramCollisionTab = ({
         </div>
       </Card>
 
+      {/* Počet potřebných lektorů */}
+      <Card className="p-4 md:p-6 space-y-4" data-testid="program-required-lecturers-card">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h3 className="font-semibold text-slate-900">Počet potřebných lektorů</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Kolik lektorů musí být v daný čas volných, aby šlo program rezervovat. Výchozí hodnota 1 = program se chová jako dosud.
+            </p>
+          </div>
+          <Users className="w-5 h-5 text-[#4A6FA5] ml-4 shrink-0" />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Input
+            type="number"
+            min={1}
+            className="w-28"
+            value={formData.required_lecturers ?? 1}
+            onChange={(e) => setFormData(prev => ({
+              ...prev,
+              required_lecturers: Math.max(1, parseInt(e.target.value || '1', 10) || 1),
+            }))}
+            data-testid="program-required-lecturers-input"
+          />
+          <span className="text-sm text-gray-500">
+            {(formData.required_lecturers ?? 1) === 1 ? 'lektor' : 'lektoři/ů'}
+          </span>
+        </div>
+
+        {(formData.required_lecturers ?? 1) > 1 && (
+          <div className="p-3 bg-[#4A6FA5]/10 border border-[#4A6FA5]/20 rounded-lg" data-testid="required-lecturers-info">
+            <p className="text-xs text-[#4A6FA5]">
+              Program půjde rezervovat jen pokud bude v daný čas volných alespoň <strong>{formData.required_lecturers}</strong> kvalifikovaných lektorů (těch, kteří mají tento program nastudovaný).
+            </p>
+          </div>
+        )}
+      </Card>
+
       {formData.allow_parallel && (
         <>
           {/* Ovlivněné zdroje */}

@@ -338,6 +338,7 @@ class ProgramRepositorySupabase:
             allow_parallel=program_data.get('allow_parallel', False),
             collision_resources=program_data.get('collision_resources', []),
             blocked_program_ids=program_data.get('blocked_program_ids', []),
+            required_lecturers=program_data.get('required_lecturers', 1) or 1,
             assigned_lecturer_id=uuid.UUID(program_data['assigned_lecturer_id']) if program_data.get('assigned_lecturer_id') else None,
             room_id=uuid.UUID(program_data['room_id']) if program_data.get('room_id') else None,
         )

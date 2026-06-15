@@ -150,6 +150,10 @@ class Program(Base):
     age_group = Column(Text, nullable=False)  # ms_3_6, zs1_7_12, zs2_12_15, ss_14_18, gym_14_18, adults, all
     min_capacity = Column(Integer, nullable=False, default=5)
     max_capacity = Column(Integer, nullable=False, default=30)
+    # How many lecturers this program needs. Default 1 = behaves like today.
+    # When > 1, a booking is only allowed if >= this many QUALIFIED lecturers
+    # (program in their supported_program_ids) are free at that time.
+    required_lecturers = Column(Integer, nullable=False, default=1, server_default='1')
     target_group = Column(Text, nullable=False, default='schools')  # schools, public, both - LEGACY
     target_groups = Column(JSON, default=[])  # Array of age groups: ms_3_6, zs1_7_12, zs2_12_15, ss_14_18, gym_14_18, adults, all
     price = Column(Float, default=0.0)
@@ -265,6 +269,9 @@ class Reservation(Base):
     assigned_lecturer_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     assigned_lecturer_name = Column(Text)
     assigned_lecturer_at = Column(DateTime(timezone=True))
+    # All assigned lecturers (multi-lecturer programs). The "main" lecturer stays
+    # in assigned_lecturer_id; this list holds every assigned lecturer's id (str).
+    assigned_lecturer_ids = Column(JSONB, default=list)
 
     # Main-lecturer assignment auditability (source + human-readable reason)
     assignment_source = Column(Text)  # default_program | auto_suggest | manual_admin | unassigned

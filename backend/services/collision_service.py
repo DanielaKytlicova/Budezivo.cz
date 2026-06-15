@@ -106,6 +106,21 @@ async def check_booking_collision(
     blocked_program_ids = program.blocked_program_ids or []
     program_room_id = str(program.room_id) if program.room_id else None
 
+    # ====== Required-lecturers capacity check (opt-in: required_lecturers > 1) ======
+    # A program needing N lecturers can only be booked if at least N QUALIFIED
+    # lecturers (program in their supported_program_ids) are free at that time.
+    required_lecturers = getattr(program, "required_lecturers", 1) or 1
+    if required_lecturers > 1:
+        available_count, _names = await count_available_qualified_lecturers(
+            db, program, date, time_block, duration
+        )
+        if available_count < required_lecturers:
+            return (
+                f"Nedostatek lektorů: program '{program.name_cs}' vyžaduje "
+                f"{required_lecturers} lektory/ů, ale v daný čas jsou volní pouze "
+                f"{available_count}. Rezervaci nelze vytvořit."
+            )
+
     # ====== CASE 1: Parallel NOT allowed → block all overlapping slots globally ======
     if not allow_parallel:
         result = await db.execute(
@@ -608,3 +623,81 @@ async def check_any_lecturer_available_for_block(
             return True  # At least one scheduled lecturer is available
 
     return False  # No scheduled lecturer is available
+
+
+async def count_available_qualified_lecturers(
+    db: AsyncSession,
+    program,
+    date_str: str,
+    time_block: str,
+    program_duration: int,
+    exclude_reservation_id: Optional[str] = None,
+) -> tuple:
+    """Count how many lecturers are FREE and QUALIFIED for ``program`` in a slot.
+
+    Qualified = active institution lecturer whose ``supported_program_ids``
+    contains this program (so we never count a lecturer who hasn't studied it).
+    Free = (a) not assigned to an overlapping reservation that day, AND
+           (b) available per their schedule/time-off (check_lecturer_available_for_block).
+
+    Returns (count, [names]).
+    """
+    from database.models import User
+
+    institution_id = str(program.institution_id)
+    inst_uuid = program.institution_id
+    program_id = str(program.id)
+    lecturer_roles = ('lektor', 'edukator', 'admin', 'spravce')
+
+    # 1) Qualified, active lecturers of the institution
+    result = await db.execute(
+        select(User).where(and_(
+            User.institution_id == inst_uuid,
+            User.role.in_(lecturer_roles),
+            User.status == 'active',
+            User.deleted_at.is_(None),
+        ))
+    )
+    qualified = [
+        u for u in result.scalars().all()
+        if program_id in [str(p) for p in (u.supported_program_ids or [])]
+    ]
+    if not qualified:
+        return 0, []
+
+    # 2) Lecturers already occupied by an overlapping reservation that day
+    res_q = await db.execute(
+        select(Reservation).where(and_(
+            Reservation.institution_id == inst_uuid,
+            Reservation.date == date_str,
+            Reservation.status != 'cancelled',
+        ))
+    )
+    occupied: set = set()
+    for res in res_q.scalars().all():
+        if exclude_reservation_id and str(res.id) == str(exclude_reservation_id):
+            continue
+        other_prog = await db.execute(
+            select(Program.duration).where(Program.id == res.program_id)
+        )
+        other_duration = other_prog.scalar_one_or_none() or 60
+        if time_blocks_overlap(time_block, program_duration, res.time_block, other_duration):
+            if res.assigned_lecturer_id:
+                occupied.add(str(res.assigned_lecturer_id))
+            for lid in (res.assigned_lecturer_ids or []):
+                occupied.add(str(lid))
+
+    # 3) Count free + available qualified lecturers
+    available_count = 0
+    names = []
+    for u in qualified:
+        uid = str(u.id)
+        if uid in occupied:
+            continue
+        if await check_lecturer_available_for_block(
+            db, uid, institution_id, date_str, time_block, program_duration
+        ):
+            available_count += 1
+            names.append(u.name or u.email)
+
+    return available_count, names

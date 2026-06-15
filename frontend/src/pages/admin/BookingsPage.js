@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { Checkbox } from '../../components/ui/checkbox';
 import { Textarea } from '../../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -134,6 +135,9 @@ const BookingsPage = () => {
   const [editData, setEditData] = useState({});
   const [teamMembers, setTeamMembers] = useState([]);
   const [selectedLecturer, setSelectedLecturer] = useState('');
+  const [programsMap, setProgramsMap] = useState({});
+  const [multiLecturerMode, setMultiLecturerMode] = useState(false);
+  const [selectedLecturers, setSelectedLecturers] = useState([]);
   // Bulk actions state
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
@@ -144,7 +148,19 @@ const BookingsPage = () => {
     fetchBookings();
     fetchCurrentUserRole();
     fetchTeamMembers();
+    fetchProgramsForLecturers();
   }, []);
+
+  const fetchProgramsForLecturers = async () => {
+    try {
+      const response = await axios.get(`${API}/programs`);
+      const map = {};
+      (response.data || []).forEach(p => { map[p.id] = p; });
+      setProgramsMap(map);
+    } catch (error) {
+      console.error('Failed to fetch programs');
+    }
+  };
 
   const fetchBookings = async () => {
     try {
@@ -373,18 +389,25 @@ const BookingsPage = () => {
     }
   };
 
-  const assignLecturerByAdmin = async (lecturerId) => {
-    if (!selectedBooking || !lecturerId) return;
-    
+  const assignLecturerByAdmin = async (lecturerIdOrIds) => {
+    if (!selectedBooking) return;
+    const ids = Array.isArray(lecturerIdOrIds)
+      ? lecturerIdOrIds.filter(Boolean)
+      : (lecturerIdOrIds ? [lecturerIdOrIds] : []);
+    if (ids.length === 0) return;
+
     try {
       const response = await axios.post(`${API}/bookings/${selectedBooking.id}/assign-lecturer-admin`, {
-        lecturer_id: lecturerId
+        lecturer_ids: ids,
       });
-      toast.success(`Lektor ${response.data.lecturer_name} byl přiřazen`);
+      const names = response.data.lecturer_names || [response.data.lecturer_name];
+      toast.success(names.length > 1 ? `Přiřazeno ${names.length} lektorů: ${names.join(', ')}` : `Lektor ${names[0]} byl přiřazen`);
       fetchBookings();
       const updatedBooking = await axios.get(`${API}/bookings/${selectedBooking.id}`);
       setSelectedBooking(updatedBooking.data);
       setSelectedLecturer('');
+      setSelectedLecturers([]);
+      setMultiLecturerMode(false);
     } catch (error) {
       const detail = error.response?.data?.detail;
       toast.error(extractErrorDetail(detail, 'Chyba při přiřazení lektora'));
@@ -788,39 +811,100 @@ const BookingsPage = () => {
               ) : (
                 <div className="space-y-3">
                   <p className="text-gray-500 text-sm">Žádný lektor není přiřazen</p>
-                  
-                  {/* Admin can assign specific lecturer from dropdown */}
+
+                  {/* Program lecturer requirement hint */}
+                  {(() => {
+                    const prog = programsMap[selectedBooking.program_id];
+                    const req = prog?.required_lecturers || 1;
+                    if (req > 1) {
+                      return (
+                        <div className="p-3 bg-[#4A6FA5]/10 border border-[#4A6FA5]/20 rounded-lg" data-testid="booking-required-lecturers-info">
+                          <p className="text-xs text-[#4A6FA5] font-medium">
+                            Program vyžaduje {req} lektory/ů.
+                          </p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+
+                  {/* Admin can assign specific lecturer(s) */}
                   {permissions.canEditAll && teamMembers.length > 0 && (
-                    <div className="flex gap-2 items-end">
-                      <div className="flex-1">
-                        <Label className="text-xs text-gray-500 mb-1 block">Vybrat lektora</Label>
-                        <Select value={selectedLecturer} onValueChange={setSelectedLecturer}>
-                          <SelectTrigger data-testid="select-lecturer-dropdown">
-                            <SelectValue placeholder="Vyberte lektora..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {teamMembers
-                              .map(member => (
-                                <SelectItem key={member.id} value={member.id}>
-                                  {member.name || member.email}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => assignLecturerByAdmin(selectedLecturer)}
-                        disabled={!selectedLecturer}
-                        className="bg-slate-800 text-white"
-                        data-testid="assign-selected-lecturer-btn"
-                      >
-                        <UserPlus className="w-4 h-4 mr-1" />
-                        Přiřadit
-                      </Button>
+                    <div className="space-y-3">
+                      <label className="flex items-center gap-2 cursor-pointer" data-testid="multi-lecturer-toggle">
+                        <Checkbox
+                          checked={multiLecturerMode}
+                          onCheckedChange={(c) => { setMultiLecturerMode(!!c); setSelectedLecturers([]); }}
+                        />
+                        <span className="text-sm text-slate-700">Přiřadit více lektorů</span>
+                      </label>
+
+                      {!multiLecturerMode ? (
+                        <div className="flex gap-2 items-end">
+                          <div className="flex-1">
+                            <Label className="text-xs text-gray-500 mb-1 block">Vybrat lektora</Label>
+                            <Select value={selectedLecturer} onValueChange={setSelectedLecturer}>
+                              <SelectTrigger data-testid="select-lecturer-dropdown">
+                                <SelectValue placeholder="Vyberte lektora..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {teamMembers.map(member => (
+                                  <SelectItem key={member.id} value={member.id}>
+                                    {member.name || member.email}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => assignLecturerByAdmin(selectedLecturer)}
+                            disabled={!selectedLecturer}
+                            className="bg-slate-800 text-white"
+                            data-testid="assign-selected-lecturer-btn"
+                          >
+                            <UserPlus className="w-4 h-4 mr-1" />
+                            Přiřadit
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Label className="text-xs text-gray-500 block">Vyberte lektory</Label>
+                          <div className="space-y-1.5 max-h-48 overflow-y-auto" data-testid="multi-lecturer-list">
+                            {teamMembers.map(member => {
+                              const checked = selectedLecturers.includes(member.id);
+                              return (
+                                <label
+                                  key={member.id}
+                                  className={`flex items-center gap-3 p-2.5 border rounded-lg cursor-pointer transition-colors ${checked ? 'border-[#4A6FA5] bg-[#4A6FA5]/5' : 'border-gray-200 hover:border-gray-300'}`}
+                                  data-testid={`multi-lecturer-option-${member.id}`}
+                                >
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={() => setSelectedLecturers(prev =>
+                                      prev.includes(member.id) ? prev.filter(id => id !== member.id) : [...prev, member.id]
+                                    )}
+                                  />
+                                  <span className="text-sm text-slate-800 flex-1">{member.name || member.email}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => assignLecturerByAdmin(selectedLecturers)}
+                            disabled={selectedLecturers.length === 0}
+                            className="bg-slate-800 text-white w-full"
+                            data-testid="assign-multi-lecturers-btn"
+                          >
+                            <UserPlus className="w-4 h-4 mr-1" />
+                            Přiřadit {selectedLecturers.length > 0 ? `(${selectedLecturers.length})` : ''}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
-                  
+
                   {/* Self-assign button for lecturers */}
                   {(currentUserRole === 'lektor' || currentUserRole === 'edukator') && !permissions.canEditAll && (
                     <Button

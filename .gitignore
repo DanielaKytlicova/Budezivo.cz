@@ -83,3 +83,4 @@ frontend/node_modules/.cache/default-development/5.pack
 # Keep .emergent/emergent.yml tracked; ignore only the volatile summary.
 .emergent/summary.txt
 frontend/node_modules/.cache/default-development/2.pack
+frontend/node_modules/.cache/default-development/4.pack

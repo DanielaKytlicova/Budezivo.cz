@@ -760,6 +760,7 @@ const BookingsPage = () => {
               </h3>
               
               {hasAssignedLecturer ? (
+                <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center">
@@ -807,6 +808,29 @@ const BookingsPage = () => {
                       Odhlásit
                     </Button>
                   )}
+                </div>
+                {(selectedBooking.assigned_lecturer_ids || []).length > 1 && (
+                  <div className="pt-3 border-t" data-testid="all-assigned-lecturers">
+                    <p className="text-xs font-medium text-slate-500 mb-1.5">
+                      Všichni přiřazení lektoři ({(selectedBooking.assigned_lecturer_ids || []).length})
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(selectedBooking.assigned_lecturer_ids || []).map(id => {
+                        const m = teamMembers.find(tm => tm.id === id);
+                        return (
+                          <span
+                            key={id}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-700 text-xs rounded-full"
+                            data-testid={`assigned-lecturer-chip-${id}`}
+                          >
+                            <User className="w-3 h-3" />
+                            {m ? (m.name || m.email) : id}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 </div>
               ) : (
                 <div className="space-y-3">

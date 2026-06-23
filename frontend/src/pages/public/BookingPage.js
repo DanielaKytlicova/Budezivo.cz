@@ -14,7 +14,7 @@ import { ChevronLeft, ChevronRight, CheckCircle, SlidersHorizontal, X, Download,
 import { toast } from 'sonner';
 import axios from 'axios';
 import { WaitlistModal } from '../../components/public/WaitlistModal';
-import { API } from '../../config/api';
+import { API, resolveAssetUrl } from '../../config/api';
 import { useTeacherAuth } from '../../context/TeacherAuthContext';
 
 const AGE_GROUPS = {
@@ -198,7 +198,7 @@ export const BookingPage = () => {
       // Uložit všechna theme data pro header
       setInstitutionData(prev => ({
         ...prev,
-        logoUrl: response.data.logo_url,
+        logoUrl: resolveAssetUrl(response.data.logo_url),
         primaryColor: response.data.primary_color || '#4A6FA5',
         secondaryColor: response.data.secondary_color || '#84A98C',
         accentColor: response.data.accent_color || '#E9C46A',
@@ -215,7 +215,7 @@ export const BookingPage = () => {
       setInstitutionData(prev => ({
         ...prev,
         name: response.data.name,
-        logoUrl: response.data.logo_url || prev.logoUrl,
+        logoUrl: resolveAssetUrl(response.data.logo_url) || prev.logoUrl,
         plan: response.data.plan || 'free'
       }));
     } catch (error) {
@@ -703,7 +703,7 @@ export const BookingPage = () => {
                     {program.image_url && (
                       <div className="-mx-6 -mt-6 mb-4 rounded-t-lg overflow-hidden">
                         <img
-                          src={`${process.env.REACT_APP_BACKEND_URL}${program.image_url}`}
+                          src={resolveAssetUrl(program.image_url)}
                           alt={program.name_cs}
                           className="w-full h-48 object-cover"
                           data-testid={`program-image-${program.id}`}

@@ -13,6 +13,7 @@ import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
 import { ArrowLeft, MapPin, Clock, Users, Sparkles, Calendar as CalIcon, MessageSquare } from 'lucide-react';
+import { resolveAssetUrl } from '../../config/api';
 
 const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
@@ -110,7 +111,7 @@ export default function CatalogDetailPage() {
             {/* Cover */}
             <div className="relative h-64 md:h-80 rounded-2xl overflow-hidden bg-gradient-to-br from-[#EEF2F9] to-[#F8F9FA] mb-6">
               {p.image_url ? (
-                <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                <img src={resolveAssetUrl(p.image_url)} alt={p.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <Sparkles className="w-16 h-16 text-[#4A6FA5]/30" />

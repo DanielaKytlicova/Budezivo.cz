@@ -1297,7 +1297,194 @@ TEMPLATE_REGISTRY = {
     "new_institution_registration": new_institution_registration,
     "contact_form_submission": contact_form_submission,
     "team_invitation": team_invitation,
+    "join_request_received": lambda d: join_request_received(d),
+    "join_request_approved": lambda d: join_request_approved(d),
+    "join_request_rejected": lambda d: join_request_rejected(d),
 }
+
+
+# ──────────────────────────────────────────────────────────────────
+# Phase 83 — institution join-request workflow emails
+# ──────────────────────────────────────────────────────────────────
+
+def join_request_received(data: Dict[str, Any]) -> Dict[str, str]:
+    """Notify institution admin that a new join request has arrived."""
+    institution_name = data.get("institution_name", "")
+    requester_name = data.get("requester_name", "")
+    requester_email = data.get("requester_email", "")
+    message = data.get("message", "")
+    review_url = data.get("review_url", "https://budezivo.cz/admin/team")
+
+    message_block = ""
+    if message:
+        escaped = message.replace("<", "&lt;").replace(">", "&gt;")
+        message_block = f"""
+        <div style="{BASE_STYLES['info_box']}; border-left: 3px solid #C0AC8B;">
+            <div style="color: #6B7A8D; font-size: 12px; text-transform: uppercase;
+                        letter-spacing: 0.5px; margin-bottom: 6px;">
+                Zpráva od žadatele
+            </div>
+            <div style="color: #1E293B; font-size: 14px; line-height: 1.6;">{escaped}</div>
+        </div>"""
+
+    content = f"""
+        <h1 style="{BASE_STYLES['h1']}">Máte novou žádost o vstup do týmu</h1>
+
+        <p style="{BASE_STYLES['text']}">
+            Někdo žádá o přidání do týmu instituce <strong>{institution_name}</strong>.
+            Jako administrátor můžete žádost schválit (a vybrat roli) nebo zamítnout.
+        </p>
+
+        <div style="{BASE_STYLES['info_box']}">
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 8px 0; color: #64748B; width: 140px;">Jméno:</td>
+                    <td style="padding: 8px 0; color: #1E293B; font-weight: 500;">{requester_name}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #64748B; border-top: 1px solid #E2E8F0;">E-mail:</td>
+                    <td style="padding: 8px 0; color: #1E293B; font-weight: 500; border-top: 1px solid #E2E8F0;">{requester_email}</td>
+                </tr>
+            </table>
+        </div>
+
+        {message_block}
+
+        <div style="text-align: center; margin-top: 28px;">
+            <a href="{review_url}" style="{BASE_STYLES['button']}">
+                Otevřít žádosti v adminu
+            </a>
+        </div>
+    """
+    plain = (
+        f"Nová žádost o vstup do týmu\n\n"
+        f"Instituce: {institution_name}\n"
+        f"Jméno: {requester_name}\n"
+        f"E-mail: {requester_email}\n"
+    )
+    if message:
+        plain += f"\nZpráva: {message}\n"
+    plain += f"\nOtevřete: {review_url}\n"
+    return {
+        "subject": f"Nová žádost o vstup do týmu — {institution_name}",
+        "html": _base_template(content, data),
+        "text": _plain_text_base(plain),
+    }
+
+
+def join_request_approved(data: Dict[str, Any]) -> Dict[str, str]:
+    """Notify requester that their join request was approved."""
+    institution_name = data.get("institution_name", "")
+    assigned_role = data.get("assigned_role", "")
+    temp_password = data.get("temp_password")
+    login_url = data.get("login_url", "https://budezivo.cz/login")
+
+    role_label = {
+        "admin": "Administrátor instituce", "spravce": "Administrátor instituce",
+        "edukator": "Edukátor", "lektor": "Lektor",
+        "pokladni": "Pokladní", "staff": "Externí lektor", "viewer": "Pouze náhled",
+    }.get(assigned_role, assigned_role)
+
+    if temp_password:
+        cred_block = f"""
+        <div style="{BASE_STYLES['info_box']}; background: #F4F6F9; border-left: 3px solid #16A34A;">
+            <div style="color: #6B7A8D; font-size: 12px; text-transform: uppercase;
+                        letter-spacing: 0.5px; margin-bottom: 10px;">
+                Vaše přihlašovací údaje
+            </div>
+            <div style="font-family: monospace; font-size: 14px; color: #1E293B; line-height: 1.8;">
+                E-mail: <strong>{data.get('email', '')}</strong><br/>
+                Dočasné heslo: <strong>{temp_password}</strong>
+            </div>
+            <div style="color: #6B7A8D; font-size: 12px; margin-top: 12px;">
+                Po prvním přihlášení si prosím heslo změňte v profilu.
+            </div>
+        </div>"""
+    else:
+        cred_block = f"""
+        <div style="{BASE_STYLES['info_box']}; background: #F4F6F9;">
+            <div style="color: #1E293B; font-size: 14px; line-height: 1.6;">
+                Přihlaste se svými stávajícími údaji — váš účet už v systému existuje
+                a byl přiřazen k této instituci.
+            </div>
+        </div>"""
+
+    content = f"""
+        <h1 style="{BASE_STYLES['h1']}">Vaše žádost byla schválena</h1>
+
+        <p style="{BASE_STYLES['text']}">
+            Administrátor instituce <strong>{institution_name}</strong> schválil vaši žádost
+            o vstup do týmu. Byla vám přidělena role <strong>{role_label}</strong>.
+        </p>
+
+        {cred_block}
+
+        <div style="text-align: center; margin-top: 28px;">
+            <a href="{login_url}" style="{BASE_STYLES['button']}">
+                Přihlásit se
+            </a>
+        </div>
+    """
+    plain = (
+        f"Vaše žádost byla schválena\n\n"
+        f"Instituce: {institution_name}\n"
+        f"Role: {role_label}\n"
+    )
+    if temp_password:
+        plain += f"\nDočasné heslo: {temp_password}\n"
+    plain += f"\nPřihlášení: {login_url}\n"
+    return {
+        "subject": f"Schváleno — vstup do týmu {institution_name}",
+        "html": _base_template(content, data),
+        "text": _plain_text_base(plain),
+    }
+
+
+def join_request_rejected(data: Dict[str, Any]) -> Dict[str, str]:
+    """Notify requester that their join request was rejected."""
+    institution_name = data.get("institution_name", "")
+    review_note = (data.get("review_note") or "").strip()
+
+    note_block = ""
+    if review_note:
+        escaped = review_note.replace("<", "&lt;").replace(">", "&gt;")
+        note_block = f"""
+        <div style="{BASE_STYLES['info_box']}; border-left: 3px solid #B85C5C;">
+            <div style="color: #6B7A8D; font-size: 12px; text-transform: uppercase;
+                        letter-spacing: 0.5px; margin-bottom: 6px;">
+                Poznámka od administrátora
+            </div>
+            <div style="color: #1E293B; font-size: 14px; line-height: 1.6;">{escaped}</div>
+        </div>"""
+
+    content = f"""
+        <h1 style="{BASE_STYLES['h1']}">Vaše žádost nebyla schválena</h1>
+
+        <p style="{BASE_STYLES['text']}">
+            Administrátor instituce <strong>{institution_name}</strong> bohužel vaši žádost
+            o vstup do týmu neschválil.
+        </p>
+
+        {note_block}
+
+        <p style="{BASE_STYLES['text']}">
+            Pokud máte za to, že jde o nedorozumění, kontaktujte prosím administrátora
+            instituce přímo, nebo nám napište na
+            <a href="mailto:info@budezivo.cz" style="color: #303E4F;">info@budezivo.cz</a>.
+        </p>
+    """
+    plain = (
+        f"Vaše žádost nebyla schválena\n\n"
+        f"Instituce: {institution_name}\n"
+    )
+    if review_note:
+        plain += f"\nPoznámka: {review_note}\n"
+    plain += "\nKontakt: info@budezivo.cz\n"
+    return {
+        "subject": f"Žádost o vstup do týmu — neschválena ({institution_name})",
+        "html": _base_template(content, data),
+        "text": _plain_text_base(plain),
+    }
 
 def waitlist_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
     """Confirmation email for waitlist entry."""

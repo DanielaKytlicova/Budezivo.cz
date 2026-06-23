@@ -576,28 +576,69 @@ def _block_to_dict(block: AvailabilityBlock) -> dict:
 
 
 def _close_popup_html(error: Optional[str]) -> HTMLResponse:
-    """Return HTML that postMessages the parent window then closes the popup."""
+    """Return HTML that postMessages the parent window then closes the popup.
+
+    If the OAuth flow was opened in a full tab (no ``window.opener``), the
+    page falls back to a friendly success screen with a manual close button
+    instead of leaving the user stuck on a raw callback URL.
+    """
     origin = os.environ.get(
         "FRONTEND_URL",
         os.environ.get("CORS_ORIGINS", "").split(",")[0]
         if os.environ.get("CORS_ORIGINS") else "*",
     )
     if error:
-        # Escape user-controlled error text for embedding in JS string literal.
         safe = (error or "").replace("\\", "\\\\").replace('"', '\\"')
-        script = (
-            f'window.opener && window.opener.postMessage('
-            f'{{type:"google_error",error:"{safe}"}}, "{origin}"); window.close();'
-        )
+        message_type = "google_error"
+        body_text = f"Chyba: {error}"
+        post_payload = f'{{type:"{message_type}",error:"{safe}"}}'
+        emoji = "⚠️"
+        title = "Připojení se nezdařilo"
+        sub = error
     else:
-        script = (
-            f'window.opener && window.opener.postMessage('
-            f'{{type:"google_connected"}}, "{origin}"); window.close();'
-        )
-    html = f"""<!DOCTYPE html><html><body>
-    <p>{"Chyba: " + error if error else "Připojeno! Toto okno se zavře..."}</p>
-    <script>{script}</script>
-    </body></html>"""
+        message_type = "google_connected"
+        body_text = "Připojeno!"
+        post_payload = f'{{type:"{message_type}"}}'
+        emoji = "✅"
+        title = "Google kalendář propojen"
+        sub = "Toto okno můžete zavřít a vrátit se do aplikace."
+
+    script = (
+        f"if (window.opener) {{"
+        f'  window.opener.postMessage({post_payload}, "{origin}");'
+        f"  window.close();"
+        f"}}"
+    )
+    html = f"""<!DOCTYPE html>
+<html lang=\"cs\">
+<head>
+  <meta charset=\"utf-8\"/>
+  <title>{title}</title>
+  <style>
+    body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background:#f8fafc; color:#0f172a; margin:0; min-height:100vh;
+            display:flex; align-items:center; justify-content:center; padding:24px; }}
+    .card {{ max-width:480px; background:white; border:1px solid #e2e8f0;
+             border-radius:16px; padding:48px 32px; text-align:center;
+             box-shadow:0 4px 14px rgba(15,23,42,.06); }}
+    .emoji {{ font-size:56px; line-height:1; margin-bottom:16px; }}
+    h1 {{ font-size:22px; font-weight:600; margin:0 0 8px; }}
+    p  {{ color:#475569; font-size:15px; line-height:1.5; margin:0 0 24px; }}
+    button {{ background:#16a34a; color:white; border:none; padding:10px 24px;
+              border-radius:8px; font-size:14px; font-weight:500; cursor:pointer; }}
+    button:hover {{ background:#15803d; }}
+  </style>
+</head>
+<body>
+  <div class=\"card\">
+    <div class=\"emoji\">{emoji}</div>
+    <h1>{title}</h1>
+    <p>{sub}</p>
+    <button onclick=\"window.close()\">Zavřít okno</button>
+  </div>
+  <script>{script}</script>
+</body>
+</html>"""
     return HTMLResponse(content=html)
 
 

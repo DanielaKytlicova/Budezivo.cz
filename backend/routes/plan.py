@@ -10,7 +10,6 @@ from pydantic import BaseModel
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
 
 from core.security import get_current_user
 from database.supabase import get_db
@@ -77,6 +76,27 @@ async def get_plan_status(
 async def get_available_plans():
     """All plans with hierarchical features (no duplication)."""
     return {"plans": get_plan_hierarchy()}
+
+
+@router.get("/usage")
+async def get_plan_usage(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Soft-limit usage snapshot (programs + this-month bookings vs plan limits).
+
+    SOFT only — never blocks. Drives the dashboard usage meters and upgrade
+    banners. Hard enforcement is deferred until after the pilot phase.
+    """
+    inst_repo = InstitutionRepositorySupabase(db)
+    inst = await inst_repo.find_by_id(current_user["institution_id"])
+    if not inst:
+        raise HTTPException(status_code=404, detail="Instituce nenalezena")
+    from services.usage_service import get_plan_quota_usage
+    return await get_plan_quota_usage(
+        db, current_user["institution_id"],
+        inst.get("plan", "free"), inst.get("plan_status", "active"),
+    )
 
 
 @router.get("/diff")
@@ -268,23 +288,8 @@ async def legacy_upgrade(
     raise HTTPException(status_code=400, detail="Přímá aktivace není dostupná. Použijte stránku Plány pro objednání.")
 
 
-@router.post("/setup-columns")
-async def setup_plan_columns(db: AsyncSession = Depends(get_db)):
-    """Add new plan columns + migrate PRO → PRO+."""
-    results = []
-    for col, ctype in [("plan_status", "TEXT NOT NULL DEFAULT 'active'"), ("plan_activated_by", "TEXT"), ("plan_expires_at", "TIMESTAMPTZ")]:
-        try:
-            await db.execute(text(f"ALTER TABLE institutions ADD COLUMN IF NOT EXISTS {col} {ctype}"))
-            await db.commit()
-            results.append(f"{col}: ok")
-        except Exception as e:
-            await db.rollback()
-            results.append(f"{col}: {e}")
-    try:
-        r = await db.execute(text("UPDATE institutions SET plan='pro_plus', plan_status='active', plan_activated_by='migration' WHERE plan='pro' RETURNING id"))
-        results.append(f"Migrated {len(r.fetchall())} PRO→PRO+")
-        await db.commit()
-    except Exception as e:
-        await db.rollback()
-        results.append(f"Migration: {e}")
-    return {"message": "Setup dokončen", "results": results}
+# NOTE: The one-off `POST /plan/setup-columns` migration endpoint was REMOVED
+# (security audit P0). It executed unauthenticated DDL (`ALTER TABLE institutions`)
+# and a mass `UPDATE institutions SET plan='pro_plus'`, letting any anonymous caller
+# alter the DB schema and bulk-upgrade every tenant's plan. The migration is already
+# applied; schema changes must go through Alembic, not a live HTTP endpoint.

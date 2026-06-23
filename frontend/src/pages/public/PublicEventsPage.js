@@ -194,11 +194,23 @@ export default function PublicEventsPage() {
         <div className="py-8 px-4">
           <div className="max-w-lg mx-auto">
             <Card className="p-6 md:p-8 text-center">
-              <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">Přihláška odeslána!</h1>
-              <p className="text-gray-600 mb-6">Vaše přihláška byla úspěšně zaregistrována.</p>
+              {result.waitlisted ? (
+                <>
+                  <Users className="w-16 h-16 text-amber-500 mx-auto mb-4" />
+                  <h1 className="text-2xl font-bold text-gray-900 mb-2" data-testid="waitlist-success-title">Jste na čekací listině</h1>
+                  <p className="text-gray-600 mb-6">
+                    Termín je momentálně plně obsazen, proto jsme vás zařadili na <strong>čekací listinu</strong>. Jakmile se uvolní místo, pořadatel vás bude kontaktovat. Platba se zatím nevyžaduje.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                  <h1 className="text-2xl font-bold text-gray-900 mb-2">Přihláška odeslána!</h1>
+                  <p className="text-gray-600 mb-6">Vaše přihláška byla úspěšně zaregistrována.</p>
+                </>
+              )}
 
-              {result.qr_payload && result.total_amount > 0 && (
+              {!result.waitlisted && result.qr_payload && result.total_amount > 0 && (
                 <div className="border-t pt-6 mt-6 space-y-4">
                   <div className="flex items-center justify-center gap-2 text-slate-700">
                     <CreditCard className="w-5 h-5" />
@@ -223,12 +235,12 @@ export default function PublicEventsPage() {
                   <p className="text-xs text-gray-500">Naskenujte QR kód v bankovní aplikaci nebo zadejte údaje ručně.</p>
                 </div>
               )}
-              {(!result.qr_payload || result.total_amount === 0) && !result.payment_settings?.gateway_enabled && (
+              {!result.waitlisted && (!result.qr_payload || result.total_amount === 0) && !result.payment_settings?.gateway_enabled && (
                 <p className="text-sm text-gray-500">Organizátor vás bude kontaktovat s dalšími informacemi.</p>
               )}
 
               {/* Pay online via gateway (Comgate etc.) */}
-              {result.payment_settings?.gateway_enabled && result.total_amount > 0 && (
+              {!result.waitlisted && result.payment_settings?.gateway_enabled && result.total_amount > 0 && (
                 <div className="border-t pt-4 mt-4 space-y-2">
                   <Button
                     className="w-full bg-slate-900 hover:bg-slate-800 text-white"
@@ -337,6 +349,15 @@ export default function PublicEventsPage() {
               {selectedDate && <p className="text-sm text-gray-500 mb-2">Termín: {formatDate(selectedDate.start_datetime)}</p>}
               {selectedEvent.price > 0 && <p className="text-sm font-medium text-slate-700 mb-4">Cena: {selectedEvent.price} Kč</p>}
 
+              {(selectedDate?.is_full || selectedDate?.spots_left <= 0) && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4" data-testid="waitlist-notice">
+                  <p className="text-sm font-medium text-amber-800">Tento termín je plně obsazen.</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    Můžete se přihlásit na <strong>čekací listinu</strong> — jakmile se uvolní místo, pořadatel vás bude kontaktovat. Platba se nevyžaduje, dokud nezískáte volné místo.
+                  </p>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 {(selectedEvent.form_fields || []).sort((a, b) => (a.order || 0) - (b.order || 0)).map(renderFormField)}
 
@@ -397,7 +418,7 @@ export default function PublicEventsPage() {
                   className="w-full bg-[#5a7aae] hover:bg-[#4a6a9e] disabled:bg-gray-300 h-12 mt-6"
                   data-testid="submit-application-btn"
                 >
-                  {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Odesílám...</> : (selectedEvent.price > 0 ? 'Objednat a přejít k platbě' : 'Závazně přihlásit')}
+                  {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Odesílám...</> : ((selectedDate?.is_full || selectedDate?.spots_left <= 0) ? 'Přihlásit na čekací listinu' : (selectedEvent.price > 0 ? 'Objednat a přejít k platbě' : 'Závazně přihlásit'))}
                 </Button>
               </form>
             </Card>
@@ -432,11 +453,11 @@ export default function PublicEventsPage() {
                 ) : (
                   <div className="space-y-2 mb-6">
                     {selectedEvent.dates.map(d => {
-                      const isFull = d.spots_left <= 0;
+                      const isFull = d.spots_left <= 0 || d.is_full;
                       const isSelected = selectedDate?.id === d.id;
                       return (
-                        <button key={d.id} type="button" disabled={isFull} onClick={() => setSelectedDate(isSelected ? null : d)}
-                          className={`w-full text-left p-4 border rounded-lg transition-all ${isSelected ? 'border-[#5a7aae] bg-[#5a7aae]/5 ring-1 ring-[#5a7aae]' : isFull ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed' : 'border-gray-200 hover:border-gray-300'}`}
+                        <button key={d.id} type="button" onClick={() => setSelectedDate(isSelected ? null : d)}
+                          className={`w-full text-left p-4 border rounded-lg transition-all ${isSelected ? 'border-[#5a7aae] bg-[#5a7aae]/5 ring-1 ring-[#5a7aae]' : isFull ? 'border-amber-200 bg-amber-50 hover:border-amber-300' : 'border-gray-200 hover:border-gray-300'}`}
                           data-testid={`date-option-${d.id}`}>
                           <div className="flex justify-between items-center">
                             <div>
@@ -444,7 +465,9 @@ export default function PublicEventsPage() {
                               <p className="text-xs text-gray-500">do {shortDate(d.end_datetime)}</p>
                             </div>
                             <div className="text-right">
-                              {isFull ? <span className="text-xs text-red-500 font-medium">Obsazeno</span> : <span className="text-xs text-green-600">{d.spots_left} volných míst</span>}
+                              {isFull
+                                ? <span className="text-xs text-amber-600 font-medium" data-testid={`date-waitlist-${d.id}`}>Plný – čekací listina</span>
+                                : <span className="text-xs text-green-600">{d.spots_left} volných míst</span>}
                             </div>
                           </div>
                         </button>

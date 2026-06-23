@@ -227,16 +227,94 @@ export const RegisterPage = () => {
     setCurrentStep(prev => Math.min(prev + 1, STEPS.length - 1));
   };
 
+  // Phase 83: state for the duplicate-detection modal
+  const [duplicateModal, setDuplicateModal] = useState({
+    open: false,
+    strength: null,    // "strong" | "weak"
+    matches: [],
+    /** When the user confirms the soft warning we set this to skip the
+     *  duplicate check on the next submit attempt. */
+    overrideSoftCheck: false,
+  });
+  const [joinRequestForm, setJoinRequestForm] = useState({
+    open: false,
+    institutionId: null,
+    institutionName: '',
+    message: '',
+    submitting: false,
+  });
+
   const handleSubmit = async () => {
     setLoading(true);
     try {
+      // Phase 83: pre-flight duplicate check (always runs unless the user
+      // already accepted a soft warning).
+      if (!duplicateModal.overrideSoftCheck) {
+        try {
+          const resp = await axios.post(`${API}/institutions/check-duplicate`, {
+            name: formData.institution_name,
+            ico_dic: formData.ico_dic,
+            city: formData.city,
+            address: formData.address,
+          });
+          const { duplicates, has_strong_match, has_weak_match } = resp.data || {};
+          if (has_strong_match || has_weak_match) {
+            const strength = has_strong_match ? 'strong' : 'weak';
+            setDuplicateModal({
+              open: true,
+              strength,
+              matches: duplicates,
+              overrideSoftCheck: false,
+            });
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          // Network failure on pre-flight is non-fatal — the backend will still
+          // enforce the strong-match rule and respond with 409.
+        }
+      }
+
       await register(formData);
       toast.success('Účet instituce byl úspěšně vytvořen!');
       navigate('/admin');
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Při registraci došlo k chybě');
+      const detail = error.response?.data?.detail;
+      // Backend 409 with structured payload — also show the modal
+      if (error.response?.status === 409 && detail?.code === 'institution_duplicate') {
+        setDuplicateModal({
+          open: true,
+          strength: 'strong',
+          matches: detail.matches || [],
+          overrideSoftCheck: false,
+        });
+        return;
+      }
+      toast.error(typeof detail === 'string' ? detail : 'Při registraci došlo k chybě');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const submitJoinRequest = async () => {
+    if (!joinRequestForm.institutionId) return;
+    setJoinRequestForm(s => ({ ...s, submitting: true }));
+    try {
+      await axios.post(
+        `${API}/institutions/${joinRequestForm.institutionId}/join-request`,
+        {
+          email: formData.email,
+          name: formData.name,
+          message: joinRequestForm.message,
+        }
+      );
+      toast.success('Žádost byla odeslána. Administrátor instituce vás bude kontaktovat.');
+      setJoinRequestForm({ open: false, institutionId: null, institutionName: '', message: '', submitting: false });
+      setDuplicateModal({ open: false, strength: null, matches: [], overrideSoftCheck: false });
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : 'Žádost se nepodařilo odeslat');
+      setJoinRequestForm(s => ({ ...s, submitting: false }));
     }
   };
 
@@ -817,6 +895,172 @@ export const RegisterPage = () => {
           {renderCurrentStep()}
         </Card>
       </div>
+
+      {/* ── Phase 83: duplicate-detection modal ── */}
+      {duplicateModal.open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          data-testid="duplicate-modal"
+        >
+          <Card className="w-full max-w-lg bg-white p-6 md:p-8">
+            <div className="flex items-start gap-3 mb-4">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                duplicateModal.strength === 'strong' ? 'bg-amber-100' : 'bg-blue-100'
+              }`}>
+                <Search className={`w-5 h-5 ${
+                  duplicateModal.strength === 'strong' ? 'text-amber-600' : 'text-blue-600'
+                }`} />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {duplicateModal.strength === 'strong'
+                    ? 'Tato instituce je už v systému'
+                    : 'Možná duplicita'}
+                </h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  {duplicateModal.strength === 'strong'
+                    ? 'Našli jsme aktivní instituci se shodným IČ. Pokud k ní patříte, můžete odeslat žádost o přijetí do týmu — administrátor ji zkontroluje a případně vám přidělí roli.'
+                    : 'Našli jsme podobně pojmenovanou instituci. Zkontrolujte prosím, zda to není ta vaše, abyste nevytvořili duplicitu.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 mb-5">
+              {duplicateModal.matches.map(m => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className="w-full text-left p-3 border border-slate-200 rounded-lg hover:border-emerald-500 hover:bg-emerald-50 transition-colors group"
+                  data-testid={`duplicate-match-${m.id}`}
+                  onClick={() => {
+                    setJoinRequestForm({
+                      open: true,
+                      institutionId: m.id,
+                      institutionName: m.name,
+                      message: '',
+                      submitting: false,
+                    });
+                  }}
+                >
+                  <div className="font-medium text-slate-900">{m.name}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    {[m.city, m.ico_dic && `IČO ${m.ico_dic}`].filter(Boolean).join(' · ')}
+                  </div>
+                  <div className="text-xs text-slate-400 italic mt-1">{m.reason}</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <Button
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                data-testid="duplicate-modal-request-btn"
+                onClick={() => {
+                  if (duplicateModal.matches[0]) {
+                    setJoinRequestForm({
+                      open: true,
+                      institutionId: duplicateModal.matches[0].id,
+                      institutionName: duplicateModal.matches[0].name,
+                      message: '',
+                      submitting: false,
+                    });
+                  }
+                }}
+              >
+                Odeslat žádost o přijetí do týmu
+              </Button>
+              {duplicateModal.strength === 'weak' && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  data-testid="duplicate-modal-proceed-btn"
+                  onClick={async () => {
+                    // User accepts the soft warning → register anyway
+                    setDuplicateModal(s => ({ ...s, open: false, overrideSoftCheck: true }));
+                    setTimeout(handleSubmit, 0);
+                  }}
+                >
+                  Přesto vytvořit novou instituci
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                className="w-full"
+                data-testid="duplicate-modal-back-btn"
+                onClick={() => setDuplicateModal({ open: false, strength: null, matches: [], overrideSoftCheck: false })}
+              >
+                Zpět
+              </Button>
+              <a
+                href="mailto:info@budezivo.cz"
+                className="text-center text-sm text-slate-500 hover:text-slate-700 underline"
+                data-testid="duplicate-modal-support-link"
+              >
+                Kontaktovat podporu
+              </a>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ── Phase 83: join-request submit form ── */}
+      {joinRequestForm.open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          data-testid="join-request-modal"
+        >
+          <Card className="w-full max-w-lg bg-white p-6 md:p-8">
+            <h3 className="text-lg font-semibold text-slate-900 mb-1">
+              Žádost o přijetí do týmu
+            </h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Instituce: <strong>{joinRequestForm.institutionName}</strong>
+            </p>
+
+            <div className="space-y-3 mb-5">
+              <div className="text-xs text-slate-500 bg-slate-50 p-3 rounded-lg">
+                Vaše údaje budou administrátorovi odeslány: <br />
+                <strong>{formData.name || '(jméno z formuláře)'}</strong> · {formData.email || '(e-mail z formuláře)'}
+              </div>
+              <div>
+                <Label htmlFor="join-message">Zpráva pro administrátora (volitelné)</Label>
+                <Textarea
+                  id="join-message"
+                  data-testid="join-request-message"
+                  className="mt-2"
+                  rows={4}
+                  placeholder="Např. Jsem nový lektor v této instituci a chtěl bych mít přístup do systému."
+                  value={joinRequestForm.message}
+                  onChange={(e) => setJoinRequestForm(s => ({ ...s, message: e.target.value }))}
+                  maxLength={500}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                className="flex-1"
+                data-testid="join-request-cancel-btn"
+                onClick={() => setJoinRequestForm({ open: false, institutionId: null, institutionName: '', message: '', submitting: false })}
+                disabled={joinRequestForm.submitting}
+              >
+                Zpět
+              </Button>
+              <Button
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                data-testid="join-request-submit-btn"
+                onClick={submitJoinRequest}
+                disabled={joinRequestForm.submitting || !formData.email}
+              >
+                {joinRequestForm.submitting ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Odesílám…</>
+                ) : 'Odeslat žádost'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };

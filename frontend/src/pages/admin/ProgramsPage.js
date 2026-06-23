@@ -85,6 +85,7 @@ const getDefaultFormData = () => ({
   feedback_enabled: true,
   feedback_questions: [],
   collision_lecturer_ids: [],
+  required_lecturers: 1,
 });
 
 export const ProgramsPage = () => {

@@ -150,6 +150,10 @@ class Program(Base):
     age_group = Column(Text, nullable=False)  # ms_3_6, zs1_7_12, zs2_12_15, ss_14_18, gym_14_18, adults, all
     min_capacity = Column(Integer, nullable=False, default=5)
     max_capacity = Column(Integer, nullable=False, default=30)
+    # How many lecturers this program needs. Default 1 = behaves like today.
+    # When > 1, a booking is only allowed if >= this many QUALIFIED lecturers
+    # (program in their supported_program_ids) are free at that time.
+    required_lecturers = Column(Integer, nullable=False, default=1, server_default='1')
     target_group = Column(Text, nullable=False, default='schools')  # schools, public, both - LEGACY
     target_groups = Column(JSON, default=[])  # Array of age groups: ms_3_6, zs1_7_12, zs2_12_15, ss_14_18, gym_14_18, adults, all
     price = Column(Float, default=0.0)
@@ -265,6 +269,9 @@ class Reservation(Base):
     assigned_lecturer_id = Column(UUID(as_uuid=True), ForeignKey('users.id'))
     assigned_lecturer_name = Column(Text)
     assigned_lecturer_at = Column(DateTime(timezone=True))
+    # All assigned lecturers (multi-lecturer programs). The "main" lecturer stays
+    # in assigned_lecturer_id; this list holds every assigned lecturer's id (str).
+    assigned_lecturer_ids = Column(JSONB, default=list)
 
     # Main-lecturer assignment auditability (source + human-readable reason)
     assignment_source = Column(Text)  # default_program | auto_suggest | manual_admin | unassigned
@@ -1325,4 +1332,52 @@ class ContactLink(Base):
         Index('idx_contact_links_program', 'program_id'),
         Index('idx_contact_links_event', 'event_id'),
         Index('idx_contact_links_source', 'source_type'),
+    )
+
+
+class InstitutionJoinRequest(Base):
+    """Request from a user to join an existing institution (Phase 83).
+
+    Created when:
+    * Someone tries to register a new institution that collides with an
+      existing one (by IČO match, or similar name+city)
+    * An already-logged-in user explicitly asks to be added to a different
+      institution
+
+    Reviewed by the target institution's admin (or a superadmin) who picks the
+    role and approves/rejects. Idempotent — only one ``pending`` row per
+    ``(email, institution_id)`` is allowed.
+    """
+    __tablename__ = 'institution_join_requests'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+
+    # Identity of the requester (we always store email; user_id is set when
+    # the requester was logged in at submit time)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
+    email = Column(Text, nullable=False)
+    name = Column(Text)
+
+    # Optional free-text message from the requester (max ~500 chars enforced
+    # at the API layer)
+    message = Column(Text)
+
+    # pending | approved | rejected
+    status = Column(Text, nullable=False, default='pending')
+
+    # Role granted upon approval (chosen by the reviewing admin)
+    assigned_role = Column(Text)
+
+    # Audit
+    created_at = Column(DateTime(timezone=True), nullable=False,
+                        default=lambda: datetime.now(timezone.utc))
+    reviewed_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
+    reviewed_at = Column(DateTime(timezone=True))
+    review_note = Column(Text)  # admin's explanation if rejected
+
+    __table_args__ = (
+        Index('idx_join_req_institution', 'institution_id'),
+        Index('idx_join_req_email', 'email'),
+        Index('idx_join_req_status', 'status'),
     )

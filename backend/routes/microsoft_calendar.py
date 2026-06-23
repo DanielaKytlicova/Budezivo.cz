@@ -647,8 +647,8 @@ def _close_popup_html(error: Optional[str]) -> "HTMLResponse":
 
 async def sync_all_integrations():
     """Sync all active Microsoft integrations. Called from APScheduler."""
-    from database.supabase import async_session_maker
-    async with async_session_maker() as db:
+    from database.supabase import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(UserCalendarIntegration).where(and_(
                 UserCalendarIntegration.is_active == True,

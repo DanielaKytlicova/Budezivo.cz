@@ -98,6 +98,9 @@ class ProgramBase(BaseModel):
     collision_resources: List[str] = []
     collision_lecturer_ids: List[str] = []
     blocked_program_ids: List[str] = []
+    # How many lecturers this program needs (default 1 = unchanged behavior).
+    # When > 1, a booking requires that many qualified+free lecturers in the slot.
+    required_lecturers: int = 1
     # Assigned Lecturer
     assigned_lecturer_id: Optional[str] = None
     # Assigned Room
@@ -111,6 +114,13 @@ class ProgramBase(BaseModel):
     @validator('feedback_enabled', pre=True, always=True)
     def default_feedback_enabled(cls, v):
         return v if v is not None else True
+
+    @validator('required_lecturers', pre=True, always=True)
+    def clamp_required_lecturers(cls, v):
+        try:
+            return max(1, int(v)) if v is not None else 1
+        except (TypeError, ValueError):
+            return 1
 
     @validator('feedback_questions', pre=True, always=True)
     def default_feedback_questions(cls, v):

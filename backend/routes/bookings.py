@@ -42,7 +42,10 @@ class BulkStatusRequest(PydanticBaseModel):
     status: str  # confirmed, cancelled, completed
 
 class AssignLecturerRequest(PydanticBaseModel):
-    lecturer_id: str
+    lecturer_id: Optional[str] = None
+    # Multi-lecturer assignment (when the "Přiřadit více lektorů" checkbox is used).
+    # If provided, takes precedence; the first id becomes the main lecturer.
+    lecturer_ids: Optional[List[str]] = None
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 logger = logging.getLogger(__name__)
@@ -771,31 +774,44 @@ async def admin_assign_lecturer_to_booking(
     booking = await booking_repo.find_by_id(booking_id, current_user["institution_id"])
     if not booking:
         raise HTTPException(status_code=404, detail="Rezervace nenalezena")
-    
-    # Get lecturer details
-    lecturer = await user_repo.find_by_id(request.lecturer_id)
-    if not lecturer:
-        raise HTTPException(status_code=404, detail="Lektor nenalezen")
-    
-    if lecturer.get("institution_id") != current_user["institution_id"]:
-        raise HTTPException(status_code=403, detail="Lektor nepatří do vaší instituce")
 
-    # Check for lecturer time collisions
-    collision_error = await check_lecturer_collision_for_assignment(
-        db, request.lecturer_id, current_user["institution_id"], booking_id
+    # Resolve the set of lecturers to assign (single or multi mode)
+    lecturer_ids = request.lecturer_ids if request.lecturer_ids else (
+        [request.lecturer_id] if request.lecturer_id else []
     )
-    if collision_error:
-        raise HTTPException(status_code=409, detail=collision_error)
+    lecturer_ids = [lid for lid in dict.fromkeys(lecturer_ids) if lid]  # dedupe, drop empties
+    if not lecturer_ids:
+        raise HTTPException(status_code=400, detail="Nebyl vybrán žádný lektor")
 
-    lecturer_name = lecturer.get("name") or lecturer.get("email", "Unknown")
-    
-    # Assign lecturer
+    resolved_names = []
+    for lid in lecturer_ids:
+        lecturer = await user_repo.find_by_id(lid)
+        if not lecturer:
+            raise HTTPException(status_code=404, detail="Lektor nenalezen")
+        if lecturer.get("institution_id") != current_user["institution_id"]:
+            raise HTTPException(status_code=403, detail="Lektor nepatří do vaší instituce")
+        # Each lecturer must be free in this slot
+        collision_error = await check_lecturer_collision_for_assignment(
+            db, lid, current_user["institution_id"], booking_id
+        )
+        if collision_error:
+            raise HTTPException(status_code=409, detail=collision_error)
+        resolved_names.append(lecturer.get("name") or lecturer.get("email", "Unknown"))
+
+    main_id, main_name = lecturer_ids[0], resolved_names[0]
+
+    # Assign main lecturer + persist the full list
     await booking_repo.assign_lecturer(
-        booking_id,
-        current_user["institution_id"],
-        request.lecturer_id,
-        lecturer_name
+        booking_id, current_user["institution_id"], main_id, main_name,
     )
-    
-    logger.info(f"Admin assigned lecturer {lecturer_name} to booking {booking_id}")
-    return {"message": "Lektor přiřazen", "lecturer_name": lecturer_name}
+    await booking_repo.update(booking_id, current_user["institution_id"], {
+        "assigned_lecturer_ids": lecturer_ids,
+    })
+
+    logger.info(f"Admin assigned lecturer(s) {', '.join(resolved_names)} to booking {booking_id}")
+    return {
+        "message": "Lektor přiřazen" if len(lecturer_ids) == 1 else f"Přiřazeno {len(lecturer_ids)} lektorů",
+        "lecturer_name": main_name,
+        "lecturer_names": resolved_names,
+        "lecturer_ids": lecturer_ids,
+    }

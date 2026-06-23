@@ -27,7 +27,10 @@ import threading as _threading
 _prefill_calls: dict[str, list[float]] = {}
 _prefill_lock = _threading.Lock()
 PREFILL_WINDOW_SEC = 60
-PREFILL_MAX_PER_WINDOW = 20
+# Security audit P2 #4: tightened from 20 to 6/min to slow PII enumeration of
+# the public prefill endpoint (a legitimate user only needs a single lookup of
+# their own e-mail).
+PREFILL_MAX_PER_WINDOW = 6
 
 
 def _prefill_client_ip(request: Request) -> str:
@@ -103,7 +106,7 @@ async def submit_contact_form(
 
 
 @router.get("/prefill")
-@limiter.limit("20/minute")
+@limiter.limit("6/minute")
 async def get_prefill_for_email(
     request: Request,
     email: str,

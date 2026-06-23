@@ -124,3 +124,17 @@ async def get_current_user(
     if "user_id" not in payload:
         raise HTTPException(status_code=401, detail="Neplatný token")
     return payload
+
+
+async def get_current_user_optional(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+) -> Optional[dict]:
+    """Like ``get_current_user`` but returns ``None`` instead of 401 when no
+    valid token is present. Used by public endpoints that *enrich* their
+    behaviour when the caller is logged-in (e.g. attach user_id to a
+    submitted join request)."""
+    try:
+        return await get_current_user(request, credentials)
+    except HTTPException:
+        return None

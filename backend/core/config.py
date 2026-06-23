@@ -23,16 +23,25 @@ JWT_ALGORITHM = "HS256"
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY')
 
 # CORS
+# CORS — SECURITY (audit P1 #6): a literal "*" origin combined with
+# allow_credentials=True makes Starlette reflect ANY Origin and return
+# Access-Control-Allow-Credentials: true, allowing any website to issue
+# cookie-authenticated cross-site requests. We therefore HARD-STRIP "*" and
+# only ever allow an explicit allowlist.
 _cors_env = os.environ.get('CORS_ORIGINS', '')
+_env_origins = [o.strip() for o in _cors_env.split(',') if o.strip() and o.strip() != '*']
 CORS_ORIGINS = [
     "https://www.budezivo.cz",
     "https://budezivo.cz",
-] + ([o.strip() for o in _cors_env.split(',') if o.strip()] if _cors_env else [])
+] + _env_origins
 
 # In preview/dev, allow the preview domain
 _react_url = os.environ.get('REACT_APP_BACKEND_URL', '')
 if _react_url and _react_url not in CORS_ORIGINS:
     CORS_ORIGINS.append(_react_url)
+
+# De-duplicate while preserving order, and never allow a bare wildcard.
+CORS_ORIGINS = [o for i, o in enumerate(CORS_ORIGINS) if o != '*' and o not in CORS_ORIGINS[:i]]
 
 # Frontend URL (for password reset links etc.)
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'https://www.budezivo.cz')

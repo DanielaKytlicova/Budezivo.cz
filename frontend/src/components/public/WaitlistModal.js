@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -18,7 +18,18 @@ const TIME_OPTIONS = [
   { value: 'any', label: 'Kdykoliv' },
 ];
 
-export const WaitlistModal = ({ open, onOpenChange, institutionId, programId, programName, prefilledDate }) => {
+// Map an exact slot time ("HH:MM") to the coarse preferred-time-of-day bucket.
+const timeToPreferred = (time) => {
+  if (!time || typeof time !== 'string') return 'any';
+  const h = parseInt(time.split(':')[0], 10);
+  if (Number.isNaN(h)) return 'any';
+  if (h < 11) return 'morning';
+  if (h < 13) return 'midday';
+  if (h < 17) return 'afternoon';
+  return 'any';
+};
+
+export const WaitlistModal = ({ open, onOpenChange, institutionId, programId, programName, prefilledDate, prefilledTime }) => {
   const [step, setStep] = useState('form'); // form, success
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -27,13 +38,29 @@ export const WaitlistModal = ({ open, onOpenChange, institutionId, programId, pr
     email: '',
     phone: '',
     participant_count: '',
-    request_type: prefilledDate ? 'specific_date' : 'specific_date',
+    request_type: 'specific_date',
     requested_date: prefilledDate || '',
     range_start_date: '',
     range_end_date: '',
-    preferred_time_of_day: 'any',
+    preferred_time_of_day: timeToPreferred(prefilledTime),
     notes: '',
   });
+
+  // Sync prefill (date + time) every time the modal opens or the prefilled slot
+  // changes — useState's initializer only runs once, so without this the
+  // date/time the user clicked wouldn't appear.
+  useEffect(() => {
+    if (!open) return;
+    setForm(f => ({
+      ...f,
+      request_type: 'specific_date',
+      requested_date: prefilledDate || '',
+      preferred_time_of_day: timeToPreferred(prefilledTime),
+      notes: prefilledTime
+        ? `Zájem o termín ${prefilledDate || ''} ${prefilledTime}`.trim()
+        : f.notes,
+    }));
+  }, [open, prefilledDate, prefilledTime]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -90,6 +117,13 @@ export const WaitlistModal = ({ open, onOpenChange, institutionId, programId, pr
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          {prefilledDate && prefilledTime && (
+            <div className="rounded-lg border border-[#4A6FA5]/20 bg-[#4A6FA5]/5 p-3" data-testid="wl-prefilled-slot">
+              <p className="text-sm text-[#4A6FA5]">
+                Hlídáme termín: <strong>{new Date(prefilledDate).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'long', year: 'numeric' })}</strong> v <strong>{prefilledTime}</strong>
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-sm">Jméno <span className="text-red-500">*</span></Label>

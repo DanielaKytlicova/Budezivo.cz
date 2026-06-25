@@ -72,6 +72,7 @@ export const BookingPage = () => {
   const preselectedProgramId = searchParams.get('program') || null;
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [waitlistDate, setWaitlistDate] = useState(null);
+  const [waitlistTime, setWaitlistTime] = useState(null);
   
   // Data instituce pro header a theme
   const [institutionData, setInstitutionData] = useState({
@@ -793,7 +794,35 @@ export const BookingPage = () => {
               {Array.isArray(timeBlocks) && timeBlocks.map((block) => {
                 const isSelected = formData.time_block === block.time;
                 const isAvailable = block.status === 'available';
-                
+
+                if (!isAvailable) {
+                  // Unavailable/booked slot — offer to watch (waitlist) THIS exact time.
+                  return (
+                    <div
+                      key={block.time}
+                      className="w-full p-4 rounded-lg border bg-gray-100 border-gray-200 flex justify-between items-center gap-3"
+                      data-testid={`time-block-${block.time}`}
+                    >
+                      <div>
+                        <p className="text-lg font-semibold text-gray-400">{block.time}</p>
+                        <p className="text-sm text-gray-500">
+                          {block.status === 'unavailable' ? 'Lektor nedostupný' : 'Obsazeno'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setWaitlistDate(formData.date); setWaitlistTime(block.time); setShowWaitlist(true); }}
+                        className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors hover:bg-white"
+                        style={{ borderColor: `${institutionData.primaryColor}50`, color: institutionData.primaryColor }}
+                        data-testid={`waitlist-slot-btn-${block.time}`}
+                      >
+                        <Bell className="w-3.5 h-3.5" />
+                        Hlídat tento čas
+                      </button>
+                    </div>
+                  );
+                }
+
                 return (
                 <button
                   key={block.time}
@@ -837,7 +866,7 @@ export const BookingPage = () => {
             {/* Waitlist CTA - when no available slots or all booked */}
             {timeBlocks.length > 0 && timeBlocks.every(b => b.status !== 'available') && (
               <button
-                onClick={() => { setWaitlistDate(formData.date); setShowWaitlist(true); }}
+                onClick={() => { setWaitlistDate(formData.date); setWaitlistTime(formData.time_block || null); setShowWaitlist(true); }}
                 className="w-full mt-4 p-3 border-2 border-dashed rounded-lg text-sm text-center transition-colors hover:bg-gray-50"
                 style={{ borderColor: `${institutionData.primaryColor}40`, color: institutionData.primaryColor }}
                 data-testid="waitlist-no-slots-btn"
@@ -1192,6 +1221,7 @@ export const BookingPage = () => {
         programId={selectedProgram?.id}
         programName={selectedProgram?.name_cs || selectedProgram?.name_en}
         prefilledDate={waitlistDate}
+        prefilledTime={waitlistTime}
       />
     </div>
   );

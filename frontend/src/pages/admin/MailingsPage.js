@@ -661,7 +661,18 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90dvh] overflow-y-auto">
+      <DialogContent
+        className="max-w-3xl max-h-[90dvh] overflow-y-auto"
+        onPointerDownOutside={(e) => {
+          // Multi-step wizard holds unsaved form state in memory. Never dismiss
+          // (and discard the user's draft text) on a stray outside click — e.g.
+          // closing a Select dropdown portal. Close only via the X button.
+          e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {editCampaign ? 'Upravit kampaň' : 'Nová propagační kampaň'}

@@ -10,7 +10,6 @@ import requests
 logger = logging.getLogger(__name__)
 
 STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
-EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
 APP_NAME = "budezivo"
 
 _storage_key: str | None = None
@@ -26,13 +25,24 @@ MAX_PROGRAM_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
 def init_storage() -> str:
-    """Call once at startup. Returns a reusable storage_key."""
+    """Call once at startup. Returns a reusable storage_key.
+
+    Reads EMERGENT_LLM_KEY at call time (not import time) so deployment/.env load
+    order can't leave us with an empty key — which the storage API rejects with a
+    400 "emergent_key is required".
+    """
     global _storage_key
     if _storage_key:
         return _storage_key
+    emergent_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not emergent_key:
+        raise RuntimeError(
+            "EMERGENT_LLM_KEY není nastaven v prostředí — úložiště obrázků nelze "
+            "inicializovat. Zkontrolujte konfiguraci prostředí (backend .env)."
+        )
     resp = requests.post(
         f"{STORAGE_URL}/init",
-        json={"emergent_key": EMERGENT_KEY},
+        json={"emergent_key": emergent_key},
         timeout=30,
     )
     resp.raise_for_status()

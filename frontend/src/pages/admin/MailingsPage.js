@@ -175,7 +175,7 @@ export const MailingsPage = () => {
           <CampaignWizard
             editCampaign={selectedCampaign?.status === 'draft' ? selectedCampaign : null}
             preselectedProgram={preselectedProgram}
-            onClose={() => { setShowWizard(false); setPreselectedProgram(null); }}
+            onClose={() => { setShowWizard(false); setPreselectedProgram(null); fetchCampaigns(); }}
             onComplete={() => { setShowWizard(false); setSelectedCampaign(null); setPreselectedProgram(null); fetchCampaigns(); }}
           />
         )}
@@ -670,6 +670,9 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
           e.preventDefault();
         }}
         onInteractOutside={(e) => {
+          e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
           e.preventDefault();
         }}
       >

@@ -68,3 +68,13 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+
+# resend .env
+RESEND_API_KEY=re_ibP448k8_EgpPDDkDNnAATBEKgM27SWeG
+SENDER_EMAIL=noreply@budezivo.cz
+
+# azure -outlook calendar .env
+MICROSOFT_CLIENT_ID=dc0c4f93-550b-4fbd-82d4-9ac784de8cf8
+MICROSOFT_CLIENT_SECRET=8b4368a8-d53b-4f2e-9c24-1e94dca35e5f
+MICROSOFT_TENANT_ID=20ae0ab5-26f4-4b52-bb71-55de86a0fc89
+MICROSOFT_REDIRECT_URI=https://budezivo.cz/api/auth/microsoft/callback

@@ -14,7 +14,12 @@ APP_NAME = "budezivo"
 
 _storage_key: str | None = None
 
-ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/svg+xml", "image/webp", "image/gif"}
+ALLOWED_IMAGE_TYPES = {
+    "image/png", "image/jpeg", "image/jpg", "image/pjpeg",
+    "image/svg+xml", "image/svg", "image/webp", "image/gif",
+    "application/octet-stream",  # Některé prohlížeče posílají u .svg
+}
+ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "jpe", "svg", "webp", "gif"}
 MAX_LOGO_SIZE = 2 * 1024 * 1024  # 2 MB
 MAX_PROGRAM_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB
 

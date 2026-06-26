@@ -363,7 +363,6 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
   // Day names in Czech
   const dayNames = ['PO', 'ÚT', 'ST', 'ČT', 'PÁ', 'SO', 'NE'];
 
-  // Get color for reservation based on program — deterministic, distinct hue per program.
   // Brand-defined 8-color palette. Each entry includes the foreground text colour
   // because the palette mixes light backgrounds (cream, peach, powder blue) where
   // white text would be unreadable.
@@ -378,16 +377,38 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
     { bg: '#263FA8', border: '#172a7a', text: '#ffffff' }, // deep blue
   ];
 
-  const getReservationColor = (reservation) => {
-    const key = String(reservation.program_id || reservation.program_name || reservation.id || '');
-    // 32-bit FNV-1a hash → strong distribution even on similar program titles.
-    let hash = 0x811c9dc5;
-    for (let i = 0; i < key.length; i++) {
-      hash ^= key.charCodeAt(i);
-      hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
-    }
-    return PROGRAM_COLORS[hash % PROGRAM_COLORS.length];
-  };
+  // Stable key identifying a program (independent of individual reservation).
+  const programKey = (reservation) =>
+    String(reservation.program_id || reservation.program_name || '—');
+
+  // Map each distinct program to a UNIQUE colour. We assign colours sequentially
+  // by the program's position in a deterministically sorted list of the distinct
+  // programs present, so two different programs can never share a colour (the old
+  // hash-modulo approach collided, e.g. two programs both rendered cream). Beyond
+  // the 8 curated colours we generate extra distinct hues via the golden angle.
+  const programColorMap = React.useMemo(() => {
+    const keys = Array.from(
+      new Set((Array.isArray(reservations) ? reservations : []).map(programKey))
+    ).sort();
+    const map = {};
+    keys.forEach((k, idx) => {
+      if (idx < PROGRAM_COLORS.length) {
+        map[k] = PROGRAM_COLORS[idx];
+      } else {
+        const hue = Math.round((idx * 137.508) % 360);
+        map[k] = {
+          bg: `hsl(${hue}, 62%, 48%)`,
+          border: `hsl(${hue}, 62%, 36%)`,
+          text: '#ffffff',
+        };
+      }
+    });
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reservations]);
+
+  const getReservationColor = (reservation) =>
+    programColorMap[programKey(reservation)] || PROGRAM_COLORS[0];
 
   // Parse time to get hour
   const getHourFromTime = (timeStr) => {

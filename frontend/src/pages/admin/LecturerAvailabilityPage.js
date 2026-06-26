@@ -38,7 +38,7 @@ function timeToMinutes(t) {
   return h * 60 + (m || 0);
 }
 
-export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = false }) => {
+export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = false, autoOpenAction = null, onAutoOpenConsumed }) => {
   const { user, token } = useContext(AuthContext);
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const [recurring, setRecurring] = useState([]);
@@ -117,6 +117,23 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { fetchTeam(); }, [fetchTeam]);
+
+  // Auto-open a dialog when navigated here from the program-availability view's
+  // quick-action buttons (task: surface block/one-off/recurring actions there too).
+  useEffect(() => {
+    if (!autoOpenAction) return;
+    if (autoOpenAction === 'recurring') {
+      setShowAddRecurring(true);
+      setRecurringForm({ days_of_week: [], start_time: '08:00', end_time: '12:00' });
+    } else if (autoOpenAction === 'oneoff') {
+      setShowAddOneOff(true);
+      setOneOffForm({ specific_date: '', start_time: '09:00', end_time: '12:00' });
+    } else if (autoOpenAction === 'timeoff') {
+      setShowAddTimeOff(true);
+      setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' });
+    }
+    if (onAutoOpenConsumed) onAutoOpenConsumed();
+  }, [autoOpenAction]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetchOutlookStatus(); }, [token]);
   useEffect(() => { if (outlookStatus.connected) fetchOutlookBlocks(); }, [weekStart, lecturerId, outlookStatus.connected]);
   useEffect(() => { fetchGoogleStatus(); }, [token]);

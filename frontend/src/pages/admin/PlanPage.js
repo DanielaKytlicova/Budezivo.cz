@@ -302,6 +302,24 @@ export const PlanPage = () => {
                   )}
                 </div>
               ) : null}
+                    {/* Sekce: Jak to bude dál */}
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                        <div className="text-sm text-amber-900">
+                          <p className="font-semibold mb-1">Jak to bude dál?</p>
+                          <p>Po potvrzení vám zašleme fakturu na e-mail. Plán bude aktivován do 24 hodin po přijetí platby.</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                      <AlertTriangle className="w-4 h-4 inline mr-1" />
+                      Po potvrzení vám bude zaslána faktura. Plán bude aktivován po přijetí platby.
+                    </div>
+                  )}
+                </div>
+              ) : null}
 
               <DialogFooter className="gap-2 px-6 py-4 border-t bg-slate-50 shrink-0">
                 <Button variant="outline" onClick={() => { setSwitchTarget(null); setDiff(null); }}>Zrušit</Button>

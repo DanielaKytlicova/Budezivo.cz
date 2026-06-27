@@ -312,9 +312,14 @@ export const PlanPage = () => {
                         </div>
                       </div>
                     </div>
-                  </div>
-                ) : null}
-              </div>
+                  ) : (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                      <AlertTriangle className="w-4 h-4 inline mr-1" />
+                      Po potvrzení vám bude zaslána faktura. Plán bude aktivován po přijetí platby.
+                    </div>
+                  )}
+                </div>
+              ) : null}
 
               <DialogFooter className="gap-2 px-6 py-4 border-t bg-slate-50 shrink-0">
                 <Button variant="outline" onClick={() => { setSwitchTarget(null); setDiff(null); }}>Zrušit</Button>

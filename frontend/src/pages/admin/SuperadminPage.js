@@ -345,7 +345,15 @@ export const SuperadminPage = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{o.institution_name}</span>
+                      <button
+                        type="button"
+                        onClick={() => loadDetail(o.institution_id)}
+                        className="font-medium text-[#4A6FA5] hover:underline cursor-pointer"
+                        title="Otevřít detail instituce"
+                        data-testid={`order-institution-${o.id}`}
+                      >
+                        {o.institution_name}
+                      </button>
                       <Badge className={PLAN_BADGE[o.requested_plan] || ''}>{o.requested_plan_label}</Badge>
                       <Badge className={o.status === 'paid' ? 'bg-green-100 text-green-700' : o.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-slate-100 text-slate-500'}>
                         {o.status === 'pending' ? 'Čekající žádost' : o.status === 'paid' ? 'Zaplaceno' : o.status === 'cancelled' ? 'Zrušeno' : o.status}

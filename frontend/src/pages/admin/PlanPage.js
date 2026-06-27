@@ -54,7 +54,6 @@ export const PlanPage = () => {
 
   const openSwitchModal = async (targetKey) => {
     if (!currentPlan) return;
-    if (targetKey === 'free') return;
     if (targetKey === currentPlan.plan && currentPlan.plan_status === 'active') return;
 
     setSwitchTarget(targetKey);
@@ -70,8 +69,14 @@ export const PlanPage = () => {
     if (!switchTarget) return;
     setRequesting(true);
     try {
-      const res = await axios.post(`${API}/plan/request`, { target_plan: switchTarget }, { withCredentials: true });
-      toast.success(res.data.message);
+      if (switchTarget === 'free') {
+        // Downgrade to free is immediate and free of charge (no invoice).
+        const res = await axios.put(`${API}/plan/downgrade`, {}, { withCredentials: true });
+        toast.success(res.data.message || 'Plán změněn na Free');
+      } else {
+        const res = await axios.post(`${API}/plan/request`, { target_plan: switchTarget }, { withCredentials: true });
+        toast.success(res.data.message);
+      }
       setSwitchTarget(null);
       setDiff(null);
       const statusRes = await axios.get(`${API}/plan/status`, { withCredentials: true });
@@ -128,7 +133,7 @@ export const PlanPage = () => {
 
         {/* Plan cards — hierarchical, no duplication */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {plans.filter(p => p.key !== 'free').map(p => {
+          {plans.map(p => {
             const style = PLAN_STYLE[p.key] || PLAN_STYLE.start;
             const prices = PLAN_PRICES[p.key] || { monthly: 0, yearly: 0 };
             const price = billingCycle === 'monthly' ? prices.monthly : prices.yearly;
@@ -168,6 +173,23 @@ export const PlanPage = () => {
                       <span>{f.label}</span>
                     </li>
                   ))}
+                  {p.key === 'free' && p.own_features.length === 0 && (
+                    <>
+                      <li className="flex items-start gap-1.5 text-sm">
+                        <Check className="w-4 h-4 shrink-0 mt-0.5" style={{ color: style.accent }} />
+                        <span>Základní rezervační systém</span>
+                      </li>
+                      <li className="flex items-start gap-1.5 text-sm">
+                        <Check className="w-4 h-4 shrink-0 mt-0.5" style={{ color: style.accent }} />
+                        <span>Správa programů (do limitu)</span>
+                      </li>
+                      <li className="flex items-start gap-1.5 text-sm">
+                        <Check className="w-4 h-4 shrink-0 mt-0.5" style={{ color: style.accent }} />
+                        <span>Kalendář dostupnosti</span>
+                      </li>
+                      <li className="text-xs text-slate-400 pt-1">Ideální pro vyzkoušení zdarma, bez závazku.</li>
+                    </>
+                  )}
                 </ul>
 
                 {/* Action */}
@@ -177,7 +199,9 @@ export const PlanPage = () => {
                   <Button variant="outline" className="w-full border-yellow-300 text-yellow-700" disabled><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Čeká na platbu</Button>
                 ) : (
                   <Button className="w-full text-white" style={{ backgroundColor: style.accent }} onClick={() => openSwitchModal(p.key)} data-testid={`select-plan-${p.key}`}>
-                    <Crown className="w-4 h-4 mr-1" /> Vybrat plán
+                    {p.key === 'free'
+                      ? <><ArrowDown className="w-4 h-4 mr-1" /> Přejít na Free</>
+                      : <><Crown className="w-4 h-4 mr-1" /> Vybrat plán</>}
                   </Button>
                 )}
               </Card>
@@ -264,6 +288,20 @@ export const PlanPage = () => {
                       </div>
                     )}
 
+                  {/* Payment / downgrade note */}
+                  {switchTarget === 'free' ? (
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm text-slate-700">
+                      <Info className="w-4 h-4 inline mr-1 text-slate-500" />
+                      Přechod na Free je okamžitý a zdarma. O placené funkce výše přijdete ihned po potvrzení.
+                    </div>
+                  ) : (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+                      <AlertTriangle className="w-4 h-4 inline mr-1" />
+                      Po potvrzení vám bude zaslána faktura. Plán bude aktivován po přijetí platby.
+                    </div>
+                  )}
+                </div>
+              ) : null}
                     {/* Sekce: Jak to bude dál */}
                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                       <div className="flex items-start gap-2.5">
@@ -282,7 +320,7 @@ export const PlanPage = () => {
                 <Button variant="outline" onClick={() => { setSwitchTarget(null); setDiff(null); }}>Zrušit</Button>
                 <Button onClick={handleConfirmSwitch} disabled={requesting || diffLoading} data-testid="confirm-plan-request-btn" className="text-white" style={{ backgroundColor: PLAN_STYLE[switchTarget]?.accent || '#3B82F6' }}>
                   {requesting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <ArrowRight className="w-4 h-4 mr-1" />}
-                  Objednat
+                  {switchTarget === 'free' ? 'Potvrdit přechod' : 'Objednat'}
                 </Button>
               </DialogFooter>
             </DialogContent>

@@ -457,6 +457,86 @@ async def reset_password(
     return {"message": "Heslo bylo úspěšně změněno"}
 
 
+class ChangePasswordRequest(BaseModel):
+    """Change password (authenticated) request schema."""
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+@limiter.limit("5/minute")
+async def change_password(
+    request: Request,
+    data: ChangePasswordRequest,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Change the password for the currently authenticated user.
+
+    Requires the current password. Enforces the same strength policy as
+    registration, revokes all other sessions for security, then re-issues
+    fresh cookies so this session stays logged in.
+    """
+    if current_user.get("impersonated_by_email"):
+        raise HTTPException(status_code=403, detail="Změna hesla není při impersonaci povolena")
+
+    result = await db.execute(select(User).where(User.id == uuid.UUID(current_user["user_id"])))
+    user_obj = result.scalar_one_or_none()
+    if not user_obj:
+        raise HTTPException(status_code=404, detail="Uživatel nenalezen")
+
+    if not verify_password(data.current_password, user_obj.password_hash):
+        raise HTTPException(status_code=400, detail="Současné heslo není správné")
+
+    pwd = data.new_password
+    if len(pwd) < 8:
+        raise HTTPException(status_code=400, detail="Heslo musí mít alespoň 8 znaků")
+    if not re.search(r'[A-Z]', pwd):
+        raise HTTPException(status_code=400, detail="Heslo musí obsahovat alespoň jedno velké písmeno")
+    if not re.search(r'[a-z]', pwd):
+        raise HTTPException(status_code=400, detail="Heslo musí obsahovat alespoň jedno malé písmeno")
+    if not re.search(r'[0-9]', pwd):
+        raise HTTPException(status_code=400, detail="Heslo musí obsahovat alespoň jednu číslici")
+    if verify_password(pwd, user_obj.password_hash):
+        raise HTTPException(status_code=400, detail="Nové heslo musí být odlišné od současného")
+
+    user_repo = UserRepositorySupabase(db)
+    await user_repo.update(str(user_obj.id), {"password_hash": hash_password(pwd)})
+
+    # Invalidate all refresh tokens (logs out other devices), then mint fresh
+    # tokens for THIS session so the current user is not kicked out.
+    await _revoke_user_tokens(db, str(user_obj.id))
+    access_token = create_jwt_token(
+        current_user["user_id"],
+        current_user["institution_id"],
+        current_user["email"],
+        current_user.get("role", "viewer"),
+    )
+    refresh_tok = await _create_refresh_token(db, str(user_obj.id), request)
+
+    email = current_user["email"]
+    name = getattr(user_obj, "name", "") or ""
+
+    async def send_password_changed_email():
+        try:
+            await EmailService.send_transactional_email(
+                template_name="password_changed",
+                to_email=email,
+                data={"user_name": name, "user_email": email},
+            )
+        except Exception as e:
+            logger.error(f"Failed to send password changed email: {str(e)}")
+
+    background_tasks.add_task(send_password_changed_email)
+
+    response = JSONResponse(content={"message": "Heslo bylo úspěšně změněno"})
+    _set_auth_cookies(response, access_token, refresh_tok)
+    logger.info(f"Password changed for {email}")
+    return response
+
+
+
 @router.get("/verify")
 async def verify_token(current_user: dict = Depends(get_current_user)):
     """Verify JWT token validity."""

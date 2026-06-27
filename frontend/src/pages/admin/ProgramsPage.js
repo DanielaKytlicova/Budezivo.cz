@@ -1492,24 +1492,20 @@ export const ProgramsPage = () => {
           <DialogContent
             className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-2xl max-h-[90dvh] sm:max-h-[95vh] overflow-hidden p-0"
             onPointerDownOutside={(e) => {
-              // While the guided tour is open, its overlay/card lives in a
-              // separate portal at body root; Radix would otherwise treat
-              // every click on the tour as "outside" and dismiss the editor.
-              const target = e.target;
-              if (showTour || (target && target.closest && target.closest('[data-testid="program-tour"]'))) {
-                e.preventDefault();
-              }
+              // Editor with unsaved data: never dismiss on an outside click.
+              // This also prevents the stacked time-block warning dialog from
+              // accidentally closing the whole editor (and losing edits) when
+              // it unmounts. Close only via the X / back button.
+              e.preventDefault();
             }}
             onInteractOutside={(e) => {
-              const target = e.target;
-              if (showTour || (target && target.closest && target.closest('[data-testid="program-tour"]'))) {
-                e.preventDefault();
-              }
+              e.preventDefault();
             }}
             onEscapeKeyDown={(e) => {
-              // Escape should close the tour first, not the editor
+              // Escape should close the tour first, never the editor (avoids
+              // discarding unsaved program edits).
+              e.preventDefault();
               if (showTour) {
-                e.preventDefault();
                 setShowTour(false);
               }
             }}

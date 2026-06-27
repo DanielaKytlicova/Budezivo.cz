@@ -43,7 +43,7 @@ const PasswordStrength = ({ password }) => {
   );
 };
 
-const STEPS = ['account', 'info', 'schedule', 'programs'];
+const STEPS = ['account', 'info', 'schedule'];
 
 const CZECH_CITIES = [
   'Praha', 'Brno', 'Ostrava', 'Plzeň', 'Liberec', 'Olomouc', 'České Budějovice',
@@ -495,19 +495,22 @@ export const RegisterPage = () => {
 
       <div>
         <Label htmlFor="city">Město</Label>
-        <Select
+        <Input
+          id="city"
+          list="czech-cities-list"
+          className="mt-2"
+          data-testid="register-city"
           value={formData.city}
-          onValueChange={(value) => updateField('city', value)}
-        >
-          <SelectTrigger className="mt-2" data-testid="register-city">
-            <SelectValue placeholder="vyber typ" />
-          </SelectTrigger>
-          <SelectContent>
-            {CZECH_CITIES.map(city => (
-              <SelectItem key={city} value={city}>{city}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onChange={(e) => updateField('city', e.target.value)}
+          placeholder="Vyberte ze seznamu nebo napište město"
+          autoComplete="off"
+        />
+        <datalist id="czech-cities-list">
+          {CZECH_CITIES.map(city => (
+            <option key={city} value={city} />
+          ))}
+        </datalist>
+        <p className="text-xs text-gray-500 mt-1">Pokud vaše město není v nabídce, klidně ho napište ručně.</p>
       </div>
 
       <div>
@@ -781,14 +784,14 @@ export const RegisterPage = () => {
         <Button variant="ghost" onClick={prevStep} data-testid="register-back-step3">
           Zpět
         </Button>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={skipStep} data-testid="register-skip-step3">
-            Přeskočit
-          </Button>
-          <Button onClick={nextStep} className="bg-slate-800 text-white hover:bg-slate-700" data-testid="register-next-step3">
-            Další
-          </Button>
-        </div>
+        <Button
+          onClick={handleSubmit}
+          disabled={loading}
+          className="bg-slate-800 text-white hover:bg-slate-700"
+          data-testid="register-finish"
+        >
+          {loading ? 'Vytváření...' : 'Dokončit registraci'}
+        </Button>
       </div>
     </div>
   );

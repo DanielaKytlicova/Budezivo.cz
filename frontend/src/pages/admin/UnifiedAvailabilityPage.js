@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { ChevronLeft, ChevronRight, Ban, CheckCircle, Clock, Users, AlertTriangle, Lock, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Ban, CheckCircle, Clock, Users, AlertTriangle, Lock, CalendarDays, Plus, CalendarPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
@@ -55,17 +55,33 @@ const STATUS_LABELS = {
 export const UnifiedAvailabilityPage = ({ embedded = false }) => {
   const { user } = useContext(AuthContext);
   const [viewMode, setViewMode] = useState('personal'); // 'program' | 'personal'
+  // Action requested from the program view's quick buttons; consumed by the
+  // personal calendar (LecturerAvailabilityPage) to auto-open the right dialog.
+  const [pendingAction, setPendingAction] = useState(null);
+
+  const requestPersonalAction = (action) => {
+    setPendingAction(action);
+    setViewMode('personal');
+  };
 
   // If personal view, render the original LecturerAvailabilityPage with view toggle
   if (viewMode === 'personal') {
-    return <LecturerAvailabilityPage viewToggle={viewMode} onViewToggle={setViewMode} embedded={embedded} />;
+    return (
+      <LecturerAvailabilityPage
+        viewToggle={viewMode}
+        onViewToggle={setViewMode}
+        embedded={embedded}
+        autoOpenAction={pendingAction}
+        onAutoOpenConsumed={() => setPendingAction(null)}
+      />
+    );
   }
 
-  return <ProgramAvailabilityView viewMode={viewMode} onViewModeChange={setViewMode} embedded={embedded} />;
+  return <ProgramAvailabilityView viewMode={viewMode} onViewModeChange={setViewMode} onRequestPersonalAction={requestPersonalAction} embedded={embedded} />;
 };
 
 // ============ Program Availability View ============
-const ProgramAvailabilityView = ({ viewMode, onViewModeChange, embedded = false }) => {
+const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonalAction, embedded = false }) => {
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
   const [programs, setPrograms] = useState([]);
   const [selectedProgram, setSelectedProgram] = useState(null);
@@ -219,6 +235,36 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, embedded = false 
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Dostupnost</h1>
             <p className="text-sm text-gray-500 mt-1">Programová dostupnost a jednorázové výjimky</p>
+          </div>
+          {/* Quick availability actions — same as personal calendar; useful for
+              institutions that don't use program collisions. */}
+          <div className="flex gap-2 flex-wrap" data-testid="program-availability-quick-actions">
+            <Button
+              onClick={() => onRequestPersonalAction && onRequestPersonalAction('recurring')}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              size="sm"
+              data-testid="program-add-recurring-btn"
+            >
+              <Plus className="w-4 h-4 mr-1" /> Pravidelné bloky
+            </Button>
+            <Button
+              onClick={() => onRequestPersonalAction && onRequestPersonalAction('oneoff')}
+              variant="outline"
+              size="sm"
+              className="border-amber-300 text-amber-700 hover:bg-amber-50"
+              data-testid="program-add-oneoff-btn"
+            >
+              <CalendarPlus className="w-4 h-4 mr-1" /> Jednorázový čas
+            </Button>
+            <Button
+              onClick={() => onRequestPersonalAction && onRequestPersonalAction('timeoff')}
+              variant="outline"
+              size="sm"
+              className="border-red-300 text-red-600 hover:bg-red-50"
+              data-testid="program-add-timeoff-btn"
+            >
+              <Ban className="w-4 h-4 mr-1" /> Přidat blokaci
+            </Button>
           </div>
         </div>
 

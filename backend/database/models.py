@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column, String, Text, Integer, Float, Boolean, DateTime, 
-    ForeignKey, ARRAY, JSON, Index
+    ForeignKey, ARRAY, JSON, Index, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, DeclarativeBase
@@ -755,8 +755,44 @@ class UserCalendarIntegration(Base):
     is_active = Column(Boolean, default=True)
     last_sync_at = Column(DateTime(timezone=True))
     sync_error = Column(Text)
+    # Two-way sync mode flags (Google). Import = external events block availability;
+    # export = Budeživo reservations are pushed to the user's calendar.
+    import_enabled = Column(Boolean, nullable=False, default=True, server_default='true')
+    export_enabled = Column(Boolean, nullable=False, default=False, server_default='false')
+    auto_sync_enabled = Column(Boolean, nullable=False, default=True, server_default='true')
+    # Set when the stored grant lacks a required scope (e.g. calendar.events) and
+    # the user must re-authorize. Never triggers an infinite connect loop.
+    needs_reconnect = Column(Boolean, nullable=False, default=False, server_default='false')
+    granted_scopes = Column(Text)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+
+class CalendarEventExport(Base):
+    """Maps a Budeživo reservation to a provider calendar event created by us.
+
+    Only events tracked here (and carrying extendedProperties.private.source =
+    'budezivo') may be updated or deleted by Budeživo. Personal user events are
+    never touched.
+    """
+    __tablename__ = 'calendar_event_exports'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    booking_id = Column(UUID(as_uuid=True), ForeignKey('reservations.id', ondelete='CASCADE'), nullable=False)
+    provider = Column(Text, nullable=False, default='google')
+    google_calendar_id = Column(Text)
+    google_event_id = Column(Text)
+    last_synced_at = Column(DateTime(timezone=True))
+    sync_status = Column(Text, default='pending')
+    sync_error = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint('provider', 'user_id', 'booking_id', name='uq_calendar_event_exports_provider_user_booking'),
+    )
 
 
 class AvailabilityBlock(Base):

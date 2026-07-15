@@ -64,6 +64,8 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   const [googleStatus, setGoogleStatus] = useState({ connected: false, configured: false });
   const [googleBlocks, setGoogleBlocks] = useState([]);
   const [googleSyncing, setGoogleSyncing] = useState(false);
+  const [googleSyncResult, setGoogleSyncResult] = useState(null);
+  const [showGoogleDisconnect, setShowGoogleDisconnect] = useState(false);
 
   // Forms
   const [recurringForm, setRecurringForm] = useState({
@@ -277,14 +279,32 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     }
   };
 
-  const disconnectGoogle = async () => {
+  const disconnectGoogle = async (deleteExported) => {
     try {
-      await axios.post(`${API}/google-calendar/disconnect`, {}, { headers });
+      const res = await axios.post(`${API}/google-calendar/disconnect`, { delete_exported: !!deleteExported }, { headers });
       setGoogleStatus({ connected: false, configured: googleStatus.configured });
       setGoogleBlocks([]);
-      toast.success('Google kalendář odpojen');
+      setGoogleSyncResult(null);
+      setShowGoogleDisconnect(false);
+      toast.success(res.data?.message || 'Google kalendář odpojen');
     } catch (err) {
-      toast.error('Chyba při odpojování');
+      toast.error(formatApiError(err, 'Chyba při odpojování'));
+    }
+  };
+
+  const updateGoogleSetting = async (key, value) => {
+    const prev = googleStatus;
+    setGoogleStatus(s => ({ ...s, [key]: value }));
+    try {
+      await axios.put(`${API}/google-calendar/settings`, { [key]: value }, { headers });
+      toast.success('Nastavení uloženo');
+    } catch (err) {
+      setGoogleStatus(prev);
+      toast.error(formatApiError(err, 'Nepodařilo se uložit nastavení'));
+      // If export needs the calendar.events scope, reflect reconnect requirement.
+      if (err?.response?.status === 409) {
+        setGoogleStatus(s => ({ ...s, needs_reconnect: true }));
+      }
     }
   };
 
@@ -293,6 +313,8 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     try {
       const res = await axios.post(`${API}/google-calendar/sync`, {}, { headers });
       toast.success(res.data.message || 'Synchronizováno');
+      setGoogleSyncResult(res.data);
+      await fetchGoogleStatus();
       await fetchGoogleBlocks();
     } catch (err) {
       toast.error(formatApiError(err, 'Synchronizace selhala'));
@@ -767,6 +789,17 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
             <div className="flex items-center gap-2">
               {googleStatus.connected ? (
                 <>
+                  {googleStatus.needs_reconnect && (
+                    <Button
+                      size="sm"
+                      onClick={connectGoogle}
+                      className="bg-amber-500 hover:bg-amber-600 text-white"
+                      data-testid="reconnect-google-btn"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Znovu připojit
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -775,12 +808,12 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
                     data-testid="sync-google-btn"
                   >
                     <RefreshCw className={`w-4 h-4 mr-1 ${googleSyncing ? 'animate-spin' : ''}`} />
-                    Sync
+                    Synchronizovat nyní
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={disconnectGoogle}
+                    onClick={() => setShowGoogleDisconnect(true)}
                     className="text-red-600 border-red-200 hover:bg-red-50"
                     data-testid="disconnect-google-btn"
                   >
@@ -803,6 +836,57 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
               )}
             </div>
           </div>
+
+          {googleStatus.needs_reconnect && googleStatus.connected && (
+            <div className="mt-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800" data-testid="google-reconnect-notice">
+              Je potřeba znovu připojit Google účet — pro export rezervací chybí oprávnění ke kalendáři.
+            </div>
+          )}
+
+          {/* Sync-mode toggles */}
+          {googleStatus.connected && (
+            <div className="mt-3 pt-3 border-t space-y-3" data-testid="google-sync-settings">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Import z Google</p>
+                  <p className="text-xs text-gray-500">Osobní události z Google blokují vaši dostupnost v Budeživo. Nevytvářejí rezervace a jejich názvy nemusí vidět ostatní role.</p>
+                </div>
+                <Switch
+                  checked={!!googleStatus.import_enabled}
+                  onCheckedChange={(v) => updateGoogleSetting('import_enabled', v)}
+                  data-testid="google-import-toggle"
+                />
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Export do Google</p>
+                  <p className="text-xs text-gray-500">Rezervace, ke kterým jste přiřazeni, se zobrazí ve vašem Google kalendáři.</p>
+                </div>
+                <Switch
+                  checked={!!googleStatus.export_enabled}
+                  onCheckedChange={(v) => updateGoogleSetting('export_enabled', v)}
+                  data-testid="google-export-toggle"
+                />
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Automatická synchronizace</p>
+                  <p className="text-xs text-gray-500">Pravidelně synchronizovat na pozadí.</p>
+                </div>
+                <Switch
+                  checked={!!googleStatus.auto_sync_enabled}
+                  onCheckedChange={(v) => updateGoogleSetting('auto_sync_enabled', v)}
+                  data-testid="google-autosync-toggle"
+                />
+              </div>
+            </div>
+          )}
+
+          {googleSyncResult && (
+            <div className="mt-3 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600" data-testid="google-sync-result">
+              Importováno {googleSyncResult.imported} blokací · vytvořeno {googleSyncResult.created} · aktualizováno {googleSyncResult.updated} · odstraněno {googleSyncResult.deleted} · chyb {googleSyncResult.errors}
+            </div>
+          )}
 
           {googleBlocks.length > 0 && (
             <div className="mt-3 pt-3 border-t">
@@ -835,6 +919,34 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
             </div>
           )}
         </Card>
+
+        {/* Google disconnect dialog — choose what happens to exported events */}
+        <Dialog open={showGoogleDisconnect} onOpenChange={setShowGoogleDisconnect}>
+          <DialogContent className="sm:max-w-md" aria-describedby={undefined} data-testid="google-disconnect-dialog">
+            <DialogHeader>
+              <DialogTitle>Odpojit Google kalendář</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-1">
+              <p className="text-sm text-gray-600">Co se má stát s událostmi, které do Google kalendáře vytvořilo Budeživo? Vaše osobní události zůstanou nedotčené.</p>
+              <Button
+                onClick={() => disconnectGoogle(true)}
+                className="w-full bg-red-600 hover:bg-red-700 text-white"
+                data-testid="disconnect-delete-events-btn"
+              >
+                Odstranit exportované události z Google kalendáře
+              </Button>
+              <Button
+                onClick={() => disconnectGoogle(false)}
+                variant="outline"
+                className="w-full"
+                data-testid="disconnect-keep-events-btn"
+              >
+                Ponechat je v Google kalendáři
+              </Button>
+              <Button onClick={() => setShowGoogleDisconnect(false)} variant="ghost" className="w-full">Zrušit</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Legend */}
         <div className="flex items-center gap-6 text-xs">

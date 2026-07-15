@@ -2,6 +2,7 @@
 Mailing Campaign Service — relevance engine, recipient resolution, background sending.
 """
 import logging
+import html
 import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
@@ -279,6 +280,7 @@ async def send_campaign_emails(campaign_id: str):
                 if rid not in rp_map:
                     rp_map[rid] = []
                 rp_map[rid].append({
+                    "id": str(rp.program_id) if rp.program_id else None,
                     "name": rp.program_name,
                     "target_groups": rp.program_target_groups or [],
                 })
@@ -367,26 +369,43 @@ def _build_campaign_email_html(
     if institution:
         primary_color = institution.primary_color or "#1E293B"
 
-    # Build program cards
+    # Build program cards — each card is a full-width clickable link that opens
+    # the public booking page pre-selected on this program (jumps to the date
+    # selection step). No JavaScript; plain <a> for Gmail/Outlook compatibility.
     program_cards = ""
     for p in programs:
         name = p.get("name", "") if isinstance(p, dict) else getattr(p, "program_name", "")
         desc = p.get("description", "") if isinstance(p, dict) else ""
         duration = p.get("duration", "") if isinstance(p, dict) else ""
         tg = p.get("target_groups", []) if isinstance(p, dict) else []
+        pid = p.get("id") if isinstance(p, dict) else getattr(p, "program_id", None)
         tg_labels = _format_target_groups(tg)
 
-        duration_html = f'<span style="color:#64748B;font-size:13px;">Délka: {duration} min</span>' if duration else ""
-        desc_html = f'<p style="color:#475569;font-size:14px;margin:4px 0 8px 0;">{desc[:200]}</p>' if desc else ""
+        name_e = html.escape(str(name or ""))
+        duration_html = f'<span style="color:#64748B;font-size:13px;">Délka: {html.escape(str(duration))} min</span>' if duration else ""
+        desc_html = f'<p style="color:#475569;font-size:14px;margin:4px 0 8px 0;">{html.escape(str(desc)[:200])}</p>' if desc else ""
 
-        program_cards += f"""
-        <div style="border:1px solid #E2E8F0;border-radius:8px;padding:16px;margin:12px 0;background:#FAFBFC;">
-            <h3 style="margin:0 0 4px 0;color:{primary_color};font-size:16px;">{name}</h3>
+        card_inner = f"""
+            <h3 style="margin:0 0 4px 0;color:{primary_color};font-size:16px;">{name_e}</h3>
             {desc_html}
             <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
                 {duration_html}
-                <span style="color:#64748B;font-size:13px;">{tg_labels}</span>
+                <span style="color:#64748B;font-size:13px;">{html.escape(tg_labels)}</span>
             </div>
+        """
+
+        if pid:
+            sep = "&" if "?" in booking_url else "?"
+            program_link = html.escape(f"{booking_url}{sep}program={pid}", quote=True)
+            program_cards += f"""
+        <a href="{program_link}" style="display:block;text-decoration:none;color:inherit;border:1px solid #E2E8F0;border-radius:8px;padding:16px;margin:12px 0;background:#FAFBFC;">
+            {card_inner}
+        </a>
+        """
+        else:
+            program_cards += f"""
+        <div style="border:1px solid #E2E8F0;border-radius:8px;padding:16px;margin:12px 0;background:#FAFBFC;">
+            {card_inner}
         </div>
         """
 

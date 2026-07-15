@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { Plus, Trash2, ChevronLeft, ChevronRight, Clock, Ban, Edit2, Info, CalendarDays, CalendarPlus, RefreshCw, Unlink, ExternalLink } from 'lucide-react';
 import axios from 'axios';
 
-const API = process.env.REACT_APP_BACKEND_URL;
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const DAY_NAMES = ['Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek', 'Sobota', 'Neděle'];
 const DAY_SHORT = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
@@ -64,6 +64,8 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   const [googleStatus, setGoogleStatus] = useState({ connected: false, configured: false });
   const [googleBlocks, setGoogleBlocks] = useState([]);
   const [googleSyncing, setGoogleSyncing] = useState(false);
+  const [googleSyncResult, setGoogleSyncResult] = useState(null);
+  const [showGoogleDisconnect, setShowGoogleDisconnect] = useState(false);
 
   // Forms
   const [recurringForm, setRecurringForm] = useState({
@@ -94,7 +96,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       setLoading(true);
       const weekStr = formatDate(weekStart);
       const params = selectedLecturer ? `?lecturer_id=${selectedLecturer}&week_start=${weekStr}` : `?week_start=${weekStr}`;
-      const res = await axios.get(`${API}/api/lecturer-availability/week-view${params}`, { headers });
+      const res = await axios.get(`${API}/lecturer-availability/week-view${params}`, { headers });
       setRecurring(res.data.recurring || []);
       setOneOffs(res.data.one_offs || []);
       setTimeOffs(res.data.time_offs || []);
@@ -108,7 +110,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   const fetchTeam = useCallback(async () => {
     if (!isAdmin) return;
     try {
-      const res = await axios.get(`${API}/api/team`, { headers });
+      const res = await axios.get(`${API}/team`, { headers });
       setTeamMembers(res.data.filter(m => ['edukator', 'lektor', 'admin', 'spravce'].includes(m.role)));
     } catch (err) {
       console.error(err);
@@ -162,7 +164,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const fetchOutlookStatus = async () => {
     try {
-      const res = await axios.get(`${API}/api/microsoft-calendar/status`, { headers });
+      const res = await axios.get(`${API}/microsoft-calendar/status`, { headers });
       setOutlookStatus(res.data);
       if (res.data.connected) fetchOutlookBlocks();
     } catch (err) {
@@ -175,7 +177,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       const weekStr = formatDate(weekStart);
       const endStr = formatDate(new Date(weekStart.getTime() + 6 * 86400000));
       const params = lecturerId ? `?user_id=${lecturerId}&start=${weekStr}&end=${endStr}` : `?start=${weekStr}&end=${endStr}`;
-      const res = await axios.get(`${API}/api/microsoft-calendar/blocks${params}`, { headers });
+      const res = await axios.get(`${API}/microsoft-calendar/blocks${params}`, { headers });
       setOutlookBlocks(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Outlook blocks fetch failed');
@@ -184,7 +186,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const connectOutlook = async () => {
     try {
-      const res = await axios.get(`${API}/api/microsoft-calendar/connect`, { headers });
+      const res = await axios.get(`${API}/microsoft-calendar/connect`, { headers });
       if (res.data.auth_url) {
         window.open(res.data.auth_url, 'outlook_auth', 'width=500,height=700');
       }
@@ -195,7 +197,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const disconnectOutlook = async () => {
     try {
-      await axios.post(`${API}/api/microsoft-calendar/disconnect`, {}, { headers });
+      await axios.post(`${API}/microsoft-calendar/disconnect`, {}, { headers });
       setOutlookStatus({ connected: false });
       setOutlookBlocks([]);
       toast.success('Outlook odpojen');
@@ -207,7 +209,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   const syncOutlook = async () => {
     setOutlookSyncing(true);
     try {
-      const res = await axios.post(`${API}/api/microsoft-calendar/sync`, {}, { headers });
+      const res = await axios.post(`${API}/microsoft-calendar/sync`, {}, { headers });
       toast.success(res.data.message || 'Synchronizováno');
       await fetchOutlookBlocks();
     } catch (err) {
@@ -219,7 +221,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const toggleBlockOverride = async (blockId) => {
     try {
-      const res = await axios.post(`${API}/api/microsoft-calendar/blocks/${blockId}/override`, {}, { headers });
+      const res = await axios.post(`${API}/microsoft-calendar/blocks/${blockId}/override`, {}, { headers });
       toast.success(res.data.message);
       await fetchOutlookBlocks();
     } catch (err) {
@@ -228,13 +230,28 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   };
 
   // ── Google Calendar integration ─────────────────────────────────────
+  // Surface the backend-provided detail (and status) for Google/Outlook OAuth
+  // errors. 403 is intentionally treated as a plan gate elsewhere.
+  const formatApiError = (err, fallback) => {
+    const status = err?.response?.status;
+    const detail = err?.response?.data?.detail;
+    if (detail) return status ? `${detail} (${status})` : detail;
+    if (status === 503) return 'Služba Google kalendáře je dočasně nedostupná (503)';
+    if (status === 404) return 'Zdroj nebyl nalezen (404)';
+    return fallback;
+  };
+
   const fetchGoogleStatus = async () => {
     try {
-      const res = await axios.get(`${API}/api/google-calendar/status`, { headers });
+      const res = await axios.get(`${API}/google-calendar/status`, { headers });
       setGoogleStatus(res.data);
       if (res.data.connected) fetchGoogleBlocks();
     } catch (err) {
-      // Probably 403 (plan gate) — silently ignore so non-PRO+ users see nothing
+      // 403 = plan gate: stay silent so non-PRO+ users see nothing. Surface
+      // other errors (e.g. 404/503) so the user knows what went wrong.
+      if (err?.response?.status !== 403) {
+        toast.error(formatApiError(err, 'Nepodařilo se načíst stav Google kalendáře'));
+      }
       console.error('Google status fetch failed');
     }
   };
@@ -244,7 +261,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       const weekStr = formatDate(weekStart);
       const endStr = formatDate(new Date(weekStart.getTime() + 6 * 86400000));
       const params = lecturerId ? `?user_id=${lecturerId}&start=${weekStr}&end=${endStr}` : `?start=${weekStr}&end=${endStr}`;
-      const res = await axios.get(`${API}/api/google-calendar/blocks${params}`, { headers });
+      const res = await axios.get(`${API}/google-calendar/blocks${params}`, { headers });
       setGoogleBlocks(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Google blocks fetch failed');
@@ -253,35 +270,54 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const connectGoogle = async () => {
     try {
-      const res = await axios.get(`${API}/api/google-calendar/connect`, { headers });
+      const res = await axios.get(`${API}/google-calendar/connect`, { headers });
       if (res.data.auth_url) {
         window.open(res.data.auth_url, 'google_auth', 'width=500,height=700');
       }
     } catch (err) {
-      const msg = err?.response?.data?.detail || 'Nepodařilo se zahájit připojení Google kalendáře';
-      toast.error(msg);
+      toast.error(formatApiError(err, 'Nepodařilo se zahájit připojení Google kalendáře'));
     }
   };
 
-  const disconnectGoogle = async () => {
+  const disconnectGoogle = async (deleteExported) => {
     try {
-      await axios.post(`${API}/api/google-calendar/disconnect`, {}, { headers });
+      const res = await axios.post(`${API}/google-calendar/disconnect`, { delete_exported: !!deleteExported }, { headers });
       setGoogleStatus({ connected: false, configured: googleStatus.configured });
       setGoogleBlocks([]);
-      toast.success('Google kalendář odpojen');
+      setGoogleSyncResult(null);
+      setShowGoogleDisconnect(false);
+      toast.success(res.data?.message || 'Google kalendář odpojen');
     } catch (err) {
-      toast.error('Chyba při odpojování');
+      toast.error(formatApiError(err, 'Chyba při odpojování'));
+    }
+  };
+
+  const updateGoogleSetting = async (key, value) => {
+    const prev = googleStatus;
+    setGoogleStatus(s => ({ ...s, [key]: value }));
+    try {
+      await axios.put(`${API}/google-calendar/settings`, { [key]: value }, { headers });
+      toast.success('Nastavení uloženo');
+    } catch (err) {
+      setGoogleStatus(prev);
+      toast.error(formatApiError(err, 'Nepodařilo se uložit nastavení'));
+      // If export needs the calendar.events scope, reflect reconnect requirement.
+      if (err?.response?.status === 409) {
+        setGoogleStatus(s => ({ ...s, needs_reconnect: true }));
+      }
     }
   };
 
   const syncGoogle = async () => {
     setGoogleSyncing(true);
     try {
-      const res = await axios.post(`${API}/api/google-calendar/sync`, {}, { headers });
+      const res = await axios.post(`${API}/google-calendar/sync`, {}, { headers });
       toast.success(res.data.message || 'Synchronizováno');
+      setGoogleSyncResult(res.data);
+      await fetchGoogleStatus();
       await fetchGoogleBlocks();
     } catch (err) {
-      toast.error('Synchronizace selhala');
+      toast.error(formatApiError(err, 'Synchronizace selhala'));
     } finally {
       setGoogleSyncing(false);
     }
@@ -289,7 +325,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const toggleGoogleBlockOverride = async (blockId) => {
     try {
-      const res = await axios.post(`${API}/api/google-calendar/blocks/${blockId}/override`, {}, { headers });
+      const res = await axios.post(`${API}/google-calendar/blocks/${blockId}/override`, {}, { headers });
       toast.success(res.data.message);
       await fetchGoogleBlocks();
     } catch (err) {
@@ -315,7 +351,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     }
     try {
       const params = selectedLecturer ? `?lecturer_id=${selectedLecturer}` : '';
-      await axios.post(`${API}/api/lecturer-availability/recurring${params}`, recurringForm, { headers });
+      await axios.post(`${API}/lecturer-availability/recurring${params}`, recurringForm, { headers });
       toast.success('Pravidelná dostupnost přidána.');
       setShowAddRecurring(false);
       setRecurringForm({ days_of_week: [], start_time: '08:00', end_time: '12:00' });
@@ -327,7 +363,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const handleUpdateRecurring = async () => {
     try {
-      await axios.put(`${API}/api/lecturer-availability/recurring/${editingRecurring.id}`, {
+      await axios.put(`${API}/lecturer-availability/recurring/${editingRecurring.id}`, {
         day_of_week: editingRecurring.day_of_week,
         start_time: editingRecurring.start_time,
         end_time: editingRecurring.end_time,
@@ -347,7 +383,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     }
     try {
       const params = selectedLecturer ? `?lecturer_id=${selectedLecturer}` : '';
-      await axios.post(`${API}/api/lecturer-availability/recurring${params}`, {
+      await axios.post(`${API}/lecturer-availability/recurring${params}`, {
         days_of_week: [],
         start_time: oneOffForm.start_time,
         end_time: oneOffForm.end_time,
@@ -364,7 +400,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const handleDeleteRecurring = async (id) => {
     try {
-      await axios.delete(`${API}/api/lecturer-availability/recurring/${id}`, { headers });
+      await axios.delete(`${API}/lecturer-availability/recurring/${id}`, { headers });
       toast.success('Blok smazán.');
       fetchData();
     } catch (err) {
@@ -386,7 +422,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
         end_time: timeOffForm.end_time || null,
         reason: timeOffForm.reason || null,
       };
-      await axios.post(`${API}/api/lecturer-availability/time-off${params}`, payload, { headers });
+      await axios.post(`${API}/lecturer-availability/time-off${params}`, payload, { headers });
       toast.success('Blokace přidána.');
       setShowAddTimeOff(false);
       setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' });
@@ -398,7 +434,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const handleUpdateTimeOff = async () => {
     try {
-      await axios.put(`${API}/api/lecturer-availability/time-off/${editingTimeOff.id}`, {
+      await axios.put(`${API}/lecturer-availability/time-off/${editingTimeOff.id}`, {
         start_date: editingTimeOff.start_date,
         end_date: editingTimeOff.end_date,
         start_time: editingTimeOff.start_time || null,
@@ -415,7 +451,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const handleDeleteTimeOff = async (id) => {
     try {
-      await axios.delete(`${API}/api/lecturer-availability/time-off/${id}`, { headers });
+      await axios.delete(`${API}/lecturer-availability/time-off/${id}`, { headers });
       toast.success('Blokace smazána.');
       fetchData();
     } catch (err) {
@@ -753,6 +789,17 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
             <div className="flex items-center gap-2">
               {googleStatus.connected ? (
                 <>
+                  {googleStatus.needs_reconnect && (
+                    <Button
+                      size="sm"
+                      onClick={connectGoogle}
+                      className="bg-amber-500 hover:bg-amber-600 text-white"
+                      data-testid="reconnect-google-btn"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-1" />
+                      Znovu připojit
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -761,12 +808,12 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
                     data-testid="sync-google-btn"
                   >
                     <RefreshCw className={`w-4 h-4 mr-1 ${googleSyncing ? 'animate-spin' : ''}`} />
-                    Sync
+                    Synchronizovat nyní
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={disconnectGoogle}
+                    onClick={() => setShowGoogleDisconnect(true)}
                     className="text-red-600 border-red-200 hover:bg-red-50"
                     data-testid="disconnect-google-btn"
                   >
@@ -789,6 +836,57 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
               )}
             </div>
           </div>
+
+          {googleStatus.needs_reconnect && googleStatus.connected && (
+            <div className="mt-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800" data-testid="google-reconnect-notice">
+              Je potřeba znovu připojit Google účet — pro export rezervací chybí oprávnění ke kalendáři.
+            </div>
+          )}
+
+          {/* Sync-mode toggles */}
+          {googleStatus.connected && (
+            <div className="mt-3 pt-3 border-t space-y-3" data-testid="google-sync-settings">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Import z Google</p>
+                  <p className="text-xs text-gray-500">Osobní události z Google blokují vaši dostupnost v Budeživo. Nevytvářejí rezervace a jejich názvy nemusí vidět ostatní role.</p>
+                </div>
+                <Switch
+                  checked={!!googleStatus.import_enabled}
+                  onCheckedChange={(v) => updateGoogleSetting('import_enabled', v)}
+                  data-testid="google-import-toggle"
+                />
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Export do Google</p>
+                  <p className="text-xs text-gray-500">Rezervace, ke kterým jste přiřazeni, se zobrazí ve vašem Google kalendáři.</p>
+                </div>
+                <Switch
+                  checked={!!googleStatus.export_enabled}
+                  onCheckedChange={(v) => updateGoogleSetting('export_enabled', v)}
+                  data-testid="google-export-toggle"
+                />
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Automatická synchronizace</p>
+                  <p className="text-xs text-gray-500">Pravidelně synchronizovat na pozadí.</p>
+                </div>
+                <Switch
+                  checked={!!googleStatus.auto_sync_enabled}
+                  onCheckedChange={(v) => updateGoogleSetting('auto_sync_enabled', v)}
+                  data-testid="google-autosync-toggle"
+                />
+              </div>
+            </div>
+          )}
+
+          {googleSyncResult && (
+            <div className="mt-3 p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600" data-testid="google-sync-result">
+              Importováno {googleSyncResult.imported} blokací · vytvořeno {googleSyncResult.created} · aktualizováno {googleSyncResult.updated} · odstraněno {googleSyncResult.deleted} · chyb {googleSyncResult.errors}
+            </div>
+          )}
 
           {googleBlocks.length > 0 && (
             <div className="mt-3 pt-3 border-t">
@@ -821,6 +919,34 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
             </div>
           )}
         </Card>
+
+        {/* Google disconnect dialog — choose what happens to exported events */}
+        <Dialog open={showGoogleDisconnect} onOpenChange={setShowGoogleDisconnect}>
+          <DialogContent className="sm:max-w-md" aria-describedby={undefined} data-testid="google-disconnect-dialog">
+            <DialogHeader>
+              <DialogTitle>Odpojit Google kalendář</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-1">
+              <p className="text-sm text-gray-600">Co se má stát s událostmi, které do Google kalendáře vytvořilo Budeživo? Vaše osobní události zůstanou nedotčené.</p>
+              <Button
+                onClick={() => disconnectGoogle(true)}
+                className="w-full bg-red-600 hover:bg-red-700 text-white"
+                data-testid="disconnect-delete-events-btn"
+              >
+                Odstranit exportované události z Google kalendáře
+              </Button>
+              <Button
+                onClick={() => disconnectGoogle(false)}
+                variant="outline"
+                className="w-full"
+                data-testid="disconnect-keep-events-btn"
+              >
+                Ponechat je v Google kalendáři
+              </Button>
+              <Button onClick={() => setShowGoogleDisconnect(false)} variant="ghost" className="w-full">Zrušit</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Legend */}
         <div className="flex items-center gap-6 text-xs">

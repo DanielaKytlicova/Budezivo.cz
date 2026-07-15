@@ -219,6 +219,11 @@ export const RegisterPage = () => {
   };
 
   const skipStep = () => {
+    // Na posledním kroku „Přeskočit" rovnou dokončí registraci a přesměruje na dashboard
+    if (currentStep >= STEPS.length - 1) {
+      handleSubmit();
+      return;
+    }
     setCurrentStep(prev => Math.min(prev + 1, STEPS.length - 1));
   };
 

@@ -603,7 +603,7 @@ async def upload_program_image_endpoint(
 ):
     """Upload cover image for a program. Gated by `program_photos` feature flag."""
     from services.storage_service import (
-        ALLOWED_IMAGE_TYPES, MAX_PROGRAM_IMAGE_SIZE, upload_program_image,
+        ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS, MAX_PROGRAM_IMAGE_SIZE, upload_program_image,
     )
 
     await _require_program_photos(db, current_user["institution_id"])
@@ -613,22 +613,31 @@ async def upload_program_image_endpoint(
     if not program:
         raise HTTPException(status_code=404, detail="Program nenalezen")
 
-    if file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=400, detail="Nepodporovaný formát. Povoleno: PNG, JPG, SVG, WebP, GIF")
+    filename = (file.filename or "").lower()
+    ext = filename.rsplit(".", 1)[-1] if "." in filename else ""
+    content_type_ok = (file.content_type or "").lower() in ALLOWED_IMAGE_TYPES
+    ext_ok = ext in ALLOWED_IMAGE_EXTENSIONS
+    if not (content_type_ok or ext_ok):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nepodporovaný formát ({file.content_type or 'unknown'}). Povoleno: PNG, JPG/JPEG, SVG, WebP, GIF",
+        )
 
     data = await file.read()
     if len(data) > MAX_PROGRAM_IMAGE_SIZE:
         raise HTTPException(status_code=400, detail="Soubor je příliš velký (max 5 MB)")
 
-    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "png"
+    if not ext or ext not in ALLOWED_IMAGE_EXTENSIONS:
+        ext = "png"
 
     try:
         storage_path = upload_program_image(
-            current_user["institution_id"], program_id, data, file.content_type, ext,
+            current_user["institution_id"], program_id, data, file.content_type or f"image/{ext}", ext,
         )
     except Exception as e:
-        logger.error(f"Program image upload failed: {e}")
-        raise HTTPException(status_code=500, detail="Nahrání fotografie selhalo")
+        import traceback
+        logger.error(f"Program image upload failed: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Nahrání fotografie selhalo: {str(e)[:200]}")
 
     image_url = f"/api/programs/image/{storage_path}"
     await program_repo.update(program_id, current_user["institution_id"], {"image_url": image_url})

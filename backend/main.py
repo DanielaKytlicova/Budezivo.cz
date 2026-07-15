@@ -199,12 +199,24 @@ async def update_institution_settings(
     """Update institution settings."""
     institution_repo = InstitutionRepositorySupabase(db)
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
-    
+
     result = await institution_repo.update(current_user["institution_id"], update_data)
-    
+
     if result == 0:
         raise HTTPException(status_code=404, detail="Institution not found")
-    
+
+    # Synchronize logo_url to theme so the public booking/catalog page reflects it
+    if "logo_url" in update_data:
+        try:
+            from database.supabase_repositories import ThemeRepositorySupabase
+            theme_repo = ThemeRepositorySupabase(db)
+            await theme_repo.create_or_update(
+                current_user["institution_id"],
+                {"logo_url": update_data["logo_url"] or None},
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Theme logo sync failed: {e}")
+
     return {"message": "Settings updated"}
 
 

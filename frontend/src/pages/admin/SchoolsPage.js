@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useContext } from 'react';
 import { useTranslation } from '../../i18n/useTranslation';
 import { AdminLayout } from '../../components/layout/AdminLayout';
 import { Card } from '../../components/ui/card';
@@ -18,9 +18,11 @@ import {
 import { API } from '../../config/api';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
+import { AuthContext } from '../../context/AuthContext';
 
 export const SchoolsPage = () => {
   const { t } = useTranslation();
+  const { user } = useContext(AuthContext);
   const [schools, setSchools] = useState([]);
   const [programs, setPrograms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +65,96 @@ export const SchoolsPage = () => {
   
   // Predefined tags
   const PREDEFINED_TAGS = ['MŠ', 'ZŠ', 'SŠ', 'VOŠ', 'VŠ', 'Gymnázium', 'ZUŠ', 'DDM', 'Jiné'];
+
+  // Bulk delete
+  const [showBulkDelete, setShowBulkDelete] = useState(false);
+  const [bulkSummary, setBulkSummary] = useState(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [purgeConfirmChecked, setPurgeConfirmChecked] = useState(false);
+  const [purgeConfirmText, setPurgeConfirmText] = useState('');
+  // Bulk tags
+  const [showBulkTags, setShowBulkTags] = useState(false);
+  const [bulkTags, setBulkTags] = useState([]);
+  const [bulkNewTag, setBulkNewTag] = useState('');
+  const [bulkTagMode, setBulkTagMode] = useState('add');
+
+  const role = user?.role;
+  const canPurge = role === 'admin' || role === 'spravce';
+
+  const openBulkDelete = async () => {
+    setBulkSummary(null);
+    setPurgeConfirmChecked(false);
+    setPurgeConfirmText('');
+    setShowBulkDelete(true);
+    try {
+      const res = await axios.post(`${API}/schools/bulk/summary`, { school_ids: selectedSchools });
+      setBulkSummary(res.data);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Nepodařilo se načíst souhrn');
+      setShowBulkDelete(false);
+    }
+  };
+
+  const runBulkDelete = async (mode) => {
+    setBulkBusy(true);
+    try {
+      const res = await axios.post(`${API}/schools/bulk/delete`, {
+        school_ids: selectedSchools, mode,
+        confirm_text: mode === 'purge' ? purgeConfirmText : undefined,
+      });
+      const d = res.data;
+      const parts = [];
+      if (d.deleted_schools) parts.push(`${d.deleted_schools} škol`);
+      if (d.hidden_schools) parts.push(`${d.hidden_schools} skrytých škol`);
+      if (d.deleted_contacts) parts.push(`${d.deleted_contacts} kontaktů`);
+      if (d.deleted_reservations) parts.push(`${d.deleted_reservations} testovacích rezervací`);
+      toast.success('Hotovo: ' + (parts.join(', ') || 'bez změn'));
+      setShowBulkDelete(false);
+      setSelectedSchools([]);
+      await fetchData();
+      await fetchTags();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Operace selhala');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  const openBulkTags = () => {
+    setBulkTags([]);
+    setBulkNewTag('');
+    setBulkTagMode('add');
+    setShowBulkTags(true);
+  };
+
+  const toggleBulkTag = (t) => {
+    setBulkTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+  };
+
+  const addBulkNewTag = () => {
+    const t = bulkNewTag.trim();
+    if (t && !bulkTags.includes(t)) setBulkTags(prev => [...prev, t]);
+    setBulkNewTag('');
+  };
+
+  const runBulkTags = async () => {
+    if (bulkTags.length === 0) { toast.error('Vyberte nebo zadejte alespoň jeden tag'); return; }
+    setBulkBusy(true);
+    try {
+      const res = await axios.post(`${API}/schools/bulk/tags`, {
+        school_ids: selectedSchools, tags: bulkTags, mode: bulkTagMode,
+      });
+      toast.success(`Tagy upraveny u ${res.data.updated_schools} škol`);
+      setShowBulkTags(false);
+      setSelectedSchools([]);
+      await fetchData();
+      await fetchTags();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Uložení tagů selhalo');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   useEffect(() => {
     fetchData();
@@ -531,6 +623,25 @@ export const SchoolsPage = () => {
                   <Send className="w-4 h-4 mr-2" />
                   Rozeslat ({selectedSchools.length})
                 </Button>
+                <Button
+                  onClick={openBulkTags}
+                  disabled={selectedSchools.length === 0}
+                  variant="outline"
+                  data-testid="bulk-add-tags-btn"
+                >
+                  <Tag className="w-4 h-4 mr-2" />
+                  Přidat tagy
+                </Button>
+                <Button
+                  onClick={openBulkDelete}
+                  disabled={selectedSchools.length === 0}
+                  variant="outline"
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                  data-testid="bulk-delete-schools-btn"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Smazat vybrané školy ({selectedSchools.length})
+                </Button>
               </>
             )}
           </div>
@@ -933,6 +1044,99 @@ export const SchoolsPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk delete schools */}
+      <Dialog open={showBulkDelete} onOpenChange={setShowBulkDelete}>
+        <DialogContent className="sm:max-w-lg" data-testid="bulk-delete-dialog">
+          <DialogHeader>
+            <DialogTitle>
+              {bulkSummary && bulkSummary.booking_count > 0 ? 'Vybrané školy mají rezervace' : 'Trvale smazat vybrané školy?'}
+            </DialogTitle>
+          </DialogHeader>
+          {!bulkSummary ? (
+            <p className="text-sm text-gray-500 py-4">Načítám souhrn…</p>
+          ) : bulkSummary.booking_count === 0 ? (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-700" data-testid="bulk-delete-summary">
+                Budou trvale odstraněny <strong>{bulkSummary.school_count}</strong> školy a <strong>{bulkSummary.contact_count}</strong> kontaktní osoby. Tuto akci nelze vrátit zpět.
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowBulkDelete(false)} data-testid="bulk-delete-cancel">Zrušit</Button>
+                <Button className="bg-red-600 hover:bg-red-700 text-white" disabled={bulkBusy} onClick={() => runBulkDelete('hard')} data-testid="bulk-delete-confirm-hard">Trvale smazat</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800" data-testid="bulk-delete-summary">
+                Vybrané školy mají <strong>{bulkSummary.booking_count}</strong> navázaných rezervací. Jejich odstranění by ovlivnilo statistiky a historii rezervací.
+              </div>
+              <Button variant="outline" className="w-full" disabled={bulkBusy} onClick={() => runBulkDelete('hide')} data-testid="bulk-delete-hide">
+                Pouze skrýt školy (rezervace i statistiky zůstanou)
+              </Button>
+              {canPurge && (
+                <div className="border-t pt-3 space-y-2">
+                  <p className="text-sm font-medium text-slate-800">Smazat jako testovací data</p>
+                  <label className="flex items-start gap-2 text-sm text-gray-600">
+                    <input type="checkbox" checked={purgeConfirmChecked} onChange={e => setPurgeConfirmChecked(e.target.checked)} className="mt-1" data-testid="purge-understand-checkbox" />
+                    Rozumím, že budou odstraněny také rezervace a změní se statistiky.
+                  </label>
+                  <Input placeholder="Napište SMAZAT" value={purgeConfirmText} onChange={e => setPurgeConfirmText(e.target.value)} data-testid="purge-confirm-input" />
+                  <Button
+                    className="w-full bg-red-600 hover:bg-red-700 text-white"
+                    disabled={bulkBusy || !purgeConfirmChecked || purgeConfirmText !== 'SMAZAT'}
+                    onClick={() => runBulkDelete('purge')}
+                    data-testid="bulk-delete-purge"
+                  >
+                    Smazat jako testovací data
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk add tags */}
+      <Dialog open={showBulkTags} onOpenChange={setShowBulkTags}>
+        <DialogContent className="sm:max-w-lg" data-testid="bulk-tags-dialog">
+          <DialogHeader>
+            <DialogTitle>Přidat tagy ({selectedSchools.length} škol)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {[...new Set([...PREDEFINED_TAGS, ...availableTags])].map(tag => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => toggleBulkTag(tag)}
+                  className={`px-3 py-1 rounded-full text-sm border ${bulkTags.includes(tag) ? 'bg-slate-800 text-white border-slate-800' : 'bg-white text-slate-700 border-slate-200'}`}
+                  data-testid={`bulk-tag-option-${tag}`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Input placeholder="Nový tag" value={bulkNewTag} onChange={e => setBulkNewTag(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBulkNewTag(); } }} data-testid="bulk-new-tag-input" />
+              <Button variant="outline" onClick={addBulkNewTag} data-testid="bulk-add-new-tag">Přidat</Button>
+            </div>
+            {bulkTags.length > 0 && (
+              <div className="flex flex-wrap gap-1" data-testid="bulk-selected-tags">
+                {bulkTags.map(t => <Badge key={t} variant="secondary">{t}</Badge>)}
+              </div>
+            )}
+            <div className="flex gap-4 text-sm">
+              <label className="flex items-center gap-1"><input type="radio" checked={bulkTagMode === 'add'} onChange={() => setBulkTagMode('add')} data-testid="bulk-tag-mode-add" /> Přidat ke stávajícím</label>
+              <label className="flex items-center gap-1"><input type="radio" checked={bulkTagMode === 'replace'} onChange={() => setBulkTagMode('replace')} data-testid="bulk-tag-mode-replace" /> Nahradit stávající</label>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowBulkTags(false)}>Zrušit</Button>
+              <Button className="bg-slate-800 text-white" disabled={bulkBusy} onClick={runBulkTags} data-testid="bulk-tags-confirm">Uložit tagy</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
 
       {/* Import Modal */}
       <Dialog open={showImportModal} onOpenChange={resetImportModal}>

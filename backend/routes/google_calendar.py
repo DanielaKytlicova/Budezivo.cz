@@ -762,6 +762,15 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
     now = datetime.now(timezone.utc)
     today = now.strftime("%Y-%m-%d")
 
+    # Determine export scope from the integration OWNER's role (read from DB,
+    # never trusted from the client). Admin/manager export the whole institution;
+    # educators/lecturers export only reservations they are assigned to; any
+    # other role falls back to the safe personal (assigned) scope.
+    owner_role = (await db.execute(
+        select(User.role).where(User.id == integration.user_id)
+    )).scalar_one_or_none()
+    institution_scope = owner_role in ("admin", "spravce")
+
     res_rows = (await db.execute(
         select(Reservation).where(and_(
             Reservation.institution_id == inst_id,
@@ -770,8 +779,11 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
             Reservation.status.notin_(list(CANCELLED_STATUSES)),
         ))
     )).scalars().all()
-    assigned = [r for r in res_rows if user_id in reservation_assigned_user_ids(r)]
-    assigned_ids = {str(r.id) for r in assigned}
+    if institution_scope:
+        reservations_to_export = res_rows
+    else:
+        reservations_to_export = [r for r in res_rows if user_id in reservation_assigned_user_ids(r)]
+    export_ids = {str(r.id) for r in reservations_to_export}
 
     links = (await db.execute(
         select(CalendarEventExport).where(and_(

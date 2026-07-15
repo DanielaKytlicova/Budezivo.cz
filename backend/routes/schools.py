@@ -16,7 +16,7 @@ from pydantic import BaseModel, EmailStr, Field
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
 from fastapi.responses import Response, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
 
 from models.schemas import School, PropagationRequest
 from core.security import get_current_user
@@ -478,6 +478,217 @@ async def get_all_tags(
     
     tags = [row[0] for row in result.fetchall()]
     return {"tags": tags}
+
+
+# ─────────────────────────────────────────────────────────────────
+# Bulk operations on schools (delete / hide / add tags)
+# ─────────────────────────────────────────────────────────────────
+MAX_BULK_SCHOOLS = 500
+
+
+class BulkSummaryRequest(BaseModel):
+    school_ids: List[str]
+
+
+class BulkDeleteRequest(BaseModel):
+    school_ids: List[str]
+    mode: str  # 'hard' | 'hide' | 'purge'
+    confirm_text: Optional[str] = None
+
+
+class BulkTagsRequest(BaseModel):
+    school_ids: List[str]
+    tags: List[str]
+    mode: str = 'add'  # 'add' | 'replace'
+
+
+def _validate_ids(ids: List[str]):
+    if not ids:
+        raise HTTPException(status_code=400, detail="Nebyly vybrány žádné školy")
+    if len(ids) > MAX_BULK_SCHOOLS:
+        raise HTTPException(status_code=400, detail=f"Najednou lze zpracovat maximálně {MAX_BULK_SCHOOLS} škol")
+
+
+async def _owned_school_names(db, inst_id, ids: List[str]) -> List[str]:
+    """Return names of schools that belong to the institution (tenant isolation)."""
+    stmt = text(
+        "SELECT name FROM schools WHERE institution_id = :inst AND deleted_at IS NULL AND id IN :ids"
+    ).bindparams(bindparam("ids", expanding=True))
+    res = await db.execute(stmt, {"inst": inst_id, "ids": ids})
+    return [r[0] for r in res.fetchall()]
+
+
+@router.post("/bulk/summary")
+async def bulk_delete_summary(
+    data: BulkSummaryRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Server-side summary before a bulk delete: school/contact/reservation counts."""
+    _validate_ids(data.school_ids)
+    inst = current_user["institution_id"]
+
+    names = await _owned_school_names(db, inst, data.school_ids)
+    school_count = len(names)
+
+    contact_stmt = text(
+        "SELECT COUNT(*) FROM school_contacts WHERE institution_id = :inst AND school_id IN :ids"
+    ).bindparams(bindparam("ids", expanding=True))
+    contact_count = (await db.execute(contact_stmt, {"inst": inst, "ids": data.school_ids})).scalar() or 0
+
+    # Reservations only link to schools by name (no reliable FK) → count is
+    # informational only; deleting reservations this way is NOT allowed.
+    booking_count = 0
+    if names:
+        b_stmt = text(
+            "SELECT COUNT(*) FROM reservations WHERE institution_id = :inst "
+            "AND deleted_at IS NULL AND status NOT IN ('cancelled','canceled') "
+            "AND school_name IN :names"
+        ).bindparams(bindparam("names", expanding=True))
+        booking_count = (await db.execute(b_stmt, {"inst": inst, "names": names})).scalar() or 0
+
+    return {
+        "school_count": school_count,
+        "contact_count": int(contact_count),
+        "booking_count": int(booking_count),
+        # No FK reservations→schools, so test reservations can't be safely purged.
+        "reservations_deletable": False,
+    }
+
+
+@router.post("/bulk/delete")
+async def bulk_delete_schools(
+    data: BulkDeleteRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Bulk delete (hard) or hide (soft) schools of the current institution."""
+    role = current_user.get("role")
+    if role == "lektor":
+        raise HTTPException(status_code=403, detail="Nemáte oprávnění mazat školy")
+    _validate_ids(data.school_ids)
+    inst = current_user["institution_id"]
+
+    names = await _owned_school_names(db, inst, data.school_ids)
+    if not names:
+        raise HTTPException(status_code=404, detail="Žádná z vybraných škol nepatří vaší instituci")
+
+    b_stmt = text(
+        "SELECT COUNT(*) FROM reservations WHERE institution_id = :inst "
+        "AND deleted_at IS NULL AND status NOT IN ('cancelled','canceled') "
+        "AND school_name IN :names"
+    ).bindparams(bindparam("names", expanding=True))
+    booking_count = (await db.execute(b_stmt, {"inst": inst, "names": names})).scalar() or 0
+
+    id_filter = bindparam("ids", expanding=True)
+
+    if data.mode == "purge":
+        # Deleting reservations as "test data" requires a reliable DB link which
+        # does not exist (reservations only carry school_name). Block explicitly.
+        if role not in ("admin", "spravce"):
+            raise HTTPException(status_code=403, detail="Odstranění testovacích dat smí provést pouze správce")
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Rezervace nelze bezpečně odstranit — v databázi neexistuje spolehlivá vazba "
+                "rezervace→škola (rezervace se párují pouze podle názvu). Použijte „Pouze skrýt školy“."
+            ),
+        )
+
+    if data.mode == "hide":
+        stmt = text(
+            "UPDATE schools SET deleted_at = NOW(), updated_at = NOW() "
+            "WHERE institution_id = :inst AND deleted_at IS NULL AND id IN :ids"
+        ).bindparams(id_filter)
+        res = await db.execute(stmt, {"inst": inst, "ids": data.school_ids})
+        await db.commit()
+        return {"hidden_schools": res.rowcount, "deleted_schools": 0, "deleted_contacts": 0, "deleted_reservations": 0}
+
+    if data.mode == "hard":
+        if booking_count > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Vybrané školy mají {booking_count} navázaných rezervací. Trvalé smazání by ovlivnilo "
+                    f"statistiky a historii. Použijte „Pouze skrýt školy“."
+                ),
+            )
+        try:
+            c_stmt = text(
+                "DELETE FROM school_contacts WHERE institution_id = :inst AND school_id IN :ids"
+            ).bindparams(id_filter)
+            c_res = await db.execute(c_stmt, {"inst": inst, "ids": data.school_ids})
+            s_stmt = text(
+                "DELETE FROM schools WHERE institution_id = :inst AND id IN :ids"
+            ).bindparams(id_filter)
+            s_res = await db.execute(s_stmt, {"inst": inst, "ids": data.school_ids})
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise HTTPException(status_code=500, detail="Smazání se nezdařilo, změny byly vráceny zpět")
+        return {
+            "deleted_schools": s_res.rowcount,
+            "deleted_contacts": c_res.rowcount,
+            "hidden_schools": 0,
+            "deleted_reservations": 0,
+        }
+
+    raise HTTPException(status_code=400, detail="Neplatný režim")
+
+
+@router.post("/bulk/tags")
+async def bulk_add_tags(
+    data: BulkTagsRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Add or replace tags on multiple schools (tenant-safe, deduped)."""
+    role = current_user.get("role")
+    if role == "lektor":
+        raise HTTPException(status_code=403, detail="Nemáte oprávnění upravovat školy")
+    _validate_ids(data.school_ids)
+    if data.mode not in ("add", "replace"):
+        raise HTTPException(status_code=400, detail="Neplatný režim")
+    inst = current_user["institution_id"]
+
+    # Clean incoming tags: strip, drop empty, dedupe (case-sensitive, keep Unicode).
+    clean_new = []
+    for t in (data.tags or []):
+        t = (t or "").strip()
+        if t and t not in clean_new:
+            clean_new.append(t)
+
+    sel = text(
+        "SELECT id, tags FROM schools WHERE institution_id = :inst AND deleted_at IS NULL AND id IN :ids"
+    ).bindparams(bindparam("ids", expanding=True))
+    rows = (await db.execute(sel, {"inst": inst, "ids": data.school_ids})).fetchall()
+    if not rows:
+        raise HTTPException(status_code=404, detail="Žádná z vybraných škol nepatří vaší instituci")
+
+    try:
+        updated = 0
+        for row in rows:
+            sid = row[0]
+            existing = row[1] if isinstance(row[1], list) else (json_lib.loads(row[1]) if row[1] else [])
+            if data.mode == "replace":
+                merged = list(clean_new)
+            else:
+                merged = list(existing)
+                for t in clean_new:
+                    if t not in merged:
+                        merged.append(t)
+            await db.execute(
+                text("UPDATE schools SET tags = CAST(:tags AS jsonb), updated_at = NOW() WHERE id = :sid AND institution_id = :inst"),
+                {"tags": json_lib.dumps(merged, ensure_ascii=False), "sid": str(sid), "inst": inst},
+            )
+            updated += 1
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail="Uložení tagů se nezdařilo, změny byly vráceny zpět")
+
+    return {"updated_schools": updated, "tags_applied": clean_new, "mode": data.mode}
+
 
 
 @router.get("/import-template")

@@ -1293,6 +1293,7 @@ def event_application_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
     variable_symbol = data.get("variable_symbol")
     payment_relevant = bool(data.get("payment_relevant"))
     is_free = bool(data.get("is_free"))
+    payment_method = data.get("payment_method")
     account_number = data.get("account_number")
     bank_code = data.get("bank_code")
     account_name = data.get("account_name")
@@ -1364,10 +1365,21 @@ def event_application_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
             </table>
         </div>"""
 
+    method_notice = ""
+    method_notice_plain = ""
+    if not is_waitlist and not is_free and price and float(price) > 0:
+        if payment_method == "cash":
+            method_notice = f'<div style="{BASE_STYLES["info_box"]}"><strong>Platba proběhne na místě.</strong></div>'
+            method_notice_plain = "Platba proběhne na místě.\n"
+        elif payment_method == "gateway":
+            method_notice = f'<div style="{BASE_STYLES["info_box"]}">Platba probíhá online přes platební bránu. Po úspěšném zaplacení se vaše registrace automaticky potvrdí.</div>'
+            method_notice_plain = "Platba probíhá online přes platební bránu. Po úspěšném zaplacení se registrace automaticky potvrdí.\n"
+
     content = f"""
         <h1 style="{BASE_STYLES['h1']}">{heading}</h1>
         <div style="{alert_style}; margin-bottom: 20px;">{intro}</div>
         {free_notice}
+        {method_notice}
         <div style="{BASE_STYLES['info_box']}">
             <table style="width: 100%; border-collapse: collapse;">{rows_html}
             </table>
@@ -1387,6 +1399,7 @@ def event_application_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
         + (f"Termín: {date_label}\n" if date_label else "")
         + f"Stav registrace: {status_label}\n"
         + ("Účast na akci je zdarma.\n" if is_free else "")
+        + (method_notice_plain)
         + (f"Cena: {price} {currency}\n" if price and float(price) > 0 else "")
         + (f"Variabilní symbol: {variable_symbol}\n" if variable_symbol else "")
         + f"\nInstituce: {institution_name}\n"

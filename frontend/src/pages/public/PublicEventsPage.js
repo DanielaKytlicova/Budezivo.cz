@@ -12,6 +12,12 @@ import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+const PAYMENT_METHOD_LABELS = {
+  qr: 'QR platba / bankovní převod',
+  gateway: 'Platba kartou online (Comgate)',
+  cash: 'Platba na místě',
+};
+
 export default function PublicEventsPage() {
   const { institutionId } = useParams();
   const [step, setStep] = useState('list');
@@ -24,6 +30,7 @@ export default function PublicEventsPage() {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [payingOnline, setPayingOnline] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState(null);
   const [gdprConsent, setGdprConsent] = useState(false);
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [termsConsent, setTermsConsent] = useState(false);
@@ -84,6 +91,17 @@ export default function PublicEventsPage() {
     }
     setSubmitting(true);
     try {
+      const methods = selectedEvent.payment_methods || [];
+      const isFree = selectedEvent.is_free || (selectedEvent.price || 0) <= 0;
+      let chosen = selectedMethod;
+      if (!isFree) {
+        if (!chosen && methods.length === 1) chosen = methods[0];
+        if (methods.length > 1 && !chosen) {
+          toast.error('Vyberte prosím způsob platby.');
+          setSubmitting(false);
+          return;
+        }
+      }
       const emailField = selectedEvent.form_fields?.find(f => f.type === 'email');
       const nameField = selectedEvent.form_fields?.find(f => f.label?.toLowerCase().includes('jméno') || f.label?.toLowerCase().includes('name'));
       const res = await axios.post(`${API_URL}/api/events/public/${institutionId}/apply`, {
@@ -92,6 +110,7 @@ export default function PublicEventsPage() {
         applicant_data: formValues,
         applicant_email: emailField ? formValues[emailField.id] : null,
         applicant_name: nameField ? formValues[nameField.id] : null,
+        payment_method: isFree ? null : chosen,
       });
       setResult(res.data);
       setStep('success');
@@ -234,7 +253,15 @@ export default function PublicEventsPage() {
                   <p className="text-xs text-gray-500">Naskenujte QR kód v bankovní aplikaci nebo zadejte údaje ručně.</p>
                 </div>
               )}
-              {!result.waitlisted && (!result.qr_payload || result.total_amount === 0) && !result.payment_settings?.gateway_enabled && (
+              {!result.waitlisted && result.payment_method === 'cash' && result.total_amount > 0 && (
+                <div className="border-t pt-6 mt-6" data-testid="cash-notice">
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-left">
+                    <p className="text-sm font-medium text-amber-800">Platba proběhne na místě</p>
+                    <p className="text-xs text-amber-700 mt-1">Částku {result.total_amount} Kč prosím uhraďte na místě. Platbu následně potvrdí pořadatel.</p>
+                  </div>
+                </div>
+              )}
+              {!result.waitlisted && (!result.qr_payload || result.total_amount === 0) && !result.payment_settings?.gateway_enabled && result.payment_method !== 'cash' && (
                 <p className="text-sm text-gray-500">Organizátor vás bude kontaktovat s dalšími informacemi.</p>
               )}
 
@@ -360,6 +387,27 @@ export default function PublicEventsPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {(selectedEvent.form_fields || []).sort((a, b) => (a.order || 0) - (b.order || 0)).map(renderFormField)}
 
+                {/* Výběr způsobu platby — jen placené akce */}
+                {!(selectedEvent.is_free || (selectedEvent.price || 0) <= 0) && (selectedEvent.payment_methods || []).length > 0 && (
+                  <div className="pt-4 border-t border-gray-100" data-testid="payment-method-selector">
+                    <p className="text-sm font-medium text-gray-700 mb-2">
+                      Způsob platby {(selectedEvent.payment_methods || []).length > 1 && <span className="text-red-500">*</span>}
+                    </p>
+                    {(selectedEvent.payment_methods || []).length === 1 ? (
+                      <p className="text-sm text-gray-600" data-testid="payment-method-single">{PAYMENT_METHOD_LABELS[selectedEvent.payment_methods[0]] || selectedEvent.payment_methods[0]}</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {(selectedEvent.payment_methods || []).map(m => (
+                          <label key={m} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${selectedMethod === m ? 'border-[#5a7aae] bg-[#5a7aae]/5' : 'border-gray-200 hover:border-gray-300'}`} data-testid={`payment-method-${m}`}>
+                            <input type="radio" name="payment_method" checked={selectedMethod === m} onChange={() => setSelectedMethod(m)} className="w-4 h-4" data-testid={`payment-method-${m}-radio`} />
+                            <span className="text-sm text-gray-800">{PAYMENT_METHOD_LABELS[m] || m}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Consent checkboxes — vyžadováno pro online platby */}
                 <div className="pt-4 border-t border-gray-100 space-y-3">
                   <label className="flex items-start gap-3 cursor-pointer">
@@ -474,7 +522,7 @@ export default function PublicEventsPage() {
                     })}
                   </div>
                 )}
-                <Button onClick={() => { setFormValues({}); setStep('form'); }} disabled={!selectedDate && (selectedEvent.dates || []).length > 0} className="w-full bg-[#5a7aae] hover:bg-[#4a6a9e] h-12" data-testid="proceed-to-form-btn">
+                <Button onClick={() => { setFormValues({}); setSelectedMethod((selectedEvent.payment_methods || []).length === 1 ? selectedEvent.payment_methods[0] : null); setStep('form'); }} disabled={!selectedDate && (selectedEvent.dates || []).length > 0} className="w-full bg-[#5a7aae] hover:bg-[#4a6a9e] h-12" data-testid="proceed-to-form-btn">
                   Pokračovat k přihlášce <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>

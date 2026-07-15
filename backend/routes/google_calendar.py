@@ -31,7 +31,7 @@ from core.security import get_current_user
 from database.supabase import get_db
 from database.models import (
     UserCalendarIntegration, AvailabilityBlock, OAuthState, Program,
-    Reservation, Room, Institution, CalendarEventExport,
+    Reservation, Room, Institution, CalendarEventExport, User,
 )
 from services.plan_service import require_feature
 from services.google_calendar_helpers import (
@@ -267,6 +267,7 @@ async def get_connection_status(
         "auto_sync_enabled": integration.auto_sync_enabled,
         "needs_reconnect": integration.needs_reconnect,
         "has_events_scope": has_events_scope(integration.granted_scopes),
+        "export_scope": "institution" if current_user.get("role") in ("admin", "spravce") else "assigned",
     }
 
 
@@ -780,10 +781,10 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
         ))
     )).scalars().all()
     if institution_scope:
-        reservations_to_export = res_rows
+        assigned = res_rows
     else:
-        reservations_to_export = [r for r in res_rows if user_id in reservation_assigned_user_ids(r)]
-    export_ids = {str(r.id) for r in reservations_to_export}
+        assigned = [r for r in res_rows if user_id in reservation_assigned_user_ids(r)]
+    assigned_ids = {str(r.id) for r in assigned}
 
     links = (await db.execute(
         select(CalendarEventExport).where(and_(

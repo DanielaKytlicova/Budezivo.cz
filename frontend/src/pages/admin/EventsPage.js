@@ -40,7 +40,14 @@ const getDefaultEvent = () => ({
   currency: 'CZK',
   is_active: true,
   form_fields: [],
+  allowed_payment_methods: null,
 });
+
+const PAYMENT_METHOD_LABELS = {
+  qr: 'QR platba / bankovní převod',
+  gateway: 'Platební brána Comgate',
+  cash: 'Platba na místě',
+};
 
 export const EventsPage = () => {
   const { user } = useContext(AuthContext);
@@ -113,6 +120,7 @@ export const EventsPage = () => {
       currency: event.currency || 'CZK',
       is_active: event.is_active !== false,
       form_fields: event.form_fields || [],
+      allowed_payment_methods: event.allowed_payment_methods || null,
     });
     setActiveTab('detail');
     setShowDialog(true);
@@ -446,6 +454,44 @@ export const EventsPage = () => {
                   <Switch checked={formData.is_active} onCheckedChange={v => setFormData(p => ({ ...p, is_active: v }))} data-testid="event-active-toggle" />
                 </div>
               </Card>
+
+              {/* Povolené způsoby platby — jen pro placené akce, výběr z globálně povolených */}
+              {(formData.price || 0) > 0 && (() => {
+                const globalMethods = (paymentSettings?.allowed_methods || []).filter(m => paymentSettings?.methods_configured?.[m]);
+                const selected = formData.allowed_payment_methods || globalMethods;
+                const toggle = (m) => {
+                  const base = formData.allowed_payment_methods || globalMethods;
+                  const next = base.includes(m) ? base.filter(x => x !== m) : [...base, m];
+                  setFormData(p => ({ ...p, allowed_payment_methods: next }));
+                };
+                return (
+                  <Card className="p-4 md:p-6 space-y-3" data-testid="event-payment-methods">
+                    <h3 className="font-semibold text-slate-900">Povolené způsoby platby</h3>
+                    {globalMethods.length === 0 ? (
+                      <p className="text-sm text-amber-600">Instituce nemá nastavenou žádnou platební metodu. Nastavte ji v Nastavení → Platby.</p>
+                    ) : (
+                      <>
+                        <p className="text-sm text-gray-500">Vyberte, které z globálně povolených metod nabídnout účastníkům této akce.</p>
+                        {globalMethods.map(m => (
+                          <label key={m} className="flex items-center gap-3 p-2.5 border rounded-lg cursor-pointer hover:bg-gray-50" data-testid={`event-method-${m}`}>
+                            <input
+                              type="checkbox"
+                              className="w-4 h-4"
+                              checked={selected.includes(m)}
+                              onChange={() => toggle(m)}
+                              data-testid={`event-method-${m}-checkbox`}
+                            />
+                            <span className="text-sm text-slate-800">{PAYMENT_METHOD_LABELS[m] || m}</span>
+                          </label>
+                        ))}
+                        {selected.length === 0 && (
+                          <p className="text-xs text-red-500">Vyberte alespoň jednu metodu.</p>
+                        )}
+                      </>
+                    )}
+                  </Card>
+                );
+              })()}
             </div>
           )}
 
@@ -592,10 +638,16 @@ export const EventsPage = () => {
                     {/* Expanded detail */}
                     {isExpanded && (
                       <div className="border-t px-3 pb-3 space-y-3">
-                        <div className="pt-3 flex items-center gap-4 text-xs text-gray-500">
+                        <div className="pt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
                           <span>VS: {app.variable_symbol}</span>
+                          {app.payment_method && <span data-testid={`app-method-${app.id}`}>Způsob platby: {PAYMENT_METHOD_LABELS[app.payment_method] || app.payment_method}</span>}
                           <span>{app.created_at ? new Date(app.created_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</span>
                         </div>
+                        {app.paid_marked_at && (
+                          <p className="text-xs text-emerald-600" data-testid={`app-paid-by-${app.id}`}>
+                            Zaplaceno ručně označil {app.paid_marked_by_email || 'neznámý'} · {new Date(app.paid_marked_at).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        )}
                         {app.applicant_data && Object.keys(app.applicant_data).length > 0 && (
                           <div className="text-xs text-gray-600 bg-gray-50 rounded p-2.5 space-y-1.5">
                             {Object.entries(app.applicant_data).map(([k, v]) => {
@@ -654,24 +706,15 @@ export const EventsPage = () => {
                   <Label className="text-gray-500 text-sm">Název účtu</Label>
                   <Input value={paymentSettings?.account_name || ''} onChange={e => setPaymentSettings(p => ({ ...p, account_name: e.target.value }))} placeholder="Vaše organizace" className="mt-1" data-testid="payment-account-name" />
                 </div>
-                <div>
-                  <Label className="text-gray-500 text-sm">Režim platby</Label>
-                  <Select value={paymentSettings?.payment_mode || 'qr'} onValueChange={v => setPaymentSettings(p => ({ ...p, payment_mode: v }))}>
-                    <SelectTrigger className="mt-1" data-testid="payment-mode-select"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="qr">QR platba</SelectItem>
-                      <SelectItem value="gateway">Platební brána</SelectItem>
-                      <SelectItem value="both">QR + Brána</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                  <p className="text-sm font-medium text-slate-800">Globálně povolené metody</p>
+                  <p className="text-sm text-slate-600" data-testid="payment-global-methods">
+                    {(paymentSettings?.allowed_methods || []).length > 0
+                      ? (paymentSettings.allowed_methods).map(m => PAYMENT_METHOD_LABELS[m] || m).join(', ')
+                      : 'Žádné'}
+                  </p>
+                  <p className="text-xs text-gray-500">Metody a platební bránu spravujte v Nastavení → Platby.</p>
                 </div>
-                {(paymentSettings?.payment_mode === 'gateway' || paymentSettings?.payment_mode === 'both') && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                    <p className="text-sm text-emerald-700">
-                      Platební brána <strong>Comgate</strong> je aktivní. Po uložení můžete na rezervaci spustit platbu kartou.
-                    </p>
-                  </div>
-                )}
                 <Button onClick={() => savePaymentSettings(paymentSettings)} className="bg-slate-800 text-white" data-testid="save-payment-btn">Uložit platební nastavení</Button>
               </Card>
             </div>

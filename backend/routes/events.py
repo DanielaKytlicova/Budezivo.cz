@@ -277,6 +277,22 @@ async def list_events(
     return out
 
 
+async def _institution_has_payment_method(db: AsyncSession, inst_uuid) -> bool:
+    """True if the institution has at least one usable payment method configured
+    (bank account for QR/transfer, or an active payment gateway)."""
+    ps = (await db.execute(
+        select(InstitutionPaymentSettings).where(InstitutionPaymentSettings.institution_id == inst_uuid)
+    )).scalar_one_or_none()
+    if not ps:
+        return False
+    if ps.account_number:
+        return True
+    if getattr(ps, "comgate_enabled", False) or getattr(ps, "provider", None):
+        return True
+    return False
+
+
+
 @router.post("")
 async def create_event(
     data: EventCreate,
@@ -287,8 +303,16 @@ async def create_event(
     """Create a new event."""
     await require_events_module(db, current_user["institution_id"])
 
+    inst_uuid = uuid.UUID(current_user["institution_id"])
+    # A paid event needs a globally configured payment method.
+    if (data.price or 0) > 0 and not await _institution_has_payment_method(db, inst_uuid):
+        raise HTTPException(
+            status_code=400,
+            detail="Pro placenou akci nejprve nastavte platební metodu (číslo účtu nebo platební bránu).",
+        )
+
     event = Event(
-        institution_id=uuid.UUID(current_user["institution_id"]),
+        institution_id=inst_uuid,
         name=data.name,
         type=data.type,
         description=data.description,
@@ -364,6 +388,35 @@ async def update_event(
         raise HTTPException(status_code=404, detail="Událost nenalezena")
 
     update_data = data.model_dump(exclude_unset=True)
+
+    # Guard: switching a PAID event to FREE while payments already exist must not
+    # silently wipe payment history. Block and report the affected count.
+    new_price = update_data.get("price")
+    if new_price is not None and (new_price or 0) <= 0 and (event.price or 0) > 0:
+        paid_count = (await db.execute(
+            select(func.count(EventApplication.id)).where(and_(
+                EventApplication.event_id == event.id,
+                EventApplication.payment_status.in_(["pending", "paid"]),
+            ))
+        )).scalar() or 0
+        if paid_count > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Akci nelze změnit na bezplatnou: existuje {paid_count} přihlášek se zahájenou "
+                    f"nebo dokončenou platbou. Vyřešte je (např. refundaci) individuálně."
+                ),
+            )
+
+    # A paid event needs a globally configured payment method.
+    resulting_price = new_price if new_price is not None else event.price
+    if resulting_price is not None and (resulting_price or 0) > 0:
+        if not await _institution_has_payment_method(db, inst_uuid):
+            raise HTTPException(
+                status_code=400,
+                detail="Pro placenou akci nejprve nastavte platební metodu (číslo účtu nebo platební bránu).",
+            )
+
     for key, value in update_data.items():
         setattr(event, key, value)
     event.updated_at = datetime.now(timezone.utc)
@@ -813,6 +866,9 @@ async def submit_application(
     # mis-linking manual/QR bank transfers to the wrong application).
     vs = await _generate_unique_variable_symbol(db, inst_uuid)
 
+    # Free event → no payment is ever required for this application.
+    is_free = (event.price or 0) <= 0
+
     application = EventApplication(
         institution_id=inst_uuid,
         event_id=event.id,
@@ -822,9 +878,11 @@ async def submit_application(
         applicant_name=data.applicant_name,
         note=data.note,
         marketing_consent=bool(data.marketing_consent),
-        total_amount=event.price,
-        variable_symbol=vs,
+        total_amount=0 if is_free else event.price,
+        variable_symbol=None if is_free else vs,
         status=app_status,
+        payment_status="not_required" if is_free else "unpaid",
+        payment_method="free" if is_free else None,
     )
     db.add(application)
     await db.commit()
@@ -869,6 +927,7 @@ async def submit_application(
         )
         db.add(payment)
         application.payment_status = "pending"
+        application.payment_method = "qr"
         await db.commit()
 
     resp = _to_dict(application)
@@ -905,9 +964,10 @@ async def submit_application(
                     "date_label": date_label,
                     "is_waitlist": is_waitlisted,
                     "status": application.status,
+                    "is_free": is_free,
                     "price": event.price or 0,
                     "currency": event.currency or "CZK",
-                    "variable_symbol": vs,
+                    "variable_symbol": None if is_free else vs,
                     "payment_relevant": payment_relevant,
                     "account_number": pay_settings.account_number if pay_settings else None,
                     "bank_code": pay_settings.bank_code if pay_settings else None,

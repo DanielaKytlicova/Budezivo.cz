@@ -905,7 +905,8 @@ class EventApplication(Base):
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
     event_date_id = Column(UUID(as_uuid=True), ForeignKey('event_dates.id', ondelete='SET NULL'))
     status = Column(Text, nullable=False, default='pending')  # pending, approved, rejected
-    payment_status = Column(Text, nullable=False, default='unpaid')  # unpaid, pending, paid
+    payment_status = Column(Text, nullable=False, default='unpaid')  # unpaid, pending, paid, not_required
+    payment_method = Column(Text)  # qr, bank_transfer, cash, invoice, free
     total_amount = Column(Float, default=0.0)
     variable_symbol = Column(Text)
     applicant_data = Column(JSON, default={})  # form field answers

@@ -132,7 +132,7 @@ export const EventsPage = () => {
       }
       fetchEvents();
     } catch (err) {
-      toast.error('Chyba při ukládání');
+      toast.error(err.response?.data?.detail || 'Chyba při ukládání');
     }
   };
 
@@ -252,8 +252,9 @@ export const EventsPage = () => {
       unpaid: 'bg-gray-100 text-gray-600',
       pending: 'bg-amber-100 text-amber-700',
       paid: 'bg-green-100 text-green-700',
+      not_required: 'bg-sky-100 text-sky-700',
     };
-    const labels = { unpaid: 'Nezaplaceno', pending: 'Čeká platba', paid: 'Zaplaceno' };
+    const labels = { unpaid: 'Nezaplaceno', pending: 'Čeká platba', paid: 'Zaplaceno', not_required: 'Platba není vyžadována' };
     return <span className={`px-2 py-0.5 text-xs rounded-full ${map[status] || 'bg-gray-100'}`}>{labels[status] || status}</span>;
   };
 
@@ -329,7 +330,9 @@ export const EventsPage = () => {
                         <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {ev.capacity} míst</span>
                         <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {ev.dates_count || 0} termínů</span>
                         <span className="flex items-center gap-1"><ClipboardList className="w-3.5 h-3.5" /> {ev.applications_count || 0} přihlášek</span>
-                        {ev.price > 0 && <span className="font-medium text-slate-700">{ev.price} Kč</span>}
+                        {ev.price > 0
+                          ? <span className="font-medium text-slate-700">{ev.price} Kč</span>
+                          : <span className="px-2 py-0.5 text-xs rounded-full bg-sky-100 text-sky-700" data-testid={`event-free-badge-${ev.id}`}>Zdarma</span>}
                       </div>
                     </div>
                   </div>
@@ -363,7 +366,9 @@ export const EventsPage = () => {
 
         {/* Tabs */}
         <div className="flex border-b overflow-x-auto">
-          {['detail', 'dates', 'form', 'applications', 'payment'].map(tab => (
+          {['detail', 'dates', 'form', 'applications', 'payment']
+            .filter(tab => !(tab === 'payment' && (formData.price || 0) <= 0))
+            .map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -407,8 +412,31 @@ export const EventsPage = () => {
                   </div>
                   <div>
                     <Label className="text-gray-500 text-sm">Cena (Kč)</Label>
-                    <Input type="number" value={formData.price} onChange={e => setFormData(p => ({ ...p, price: parseFloat(e.target.value) || 0 }))} className="mt-1" data-testid="event-price-input" />
+                    <Input
+                      type="number"
+                      min="0"
+                      value={formData.price}
+                      disabled={(formData.price || 0) <= 0}
+                      onChange={e => setFormData(p => ({ ...p, price: parseFloat(e.target.value) || 0 }))}
+                      className="mt-1 disabled:opacity-50"
+                      data-testid="event-price-input"
+                    />
                   </div>
+                </div>
+                {/* Free-event toggle: kept in sync with the price field */}
+                <div className="flex items-center justify-between rounded-lg border border-sky-100 bg-sky-50/50 p-3">
+                  <div>
+                    <p className="font-medium text-slate-900">Akce je zdarma</p>
+                    <p className="text-sm text-gray-500">Bez platby, QR kódu i platebních metod. Cena bude 0 Kč.</p>
+                  </div>
+                  <Switch
+                    checked={(formData.price || 0) <= 0}
+                    onCheckedChange={v => {
+                      setFormData(p => ({ ...p, price: v ? 0 : (p.price > 0 ? p.price : 100) }));
+                      if (v && activeTab === 'payment') setActiveTab('detail');
+                    }}
+                    data-testid="event-free-toggle"
+                  />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>

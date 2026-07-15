@@ -97,6 +97,7 @@ PAYMENT_LABELS = {
     'unpaid': 'Nezaplaceno',
     'pending': 'Čeká na platbu',
     'paid': 'Zaplaceno',
+    'not_required': 'Platba není vyžadována',
 }
 
 

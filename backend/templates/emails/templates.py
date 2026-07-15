@@ -1292,6 +1292,7 @@ def event_application_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
     currency = data.get("currency", "CZK")
     variable_symbol = data.get("variable_symbol")
     payment_relevant = bool(data.get("payment_relevant"))
+    is_free = bool(data.get("is_free"))
     account_number = data.get("account_number")
     bank_code = data.get("bank_code")
     account_name = data.get("account_name")
@@ -1343,6 +1344,10 @@ def event_application_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
                 </tr>"""
 
     payment_block = ""
+    free_notice = (
+        f'<div style="{BASE_STYLES["alert_success"]}; margin-bottom: 20px;">Účast na akci je zdarma.</div>'
+        if is_free else ""
+    )
     if payment_relevant and not is_waitlist and price and float(price) > 0 and account_number:
         acc = f"{e(account_number)}/{e(bank_code)}" if bank_code else e(account_number)
         payment_block = f"""
@@ -1362,7 +1367,7 @@ def event_application_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
     content = f"""
         <h1 style="{BASE_STYLES['h1']}">{heading}</h1>
         <div style="{alert_style}; margin-bottom: 20px;">{intro}</div>
-
+        {free_notice}
         <div style="{BASE_STYLES['info_box']}">
             <table style="width: 100%; border-collapse: collapse;">{rows_html}
             </table>
@@ -1381,6 +1386,7 @@ def event_application_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
         f"Účastník: {applicant_name}\n"
         + (f"Termín: {date_label}\n" if date_label else "")
         + f"Stav registrace: {status_label}\n"
+        + ("Účast na akci je zdarma.\n" if is_free else "")
         + (f"Cena: {price} {currency}\n" if price and float(price) > 0 else "")
         + (f"Variabilní symbol: {variable_symbol}\n" if variable_symbol else "")
         + f"\nInstituce: {institution_name}\n"

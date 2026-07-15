@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
 from database.supabase import get_db
-from database.models import AvailabilityException
+from database.models import AvailabilityException, Program
 from core.security import get_current_user
 from services.availability_service import evaluate_program_slots, evaluate_lecturer_slots
 
@@ -117,8 +117,20 @@ async def create_exception(
     if data.scope_type not in ('program', 'lecturer'):
         raise HTTPException(status_code=400, detail="scope_type musí být 'program' nebo 'lecturer'")
 
+    inst_uuid = uuid.UUID(current_user["institution_id"])
+
+    # Program blocks must reference a program that belongs to this tenant.
+    if data.scope_type == 'program':
+        prog_res = await db.execute(
+            select(Program.id).where(
+                and_(Program.id == uuid.UUID(data.scope_id), Program.institution_id == inst_uuid)
+            )
+        )
+        if not prog_res.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Program nenalezen")
+
     exc = AvailabilityException(
-        institution_id=uuid.UUID(current_user["institution_id"]),
+        institution_id=inst_uuid,
         scope_type=data.scope_type,
         scope_id=uuid.UUID(data.scope_id),
         date=data.date,

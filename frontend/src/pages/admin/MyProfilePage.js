@@ -9,7 +9,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
-import { UserCircle, Save, Loader2, GraduationCap, BookOpen, Users2, Info, KeyRound } from 'lucide-react';
+import { UserCircle, Save, Loader2, GraduationCap, BookOpen, Users2, Info } from 'lucide-react';
 import { API } from '../../config/api';
 
 const AGE_GROUPS = [
@@ -26,12 +26,6 @@ export const MyProfilePage = ({ embedded = false }) => {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  // Password change
-  const [pwdCurrent, setPwdCurrent] = useState('');
-  const [pwdNew, setPwdNew] = useState('');
-  const [pwdConfirm, setPwdConfirm] = useState('');
-  const [changingPwd, setChangingPwd] = useState(false);
 
   const [name, setName] = useState('');
   const [preferredAges, setPreferredAges] = useState([]);
@@ -112,37 +106,6 @@ export const MyProfilePage = ({ embedded = false }) => {
   };
 
   const nameCs = (p) => p.name_cs || p.name_en || p.name || '—';
-
-  const handleChangePassword = async (e) => {
-    e?.preventDefault();
-    if (!pwdCurrent || !pwdNew || !pwdConfirm) {
-      toast.error('Vyplňte všechna pole');
-      return;
-    }
-    if (pwdNew !== pwdConfirm) {
-      toast.error('Nové heslo a jeho potvrzení se neshodují');
-      return;
-    }
-    if (pwdNew.length < 8 || !/[A-Z]/.test(pwdNew) || !/[a-z]/.test(pwdNew) || !/[0-9]/.test(pwdNew)) {
-      toast.error('Heslo musí mít alespoň 8 znaků, velké i malé písmeno a číslici');
-      return;
-    }
-    setChangingPwd(true);
-    try {
-      await axios.post(`${API}/auth/change-password`, {
-        current_password: pwdCurrent,
-        new_password: pwdNew,
-      }, { withCredentials: true });
-      toast.success('Heslo bylo úspěšně změněno');
-      setPwdCurrent('');
-      setPwdNew('');
-      setPwdConfirm('');
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Změna hesla selhala');
-    } finally {
-      setChangingPwd(false);
-    }
-  };
 
   if (loading) {
     const loader = (
@@ -335,65 +298,6 @@ export const MyProfilePage = ({ embedded = false }) => {
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{me.admin_note}</p>
           </Card>
         )}
-
-        {/* Change password */}
-        <Card className="p-5 space-y-4" data-testid="section-change-password">
-          <div className="flex items-center gap-2">
-            <KeyRound className="w-5 h-5 text-slate-600" />
-            <h2 className="font-semibold text-slate-900">Změna hesla</h2>
-          </div>
-          <form onSubmit={handleChangePassword} className="space-y-3 max-w-md">
-            <div>
-              <Label htmlFor="pwd-current">Současné heslo</Label>
-              <Input
-                id="pwd-current"
-                type="password"
-                autoComplete="current-password"
-                data-testid="password-current-input"
-                value={pwdCurrent}
-                onChange={(e) => setPwdCurrent(e.target.value)}
-                placeholder="••••••••"
-              />
-            </div>
-            <div>
-              <Label htmlFor="pwd-new">Nové heslo</Label>
-              <Input
-                id="pwd-new"
-                type="password"
-                autoComplete="new-password"
-                data-testid="password-new-input"
-                value={pwdNew}
-                onChange={(e) => setPwdNew(e.target.value)}
-                placeholder="••••••••"
-              />
-              <p className="text-xs text-gray-500 mt-1">Min. 8 znaků, velké i malé písmeno a číslice.</p>
-            </div>
-            <div>
-              <Label htmlFor="pwd-confirm">Potvrzení nového hesla</Label>
-              <Input
-                id="pwd-confirm"
-                type="password"
-                autoComplete="new-password"
-                data-testid="password-confirm-input"
-                value={pwdConfirm}
-                onChange={(e) => setPwdConfirm(e.target.value)}
-                placeholder="••••••••"
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={changingPwd}
-              className="bg-slate-800 hover:bg-slate-700 text-white"
-              data-testid="change-password-button"
-            >
-              {changingPwd ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Měním heslo…</>
-              ) : (
-                <><KeyRound className="w-4 h-4 mr-2" /> Změnit heslo</>
-              )}
-            </Button>
-          </form>
-        </Card>
 
         {/* Save button */}
         <div className="flex items-center justify-end gap-3 sticky bottom-4 bg-white/90 backdrop-blur rounded-lg p-3 border border-gray-200 shadow-sm">

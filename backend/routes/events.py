@@ -64,13 +64,15 @@ async def _resolve_application_status(db, event, event_date_uuid) -> str:
 from database.supabase import get_db
 from database.models import (
     Event, EventDate, EventApplication, EventPayment,
-    InstitutionPaymentSettings, FeatureFlag
+    InstitutionPaymentSettings, FeatureFlag, Institution
 )
 from core.security import get_current_user
 from services.feature_flags import is_feature_enabled
 from services.plan_service import require_feature
 from services.payment_gateways.factory import _detect_mode
 from services.contact_service import upsert_contact_from_event_application
+from services.email_service import trigger_event_application_confirmation
+import re as _re
 
 router = APIRouter(prefix="/events", tags=["Events"])
 logger = logging.getLogger(__name__)
@@ -871,6 +873,51 @@ async def submit_application(
 
     resp = _to_dict(application)
     resp["qr_payload"] = qr_payload
+
+    # Confirmation email (best-effort). Sent only AFTER the application (and any
+    # payment) are committed; a Resend failure must never roll back the saved
+    # registration. No sensitive data or API keys are ever logged.
+    email = (application.applicant_email or "").strip()
+    email_valid = bool(email) and _re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email)
+    if email_valid:
+        try:
+            inst_res = await db.execute(select(Institution).where(Institution.id == inst_uuid))
+            institution = inst_res.scalar_one_or_none()
+            inst_name = institution.name if institution else ""
+            reply_to = getattr(institution, "email", None) if institution else None
+
+            date_label = None
+            if event_date_uuid:
+                ed_res = await db.execute(select(EventDate).where(EventDate.id == event_date_uuid))
+                ed = ed_res.scalar_one_or_none()
+                if ed and ed.start_datetime:
+                    date_label = ed.start_datetime.strftime("%d.%m.%Y %H:%M")
+
+            payment_relevant = bool(
+                not is_waitlisted and pay_settings and pay_settings.account_number and event.price and event.price > 0
+            )
+            await trigger_event_application_confirmation(
+                to_email=email,
+                data={
+                    "event_name": event.name,
+                    "applicant_name": application.applicant_name or "",
+                    "institution_name": inst_name,
+                    "date_label": date_label,
+                    "is_waitlist": is_waitlisted,
+                    "status": application.status,
+                    "price": event.price or 0,
+                    "currency": event.currency or "CZK",
+                    "variable_symbol": vs,
+                    "payment_relevant": payment_relevant,
+                    "account_number": pay_settings.account_number if pay_settings else None,
+                    "bank_code": pay_settings.bank_code if pay_settings else None,
+                    "account_name": pay_settings.account_name if pay_settings else None,
+                },
+                reply_to=reply_to,
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Event confirmation email failed (application {application.id}): {type(e).__name__}")
+
     resp["payment_settings"] = {
         "payment_mode": pay_settings.payment_mode if pay_settings else "qr",
         "account_number": pay_settings.account_number if pay_settings else None,

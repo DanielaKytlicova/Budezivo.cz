@@ -94,7 +94,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       setLoading(true);
       const weekStr = formatDate(weekStart);
       const params = selectedLecturer ? `?lecturer_id=${selectedLecturer}&week_start=${weekStr}` : `?week_start=${weekStr}`;
-      const res = await axios.get(`${API}/api/lecturer-availability/week-view${params}`, { headers });
+      const res = await axios.get(`${API}/lecturer-availability/week-view${params}`, { headers });
       setRecurring(res.data.recurring || []);
       setOneOffs(res.data.one_offs || []);
       setTimeOffs(res.data.time_offs || []);
@@ -108,7 +108,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   const fetchTeam = useCallback(async () => {
     if (!isAdmin) return;
     try {
-      const res = await axios.get(`${API}/api/team`, { headers });
+      const res = await axios.get(`${API}/team`, { headers });
       setTeamMembers(res.data.filter(m => ['edukator', 'lektor', 'admin', 'spravce'].includes(m.role)));
     } catch (err) {
       console.error(err);
@@ -162,7 +162,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const fetchOutlookStatus = async () => {
     try {
-      const res = await axios.get(`${API}/api/microsoft-calendar/status`, { headers });
+      const res = await axios.get(`${API}/microsoft-calendar/status`, { headers });
       setOutlookStatus(res.data);
       if (res.data.connected) fetchOutlookBlocks();
     } catch (err) {
@@ -175,7 +175,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       const weekStr = formatDate(weekStart);
       const endStr = formatDate(new Date(weekStart.getTime() + 6 * 86400000));
       const params = lecturerId ? `?user_id=${lecturerId}&start=${weekStr}&end=${endStr}` : `?start=${weekStr}&end=${endStr}`;
-      const res = await axios.get(`${API}/api/microsoft-calendar/blocks${params}`, { headers });
+      const res = await axios.get(`${API}/microsoft-calendar/blocks${params}`, { headers });
       setOutlookBlocks(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Outlook blocks fetch failed');
@@ -184,7 +184,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const connectOutlook = async () => {
     try {
-      const res = await axios.get(`${API}/api/microsoft-calendar/connect`, { headers });
+      const res = await axios.get(`${API}/microsoft-calendar/connect`, { headers });
       if (res.data.auth_url) {
         window.open(res.data.auth_url, 'outlook_auth', 'width=500,height=700');
       }
@@ -195,7 +195,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const disconnectOutlook = async () => {
     try {
-      await axios.post(`${API}/api/microsoft-calendar/disconnect`, {}, { headers });
+      await axios.post(`${API}/microsoft-calendar/disconnect`, {}, { headers });
       setOutlookStatus({ connected: false });
       setOutlookBlocks([]);
       toast.success('Outlook odpojen');
@@ -207,7 +207,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   const syncOutlook = async () => {
     setOutlookSyncing(true);
     try {
-      const res = await axios.post(`${API}/api/microsoft-calendar/sync`, {}, { headers });
+      const res = await axios.post(`${API}/microsoft-calendar/sync`, {}, { headers });
       toast.success(res.data.message || 'Synchronizováno');
       await fetchOutlookBlocks();
     } catch (err) {
@@ -219,7 +219,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const toggleBlockOverride = async (blockId) => {
     try {
-      const res = await axios.post(`${API}/api/microsoft-calendar/blocks/${blockId}/override`, {}, { headers });
+      const res = await axios.post(`${API}/microsoft-calendar/blocks/${blockId}/override`, {}, { headers });
       toast.success(res.data.message);
       await fetchOutlookBlocks();
     } catch (err) {
@@ -228,13 +228,28 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   };
 
   // ── Google Calendar integration ─────────────────────────────────────
+  // Surface the backend-provided detail (and status) for Google/Outlook OAuth
+  // errors. 403 is intentionally treated as a plan gate elsewhere.
+  const formatApiError = (err, fallback) => {
+    const status = err?.response?.status;
+    const detail = err?.response?.data?.detail;
+    if (detail) return status ? `${detail} (${status})` : detail;
+    if (status === 503) return 'Služba Google kalendáře je dočasně nedostupná (503)';
+    if (status === 404) return 'Zdroj nebyl nalezen (404)';
+    return fallback;
+  };
+
   const fetchGoogleStatus = async () => {
     try {
-      const res = await axios.get(`${API}/api/google-calendar/status`, { headers });
+      const res = await axios.get(`${API}/google-calendar/status`, { headers });
       setGoogleStatus(res.data);
       if (res.data.connected) fetchGoogleBlocks();
     } catch (err) {
-      // Probably 403 (plan gate) — silently ignore so non-PRO+ users see nothing
+      // 403 = plan gate: stay silent so non-PRO+ users see nothing. Surface
+      // other errors (e.g. 404/503) so the user knows what went wrong.
+      if (err?.response?.status !== 403) {
+        toast.error(formatApiError(err, 'Nepodařilo se načíst stav Google kalendáře'));
+      }
       console.error('Google status fetch failed');
     }
   };
@@ -244,7 +259,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       const weekStr = formatDate(weekStart);
       const endStr = formatDate(new Date(weekStart.getTime() + 6 * 86400000));
       const params = lecturerId ? `?user_id=${lecturerId}&start=${weekStr}&end=${endStr}` : `?start=${weekStr}&end=${endStr}`;
-      const res = await axios.get(`${API}/api/google-calendar/blocks${params}`, { headers });
+      const res = await axios.get(`${API}/google-calendar/blocks${params}`, { headers });
       setGoogleBlocks(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Google blocks fetch failed');
@@ -253,19 +268,18 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const connectGoogle = async () => {
     try {
-      const res = await axios.get(`${API}/api/google-calendar/connect`, { headers });
+      const res = await axios.get(`${API}/google-calendar/connect`, { headers });
       if (res.data.auth_url) {
         window.open(res.data.auth_url, 'google_auth', 'width=500,height=700');
       }
     } catch (err) {
-      const msg = err?.response?.data?.detail || 'Nepodařilo se zahájit připojení Google kalendáře';
-      toast.error(msg);
+      toast.error(formatApiError(err, 'Nepodařilo se zahájit připojení Google kalendáře'));
     }
   };
 
   const disconnectGoogle = async () => {
     try {
-      await axios.post(`${API}/api/google-calendar/disconnect`, {}, { headers });
+      await axios.post(`${API}/google-calendar/disconnect`, {}, { headers });
       setGoogleStatus({ connected: false, configured: googleStatus.configured });
       setGoogleBlocks([]);
       toast.success('Google kalendář odpojen');
@@ -277,11 +291,11 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   const syncGoogle = async () => {
     setGoogleSyncing(true);
     try {
-      const res = await axios.post(`${API}/api/google-calendar/sync`, {}, { headers });
+      const res = await axios.post(`${API}/google-calendar/sync`, {}, { headers });
       toast.success(res.data.message || 'Synchronizováno');
       await fetchGoogleBlocks();
     } catch (err) {
-      toast.error('Synchronizace selhala');
+      toast.error(formatApiError(err, 'Synchronizace selhala'));
     } finally {
       setGoogleSyncing(false);
     }
@@ -289,7 +303,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const toggleGoogleBlockOverride = async (blockId) => {
     try {
-      const res = await axios.post(`${API}/api/google-calendar/blocks/${blockId}/override`, {}, { headers });
+      const res = await axios.post(`${API}/google-calendar/blocks/${blockId}/override`, {}, { headers });
       toast.success(res.data.message);
       await fetchGoogleBlocks();
     } catch (err) {
@@ -315,7 +329,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     }
     try {
       const params = selectedLecturer ? `?lecturer_id=${selectedLecturer}` : '';
-      await axios.post(`${API}/api/lecturer-availability/recurring${params}`, recurringForm, { headers });
+      await axios.post(`${API}/lecturer-availability/recurring${params}`, recurringForm, { headers });
       toast.success('Pravidelná dostupnost přidána.');
       setShowAddRecurring(false);
       setRecurringForm({ days_of_week: [], start_time: '08:00', end_time: '12:00' });
@@ -327,7 +341,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const handleUpdateRecurring = async () => {
     try {
-      await axios.put(`${API}/api/lecturer-availability/recurring/${editingRecurring.id}`, {
+      await axios.put(`${API}/lecturer-availability/recurring/${editingRecurring.id}`, {
         day_of_week: editingRecurring.day_of_week,
         start_time: editingRecurring.start_time,
         end_time: editingRecurring.end_time,
@@ -347,7 +361,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     }
     try {
       const params = selectedLecturer ? `?lecturer_id=${selectedLecturer}` : '';
-      await axios.post(`${API}/api/lecturer-availability/recurring${params}`, {
+      await axios.post(`${API}/lecturer-availability/recurring${params}`, {
         days_of_week: [],
         start_time: oneOffForm.start_time,
         end_time: oneOffForm.end_time,
@@ -364,7 +378,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const handleDeleteRecurring = async (id) => {
     try {
-      await axios.delete(`${API}/api/lecturer-availability/recurring/${id}`, { headers });
+      await axios.delete(`${API}/lecturer-availability/recurring/${id}`, { headers });
       toast.success('Blok smazán.');
       fetchData();
     } catch (err) {
@@ -386,7 +400,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
         end_time: timeOffForm.end_time || null,
         reason: timeOffForm.reason || null,
       };
-      await axios.post(`${API}/api/lecturer-availability/time-off${params}`, payload, { headers });
+      await axios.post(`${API}/lecturer-availability/time-off${params}`, payload, { headers });
       toast.success('Blokace přidána.');
       setShowAddTimeOff(false);
       setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' });
@@ -398,7 +412,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const handleUpdateTimeOff = async () => {
     try {
-      await axios.put(`${API}/api/lecturer-availability/time-off/${editingTimeOff.id}`, {
+      await axios.put(`${API}/lecturer-availability/time-off/${editingTimeOff.id}`, {
         start_date: editingTimeOff.start_date,
         end_date: editingTimeOff.end_date,
         start_time: editingTimeOff.start_time || null,
@@ -415,7 +429,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   const handleDeleteTimeOff = async (id) => {
     try {
-      await axios.delete(`${API}/api/lecturer-availability/time-off/${id}`, { headers });
+      await axios.delete(`${API}/lecturer-availability/time-off/${id}`, { headers });
       toast.success('Blokace smazána.');
       fetchData();
     } catch (err) {

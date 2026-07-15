@@ -629,6 +629,22 @@ async def trigger_password_reset_email(
     )
 
 
+async def trigger_event_application_confirmation(
+    to_email: str,
+    data: Dict[str, Any],
+    reply_to: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Trigger confirmation email after a public event registration is saved."""
+    return await EmailService.send_transactional_email(
+        template_name="event_application_confirmation",
+        to_email=to_email,
+        data=data,
+        reply_to=reply_to,
+    )
+
+
+
+
 async def trigger_user_registration_email(
     user_email: str,
     user_name: str,

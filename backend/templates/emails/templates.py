@@ -1278,6 +1278,122 @@ Pokud jste tuto pozvánku neočekávali, můžete tento email ignorovat.
 
 # ============ TEMPLATE REGISTRY ============
 
+def event_application_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
+    """Confirmation email sent to an applicant after submitting an event registration."""
+    import html as _html
+
+    event_name = data.get("event_name", "")
+    applicant_name = data.get("applicant_name", "")
+    institution_name = data.get("institution_name", "")
+    date_label = data.get("date_label")
+    is_waitlist = bool(data.get("is_waitlist"))
+    status = data.get("status", "pending")
+    price = data.get("price") or 0
+    currency = data.get("currency", "CZK")
+    variable_symbol = data.get("variable_symbol")
+    payment_relevant = bool(data.get("payment_relevant"))
+    account_number = data.get("account_number")
+    bank_code = data.get("bank_code")
+    account_name = data.get("account_name")
+
+    e = lambda v: _html.escape(str(v or ""))
+
+    if is_waitlist:
+        heading = "Jste na čekací listině"
+        intro = (
+            f"Děkujeme za zájem o „{e(event_name)}“. Kapacita je momentálně naplněná, "
+            f"a proto jsme vaši přihlášku zařadili na <strong>čekací listinu</strong>. "
+            f"<strong>Zatím nemáte garantované místo</strong> — ozveme se vám, jakmile se místo uvolní."
+        )
+        status_label = "Čekací listina"
+        alert_style = BASE_STYLES["alert_warning"]
+    elif status == "confirmed":
+        heading = "Registrace byla potvrzena"
+        intro = f"Vaše registrace na „{e(event_name)}“ byla potvrzena. Těšíme se na vás."
+        status_label = "Potvrzeno"
+        alert_style = BASE_STYLES["alert_success"]
+    else:
+        heading = "Registrace byla přijata"
+        intro = (
+            f"Přijali jsme vaši registraci na „{e(event_name)}“. "
+            f"Toto je potvrzení o přijetí — o definitivním potvrzení vás budeme informovat."
+        )
+        status_label = "Přijato (čeká na potvrzení)"
+        alert_style = BASE_STYLES["alert_warning"]
+
+    rows = [
+        ("Akce", e(event_name)),
+        ("Účastník", e(applicant_name)),
+    ]
+    if date_label:
+        rows.append(("Termín", e(date_label)))
+    rows.append(("Stav registrace", e(status_label)))
+    if price and float(price) > 0:
+        rows.append(("Cena", f"{e(price)} {e(currency)}"))
+    if variable_symbol:
+        rows.append(("Variabilní symbol", e(variable_symbol)))
+
+    rows_html = ""
+    for i, (label, value) in enumerate(rows):
+        border = "border-top: 1px solid #E2E8F0;" if i > 0 else ""
+        rows_html += f"""
+                <tr>
+                    <td style="padding: 8px 0; color: #64748B; width: 160px; {border}">{label}:</td>
+                    <td style="padding: 8px 0; color: #1E293B; font-weight: 500; {border}">{value}</td>
+                </tr>"""
+
+    payment_block = ""
+    if payment_relevant and not is_waitlist and price and float(price) > 0 and account_number:
+        acc = f"{e(account_number)}/{e(bank_code)}" if bank_code else e(account_number)
+        payment_block = f"""
+        <div style="{BASE_STYLES['info_box']}">
+            <div style="color: #6B7A8D; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
+                Platební údaje
+            </div>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr><td style="padding: 6px 0; color: #64748B; width: 160px;">Účet:</td>
+                    <td style="padding: 6px 0; color: #1E293B; font-weight: 500;">{acc}</td></tr>
+                {f'<tr><td style="padding: 6px 0; color: #64748B;">Příjemce:</td><td style="padding: 6px 0; color: #1E293B;">{e(account_name)}</td></tr>' if account_name else ''}
+                {f'<tr><td style="padding: 6px 0; color: #64748B;">Variabilní symbol:</td><td style="padding: 6px 0; color: #1E293B; font-weight: 500;">{e(variable_symbol)}</td></tr>' if variable_symbol else ''}
+                <tr><td style="padding: 6px 0; color: #64748B;">Částka:</td><td style="padding: 6px 0; color: #1E293B; font-weight: 500;">{e(price)} {e(currency)}</td></tr>
+            </table>
+        </div>"""
+
+    content = f"""
+        <h1 style="{BASE_STYLES['h1']}">{heading}</h1>
+        <div style="{alert_style}; margin-bottom: 20px;">{intro}</div>
+
+        <div style="{BASE_STYLES['info_box']}">
+            <table style="width: 100%; border-collapse: collapse;">{rows_html}
+            </table>
+        </div>
+
+        {payment_block}
+
+        <p style="{BASE_STYLES['text']}">
+            Toto je automatické potvrzení přijetí registrace od instituce <strong>{e(institution_name)}</strong>.
+        </p>
+    """
+
+    plain = (
+        f"{heading}\n\n"
+        f"Akce: {event_name}\n"
+        f"Účastník: {applicant_name}\n"
+        + (f"Termín: {date_label}\n" if date_label else "")
+        + f"Stav registrace: {status_label}\n"
+        + (f"Cena: {price} {currency}\n" if price and float(price) > 0 else "")
+        + (f"Variabilní symbol: {variable_symbol}\n" if variable_symbol else "")
+        + f"\nInstituce: {institution_name}\n"
+    )
+
+    return {
+        "subject": f"Potvrzení registrace — {event_name}",
+        "html": _base_template(content, data),
+        "text": _plain_text_base(plain),
+    }
+
+
+
 TEMPLATE_REGISTRY = {
     "user_registration_confirmation": user_registration_confirmation,
     "account_activation": account_activation,
@@ -1297,6 +1413,7 @@ TEMPLATE_REGISTRY = {
     "new_institution_registration": new_institution_registration,
     "contact_form_submission": contact_form_submission,
     "team_invitation": team_invitation,
+    "event_application_confirmation": event_application_confirmation,
     "join_request_received": lambda d: join_request_received(d),
     "join_request_approved": lambda d: join_request_approved(d),
     "join_request_rejected": lambda d: join_request_rejected(d),

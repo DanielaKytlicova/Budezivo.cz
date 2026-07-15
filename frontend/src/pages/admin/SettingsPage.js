@@ -75,6 +75,13 @@ const SETTINGS_MENU = [
     group: 'access',
   },
   {
+    id: 'password',
+    icon: Lock,
+    title: 'Změna hesla',
+    description: 'Změňte si přihlašovací heslo k účtu',
+    group: 'access',
+  },
+  {
     id: 'pro',
     icon: Shield,
     title: 'PRO funkce',
@@ -215,6 +222,12 @@ export const SettingsPage = () => {
   const [anonymizeDialog, setAnonymizeDialog] = useState(false);
   const [anonymizeConfirm, setAnonymizeConfirm] = useState('');
   const [anonymizeLoading, setAnonymizeLoading] = useState(false);
+
+  // Password change
+  const [pwdCurrent, setPwdCurrent] = useState('');
+  const [pwdNew, setPwdNew] = useState('');
+  const [pwdConfirm, setPwdConfirm] = useState('');
+  const [changingPwd, setChangingPwd] = useState(false);
   // VOP state
   const [vopData, setVopData] = useState(null);
   const [vopLoading, setVopLoading] = useState(false);
@@ -1630,12 +1643,113 @@ export const SettingsPage = () => {
         return renderVopSection();
       case 'payment':
         return renderPaymentSettings();
+      case 'password':
+        return renderPasswordSettings();
       case 'delete-account':
         return renderDeleteAccountSection();
       default:
         return renderMainMenu();
     }
   };
+
+  const handleChangePassword = async (e) => {
+    e?.preventDefault();
+    if (!pwdCurrent || !pwdNew || !pwdConfirm) {
+      toast.error('Vyplňte všechna pole');
+      return;
+    }
+    if (pwdNew !== pwdConfirm) {
+      toast.error('Nové heslo a jeho potvrzení se neshodují');
+      return;
+    }
+    if (pwdNew.length < 8 || !/[A-Z]/.test(pwdNew) || !/[a-z]/.test(pwdNew) || !/[0-9]/.test(pwdNew)) {
+      toast.error('Heslo musí mít alespoň 8 znaků, velké i malé písmeno a číslici');
+      return;
+    }
+    setChangingPwd(true);
+    try {
+      await axios.post(`${API}/auth/change-password`, {
+        current_password: pwdCurrent,
+        new_password: pwdNew,
+      }, { withCredentials: true });
+      toast.success('Heslo bylo úspěšně změněno');
+      setPwdCurrent('');
+      setPwdNew('');
+      setPwdConfirm('');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Změna hesla selhala');
+    } finally {
+      setChangingPwd(false);
+    }
+  };
+
+  const renderPasswordSettings = () => (
+    <div className="space-y-6" data-testid="settings-password-section">
+      <div className="flex items-center gap-4 mb-4">
+        <button onClick={() => setActiveSection(null)} className="p-2 hover:bg-gray-100 rounded-lg" data-testid="password-back-button">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">Změna hesla</h2>
+          <p className="text-sm text-gray-500">Změňte si přihlašovací heslo k účtu</p>
+        </div>
+      </div>
+
+      <Card className="p-5 space-y-4">
+        <form onSubmit={handleChangePassword} className="space-y-3 max-w-md">
+          <div>
+            <Label htmlFor="pwd-current">Současné heslo</Label>
+            <Input
+              id="pwd-current"
+              type="password"
+              autoComplete="current-password"
+              data-testid="password-current-input"
+              value={pwdCurrent}
+              onChange={(e) => setPwdCurrent(e.target.value)}
+              placeholder="••••••••"
+            />
+          </div>
+          <div>
+            <Label htmlFor="pwd-new">Nové heslo</Label>
+            <Input
+              id="pwd-new"
+              type="password"
+              autoComplete="new-password"
+              data-testid="password-new-input"
+              value={pwdNew}
+              onChange={(e) => setPwdNew(e.target.value)}
+              placeholder="••••••••"
+            />
+            <p className="text-xs text-gray-500 mt-1">Min. 8 znaků, velké i malé písmeno a číslice.</p>
+          </div>
+          <div>
+            <Label htmlFor="pwd-confirm">Potvrzení nového hesla</Label>
+            <Input
+              id="pwd-confirm"
+              type="password"
+              autoComplete="new-password"
+              data-testid="password-confirm-input"
+              value={pwdConfirm}
+              onChange={(e) => setPwdConfirm(e.target.value)}
+              placeholder="••••••••"
+            />
+          </div>
+          <Button
+            type="submit"
+            disabled={changingPwd}
+            className="bg-slate-800 hover:bg-slate-700 text-white"
+            data-testid="change-password-button"
+          >
+            {changingPwd ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Měním heslo…</>
+            ) : (
+              <><Lock className="w-4 h-4 mr-2" /> Změnit heslo</>
+            )}
+          </Button>
+        </form>
+      </Card>
+    </div>
+  );
 
   const renderPaymentSettings = () => (
     <div className="space-y-6">

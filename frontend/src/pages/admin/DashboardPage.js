@@ -656,7 +656,7 @@ export const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   
   // View state
-  const [view, setView] = useState('list');
+  const [view, setView] = useState('calendar');
   const [listFilter, setListFilter] = useState('upcoming');
   const [calendarDate, setCalendarDate] = useState(new Date());
   

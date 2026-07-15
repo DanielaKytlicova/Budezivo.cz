@@ -91,6 +91,9 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   const [showExceptionDialog, setShowExceptionDialog] = useState(false);
   const [exceptionReason, setExceptionReason] = useState('');
   const [exceptions, setExceptions] = useState([]);
+  // Program block dialog (creates a program-scoped availability exception)
+  const [showProgramBlock, setShowProgramBlock] = useState(false);
+  const [programBlockForm, setProgramBlockForm] = useState({ date: '', start_time: '', end_time: '', reason: '' });
 
   useEffect(() => { fetchPrograms(); }, []);
   useEffect(() => {
@@ -191,8 +194,32 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
     } catch (err) { toast.error(err.response?.data?.detail || 'Chyba'); }
   };
 
-  const removeException = async () => {
-    if (!slotDetail) return;
+  // Program-scoped block created from the program view's "Přidat blokaci" action.
+  // The block always carries the selected program_id; it is never silently saved
+  // as a personal block. Requires a program to be selected.
+  const createProgramBlock = async () => {
+    if (!selectedProgram) { toast.error('Nejprve vyberte program pro programovou blokaci'); return; }
+    if (!programBlockForm.date) { toast.error('Vyberte datum blokace'); return; }
+    if (Boolean(programBlockForm.start_time) !== Boolean(programBlockForm.end_time)) {
+      toast.error('Zadejte začátek i konec, nebo nechte obojí prázdné pro celý den');
+      return;
+    }
+    try {
+      await axios.post(`${API}/availability-unified/exceptions`, {
+        scope_type: 'program', scope_id: selectedProgram,
+        date: programBlockForm.date,
+        start_time: programBlockForm.start_time || null,
+        end_time: programBlockForm.end_time || null,
+        reason: programBlockForm.reason || null,
+      });
+      toast.success('Programová blokace vytvořena');
+      setShowProgramBlock(false);
+      setProgramBlockForm({ date: '', start_time: '', end_time: '', reason: '' });
+      doFetchWeek(selectedProgram, weekStart);
+    } catch (err) { toast.error(err.response?.data?.detail || 'Chyba'); }
+  };
+
+  const removeException = async () => {    if (!slotDetail) return;
     const [startTime] = slotDetail.slot.time.split('-');
     const match = exceptions.find(e => e.date === slotDetail.date && e.start_time === startTime);
     if (!match) { toast.error('Výjimka nenalezena'); return; }
@@ -257,7 +284,11 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
               <CalendarPlus className="w-4 h-4 mr-1" /> Jednorázový čas
             </Button>
             <Button
-              onClick={() => onRequestPersonalAction && onRequestPersonalAction('timeoff')}
+              onClick={() => {
+                if (!selectedProgram) { toast.error('Nejprve vyberte program pro programovou blokaci'); return; }
+                setProgramBlockForm({ date: '', start_time: '', end_time: '', reason: '' });
+                setShowProgramBlock(true);
+              }}
               variant="outline"
               size="sm"
               className="border-red-300 text-red-600 hover:bg-red-50"
@@ -381,6 +412,45 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Program block dialog (program-scoped exception) */}
+        <Dialog open={showProgramBlock} onOpenChange={setShowProgramBlock}>
+          <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-md" aria-describedby="pblock-desc">
+            <DialogHeader>
+              <DialogTitle>Přidat programovou blokaci</DialogTitle>
+              <p id="pblock-desc" className="text-sm text-gray-500 mt-1">
+                {selectedProgram
+                  ? `Blokace pro: ${programs.find(p => p.id === selectedProgram)?.name_cs || 'vybraný program'}`
+                  : 'Nejprve vyberte program'}
+              </p>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div>
+                <Label className="text-sm text-gray-500">Datum</Label>
+                <Input type="date" value={programBlockForm.date} onChange={e => setProgramBlockForm(f => ({ ...f, date: e.target.value }))} className="mt-1" data-testid="pblock-date" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-sm text-gray-500">Od (volitelné)</Label>
+                  <Input type="time" value={programBlockForm.start_time} onChange={e => setProgramBlockForm(f => ({ ...f, start_time: e.target.value }))} className="mt-1" data-testid="pblock-start" />
+                </div>
+                <div>
+                  <Label className="text-sm text-gray-500">Do (volitelné)</Label>
+                  <Input type="time" value={programBlockForm.end_time} onChange={e => setProgramBlockForm(f => ({ ...f, end_time: e.target.value }))} className="mt-1" data-testid="pblock-end" />
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">Nechte čas prázdný pro blokaci celého dne.</p>
+              <div>
+                <Label className="text-sm text-gray-500">Důvod (volitelné)</Label>
+                <Input value={programBlockForm.reason} onChange={e => setProgramBlockForm(f => ({ ...f, reason: e.target.value }))} placeholder="Např. výjezd, údržba..." className="mt-1" data-testid="pblock-reason" />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={createProgramBlock} className="flex-1 bg-red-600 hover:bg-red-700 text-white" data-testid="confirm-program-block"><Ban className="w-4 h-4 mr-2" /> Vytvořit blokaci</Button>
+                <Button variant="outline" onClick={() => setShowProgramBlock(false)} className="flex-1">Zrušit</Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>

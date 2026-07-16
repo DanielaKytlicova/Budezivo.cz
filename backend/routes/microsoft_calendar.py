@@ -25,11 +25,21 @@ from database.models import (
     Reservation, Room, Institution, CalendarEventExport, User,
 )
 from services.plan_service import require_feature
+from core.permissions import require_roles, CALENDAR_PERSONAL_ROLES
 from services.google_calendar_helpers import (
     build_export_event_body, reservation_assigned_user_ids,
 )
 
-router = APIRouter(prefix="/microsoft-calendar", tags=["Microsoft Calendar"], dependencies=[Depends(require_feature("outlook_sync"))])
+_CALENDAR_ROLE_MSG = "Vaše role nemá přístup ke kalendářovým integracím."
+
+router = APIRouter(
+    prefix="/microsoft-calendar",
+    tags=["Microsoft Calendar"],
+    dependencies=[
+        Depends(require_feature("outlook_sync")),
+        Depends(require_roles(CALENDAR_PERSONAL_ROLES, _CALENDAR_ROLE_MSG)),
+    ],
+)
 logger = logging.getLogger(__name__)
 
 # ── Config ──────────────────────────────────────────────────────────

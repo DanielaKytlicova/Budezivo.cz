@@ -34,6 +34,7 @@ from database.models import (
     Reservation, Room, Institution, CalendarEventExport, User,
 )
 from services.plan_service import require_feature
+from core.permissions import require_roles, CALENDAR_PERSONAL_ROLES
 from services.google_calendar_helpers import (
     SCOPES, EVENTS_SCOPE, has_events_scope, is_budezivo_event,
     build_export_event_body, reservation_assigned_user_ids, CANCELLED_STATUSES,
@@ -44,7 +45,10 @@ from pydantic import BaseModel
 router = APIRouter(
     prefix="/google-calendar",
     tags=["Google Calendar"],
-    dependencies=[Depends(require_feature("outlook_sync"))],
+    dependencies=[
+        Depends(require_feature("outlook_sync")),
+        Depends(require_roles(CALENDAR_PERSONAL_ROLES, "Vaše role nemá přístup ke kalendářovým integracím.")),
+    ],
 )
 logger = logging.getLogger(__name__)
 

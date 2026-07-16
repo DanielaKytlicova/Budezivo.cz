@@ -34,6 +34,16 @@ MARK_PAID_ROLES = {"admin", "spravce", "ucetni", "pokladni"}
 # Deliberately EXCLUDES ucetni.
 BLOCK_MANAGE_ROLES = {"admin", "spravce", "produkcni"}
 
+# Who may connect a PERSONAL calendar (Google/Outlook) — their imported events
+# only block their own availability. Deliberately EXCLUDES ucetni/pokladni:
+# their availability never affects reservations / teaching / slot blocking.
+CALENDAR_PERSONAL_ROLES = {"admin", "spravce", "edukator", "lektor", "produkcni"}
+
+# Who may toggle INSTITUTION-wide reservation export (whole account) — only the
+# account managers. Everyone else is limited to their assigned-scope export,
+# enforced server-side from the integration owner's role.
+CALENDAR_INSTITUTION_EXPORT_ROLES = {"admin", "spravce"}
+
 
 def ensure_role(user: dict, allowed: set, message: str = "Nemáte oprávnění k této akci.") -> None:
     if user.get("role") not in allowed:

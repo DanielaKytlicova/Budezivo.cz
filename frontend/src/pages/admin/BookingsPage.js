@@ -33,39 +33,17 @@ import {
   CheckSquare,
   Square,
   Filter,
-  Download,
   CalendarPlus,
   Bell,
   AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API } from '../../config/api';
+import { ReservationSyncDialog } from '../../components/calendar/ReservationSyncDialog';
+import { AddToCalendarMenu } from '../../components/calendar/AddToCalendarMenu';
 
-// Helper to download ICS with signed token
-const downloadIcs = async (entityType, entityId, token) => {
-  try {
-    // entityType: 'institution' | 'program' | 'lecturer' → revocable subscription URL
-    const feedType = entityType === 'institution' ? 'institution' : (entityType === 'program' ? 'program' : 'lecturer');
-    const res = await axios.post(`${API}/calendar/feed-tokens`, { feed_type: feedType, entity_id: entityId }, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (res.data.url) window.open(res.data.url, '_blank');
-  } catch (err) {
-    toast.error(err.response?.data?.detail || 'Nepodařilo se vygenerovat ICS odkaz');
-  }
-};
-
-const downloadReservationIcs = async (reservationId, token) => {
-  try {
-    const tokenRes = await axios.get(`${API}/calendar/public-feed-token/reservation/${reservationId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const signedToken = tokenRes.data.token;
-    window.open(`${API}/calendar/reservation/${reservationId}.ics?token=${signedToken}`, '_blank');
-  } catch {
-    toast.error('Nepodařilo se vygenerovat ICS odkaz');
-  }
-};
+// Roles that may manage / view calendar sync (ucetni & pokladni excluded).
+const CALENDAR_SYNC_ROLES = ['admin', 'spravce', 'edukator', 'lektor', 'produkcni'];
 
 // Role permissions helper
 const PERMISSIONS = {
@@ -128,6 +106,7 @@ const BookingsPage = () => {
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
+  const [showSyncDialog, setShowSyncDialog] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -1018,22 +997,8 @@ const BookingsPage = () => {
               </Card>
             )}
 
-            {/* Outlook export */}
-            <div className="pt-3 border-t">
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={() => {
-                  downloadReservationIcs(selectedBooking.id, localStorage.getItem('token'));
-                  toast.success('ICS soubor se stahuje');
-                }}
-                data-testid="add-to-outlook-btn"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Přidat do Outlooku (.ics)
-              </Button>
-            </div>
+            {/* Add to personal calendar (deep-links + .ics) */}
+            <AddToCalendarMenu booking={selectedBooking} token={localStorage.getItem('token')} />
 
             {/* Akce */}
             <div className="flex gap-2 pt-4 border-t">
@@ -1090,21 +1055,17 @@ const BookingsPage = () => {
               <Bell className="w-4 h-4 mr-1.5" />
               <span className="hidden sm:inline">Zájemci</span>
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const instId = user?.institution_id;
-                if (instId) {
-                  downloadIcs('institution', instId, localStorage.getItem('token'));
-                  toast.success('ICS feed se stahuje');
-                }
-              }}
-              data-testid="export-ics-feed-btn"
-            >
-              <CalendarPlus className="w-4 h-4 mr-1.5" />
-              <span className="hidden sm:inline">Outlook kalendář</span>
-            </Button>
+            {CALENDAR_SYNC_ROLES.includes(currentUserRole) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSyncDialog(true)}
+                data-testid="calendar-sync-btn"
+              >
+                <CalendarPlus className="w-4 h-4 mr-1.5" />
+                <span className="hidden sm:inline">Synchronizace kalendáře</span>
+              </Button>
+            )}
             <Badge variant="outline" className="text-sm">
               Role: {currentUserRole}
             </Badge>
@@ -1386,6 +1347,12 @@ const BookingsPage = () => {
       </div>
 
       {renderDetailModal()}
+      <ReservationSyncDialog
+        open={showSyncDialog}
+        onClose={() => setShowSyncDialog(false)}
+        user={user}
+        token={localStorage.getItem('token')}
+      />
     </AdminLayout>
   );
 };

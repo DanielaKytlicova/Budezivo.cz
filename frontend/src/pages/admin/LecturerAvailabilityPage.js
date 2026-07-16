@@ -12,8 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { toast } from 'sonner';
 import { Plus, Trash2, ChevronLeft, ChevronRight, Clock, Ban, Edit2, Info, CalendarDays, CalendarPlus, RefreshCw, Unlink, ExternalLink } from 'lucide-react';
 import axios from 'axios';
+import { ConnectedGuideDialog } from '../../components/calendar/ConnectedGuideDialog';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+// ucetni/pokladni have no personal availability → no personal calendar.
+const PERSONAL_CALENDAR_ROLES = ['admin', 'spravce', 'edukator', 'lektor', 'produkcni'];
 
 const DAY_NAMES = ['Pondělí', 'Úterý', 'Středa', 'Čtvrtek', 'Pátek', 'Sobota', 'Neděle'];
 const DAY_SHORT = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
@@ -67,6 +71,9 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   const [googleSyncResult, setGoogleSyncResult] = useState(null);
   const [showGoogleDisconnect, setShowGoogleDisconnect] = useState(false);
 
+  // Phase C — "connected" guide dialog
+  const [connectedGuide, setConnectedGuide] = useState(null); // 'google' | 'outlook' | null
+
   // Forms
   const [recurringForm, setRecurringForm] = useState({
     days_of_week: [],
@@ -87,6 +94,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   });
 
   const isAdmin = ['admin', 'spravce'].includes(user?.role);
+  const canPersonalCalendar = PERSONAL_CALENDAR_ROLES.includes(user?.role);
   const lecturerId = selectedLecturer || user?.id;
 
   const headers = { Authorization: `Bearer ${token}` };
@@ -148,6 +156,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
         toast.success('Outlook kalendář připojen!');
         fetchOutlookStatus();
         fetchOutlookBlocks();
+        setConnectedGuide('outlook');
       } else if (event.data?.type === 'outlook_error') {
         const raw = event.data.error || '';
         const aadsts = event.data.aadsts;
@@ -165,6 +174,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
         toast.success('Google kalendář připojen!');
         fetchGoogleStatus();
         fetchGoogleBlocks();
+        setConnectedGuide('google');
       } else if (event.data?.type === 'google_error') {
         toast.error(event.data.error || 'Chyba při připojení Google kalendáře');
       }
@@ -237,6 +247,33 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       await fetchOutlookBlocks();
     } catch (err) {
       toast.error('Chyba při změně přepsání');
+    }
+  };
+
+  // Single personal-page toggle: import busy events as blocks (+ auto-sync).
+  const setOutlookImport = async (value) => {
+    const prev = outlookStatus;
+    setOutlookStatus(s => ({ ...s, import_enabled: value }));
+    try {
+      await axios.put(`${API}/microsoft-calendar/settings`, { import_enabled: value }, { headers });
+      toast.success('Nastavení uloženo');
+      if (value) syncOutlook();
+    } catch (err) {
+      setOutlookStatus(prev);
+      toast.error(formatApiError(err, 'Nepodařilo se uložit nastavení'));
+    }
+  };
+
+  const setGoogleImport = async (value) => {
+    const prev = googleStatus;
+    setGoogleStatus(s => ({ ...s, import_enabled: value, auto_sync_enabled: value }));
+    try {
+      await axios.put(`${API}/google-calendar/settings`, { import_enabled: value, auto_sync_enabled: value }, { headers });
+      toast.success('Nastavení uloženo');
+      if (value) syncGoogle();
+    } catch (err) {
+      setGoogleStatus(prev);
+      toast.error(formatApiError(err, 'Nepodařilo se uložit nastavení'));
     }
   };
 
@@ -680,6 +717,14 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
           </div>
         </Card>
 
+        {/* Personal calendar section — hidden for ucetni/pokladni */}
+        {canPersonalCalendar && (
+        <div className="space-y-4" data-testid="personal-calendar-section">
+        <div>
+          <h2 className="font-semibold text-slate-900">Propojit osobní kalendář</h2>
+          <p className="text-sm text-gray-500">Obsazené termíny z vašeho osobního kalendáře zablokují vaši dostupnost. Export rezervací do kalendáře nastavíte v <strong>Rezervace → Synchronizace kalendáře</strong>.</p>
+        </div>
+
         {/* Outlook Integration Card */}
         <Card className="p-4 border border-slate-200" data-testid="outlook-integration-card">
           <div className="flex items-center justify-between">
@@ -739,6 +784,21 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
               )}
             </div>
           </div>
+
+          {/* Single personal-page toggle: use busy events as blocks */}
+          {outlookStatus.connected && (
+            <div className="mt-3 pt-3 border-t flex items-start justify-between gap-3" data-testid="outlook-import-settings">
+              <div>
+                <p className="text-sm font-medium text-slate-800">Používat obsazené termíny jako blokace</p>
+                <p className="text-xs text-gray-500">Obsazené události z vašeho Outlooku zablokují vaši dostupnost. Nevytvářejí rezervace a jejich názvy nemusí vidět ostatní role.</p>
+              </div>
+              <Switch
+                checked={!!outlookStatus.import_enabled}
+                onCheckedChange={setOutlookImport}
+                data-testid="outlook-import-toggle"
+              />
+            </div>
+          )}
 
           {/* Outlook blocks inline controls (compact) */}
           {outlookBlocks.length > 0 && (
@@ -854,48 +914,18 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
             </div>
           )}
 
-          {/* Sync-mode toggles */}
+          {/* Single personal-page toggle: use busy events as blocks */}
           {googleStatus.connected && (
-            <div className="mt-3 pt-3 border-t space-y-3" data-testid="google-sync-settings">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">Import z Google</p>
-                  <p className="text-xs text-gray-500">Osobní události z Google blokují vaši dostupnost v Budeživo. Nevytvářejí rezervace a jejich názvy nemusí vidět ostatní role.</p>
-                </div>
-                <Switch
-                  checked={!!googleStatus.import_enabled}
-                  onCheckedChange={(v) => updateGoogleSetting('import_enabled', v)}
-                  data-testid="google-import-toggle"
-                />
+            <div className="mt-3 pt-3 border-t flex items-start justify-between gap-3" data-testid="google-import-settings">
+              <div>
+                <p className="text-sm font-medium text-slate-800">Používat obsazené termíny jako blokace</p>
+                <p className="text-xs text-gray-500">Obsazené události z vašeho Google kalendáře zablokují vaši dostupnost. Nevytvářejí rezervace a jejich názvy nemusí vidět ostatní role.</p>
               </div>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">
-                    {googleStatus.export_scope === 'institution' ? 'Export rezervací instituce' : 'Export mých rezervací'}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {googleStatus.export_scope === 'institution'
-                      ? 'Všechny rezervace instituce se zobrazí v připojeném Google kalendáři.'
-                      : 'Rezervace, ke kterým jste přiřazeni, se zobrazí ve vašem Google kalendáři.'}
-                  </p>
-                </div>
-                <Switch
-                  checked={!!googleStatus.export_enabled}
-                  onCheckedChange={(v) => updateGoogleSetting('export_enabled', v)}
-                  data-testid="google-export-toggle"
-                />
-              </div>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-medium text-slate-800">Automatická synchronizace</p>
-                  <p className="text-xs text-gray-500">Pravidelně synchronizovat na pozadí.</p>
-                </div>
-                <Switch
-                  checked={!!googleStatus.auto_sync_enabled}
-                  onCheckedChange={(v) => updateGoogleSetting('auto_sync_enabled', v)}
-                  data-testid="google-autosync-toggle"
-                />
-              </div>
+              <Switch
+                checked={!!googleStatus.import_enabled}
+                onCheckedChange={setGoogleImport}
+                data-testid="google-import-toggle"
+              />
             </div>
           )}
 
@@ -964,6 +994,8 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
             </div>
           </DialogContent>
         </Dialog>
+        </div>
+        )}
 
         {/* Legend */}
         <div className="flex items-center gap-6 text-xs">
@@ -1449,6 +1481,12 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConnectedGuideDialog
+        open={!!connectedGuide}
+        provider={connectedGuide}
+        onClose={() => setConnectedGuide(null)}
+      />
       </>
   );
   return embedded ? content : <AdminLayout>{content}</AdminLayout>;

@@ -13,7 +13,7 @@ from sqlalchemy import select, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.supabase import AsyncSessionLocal
-from database.models import Reservation, Feedback, Institution, Program
+from database.models import Reservation, Feedback, Institution, Program, EmailLog
 from routes.feedback import generate_feedback_token
 from services.email_service import EmailService
 
@@ -21,6 +21,26 @@ logger = logging.getLogger(__name__)
 
 # Global scheduler instance
 scheduler = AsyncIOScheduler()
+
+_EMAIL_RE = None
+
+
+def _valid_email(email: str) -> bool:
+    import re
+    global _EMAIL_RE
+    if _EMAIL_RE is None:
+        _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    return bool(email and _EMAIL_RE.match(email.strip()))
+
+
+def subtract_working_days(d, n: int):
+    """Return the date that is ``n`` working days (Mon–Fri) before ``d``."""
+    cur = d
+    while n > 0:
+        cur -= timedelta(days=1)
+        if cur.weekday() < 5:  # Mon-Fri
+            n -= 1
+    return cur
 
 
 def get_next_working_day(from_date: datetime) -> datetime:
@@ -580,6 +600,118 @@ async def process_event_payment_reminders():
             await db.rollback()
 
 
+async def process_visit_reminders():
+    """Send 'visit reminder' to the booking contact 2 working days before the visit.
+
+    - Working days = Mon–Fri (weekends skipped; public holidays not considered yet).
+    - Only for active reservations (pending/confirmed); never cancelled/rejected/completed/deleted.
+    - Sent at most once (visit_reminder_sent_at guard); failures never mark it as sent.
+    - Gated per institution by notification_settings.customer.visit_reminder (default False).
+    - Every attempt is written to email_logs.
+    """
+    logger.info("Running visit reminder scheduler job...")
+    async with AsyncSessionLocal() as db:
+        try:
+            now = datetime.now(timezone.utc)
+            today = now.date()
+            today_str = today.strftime("%Y-%m-%d")
+            horizon_str = (today + timedelta(days=10)).strftime("%Y-%m-%d")
+
+            rows = (await db.execute(
+                select(Reservation, Institution, Program)
+                .join(Institution, Reservation.institution_id == Institution.id)
+                .join(Program, Reservation.program_id == Program.id)
+                .where(and_(
+                    Reservation.status.in_(['pending', 'confirmed']),
+                    Reservation.date >= today_str,
+                    Reservation.date <= horizon_str,
+                    Reservation.visit_reminder_sent_at.is_(None),
+                    Reservation.deleted_at.is_(None),
+                ))
+            )).all()
+
+            sent = 0
+            for res, inst, prog in rows:
+                ns = inst.notification_settings or {}
+                if not (ns.get('customer') or {}).get('visit_reminder', False):
+                    continue
+                # Program-level opt-out also applies to customer emails
+                if prog.send_email_notification is False:
+                    continue
+                try:
+                    visit_date = datetime.strptime(res.date, "%Y-%m-%d").date()
+                except Exception:
+                    continue
+                remind_date = subtract_working_days(visit_date, 2)
+                if today < remind_date:
+                    continue  # too early
+                if today >= visit_date:
+                    continue  # safety: never on/after the visit day
+
+                email = (res.contact_email or "").strip()
+                if not _valid_email(email):
+                    res.visit_reminder_error = "chybí nebo neplatná e-mailová adresa"
+                    res.visit_reminder_last_attempt_at = now
+                    continue
+
+                try:
+                    date_label = visit_date.strftime("%d. %m. %Y")
+                except Exception:
+                    date_label = res.date
+
+                from templates.emails import get_template
+                tpl = get_template("reservation_reminder_teacher", {
+                    "teacher_name": res.contact_name or "",
+                    "program_name": prog.name_cs,
+                    "reservation_date": date_label,
+                    "reservation_time": res.time_block or "",
+                    "institution_name": inst.name,
+                    "institution_address": inst.address or "",
+                })
+
+                log = EmailLog(
+                    institution_id=res.institution_id,
+                    program_id=res.program_id,
+                    reservation_id=res.id,
+                    recipient_email=email,
+                    subject=tpl["subject"],
+                    status="pending",
+                )
+                db.add(log)
+                res.visit_reminder_last_attempt_at = now
+                try:
+                    result = await EmailService.send_email(
+                        to_email=email,
+                        subject=tpl["subject"],
+                        html_content=tpl["html"],
+                        text_content=tpl.get("text"),
+                        add_gdpr_footer=False,
+                        reply_to=getattr(inst, "email", None),
+                    )
+                    if result.get("status") == "sent":
+                        res.visit_reminder_sent_at = now
+                        res.visit_reminder_error = None
+                        log.status = "sent"
+                        log.sent_at = now
+                        log.email_id = result.get("email_id")
+                        sent += 1
+                    else:
+                        err = result.get("error") or "odeslání se nezdařilo"
+                        res.visit_reminder_error = str(err)[:500]
+                        log.status = "failed"
+                        log.error_message = str(err)[:500]
+                except Exception as e:
+                    res.visit_reminder_error = f"{type(e).__name__}: dočasná chyba služby"
+                    log.status = "failed"
+                    log.error_message = str(e)[:500]
+
+            await db.commit()
+            logger.info(f"Visit reminder job completed. Sent {sent} reminders.")
+        except Exception as e:
+            logger.error(f"Visit reminder job failed: {e}")
+            await db.rollback()
+
+
 def start_scheduler():
     """Start the APScheduler with feedback job."""
     if scheduler.running:
@@ -637,6 +769,15 @@ def start_scheduler():
         process_event_payment_reminders,
         CronTrigger(hour=6, minute=0),
         id='event_payment_reminders',
+        replace_existing=True,
+        misfire_grace_time=3600
+    )
+
+    # Visit reminders (2 working days before the visit): run daily at 6:30 UTC
+    scheduler.add_job(
+        process_visit_reminders,
+        CronTrigger(hour=6, minute=30),
+        id='visit_reminders',
         replace_existing=True,
         misfire_grace_time=3600
     )

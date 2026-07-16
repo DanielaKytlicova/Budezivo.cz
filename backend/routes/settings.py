@@ -3,7 +3,7 @@ Settings routes - institution, theme, PRO, notifications, locale, GDPR, logo upl
 Uses Supabase (PostgreSQL) for database operations.
 """
 import logging
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Body
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -138,19 +138,135 @@ async def update_pro_settings(
 
 # ============ Notification Settings ============
 
+# Canonical, normalized default structure (single source of truth).
+CUSTOMER_NOTIF_KEYS = {
+    "reservation_created": True,
+    "reservation_confirmed": True,
+    "reservation_cancelled": True,
+    "visit_reminder": False,            # default OFF for existing institutions
+    "event_registration_received": True,
+    "event_registration_confirmed": True,
+    "event_registration_cancelled": True,
+}
+ADMIN_NOTIF_KEYS = {
+    "new_reservation": False,
+    "reservation_cancelled": True,
+    "event_capacity_reached": False,
+    "new_event_registration": False,
+    "integration_error": False,
+}
+ADMIN_RECIPIENT_ROLES = {"admin", "spravce", "edukator"}
+NOTIF_MANAGE_ROLES = {"admin", "spravce"}
+
+
+def normalize_notifications(stored: dict) -> dict:
+    """Return the notification settings in the canonical nested shape, merging
+    any stored values (incl. legacy flat keys) over the defaults."""
+    stored = stored or {}
+    customer = {**CUSTOMER_NOTIF_KEYS}
+    admin = {**ADMIN_NOTIF_KEYS}
+
+    stored_customer = stored.get("customer") or {}
+    stored_admin = stored.get("admin") or {}
+    for k in customer:
+        if isinstance(stored_customer.get(k), bool):
+            customer[k] = stored_customer[k]
+    for k in admin:
+        if isinstance(stored_admin.get(k), bool):
+            admin[k] = stored_admin[k]
+
+    # Legacy flat keys (best-effort mapping, only if nested not present)
+    if "customer" not in stored and "confirmation" in stored:
+        customer["reservation_confirmed"] = bool(stored.get("confirmation"))
+    if "admin" not in stored:
+        if "new_reservation" in stored:
+            admin["new_reservation"] = bool(stored.get("new_reservation"))
+        if "cancellation" in stored:
+            admin["reservation_cancelled"] = bool(stored.get("cancellation"))
+
+    recipients = stored_admin.get("recipient_user_ids")
+    if not isinstance(recipients, list):
+        recipients = []
+    admin["recipient_user_ids"] = [str(x) for x in recipients]
+
+    return {"customer": customer, "admin": admin}
+
+
+@router.get("/notifications")
+async def get_notification_settings(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the normalized notification settings for the institution."""
+    institution_repo = InstitutionRepositorySupabase(db)
+    institution = await institution_repo.find_by_id(current_user["institution_id"])
+    if not institution:
+        raise HTTPException(status_code=404, detail="Instituce nenalezena")
+    return normalize_notifications(institution.get("notification_settings"))
+
+
 @router.put("/notifications")
 async def update_notification_settings(
-    data: NotificationSettings,
+    data: dict = Body(...),
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Update notification settings."""
+    """Update notification settings. Only admin/spravce may change them.
+
+    Accepts only known keys; unspecified parts are preserved; recipient IDs are
+    validated to be active users of the same institution with an allowed role.
+    Returns the actually-saved normalized values.
+    """
+    if current_user.get("role") not in NOTIF_MANAGE_ROLES:
+        raise HTTPException(status_code=403, detail="Nastavení notifikací mohou měnit pouze správci a administrátoři.")
+
+    institution_repo = InstitutionRepositorySupabase(db)
+    institution = await institution_repo.find_by_id(current_user["institution_id"])
+    if not institution:
+        raise HTTPException(status_code=404, detail="Instituce nenalezena")
+
+    current = normalize_notifications(institution.get("notification_settings"))
+
+    incoming_customer = data.get("customer") or {}
+    incoming_admin = data.get("admin") or {}
+    for k in CUSTOMER_NOTIF_KEYS:
+        if isinstance(incoming_customer.get(k), bool):
+            current["customer"][k] = incoming_customer[k]
+    for k in ADMIN_NOTIF_KEYS:
+        if isinstance(incoming_admin.get(k), bool):
+            current["admin"][k] = incoming_admin[k]
+
+    # Validate & filter recipient_user_ids (same institution, allowed role, active)
+    if "recipient_user_ids" in incoming_admin:
+        raw_ids = incoming_admin.get("recipient_user_ids") or []
+        valid_ids = []
+        # Keep only syntactically valid UUIDs to avoid a DB cast error.
+        clean_ids = []
+        if isinstance(raw_ids, list):
+            import uuid as _uuid
+            for x in raw_ids:
+                try:
+                    clean_ids.append(str(_uuid.UUID(str(x))))
+                except (ValueError, AttributeError, TypeError):
+                    continue
+        if clean_ids:
+            from database.models import User
+            from sqlalchemy import select, and_
+            rows = (await db.execute(
+                select(User.id).where(and_(
+                    User.institution_id == current_user["institution_id"],
+                    User.role.in_(list(ADMIN_RECIPIENT_ROLES)),
+                    User.status == "active",
+                    User.deleted_at.is_(None),
+                    User.id.in_(clean_ids),
+                ))
+            )).all()
+            valid_ids = [str(r[0]) for r in rows]
+        current["admin"]["recipient_user_ids"] = valid_ids
+
     settings_repo = SettingsRepositorySupabase(db)
-    await settings_repo.update_notifications(
-        current_user["institution_id"],
-        data.model_dump()
-    )
-    return {"message": "Notification settings updated"}
+    await settings_repo.update_notifications(current_user["institution_id"], current)
+    return current
 
 
 # ============ Locale Settings ============

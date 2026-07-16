@@ -37,8 +37,10 @@ import {
   Mail,
   GraduationCap,
   BarChart3,
-  CalendarDays
+  CalendarDays,
+  RefreshCw
 } from 'lucide-react';
+import { Checkbox } from '../../components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import ComgatePortalUrls from '../../components/settings/ComgatePortalUrls';
 import { API } from '../../config/api';
@@ -196,13 +198,31 @@ export const SettingsPage = () => {
     secondary_color: '#123456',
   });
 
-  // Notification settings
-  const [notifications, setNotifications] = useState({
-    new_reservation: false,
-    confirmation: false,
-    cancellation: true,
-    sms_enabled: false,
-  });
+  // Notification settings (normalized nested structure)
+  const [notifications, setNotifications] = useState(null); // null = not loaded yet
+  const [notifTeam, setNotifTeam] = useState([]);            // eligible recipients
+
+  const CUSTOMER_NOTIF_META = [
+    { key: 'reservation_created', title: 'Přijetí rezervace', desc: 'Po vytvoření rezervace odešle objednávajícímu potvrzení, že systém rezervaci přijal.' },
+    { key: 'reservation_confirmed', title: 'Potvrzení rezervace', desc: 'Po schválení rezervace odešle objednávajícímu definitivní potvrzení.' },
+    { key: 'reservation_cancelled', title: 'Zrušení rezervace', desc: 'Po zrušení rezervace odešle objednávajícímu informační e-mail.' },
+    { key: 'visit_reminder', title: 'Připomínka před návštěvou', desc: 'Odešle objednávajícímu připomínku dva pracovní dny před návštěvou.' },
+    { key: 'event_registration_received', title: 'Přijetí registrace na akci', desc: 'Po přihlášení na jednorázovou akci odešle účastníkovi potvrzení o přijetí registrace.' },
+    { key: 'event_registration_confirmed', title: 'Potvrzení místa na akci', desc: 'Po schválení přihlášky nebo přesunu z čekací listiny odešle účastníkovi potvrzení místa.' },
+    { key: 'event_registration_cancelled', title: 'Zrušení účasti na akci', desc: 'Po zrušení přihlášky odešle účastníkovi informační e-mail.' },
+  ];
+  const ADMIN_NOTIF_META = [
+    { key: 'new_reservation', title: 'Nová rezervace', desc: 'Po vytvoření rezervace upozorní vybrané příjemce instituce.' },
+    { key: 'reservation_cancelled', title: 'Zrušená rezervace', desc: 'Po zrušení rezervace upozorní vybrané příjemce (program, termín, uvolněná kapacita, čekací listina).' },
+    { key: 'event_capacity_reached', title: 'Naplnění kapacity akce', desc: 'Upozorní při prvním přechodu konkrétního termínu na plnou kapacitu.' },
+    { key: 'new_event_registration', title: 'Nová přihláška na akci', desc: 'Upozorní na novou přihlášku, její stav, platební metodu a případnou čekací listinu.' },
+    { key: 'integration_error', title: 'Chyba synchronizace kalendáře', desc: 'Upozorní až po několika po sobě jdoucích selháních Google nebo Outlook synchronizace.' },
+  ];
+  const UPCOMING_NOTIF_META = [
+    { title: 'Pravidelná sumarizace obsazenosti programů', desc: 'Souhrnný přehled naplněnosti programů v pravidelném intervalu.' },
+    { title: 'Pravidelný přehled plateb', desc: 'Přehled přijatých a čekajících plateb.' },
+    { title: 'Provozní přehled rezervací, místností a lektorů', desc: 'Denní/týdenní provozní souhrn.' },
+  ];
 
   // Locale settings
   const [locale, setLocale] = useState({
@@ -452,13 +472,58 @@ export const SettingsPage = () => {
     }
   };
 
+  const canEditNotif = ['admin', 'spravce'].includes(user?.role);
+
+  const loadNotifications = async () => {
+    try {
+      const [nres, tres] = await Promise.all([
+        axios.get(`${API}/settings/notifications`),
+        axios.get(`${API}/team`).catch(() => ({ data: [] })),
+      ]);
+      setNotifications(nres.data);
+      const eligible = (tres.data || []).filter(
+        (m) => ['admin', 'spravce', 'edukator'].includes(m.role) && m.status === 'active'
+      );
+      setNotifTeam(eligible);
+    } catch (error) {
+      toast.error('Nepodařilo se načíst nastavení notifikací');
+      setNotifications({ customer: {}, admin: { recipient_user_ids: [] } });
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === 'notifications' && notifications === null) {
+      loadNotifications();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection]);
+
+  const setCustomerNotif = (key, value) =>
+    setNotifications((n) => ({ ...n, customer: { ...n.customer, [key]: value } }));
+  const setAdminNotif = (key, value) =>
+    setNotifications((n) => ({ ...n, admin: { ...n.admin, [key]: value } }));
+  const toggleRecipient = (uid) =>
+    setNotifications((n) => {
+      const cur = n.admin?.recipient_user_ids || [];
+      const next = cur.includes(uid) ? cur.filter((x) => x !== uid) : [...cur, uid];
+      return { ...n, admin: { ...n.admin, recipient_user_ids: next } };
+    });
+
   const handleSaveNotifications = async () => {
+    if (!canEditNotif) {
+      toast.error('Nastavení mohou měnit pouze správci a administrátoři');
+      return;
+    }
     setLoading(true);
     try {
-      await axios.put(`${API}/settings/notifications`, notifications);
+      const res = await axios.put(`${API}/settings/notifications`, {
+        customer: notifications.customer,
+        admin: notifications.admin,
+      });
+      setNotifications(res.data);
       toast.success('Nastavení notifikací bylo uloženo');
     } catch (error) {
-      toast.error('Nepodařilo se uložit nastavení');
+      toast.error(error?.response?.data?.detail || 'Nepodařilo se uložit nastavení');
     } finally {
       setLoading(false);
     }
@@ -926,94 +991,124 @@ export const SettingsPage = () => {
   );
 
   // Render Notifikace
-  const renderNotificationSettings = () => (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4 mb-6">
-        <button onClick={() => setActiveSection(null)} className="p-2 hover:bg-gray-100 rounded-lg">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h1 className="text-xl font-semibold text-slate-900">Notifikace a upozornění</h1>
+  const renderNotificationSettings = () => {
+    if (notifications === null) {
+      return (
+        <div className="space-y-6">
+          <div className="flex items-center gap-4 mb-6">
+            <button onClick={() => setActiveSection(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h1 className="text-xl font-semibold text-slate-900">Notifikace a upozornění</h1>
+          </div>
+          <div className="flex items-center justify-center py-16 text-gray-400" data-testid="notifications-loading">
+            <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Načítání nastavení…
+          </div>
+        </div>
+      );
+    }
+
+    const cust = notifications.customer || {};
+    const adm = notifications.admin || {};
+    const recipients = adm.recipient_user_ids || [];
+    const disabled = !canEditNotif;
+
+    const Row = ({ meta, checked, onChange, testid }) => (
+      <div className={`flex items-start justify-between gap-3 ${disabled ? 'opacity-70' : ''}`}>
+        <div>
+          <p className="font-medium text-slate-900">{meta.title}</p>
+          <p className="text-sm text-gray-500">{meta.desc}</p>
+        </div>
+        <Switch checked={!!checked} onCheckedChange={onChange} disabled={disabled} data-testid={testid} />
       </div>
+    );
 
-      {/* Mailová upozornění */}
-      <Card className="p-4 space-y-4">
-        <h2 className="font-semibold text-slate-900">Mailová upozornění</h2>
-        
-        <div className="flex items-start gap-3">
-          <Switch
-            checked={notifications.new_reservation}
-            onCheckedChange={(checked) => setNotifications({ ...notifications, new_reservation: checked })}
-            data-testid="notify-new-reservation"
-          />
-          <div>
-            <p className="font-medium text-slate-900">Nově vytvořená rezervace</p>
-            <p className="text-sm text-gray-500">Rezervace vyžaduje schválení před finálním potvrzením.</p>
+    return (
+      <div className="space-y-6" data-testid="notifications-section">
+        <div className="flex items-center gap-4 mb-2">
+          <button onClick={() => setActiveSection(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <h1 className="text-xl font-semibold text-slate-900">Notifikace a upozornění</h1>
+        </div>
+        {!canEditNotif && (
+          <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2" data-testid="notif-readonly-notice">
+            Nastavení mohou měnit pouze administrátoři a správci. Zobrazení je pouze pro čtení.
           </div>
-        </div>
+        )}
 
-        <div className="flex items-start gap-3">
-          <Switch
-            checked={notifications.confirmation}
-            onCheckedChange={(checked) => setNotifications({ ...notifications, confirmation: checked })}
-            data-testid="notify-confirmation"
-          />
+        {/* A — E-maily rezervujícím a účastníkům */}
+        <Card className="p-4 space-y-4">
           <div>
-            <p className="font-medium text-slate-900">Potvrzení rezervace</p>
-            <p className="text-sm text-gray-500">Všichni návštěvníci uvidí tento program v online nabídce.</p>
+            <h2 className="font-semibold text-slate-900">E-maily rezervujícím a účastníkům</h2>
+            <p className="text-sm text-gray-500">Zprávy odeslané objednávajícím a účastníkům akcí.</p>
           </div>
-        </div>
+          {CUSTOMER_NOTIF_META.map((m) => (
+            <Row key={m.key} meta={m} checked={cust[m.key]} onChange={(v) => setCustomerNotif(m.key, v)} testid={`notif-customer-${m.key}`} />
+          ))}
+        </Card>
 
-        <div className="flex items-start gap-3">
-          <Switch
-            checked={notifications.cancellation}
-            onCheckedChange={(checked) => setNotifications({ ...notifications, cancellation: checked })}
-            data-testid="notify-cancellation"
-          />
+        {/* B — Provozní upozornění instituci */}
+        <Card className="p-4 space-y-4">
           <div>
-            <p className="font-medium text-slate-900">Zrušení rezervace</p>
-            <p className="text-sm text-gray-500">Automaticky odešle mailem upozornění 2 pracovní dny před návštěvou.</p>
+            <h2 className="font-semibold text-slate-900">Provozní upozornění instituci</h2>
+            <p className="text-sm text-gray-500">Interní upozornění pro vybrané členy týmu.</p>
           </div>
-        </div>
-      </Card>
+          {ADMIN_NOTIF_META.map((m) => (
+            <Row key={m.key} meta={m} checked={adm[m.key]} onChange={(v) => setAdminNotif(m.key, v)} testid={`notif-admin-${m.key}`} />
+          ))}
 
-      {/* SMS upozornění */}
-      <Card className="p-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-slate-900">SMS upozornění</h2>
-          <span className="px-2 py-0.5 text-xs font-medium bg-[#2B3E50] text-white rounded">
-            PRO
-          </span>
-        </div>
-        
-        <div className="flex items-start gap-3 opacity-60">
-          <Switch
-            checked={notifications.sms_enabled}
-            onCheckedChange={(checked) => setNotifications({ ...notifications, sms_enabled: checked })}
-            disabled
-            data-testid="notify-sms"
-          />
-          <div>
-            <p className="font-medium text-slate-900">Odeslat upozornění mailem</p>
-            <p className="text-sm text-gray-500">Automaticky odešle mailem upozornění 2 pracovní dny před návštěvou.</p>
+          {/* Recipients */}
+          <div className="pt-3 border-t">
+            <p className="font-medium text-slate-900 mb-1">Příjemci provozních upozornění</p>
+            <p className="text-sm text-gray-500 mb-3">Vyberte členy týmu (admin, správce, edukátor). Bez výběru se použije kontaktní e-mail instituce.</p>
+            <div className="space-y-2" data-testid="notif-recipients">
+              {notifTeam.length === 0 && <p className="text-sm text-gray-400">Žádní vhodní členové týmu.</p>}
+              {notifTeam.map((m) => (
+                <label key={m.id} className={`flex items-center gap-2.5 text-sm ${disabled ? 'opacity-70' : 'cursor-pointer'}`}>
+                  <Checkbox
+                    checked={recipients.includes(m.id)}
+                    onCheckedChange={() => toggleRecipient(m.id)}
+                    disabled={disabled}
+                    data-testid={`notif-recipient-${m.id}`}
+                  />
+                  <span className="text-slate-800">{m.name || m.email}</span>
+                  <span className="text-xs text-gray-400">{m.email} · {m.role}</span>
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
+        </Card>
 
-        <p className="text-sm font-medium text-slate-700">
-          Vylepši svůj plán a zapni SMS upozornění
-        </p>
-      </Card>
+        {/* C — Připravované přehledy */}
+        <Card className="p-4 space-y-4">
+          <h2 className="font-semibold text-slate-900">Připravované přehledy</h2>
+          {UPCOMING_NOTIF_META.map((m, i) => (
+            <div key={i} className="flex items-start justify-between gap-3 opacity-60">
+              <div>
+                <p className="font-medium text-slate-900">{m.title}</p>
+                <p className="text-sm text-gray-500">{m.desc}</p>
+              </div>
+              <span className="px-2 py-0.5 text-xs font-medium bg-slate-200 text-slate-600 rounded whitespace-nowrap" data-testid={`notif-upcoming-${i}`}>
+                Připravujeme
+              </span>
+            </div>
+          ))}
+        </Card>
 
-      {/* Save button */}
-      <Button
-        onClick={handleSaveNotifications}
-        disabled={loading}
-        className="w-full bg-[#2B3E50] text-white hover:bg-[#1e2d3a] h-12"
-        data-testid="save-notifications"
-      >
-        {loading ? 'Ukládání...' : 'Uložit'}
-      </Button>
-    </div>
-  );
+        {canEditNotif && (
+          <Button
+            onClick={handleSaveNotifications}
+            disabled={loading}
+            className="w-full bg-[#2B3E50] text-white hover:bg-[#1e2d3a] h-12"
+            data-testid="save-notifications"
+          >
+            {loading ? 'Ukládání...' : 'Uložit'}
+          </Button>
+        )}
+      </div>
+    );
+  };
 
   // Render Jazyk a místo
   const renderLocaleSettings = () => (

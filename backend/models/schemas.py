@@ -182,6 +182,9 @@ class Booking(BookingBase):
     terms_accepted_at: Optional[datetime] = None
     terms_accepted_text_version: Optional[str] = None
     program_name: Optional[str] = None
+    visit_reminder_sent_at: Optional[datetime] = None
+    visit_reminder_last_attempt_at: Optional[datetime] = None
+    visit_reminder_error: Optional[str] = None
     created_at: datetime
 
 

@@ -335,6 +335,10 @@ async def startup_event():
                     "ALTER TABLE programs ADD COLUMN IF NOT EXISTS is_in_catalog BOOLEAN NOT NULL DEFAULT FALSE"
                 )
             )
+            # Visit-reminder tracking (customer.visit_reminder)
+            await s.execute(_text("ALTER TABLE reservations ADD COLUMN IF NOT EXISTS visit_reminder_sent_at TIMESTAMPTZ"))
+            await s.execute(_text("ALTER TABLE reservations ADD COLUMN IF NOT EXISTS visit_reminder_last_attempt_at TIMESTAMPTZ"))
+            await s.execute(_text("ALTER TABLE reservations ADD COLUMN IF NOT EXISTS visit_reminder_error TEXT"))
             await s.commit()
         logger.info("Default feature flags ensured")
     except Exception as e:

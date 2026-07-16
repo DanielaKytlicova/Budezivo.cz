@@ -41,6 +41,7 @@ import { useNavigate } from 'react-router-dom';
 import { API } from '../../config/api';
 import { ReservationSyncDialog } from '../../components/calendar/ReservationSyncDialog';
 import { AddToCalendarMenu } from '../../components/calendar/AddToCalendarMenu';
+import { VisitReminderStatus } from '../../components/bookings/VisitReminderStatus';
 
 // Roles that may manage / view calendar sync (ucetni & pokladni excluded).
 const CALENDAR_SYNC_ROLES = ['admin', 'spravce', 'edukator', 'lektor', 'produkcni'];
@@ -107,6 +108,7 @@ const BookingsPage = () => {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [showSyncDialog, setShowSyncDialog] = useState(false);
+  const [reminderEnabled, setReminderEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -129,7 +131,15 @@ const BookingsPage = () => {
     fetchCurrentUserRole();
     fetchTeamMembers();
     fetchProgramsForLecturers();
+    fetchReminderSetting();
   }, []);
+
+  const fetchReminderSetting = async () => {
+    try {
+      const res = await axios.get(`${API}/settings/notifications`);
+      setReminderEnabled(!!res.data?.customer?.visit_reminder);
+    } catch { /* non-blocking */ }
+  };
 
   const fetchProgramsForLecturers = async () => {
     try {
@@ -996,6 +1006,9 @@ const BookingsPage = () => {
                 </div>
               </Card>
             )}
+
+            {/* Visit reminder status (read-only) */}
+            <VisitReminderStatus booking={selectedBooking} reminderEnabled={reminderEnabled} />
 
             {/* Add to personal calendar (deep-links + .ics) */}
             <AddToCalendarMenu booking={selectedBooking} token={localStorage.getItem('token')} />

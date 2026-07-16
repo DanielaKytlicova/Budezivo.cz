@@ -291,6 +291,12 @@ class Reservation(Base):
 
     # Marketing opt-in (M1 Phase 76 — propagates to contacts.marketing_consent)
     marketing_consent = Column(Boolean, default=False)
+
+    # Visit reminder (customer.visit_reminder) — sent 2 working days before the
+    # visit. Guarded so it is sent at most once; failures never mark it as sent.
+    visit_reminder_sent_at = Column(DateTime(timezone=True))
+    visit_reminder_last_attempt_at = Column(DateTime(timezone=True))
+    visit_reminder_error = Column(Text)
     
     # Metadata
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))

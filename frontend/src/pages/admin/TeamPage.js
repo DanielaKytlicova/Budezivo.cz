@@ -47,6 +47,20 @@ const ROLES = [
     icon: Receipt,
     color: 'bg-[#C4AB86] text-white'
   },
+  {
+    value: 'produkcni',
+    label: 'Produkční',
+    description: 'Vidí kalendář a rezervace, spravuje blokace. Nemá přístup k platbám ani nastavení.',
+    icon: Calendar,
+    color: 'bg-[#6D8299] text-white'
+  },
+  {
+    value: 'ucetni',
+    label: 'Účetní',
+    description: 'Vidí přihlášky a platby, označuje platby jako zaplacené. Neupravuje programy ani tým.',
+    icon: Receipt,
+    color: 'bg-[#B08968] text-white'
+  },
 ];
 
 export const TeamPage = () => {

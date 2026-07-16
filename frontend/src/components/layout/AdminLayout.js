@@ -93,9 +93,9 @@ export const AdminLayout = ({ children }) => {
   const getNavItems = () => {
     const baseItems = [
       // ── Daily operations (flat) ──
-      { path: '/admin', icon: LayoutDashboard, label: 'Přehled', testId: 'nav-dashboard', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'staff', 'viewer'] },
+      { path: '/admin', icon: LayoutDashboard, label: 'Přehled', testId: 'nav-dashboard', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'produkcni', 'ucetni', 'staff', 'viewer'] },
       { path: '/admin/programs', icon: Calendar, label: 'Programy', testId: 'nav-programs', roles: ['admin', 'spravce', 'edukator', 'staff', 'viewer'] },
-      { path: '/admin/bookings', icon: BookOpen, label: 'Rezervace', testId: 'nav-bookings', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'staff', 'viewer'] },
+      { path: '/admin/bookings', icon: BookOpen, label: 'Rezervace', testId: 'nav-bookings', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'produkcni', 'staff', 'viewer'] },
       // Akce (rename from Události) — same URL & feature flag
       { path: '/admin/mailings', icon: Mail, label: 'Propagace', testId: 'nav-mailings', roles: ['admin', 'spravce', 'edukator', 'staff'], featureKey: 'mailing' },
 
@@ -111,7 +111,7 @@ export const AdminLayout = ({ children }) => {
       },
 
       // ── Lower zone (flat) ──
-      { path: '/admin/lecturer-profile', icon: GraduationCap, label: 'Lektorský profil', testId: 'nav-lecturer-profile', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'staff', 'viewer'] },
+      { path: '/admin/lecturer-profile', icon: GraduationCap, label: 'Lektorský profil', testId: 'nav-lecturer-profile', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'produkcni', 'staff', 'viewer'] },
       { path: '/admin/statistics', icon: BarChart3, label: 'Statistiky', testId: 'nav-statistics', roles: ['admin', 'spravce', 'edukator', 'staff'] },
       { path: '/admin/settings', icon: Settings, label: 'Nastavení', testId: 'nav-settings', roles: ['admin', 'spravce'] },
     ];
@@ -131,7 +131,7 @@ export const AdminLayout = ({ children }) => {
     if (eventsEnabled) {
       const propagaceIdx = baseItems.findIndex(it => it.path === '/admin/mailings');
       baseItems.splice(propagaceIdx >= 0 ? propagaceIdx : 3, 0, {
-        path: '/admin/events', icon: CalendarDays, label: 'Akce', testId: 'nav-events', roles: ['admin', 'spravce', 'edukator', 'staff'], featureKey: 'events_basic'
+        path: '/admin/events', icon: CalendarDays, label: 'Akce', testId: 'nav-events', roles: ['admin', 'spravce', 'edukator', 'ucetni', 'staff'], featureKey: 'events_basic'
       });
     }
 
@@ -178,6 +178,8 @@ export const AdminLayout = ({ children }) => {
       case 'staff': return 'bg-[#4A6FA5] text-white';
       case 'lektor': return 'bg-[#84A98C] text-white';
       case 'pokladni': return 'bg-[#C4AB86] text-white';
+      case 'produkcni': return 'bg-[#6D8299] text-white';
+      case 'ucetni': return 'bg-[#B08968] text-white';
       case 'viewer': return 'bg-gray-200 text-gray-700';
       default: return 'bg-gray-200 text-gray-700';
     }
@@ -191,6 +193,8 @@ export const AdminLayout = ({ children }) => {
       case 'staff': return 'Edukator';
       case 'lektor': return 'Externí lektor';
       case 'pokladni': return 'Pokladní';
+      case 'produkcni': return 'Produkční';
+      case 'ucetni': return 'Účetní';
       case 'viewer': return 'Návštěvník';
       default: return 'Uživatel';
     }

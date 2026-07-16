@@ -1076,19 +1076,30 @@ export const SchoolsPage = () => {
               {canPurge && (
                 <div className="border-t pt-3 space-y-2">
                   <p className="text-sm font-medium text-slate-800">Smazat jako testovací data</p>
-                  <label className="flex items-start gap-2 text-sm text-gray-600">
-                    <input type="checkbox" checked={purgeConfirmChecked} onChange={e => setPurgeConfirmChecked(e.target.checked)} className="mt-1" data-testid="purge-understand-checkbox" />
-                    Rozumím, že budou odstraněny také rezervace a změní se statistiky.
-                  </label>
-                  <Input placeholder="Napište SMAZAT" value={purgeConfirmText} onChange={e => setPurgeConfirmText(e.target.value)} data-testid="purge-confirm-input" />
-                  <Button
-                    className="w-full bg-red-600 hover:bg-red-700 text-white"
-                    disabled={bulkBusy || !purgeConfirmChecked || purgeConfirmText !== 'SMAZAT'}
-                    onClick={() => runBulkDelete('purge')}
-                    data-testid="bulk-delete-purge"
-                  >
-                    Smazat jako testovací data
-                  </Button>
+                  {bulkSummary.ambiguous_reservations > 0 ? (
+                    <p className="text-sm text-red-600" data-testid="purge-ambiguous-warning">
+                      {bulkSummary.ambiguous_reservations} rezervací nelze bezpečně přiřadit k těmto školám (chybí spolehlivá vazba). Automatické smazání je zablokováno — použijte „Pouze skrýt školy".
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-600" data-testid="purge-counts">
+                        Trvale bude odstraněno: <strong>{bulkSummary.school_count}</strong> škol, <strong>{bulkSummary.contact_count}</strong> kontaktů a <strong>{bulkSummary.linked_reservations ?? bulkSummary.booking_count}</strong> rezervací (včetně jejich zpětné vazby). Nevratné.
+                      </p>
+                      <label className="flex items-start gap-2 text-sm text-gray-600">
+                        <input type="checkbox" checked={purgeConfirmChecked} onChange={e => setPurgeConfirmChecked(e.target.checked)} className="mt-1" data-testid="purge-understand-checkbox" />
+                        Rozumím, že budou odstraněny také rezervace a změní se statistiky.
+                      </label>
+                      <Input placeholder="Napište SMAZAT" value={purgeConfirmText} onChange={e => setPurgeConfirmText(e.target.value)} data-testid="purge-confirm-input" />
+                      <Button
+                        className="w-full bg-red-600 hover:bg-red-700 text-white"
+                        disabled={bulkBusy || !purgeConfirmChecked || purgeConfirmText !== 'SMAZAT'}
+                        onClick={() => runBulkDelete('purge')}
+                        data-testid="bulk-delete-purge"
+                      >
+                        Smazat jako testovací data
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

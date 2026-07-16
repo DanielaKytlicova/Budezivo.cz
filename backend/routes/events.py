@@ -72,6 +72,9 @@ from services.plan_service import require_feature
 from services.payment_gateways.factory import _detect_mode
 from services.contact_service import upsert_contact_from_event_application
 from services.email_service import trigger_event_application_confirmation
+from core.permissions import (
+    ensure_role, MANAGEMENT_ROLES, EVENT_MANAGE_ROLES, PAYMENTS_ROLES, MARK_PAID_ROLES,
+)
 import re as _re
 
 router = APIRouter(prefix="/events", tags=["Events"])
@@ -362,6 +365,7 @@ async def create_event(
     _guard=Depends(require_feature("events_basic")),
 ):
     """Create a new event."""
+    ensure_role(current_user, EVENT_MANAGE_ROLES)
     await require_events_module(db, current_user["institution_id"])
 
     inst_uuid = uuid.UUID(current_user["institution_id"])
@@ -448,6 +452,7 @@ async def update_event(
     current_user: dict = Depends(get_current_user),
 ):
     """Update an event."""
+    ensure_role(current_user, EVENT_MANAGE_ROLES)
     await require_events_module(db, current_user["institution_id"])
     inst_uuid = uuid.UUID(current_user["institution_id"])
 
@@ -520,6 +525,7 @@ async def delete_event(
     current_user: dict = Depends(get_current_user),
 ):
     """Delete an event."""
+    ensure_role(current_user, EVENT_MANAGE_ROLES)
     await require_events_module(db, current_user["institution_id"])
     inst_uuid = uuid.UUID(current_user["institution_id"])
 
@@ -548,6 +554,7 @@ async def add_event_date(
     current_user: dict = Depends(get_current_user),
 ):
     """Add a date/time to an event."""
+    ensure_role(current_user, EVENT_MANAGE_ROLES)
     await require_events_module(db, current_user["institution_id"])
 
     event_date = EventDate(
@@ -570,6 +577,7 @@ async def remove_event_date(
     current_user: dict = Depends(get_current_user),
 ):
     """Remove a date from an event."""
+    ensure_role(current_user, EVENT_MANAGE_ROLES)
     await require_events_module(db, current_user["institution_id"])
 
     result = await db.execute(
@@ -597,6 +605,7 @@ async def list_applications(
     current_user: dict = Depends(get_current_user),
 ):
     """List applications for an event."""
+    ensure_role(current_user, PAYMENTS_ROLES)
     await require_events_module(db, current_user["institution_id"])
 
     query = select(EventApplication).where(
@@ -619,6 +628,7 @@ async def list_all_applications(
     current_user: dict = Depends(get_current_user),
 ):
     """List all applications across all events for the institution."""
+    ensure_role(current_user, PAYMENTS_ROLES)
     await require_events_module(db, current_user["institution_id"])
     inst_uuid = uuid.UUID(current_user["institution_id"])
 
@@ -650,6 +660,7 @@ async def update_application_status(
     current_user: dict = Depends(get_current_user),
 ):
     """Update application status (admin)."""
+    ensure_role(current_user, PAYMENTS_ROLES)
     await require_events_module(db, current_user["institution_id"])
 
     result = await db.execute(
@@ -663,12 +674,14 @@ async def update_application_status(
         raise HTTPException(status_code=404, detail="Přihláška nenalezena")
 
     if data.status:
+        # Approving/rejecting a registration is a management action.
+        ensure_role(current_user, EVENT_MANAGE_ROLES, "Nemáte oprávnění měnit stav přihlášky.")
         app.status = data.status
 
     if data.payment_status:
-        # Manually marking a payment as PAID is restricted (admin/spravce/pokladni) and audited.
+        # Manually marking a payment as PAID is restricted (admin/spravce/ucetni/pokladni) and audited.
         marking_paid = data.payment_status == "paid" and app.payment_status != "paid"
-        if marking_paid and current_user.get("role") not in ("admin", "spravce", "pokladni"):
+        if marking_paid and current_user.get("role") not in MARK_PAID_ROLES:
             raise HTTPException(status_code=403, detail="Nemáte oprávnění označit platbu jako zaplacenou.")
         app.payment_status = data.payment_status
         if marking_paid:
@@ -702,6 +715,7 @@ async def export_applications_xlsx(
     _guard=Depends(require_feature("data_export")),
 ):
     """Export applications as styled XLSX."""
+    ensure_role(current_user, PAYMENTS_ROLES)
     await require_events_module(db, current_user["institution_id"])
     inst_uuid = uuid.UUID(current_user["institution_id"])
 
@@ -736,6 +750,7 @@ async def export_applications_csv(
     _guard=Depends(require_feature("data_export")),
 ):
     """Export applications as CSV."""
+    ensure_role(current_user, PAYMENTS_ROLES)
     await require_events_module(db, current_user["institution_id"])
     inst_uuid = uuid.UUID(current_user["institution_id"])
 
@@ -1224,6 +1239,7 @@ async def get_payment_settings(
     _guard=Depends(require_feature("events_payments")),
 ):
     """Get payment settings for institution."""
+    ensure_role(current_user, MANAGEMENT_ROLES)
     await require_events_module(db, current_user["institution_id"])
     inst_uuid = uuid.UUID(current_user["institution_id"])
 
@@ -1262,6 +1278,7 @@ async def update_payment_settings(
     "no change" (preserves existing stored credentials). To explicitly clear
     a stored key, send the literal "__CLEAR__" sentinel.
     """
+    ensure_role(current_user, MANAGEMENT_ROLES)
     await require_events_module(db, current_user["institution_id"])
     inst_uuid = uuid.UUID(current_user["institution_id"])
 

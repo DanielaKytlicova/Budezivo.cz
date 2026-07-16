@@ -6,6 +6,8 @@ import logging
 import os
 import uuid
 import secrets
+import json
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -39,22 +41,22 @@ OAUTH_STATE_TTL_MINUTES = 10
 
 
 def _get_redirect_uri(request: Request) -> str:
-    """Build redirect URI from the current request's public-facing host."""
-    # Prefer X-Forwarded-Host (set by reverse proxy/ingress)
+    """Return the OAuth redirect URI.
+
+    The explicit env value MICROSOFT_REDIRECT_URI is authoritative: it must match
+    the Microsoft Entra app registration EXACTLY and must be identical for both
+    /connect and /callback. We never derive it from the frontend Origin/Referer
+    (that would yield the frontend host, e.g. budezivo.cz, which does not match
+    the API host api.budezivo.cz registered in Entra).
+    """
+    if REDIRECT_URI:
+        return REDIRECT_URI
+    # Dev/preview fallback: derive from the API's OWN public host.
     fwd_host = request.headers.get("x-forwarded-host")
     fwd_proto = request.headers.get("x-forwarded-proto", "https")
     if fwd_host:
         return f"{fwd_proto}://{fwd_host}/api/microsoft-calendar/callback"
-    
-    # Fallback: use Origin/Referer header
-    origin = request.headers.get("origin") or request.headers.get("referer")
-    if origin:
-        from urllib.parse import urlparse
-        parsed = urlparse(origin)
-        base = f"{parsed.scheme}://{parsed.netloc}"
-        return f"{base}/api/microsoft-calendar/callback"
-    
-    return REDIRECT_URI or "https://budezivo.cz/api/microsoft-calendar/callback"
+    return f"{request.url.scheme}://{request.url.netloc}/api/microsoft-calendar/callback"
 
 
 def _get_msal_app():
@@ -124,7 +126,9 @@ async def oauth_callback(
     """
     if error:
         logger.error(f"OAuth error: {error} - {error_description}")
-        return _close_popup_html(f"Chyba: {error_description or error}")
+        if error == "access_denied":
+            return _close_popup_html("Souhlas s přístupem ke kalendáři byl odmítnut.")
+        return _close_popup_html(error_description or error)
 
     if not code or not state:
         return _close_popup_html("Chybí autorizační kód")
@@ -626,18 +630,37 @@ def _block_to_dict(block: AvailabilityBlock) -> dict:
     }
 
 
+def _extract_aadsts(msg: Optional[str]) -> Optional[str]:
+    if not msg:
+        return None
+    m = re.search(r"AADSTS\d+", msg)
+    return m.group(0) if m else None
+
+
 def _close_popup_html(error: Optional[str]) -> "HTMLResponse":
-    """Return HTML that communicates result to parent window and closes popup."""
+    """Return HTML that posts the result to the opener and closes the popup.
+
+    Error detail is delivered via postMessage as JSON (safely escaped) — never
+    interpolated raw into HTML/JS. Secrets/tokens/codes are never included here.
+    """
     from fastapi.responses import HTMLResponse
-    # Use restrictive targetOrigin — read from env for production safety
-    origin = os.environ.get("FRONTEND_URL", os.environ.get("CORS_ORIGINS", "").split(",")[0] if os.environ.get("CORS_ORIGINS") else "*")
+    origin = os.environ.get("FRONTEND_URL") or (
+        os.environ.get("CORS_ORIGINS", "").split(",")[0] if os.environ.get("CORS_ORIGINS") else "*"
+    )
     if error:
-        script = f'window.opener && window.opener.postMessage({{type:"outlook_error",error:"{error}"}}, "{origin}"); window.close();'
+        payload = {"type": "outlook_error", "error": error, "aadsts": _extract_aadsts(error)}
+        visible = "Připojení Outlooku se nezdařilo. Toto okno se zavře…"
     else:
-        script = f'window.opener && window.opener.postMessage({{type:"outlook_connected"}}, "{origin}"); window.close();'
-    html = f"""<!DOCTYPE html><html><body>
-    <p>{"Chyba: " + error if error else "Připojeno! Toto okno se zavře..."}</p>
-    <script>{script}</script>
+        payload = {"type": "outlook_connected"}
+        visible = "Připojeno! Toto okno se zavře…"
+    payload_json = json.dumps(payload)
+    origin_json = json.dumps(origin)
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
+    <p>{visible}</p>
+    <script>
+      try {{ window.opener && window.opener.postMessage({payload_json}, {origin_json}); }} catch (e) {{}}
+      window.close();
+    </script>
     </body></html>"""
     return HTMLResponse(content=html)
 

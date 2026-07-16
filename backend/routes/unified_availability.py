@@ -13,10 +13,14 @@ from sqlalchemy import select, and_
 from database.supabase import get_db
 from database.models import AvailabilityException, Program
 from core.security import get_current_user
+from core.permissions import ensure_role, BLOCK_MANAGE_ROLES
 from services.availability_service import evaluate_program_slots, evaluate_lecturer_slots
 
 router = APIRouter(prefix="/availability-unified", tags=["Unified Availability"])
 logger = logging.getLogger(__name__)
+
+# Who may create/delete institution blocks (excludes ucetni; includes staff roles).
+BLOCK_EDIT_ROLES = BLOCK_MANAGE_ROLES | {"edukator", "lektor"}
 
 
 class ExceptionCreate(BaseModel):
@@ -114,6 +118,7 @@ async def create_exception(
     current_user: dict = Depends(get_current_user),
 ):
     """Create a one-off availability exception (block a slot)."""
+    ensure_role(current_user, BLOCK_EDIT_ROLES)
     if data.scope_type not in ('program', 'lecturer'):
         raise HTTPException(status_code=400, detail="scope_type musí být 'program' nebo 'lecturer'")
 
@@ -161,6 +166,7 @@ async def delete_exception(
     current_user: dict = Depends(get_current_user),
 ):
     """Delete an availability exception (restore slot)."""
+    ensure_role(current_user, BLOCK_EDIT_ROLES)
     inst_uuid = uuid.UUID(current_user["institution_id"])
     result = await db.execute(
         select(AvailabilityException).where(and_(

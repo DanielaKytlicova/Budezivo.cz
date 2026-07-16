@@ -149,6 +149,14 @@ async def create_booking(
     })
 
     booking_repo = BookingRepositorySupabase(db)
+    # Link a reliable school_id when the contact matches an existing school.
+    try:
+        _school_repo = SchoolRepositorySupabase(db)
+        _existing_school = await _school_repo.find_by_email(current_user["institution_id"], booking_data.contact_email)
+        if _existing_school:
+            payload["school_id"] = _existing_school["id"]
+    except Exception:  # noqa: BLE001
+        pass
     booking = await booking_repo.create(payload, current_user["institution_id"])
     # Phase 76 — auto-seed contact directory (best-effort, never blocks booking)
     try:
@@ -229,6 +237,20 @@ async def create_public_booking(
     # Resolve main lecturer (auto-pick; public flow never has admin override)
     resolved = await _resolve_main_lecturer(db, institution_id, booking_data, admin_override=None)
 
+    # Resolve/create the School FIRST so the reservation stores a reliable school_id link.
+    school = await school_repo.find_by_email(institution_id, booking_data.contact_email)
+    if school:
+        await school_repo.increment_booking_count(school["id"])
+        school_id = school["id"]
+    else:
+        new_school = await school_repo.create({
+            "name": booking_data.school_name,
+            "contact_person": booking_data.contact_name,
+            "email": booking_data.contact_email,
+            "phone": booking_data.contact_phone,
+        }, institution_id)
+        school_id = new_school.get("id") if new_school else None
+
     payload = booking_data.model_dump()
     payload.update({
         "assigned_lecturer_id": resolved["lecturer_id"],
@@ -236,6 +258,7 @@ async def create_public_booking(
         "assigned_lecturer_at": datetime.now(timezone.utc) if resolved["lecturer_id"] else None,
         "assignment_source": resolved["source"],
         "assignment_reason": resolved["reason"],
+        "school_id": school_id,
     })
 
     booking = await booking_repo.create(payload, institution_id)
@@ -246,19 +269,7 @@ async def create_public_booking(
         await db.commit()
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Contact auto-seed failed (public booking {booking.get('id')}): {e}")
-    
-    # Create or update school record
-    school = await school_repo.find_by_email(institution_id, booking_data.contact_email)
-    if school:
-        await school_repo.increment_booking_count(school["id"])
-    else:
-        await school_repo.create({
-            "name": booking_data.school_name,
-            "contact_person": booking_data.contact_name,
-            "email": booking_data.contact_email,
-            "phone": booking_data.contact_phone,
-        }, institution_id)
-    
+
     logger.info(f"Booking created: {booking['id']} for {booking_data.contact_email}")
     
     # Strip internal fields from public response (keep full booking for email processing)

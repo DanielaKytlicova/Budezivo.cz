@@ -536,23 +536,31 @@ async def bulk_delete_summary(
     ).bindparams(bindparam("ids", expanding=True))
     contact_count = (await db.execute(contact_stmt, {"inst": inst, "ids": data.school_ids})).scalar() or 0
 
-    # Reservations only link to schools by name (no reliable FK) → count is
-    # informational only; deleting reservations this way is NOT allowed.
-    booking_count = 0
+    # Reservations RELIABLY linked to the selected schools (school_id) — these can be
+    # safely purged as test data.
+    linked_stmt = text(
+        "SELECT COUNT(*) FROM reservations WHERE institution_id = :inst AND school_id IN :ids"
+    ).bindparams(bindparam("ids", expanding=True))
+    linked_count = (await db.execute(linked_stmt, {"inst": inst, "ids": data.school_ids})).scalar() or 0
+
+    # Ambiguous: reservations that match a selected school only BY NAME (no school_id).
+    # These cannot be safely auto-deleted and will block a purge.
+    ambiguous_count = 0
     if names:
-        b_stmt = text(
+        amb_stmt = text(
             "SELECT COUNT(*) FROM reservations WHERE institution_id = :inst "
-            "AND deleted_at IS NULL AND status NOT IN ('cancelled','canceled') "
-            "AND school_name IN :names"
+            "AND school_id IS NULL AND school_name IN :names"
         ).bindparams(bindparam("names", expanding=True))
-        booking_count = (await db.execute(b_stmt, {"inst": inst, "names": names})).scalar() or 0
+        ambiguous_count = (await db.execute(amb_stmt, {"inst": inst, "names": names})).scalar() or 0
 
     return {
         "school_count": school_count,
         "contact_count": int(contact_count),
-        "booking_count": int(booking_count),
-        # No FK reservations→schools, so test reservations can't be safely purged.
-        "reservations_deletable": False,
+        "booking_count": int(linked_count),
+        "linked_reservations": int(linked_count),
+        "ambiguous_reservations": int(ambiguous_count),
+        # Reservations are now safely linked via school_id → purge is possible.
+        "reservations_deletable": True,
     }
 
 
@@ -573,27 +581,79 @@ async def bulk_delete_schools(
     if not names:
         raise HTTPException(status_code=404, detail="Žádná z vybraných škol nepatří vaší instituci")
 
-    b_stmt = text(
-        "SELECT COUNT(*) FROM reservations WHERE institution_id = :inst "
-        "AND deleted_at IS NULL AND status NOT IN ('cancelled','canceled') "
-        "AND school_name IN :names"
-    ).bindparams(bindparam("names", expanding=True))
-    booking_count = (await db.execute(b_stmt, {"inst": inst, "names": names})).scalar() or 0
-
+    # Reservations reliably linked to the selected schools (safe unit for hard-block / purge).
     id_filter = bindparam("ids", expanding=True)
+    linked_stmt = text(
+        "SELECT COUNT(*) FROM reservations WHERE institution_id = :inst AND school_id IN :ids"
+    ).bindparams(id_filter)
+    linked_count = (await db.execute(linked_stmt, {"inst": inst, "ids": data.school_ids})).scalar() or 0
 
     if data.mode == "purge":
-        # Deleting reservations as "test data" requires a reliable DB link which
-        # does not exist (reservations only carry school_name). Block explicitly.
+        # Destructive test-data removal: schools + contacts + their linked reservations.
         if role not in ("admin", "spravce"):
             raise HTTPException(status_code=403, detail="Odstranění testovacích dat smí provést pouze správce")
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "Rezervace nelze bezpečně odstranit — v databázi neexistuje spolehlivá vazba "
-                "rezervace→škola (rezervace se párují pouze podle názvu). Použijte „Pouze skrýt školy“."
-            ),
-        )
+        if (data.confirm_text or "").strip() != "SMAZAT":
+            raise HTTPException(status_code=400, detail="Pro odstranění testovacích dat zadejte potvrzovací text SMAZAT.")
+
+        # Reservations that match a selected school only BY NAME (no school_id) are
+        # ambiguous — we must NOT delete them by name. Block the purge and explain.
+        amb_stmt = text(
+            "SELECT COUNT(*) FROM reservations WHERE institution_id = :inst "
+            "AND school_id IS NULL AND school_name IN :names"
+        ).bindparams(bindparam("names", expanding=True))
+        ambiguous = (await db.execute(amb_stmt, {"inst": inst, "names": names})).scalar() or 0
+        if ambiguous > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"{ambiguous} rezervací nelze bezpečně přiřadit k vybraným školám (chybí spolehlivá vazba "
+                    f"school_id). Automatické smazání je z bezpečnostních důvodů zablokováno — tyto rezervace "
+                    f"nejprve zkontrolujte, nebo použijte „Pouze skrýt školy“."
+                ),
+            )
+
+        try:
+            # 1) linked reservations (children cascade via FK), 2) contacts, 3) schools — one transaction.
+            r_stmt = text(
+                "DELETE FROM reservations WHERE institution_id = :inst AND school_id IN :ids"
+            ).bindparams(id_filter)
+            r_res = await db.execute(r_stmt, {"inst": inst, "ids": data.school_ids})
+            c_stmt = text(
+                "DELETE FROM school_contacts WHERE institution_id = :inst AND school_id IN :ids"
+            ).bindparams(id_filter)
+            c_res = await db.execute(c_stmt, {"inst": inst, "ids": data.school_ids})
+            s_stmt = text(
+                "DELETE FROM schools WHERE institution_id = :inst AND id IN :ids"
+            ).bindparams(id_filter)
+            s_res = await db.execute(s_stmt, {"inst": inst, "ids": data.school_ids})
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise HTTPException(status_code=500, detail="Odstranění se nezdařilo, všechny změny byly vráceny zpět")
+
+        try:
+            from routes.audit import log_action
+            await log_action(
+                db, institution_id=inst,
+                user_id=current_user["user_id"], user_email=current_user.get("email", ""),
+                action="purge_test_data", entity_type="school",
+                entity_id=",".join(data.school_ids[:10]),
+                details={
+                    "deleted_schools": s_res.rowcount,
+                    "deleted_contacts": c_res.rowcount,
+                    "deleted_reservations": r_res.rowcount,
+                    "school_names": names,
+                },
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Audit log for purge failed: {e}")
+
+        return {
+            "deleted_schools": s_res.rowcount,
+            "deleted_contacts": c_res.rowcount,
+            "deleted_reservations": r_res.rowcount,
+            "hidden_schools": 0,
+        }
 
     if data.mode == "hide":
         stmt = text(
@@ -605,12 +665,13 @@ async def bulk_delete_schools(
         return {"hidden_schools": res.rowcount, "deleted_schools": 0, "deleted_contacts": 0, "deleted_reservations": 0}
 
     if data.mode == "hard":
-        if booking_count > 0:
+        # Hard delete NEVER removes reservations/stats/feedback — block if any exist.
+        if linked_count > 0:
             raise HTTPException(
                 status_code=409,
                 detail=(
-                    f"Vybrané školy mají {booking_count} navázaných rezervací. Trvalé smazání by ovlivnilo "
-                    f"statistiky a historii. Použijte „Pouze skrýt školy“."
+                    f"Vybrané školy mají {linked_count} navázaných rezervací. Trvalé smazání by ovlivnilo "
+                    f"statistiky a historii. Použijte „Pouze skrýt školy“ nebo „Odstranit jako testovací data“."
                 ),
             )
         try:

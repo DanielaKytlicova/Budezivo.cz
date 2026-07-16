@@ -76,7 +76,7 @@ async def create_recurring_availability(
     target_id = lecturer_id or current_user["user_id"]
     institution_id = current_user["institution_id"]
 
-    if target_id != current_user["user_id"] and current_user["role"] not in ["admin", "spravce"]:
+    if target_id != current_user["user_id"] and current_user["role"] not in ["admin", "spravce", "produkcni"]:
         raise HTTPException(status_code=403, detail="Nemáte oprávnění upravovat dostupnost jiného lektora.")
 
     created = []
@@ -140,7 +140,7 @@ async def update_recurring_availability(
     if not avail:
         raise HTTPException(status_code=404, detail="Blok dostupnosti nenalezen.")
 
-    if str(avail.lecturer_id) != current_user["user_id"] and current_user["role"] not in ["admin", "spravce"]:
+    if str(avail.lecturer_id) != current_user["user_id"] and current_user["role"] not in ["admin", "spravce", "produkcni"]:
         raise HTTPException(status_code=403, detail="Nemáte oprávnění.")
 
     avail.day_of_week = data.day_of_week
@@ -169,7 +169,7 @@ async def delete_recurring_availability(
     if not avail:
         raise HTTPException(status_code=404, detail="Blok dostupnosti nenalezen.")
 
-    if str(avail.lecturer_id) != current_user["user_id"] and current_user["role"] not in ["admin", "spravce"]:
+    if str(avail.lecturer_id) != current_user["user_id"] and current_user["role"] not in ["admin", "spravce", "produkcni"]:
         raise HTTPException(status_code=403, detail="Nemáte oprávnění.")
 
     await db.delete(avail)
@@ -212,7 +212,7 @@ async def create_time_off(
     target_id = lecturer_id or current_user["user_id"]
     institution_id = current_user["institution_id"]
 
-    if target_id != current_user["user_id"] and current_user["role"] not in ["admin", "spravce"]:
+    if target_id != current_user["user_id"] and current_user["role"] not in ["admin", "spravce", "produkcni"]:
         raise HTTPException(status_code=403, detail="Nemáte oprávnění.")
 
     time_off = LecturerTimeOff(
@@ -249,7 +249,7 @@ async def update_time_off(
     if not time_off:
         raise HTTPException(status_code=404, detail="Blokace nenalezena.")
 
-    if str(time_off.lecturer_id) != current_user["user_id"] and current_user["role"] not in ["admin", "spravce"]:
+    if str(time_off.lecturer_id) != current_user["user_id"] and current_user["role"] not in ["admin", "spravce", "produkcni"]:
         raise HTTPException(status_code=403, detail="Nemáte oprávnění.")
 
     if data.start_date is not None:
@@ -286,7 +286,7 @@ async def delete_time_off(
     if not time_off:
         raise HTTPException(status_code=404, detail="Blokace nenalezena.")
 
-    if str(time_off.lecturer_id) != current_user["user_id"] and current_user["role"] not in ["admin", "spravce"]:
+    if str(time_off.lecturer_id) != current_user["user_id"] and current_user["role"] not in ["admin", "spravce", "produkcni"]:
         raise HTTPException(status_code=403, detail="Nemáte oprávnění.")
 
     await db.delete(time_off)

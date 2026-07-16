@@ -149,7 +149,18 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
         fetchOutlookStatus();
         fetchOutlookBlocks();
       } else if (event.data?.type === 'outlook_error') {
-        toast.error(event.data.error || 'Chyba při připojení Outlooku');
+        const raw = event.data.error || '';
+        const aadsts = event.data.aadsts;
+        let msg = raw || 'Připojení Outlooku se nezdařilo.';
+        const low = raw.toLowerCase();
+        if (low.includes('nakonfigurován') || low.includes('not configured')) {
+          msg = 'Připojení Outlooku není nakonfigurováno (chybí přihlašovací údaje Microsoft).';
+        } else if (aadsts === 'AADSTS50011' || low.includes('redirect')) {
+          msg = 'Nesouhlasí přesměrovací adresa (redirect URI) v Microsoft Entra.';
+        } else if (aadsts === 'AADSTS7000215' || aadsts === 'AADSTS7000222' || low.includes('invalid client secret') || low.includes('secret')) {
+          msg = 'Neplatný nebo prošlý client secret aplikace Microsoft.';
+        }
+        toast.error(aadsts ? `${msg} (${aadsts})` : msg, { duration: 8000 });
       } else if (event.data?.type === 'google_connected') {
         toast.success('Google kalendář připojen!');
         fetchGoogleStatus();
@@ -191,7 +202,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
         window.open(res.data.auth_url, 'outlook_auth', 'width=500,height=700');
       }
     } catch (err) {
-      toast.error('Nepodařilo se zahájit připojení Outlooku');
+      toast.error(formatApiError(err, 'Nepodařilo se zahájit připojení Outlooku'));
     }
   };
 

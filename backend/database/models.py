@@ -241,6 +241,9 @@ class Reservation(Base):
     
     # School/Group Info
     school_name = Column(Text, nullable=False)
+    # Reliable link to a School (nullable; SET NULL on school delete). Enables
+    # safe test-data purge and accurate school stats without name matching.
+    school_id = Column(UUID(as_uuid=True), ForeignKey('schools.id', ondelete='SET NULL'), nullable=True)
     group_type = Column(Text, nullable=False)  # ms_3_6, zs1_7_12, etc.
     age_or_class = Column(Text)
     num_students = Column(Integer, nullable=False)

@@ -787,6 +787,9 @@ class CalendarEventExport(Base):
     provider = Column(Text, nullable=False, default='google')
     google_calendar_id = Column(Text)
     google_event_id = Column(Text)
+    # Provider-agnostic identifiers (used by Microsoft; Google keeps its own columns).
+    external_calendar_id = Column(Text)
+    external_event_id = Column(Text)
     last_synced_at = Column(DateTime(timezone=True))
     sync_status = Column(Text, default='pending')
     sync_error = Column(Text)

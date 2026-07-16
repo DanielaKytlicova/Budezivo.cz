@@ -913,6 +913,8 @@ class EventApplication(Base):
     # Manual-payment audit (who/when marked a QR/cash payment as paid)
     paid_marked_by_email = Column(Text)
     paid_marked_at = Column(DateTime(timezone=True))
+    # When a "please pay" reminder was sent (QR/cash, before the event). Null = not sent.
+    payment_reminder_sent_at = Column(DateTime(timezone=True))
     total_amount = Column(Float, default=0.0)
     variable_symbol = Column(Text)
     applicant_data = Column(JSON, default={})  # form field answers

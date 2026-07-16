@@ -1412,6 +1412,98 @@ def event_application_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
     }
 
 
+def event_payment_reminder(data: Dict[str, Any]) -> Dict[str, str]:
+    """Gentle reminder to pay before an upcoming event (QR / cash methods)."""
+    import html as _html
+
+    event_name = data.get("event_name", "")
+    applicant_name = data.get("applicant_name", "")
+    institution_name = data.get("institution_name", "")
+    date_label = data.get("date_label")
+    price = data.get("price") or 0
+    currency = data.get("currency", "CZK")
+    variable_symbol = data.get("variable_symbol")
+    payment_method = data.get("payment_method")
+    account_number = data.get("account_number")
+    bank_code = data.get("bank_code")
+    account_name = data.get("account_name")
+
+    e = lambda v: _html.escape(str(v or ""))
+
+    heading = "Připomenutí platby"
+    intro = (
+        f"Blíží se termín akce „{e(event_name)}“ a evidujeme u vaší přihlášky "
+        f"dosud neuhrazenou platbu. Prosíme o její vyřízení."
+    )
+
+    rows = [("Akce", e(event_name))]
+    if applicant_name:
+        rows.append(("Účastník", e(applicant_name)))
+    if date_label:
+        rows.append(("Termín", e(date_label)))
+    if price and float(price) > 0:
+        rows.append(("Částka", f"{e(price)} {e(currency)}"))
+
+    rows_html = ""
+    for i, (label, value) in enumerate(rows):
+        border = "border-top: 1px solid #E2E8F0;" if i > 0 else ""
+        rows_html += f"""
+                <tr>
+                    <td style="padding: 8px 0; color: #64748B; width: 160px; {border}">{label}:</td>
+                    <td style="padding: 8px 0; color: #1E293B; font-weight: 500; {border}">{value}</td>
+                </tr>"""
+
+    payment_block = ""
+    if payment_method == "cash":
+        payment_block = f'<div style="{BASE_STYLES["info_box"]}"><strong>Platba proběhne na místě.</strong> Částku prosím uhraďte při příchodu na akci.</div>'
+        plain_pay = "Platba proběhne na místě.\n"
+    else:  # qr / bank transfer
+        acc = f"{e(account_number)}/{e(bank_code)}" if bank_code else e(account_number)
+        payment_block = f"""
+        <div style="{BASE_STYLES['info_box']}">
+            <div style="color: #6B7A8D; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">
+                Platební údaje
+            </div>
+            <table style="width: 100%; border-collapse: collapse;">
+                {f'<tr><td style="padding: 6px 0; color: #64748B; width: 160px;">Účet:</td><td style="padding: 6px 0; color: #1E293B; font-weight: 500;">{acc}</td></tr>' if account_number else ''}
+                {f'<tr><td style="padding: 6px 0; color: #64748B;">Příjemce:</td><td style="padding: 6px 0; color: #1E293B;">{e(account_name)}</td></tr>' if account_name else ''}
+                {f'<tr><td style="padding: 6px 0; color: #64748B;">Variabilní symbol:</td><td style="padding: 6px 0; color: #1E293B; font-weight: 500;">{e(variable_symbol)}</td></tr>' if variable_symbol else ''}
+                <tr><td style="padding: 6px 0; color: #64748B;">Částka:</td><td style="padding: 6px 0; color: #1E293B; font-weight: 500;">{e(price)} {e(currency)}</td></tr>
+            </table>
+        </div>"""
+        plain_pay = (
+            (f"Účet: {account_number}/{bank_code}\n" if account_number else "")
+            + (f"Variabilní symbol: {variable_symbol}\n" if variable_symbol else "")
+            + f"Částka: {price} {currency}\n"
+        )
+
+    content = f"""
+        <h1 style="{BASE_STYLES['h1']}">{heading}</h1>
+        <div style="{BASE_STYLES['alert_warning']}; margin-bottom: 20px;">{intro}</div>
+        <div style="{BASE_STYLES['info_box']}">
+            <table style="width: 100%; border-collapse: collapse;">{rows_html}
+            </table>
+        </div>
+        {payment_block}
+        <p style="{BASE_STYLES['text']}">
+            Pokud jste již zaplatili, považujte prosím tuto zprávu za bezpředmětnou. Děkujeme, <strong>{e(institution_name)}</strong>.
+        </p>
+    """
+
+    plain = (
+        f"{heading}\n\n"
+        f"Akce: {event_name}\n"
+        + (f"Termín: {date_label}\n" if date_label else "")
+        + plain_pay
+        + f"\nPokud jste již zaplatili, tuto zprávu ignorujte.\nInstituce: {institution_name}\n"
+    )
+
+    return {
+        "subject": f"Připomenutí platby — {event_name}",
+        "html": _base_template(content, data),
+        "text": _plain_text_base(plain),
+    }
+
 
 TEMPLATE_REGISTRY = {
     "user_registration_confirmation": user_registration_confirmation,
@@ -1433,6 +1525,7 @@ TEMPLATE_REGISTRY = {
     "contact_form_submission": contact_form_submission,
     "team_invitation": team_invitation,
     "event_application_confirmation": event_application_confirmation,
+    "event_payment_reminder": event_payment_reminder,
     "join_request_received": lambda d: join_request_received(d),
     "join_request_approved": lambda d: join_request_approved(d),
     "join_request_rejected": lambda d: join_request_rejected(d),

@@ -110,6 +110,7 @@ class EventCreate(BaseModel):
     is_active: bool = True
     image_url: Optional[str] = None
     form_fields: List[dict] = []
+    allowed_payment_methods: Optional[List[str]] = None
 
 
 class EventUpdate(BaseModel):
@@ -123,6 +124,7 @@ class EventUpdate(BaseModel):
     is_archived: Optional[bool] = None
     image_url: Optional[str] = None
     form_fields: Optional[List[dict]] = None
+    allowed_payment_methods: Optional[List[str]] = None
 
 
 class EventDateCreate(BaseModel):
@@ -139,6 +141,7 @@ class ApplicationCreate(BaseModel):
     applicant_name: Optional[str] = None
     note: Optional[str] = None
     marketing_consent: bool = False
+    payment_method: Optional[str] = None
 
 
 class ApplicationStatusUpdate(BaseModel):
@@ -147,7 +150,9 @@ class ApplicationStatusUpdate(BaseModel):
 
 
 class PaymentSettingsUpdate(BaseModel):
-    payment_mode: str = "qr"
+    payment_mode: Optional[str] = None
+    allowed_methods: Optional[List[str]] = None
+    confirm_disable: bool = False
     provider: Optional[str] = None
     iban: Optional[str] = None
     account_number: Optional[str] = None
@@ -229,6 +234,62 @@ def _generate_qr_payload(
 
 # ============ Feature Flag Check ============
 
+VALID_PAYMENT_METHODS = ("qr", "gateway", "cash")
+
+PAYMENT_METHOD_LABELS = {
+    "qr": "QR platba / bankovní převod",
+    "gateway": "Platební brána Comgate",
+    "cash": "Platba na místě",
+    "free": "Zdarma",
+}
+
+
+async def _get_payment_settings(db: AsyncSession, inst_uuid):
+    return (await db.execute(
+        select(InstitutionPaymentSettings).where(
+            InstitutionPaymentSettings.institution_id == inst_uuid
+        )
+    )).scalar_one_or_none()
+
+
+def _derive_institution_methods(settings) -> list:
+    """Institution's globally-allowed payment methods (legacy payment_mode fallback)."""
+    if settings and settings.allowed_methods:
+        return [m for m in settings.allowed_methods if m in VALID_PAYMENT_METHODS]
+    if settings:
+        pm = settings.payment_mode or "qr"
+        if pm == "both":
+            return ["qr", "gateway"]
+        if pm == "gateway":
+            return ["gateway"]
+        return ["qr"]
+    return []
+
+
+def _method_is_configured(settings, method: str) -> bool:
+    """Whether a method has the technical config it requires to be enabled."""
+    if method == "qr":
+        return bool(settings and (settings.account_number or "").strip())
+    if method == "gateway":
+        return bool(
+            settings
+            and (settings.provider or "").strip().lower() == "comgate"
+            and (settings.gateway_api_key or "").strip()
+            and (settings.gateway_secret or "").strip()
+        )
+    if method == "cash":
+        return True
+    return False
+
+
+def _event_methods(event, inst_methods: list) -> list:
+    """Event's offered methods, always intersected with what the institution allows."""
+    raw = event.allowed_payment_methods
+    if not raw:
+        return list(inst_methods)  # legacy paid event → inherit institution methods
+    return [m for m in raw if m in inst_methods]
+
+
 @router.get("/check-access")
 async def check_events_access(
     db: AsyncSession = Depends(get_db),
@@ -277,6 +338,22 @@ async def list_events(
     return out
 
 
+async def _institution_has_payment_method(db: AsyncSession, inst_uuid) -> bool:
+    """True if the institution has at least one usable payment method configured
+    (bank account for QR/transfer, or an active payment gateway)."""
+    ps = (await db.execute(
+        select(InstitutionPaymentSettings).where(InstitutionPaymentSettings.institution_id == inst_uuid)
+    )).scalar_one_or_none()
+    if not ps:
+        return False
+    if ps.account_number:
+        return True
+    if getattr(ps, "comgate_enabled", False) or getattr(ps, "provider", None):
+        return True
+    return False
+
+
+
 @router.post("")
 async def create_event(
     data: EventCreate,
@@ -287,8 +364,28 @@ async def create_event(
     """Create a new event."""
     await require_events_module(db, current_user["institution_id"])
 
+    inst_uuid = uuid.UUID(current_user["institution_id"])
+    methods = None
+    if (data.price or 0) > 0:
+        settings = await _get_payment_settings(db, inst_uuid)
+        inst_methods = [m for m in _derive_institution_methods(settings) if _method_is_configured(settings, m)]
+        if not inst_methods:
+            raise HTTPException(
+                status_code=400,
+                detail="Pro placenou akci nejprve nastavte alespoň jednu platební metodu (číslo účtu, platební brána nebo platba na místě).",
+            )
+        methods = data.allowed_payment_methods if data.allowed_payment_methods else list(inst_methods)
+        invalid = [m for m in methods if m not in inst_methods]
+        if invalid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Metody nejsou institucí povoleny: {', '.join(invalid)}",
+            )
+        if not methods:
+            raise HTTPException(status_code=400, detail="Vyberte alespoň jednu platební metodu.")
+
     event = Event(
-        institution_id=uuid.UUID(current_user["institution_id"]),
+        institution_id=inst_uuid,
         name=data.name,
         type=data.type,
         description=data.description,
@@ -298,6 +395,7 @@ async def create_event(
         is_active=data.is_active,
         image_url=data.image_url,
         form_fields=data.form_fields,
+        allowed_payment_methods=methods,
     )
     db.add(event)
     await db.commit()
@@ -364,6 +462,48 @@ async def update_event(
         raise HTTPException(status_code=404, detail="Událost nenalezena")
 
     update_data = data.model_dump(exclude_unset=True)
+
+    # Guard: switching a PAID event to FREE while payments already exist must not
+    # silently wipe payment history. Block and report the affected count.
+    new_price = update_data.get("price")
+    if new_price is not None and (new_price or 0) <= 0 and (event.price or 0) > 0:
+        paid_count = (await db.execute(
+            select(func.count(EventApplication.id)).where(and_(
+                EventApplication.event_id == event.id,
+                EventApplication.payment_status.in_(["pending", "paid"]),
+            ))
+        )).scalar() or 0
+        if paid_count > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Akci nelze změnit na bezplatnou: existuje {paid_count} přihlášek se zahájenou "
+                    f"nebo dokončenou platbou. Vyřešte je (např. refundaci) individuálně."
+                ),
+            )
+
+    # Payment-method validation for the resulting (post-update) state.
+    resulting_price = new_price if new_price is not None else event.price
+    if resulting_price is not None and (resulting_price or 0) > 0:
+        settings = await _get_payment_settings(db, inst_uuid)
+        inst_methods = [m for m in _derive_institution_methods(settings) if _method_is_configured(settings, m)]
+        if not inst_methods:
+            raise HTTPException(
+                status_code=400,
+                detail="Pro placenou akci nejprve nastavte alespoň jednu platební metodu (číslo účtu, platební brána nebo platba na místě).",
+            )
+        methods = update_data.get("allowed_payment_methods")
+        if methods is None:
+            methods = event.allowed_payment_methods or list(inst_methods)
+        invalid = [m for m in methods if m not in inst_methods]
+        if invalid:
+            raise HTTPException(status_code=400, detail=f"Metody nejsou institucí povoleny: {', '.join(invalid)}")
+        if not methods:
+            raise HTTPException(status_code=400, detail="Vyberte alespoň jednu platební metodu.")
+        update_data["allowed_payment_methods"] = methods
+    elif resulting_price is not None and (resulting_price or 0) <= 0:
+        update_data["allowed_payment_methods"] = None  # free event → no methods
+
     for key, value in update_data.items():
         setattr(event, key, value)
     event.updated_at = datetime.now(timezone.utc)
@@ -524,8 +664,28 @@ async def update_application_status(
 
     if data.status:
         app.status = data.status
+
     if data.payment_status:
+        # Manually marking a payment as PAID is restricted (admin/spravce/pokladni) and audited.
+        marking_paid = data.payment_status == "paid" and app.payment_status != "paid"
+        if marking_paid and current_user.get("role") not in ("admin", "spravce", "pokladni"):
+            raise HTTPException(status_code=403, detail="Nemáte oprávnění označit platbu jako zaplacenou.")
         app.payment_status = data.payment_status
+        if marking_paid:
+            now = datetime.now(timezone.utc)
+            app.paid_marked_by_email = current_user.get("email") or ""
+            app.paid_marked_at = now
+            from routes.audit import log_action
+            await log_action(
+                db,
+                institution_id=current_user["institution_id"],
+                user_id=current_user["user_id"],
+                user_email=current_user.get("email", ""),
+                action="mark_paid",
+                entity_type="event_application",
+                entity_id=str(app.id),
+                details={"payment_method": app.payment_method, "amount": app.total_amount},
+            )
     app.updated_at = datetime.now(timezone.utc)
 
     await db.commit()
@@ -775,6 +935,19 @@ async def get_public_event_detail(
         dates_out.append(dd)
 
     ev_dict["dates"] = dates_out
+
+    # Payment methods offered for this event (intersected with institution + config).
+    settings = await _get_payment_settings(db, uuid.UUID(institution_id))
+    inst_methods = [m for m in _derive_institution_methods(settings) if _method_is_configured(settings, m)]
+    is_free = (event.price or 0) <= 0
+    methods = [] if is_free else _event_methods(event, inst_methods)
+    ev_dict["is_free"] = is_free
+    ev_dict["payment_methods"] = methods
+    ev_dict["payment_info"] = ({
+        "account_number": settings.account_number if settings else None,
+        "bank_code": settings.bank_code if settings else None,
+        "account_name": settings.account_name if settings else None,
+    } if "qr" in methods else {})
     return ev_dict
 
 
@@ -813,6 +986,31 @@ async def submit_application(
     # mis-linking manual/QR bank transfers to the wrong application).
     vs = await _generate_unique_variable_symbol(db, inst_uuid)
 
+    # Free event → no payment is ever required for this application.
+    is_free = (event.price or 0) <= 0
+
+    # Resolve the chosen payment method for a PAID event (enforced server-side).
+    pay_settings = await _get_payment_settings(db, inst_uuid)
+    chosen_method = "free"
+    qr_payload = None
+    if not is_free:
+        inst_methods = [m for m in _derive_institution_methods(pay_settings) if _method_is_configured(pay_settings, m)]
+        offered = _event_methods(event, inst_methods)
+        if not offered:
+            raise HTTPException(
+                status_code=400,
+                detail="Pro tuto akci nejsou dostupné žádné platební metody. Kontaktujte pořadatele.",
+            )
+        req_method = (data.payment_method or "").strip().lower()
+        if req_method:
+            if req_method not in offered:
+                raise HTTPException(status_code=400, detail="Zvolený způsob platby není u této akce povolen.")
+            chosen_method = req_method
+        elif len(offered) == 1:
+            chosen_method = offered[0]
+        else:
+            raise HTTPException(status_code=400, detail="Vyberte prosím způsob platby.")
+
     application = EventApplication(
         institution_id=inst_uuid,
         event_id=event.id,
@@ -822,9 +1020,11 @@ async def submit_application(
         applicant_name=data.applicant_name,
         note=data.note,
         marketing_consent=bool(data.marketing_consent),
-        total_amount=event.price,
-        variable_symbol=vs,
+        total_amount=0 if is_free else event.price,
+        variable_symbol=None if is_free else vs,
         status=app_status,
+        payment_status="not_required" if is_free else "unpaid",
+        payment_method=chosen_method,
     )
     db.add(application)
     await db.commit()
@@ -837,18 +1037,8 @@ async def submit_application(
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Contact auto-seed failed (application {application.id}): {e}")
 
-    # Get payment settings
-    ps_result = await db.execute(
-        select(InstitutionPaymentSettings).where(
-            InstitutionPaymentSettings.institution_id == inst_uuid
-        )
-    )
-    pay_settings = ps_result.scalar_one_or_none()
-
-    # Create QR payment if applicable (skip for waitlisted — they pay only once
-    # a seat opens up and they're moved off the waitlist).
-    qr_payload = None
-    if not is_waitlisted and pay_settings and pay_settings.account_number and event.price > 0:
+    # Create a QR payment ONLY for the QR method (never for gateway/cash; skip waitlisted).
+    if not is_waitlisted and not is_free and chosen_method == "qr" and pay_settings and pay_settings.account_number:
         qr_payload = _generate_qr_payload(
             account_number=pay_settings.account_number,
             bank_code=pay_settings.bank_code or "",
@@ -873,6 +1063,7 @@ async def submit_application(
 
     resp = _to_dict(application)
     resp["qr_payload"] = qr_payload
+    resp["payment_method"] = chosen_method
 
     # Confirmation email (best-effort). Sent only AFTER the application (and any
     # payment) are committed; a Resend failure must never roll back the saved
@@ -894,7 +1085,7 @@ async def submit_application(
                     date_label = ed.start_datetime.strftime("%d.%m.%Y %H:%M")
 
             payment_relevant = bool(
-                not is_waitlisted and pay_settings and pay_settings.account_number and event.price and event.price > 0
+                not is_waitlisted and chosen_method == "qr" and pay_settings and pay_settings.account_number
             )
             await trigger_event_application_confirmation(
                 to_email=email,
@@ -905,9 +1096,11 @@ async def submit_application(
                     "date_label": date_label,
                     "is_waitlist": is_waitlisted,
                     "status": application.status,
+                    "is_free": is_free,
                     "price": event.price or 0,
                     "currency": event.currency or "CZK",
-                    "variable_symbol": vs,
+                    "variable_symbol": None if is_free else vs,
+                    "payment_method": chosen_method,
                     "payment_relevant": payment_relevant,
                     "account_number": pay_settings.account_number if pay_settings else None,
                     "bank_code": pay_settings.bank_code if pay_settings else None,
@@ -919,15 +1112,13 @@ async def submit_application(
             logger.error(f"Event confirmation email failed (application {application.id}): {type(e).__name__}")
 
     resp["payment_settings"] = {
-        "payment_mode": pay_settings.payment_mode if pay_settings else "qr",
+        "payment_method": chosen_method,
         "account_number": pay_settings.account_number if pay_settings else None,
         "bank_code": pay_settings.bank_code if pay_settings else None,
         "account_name": pay_settings.account_name if pay_settings else None,
         "provider": pay_settings.provider if pay_settings else None,
-        "gateway_enabled": bool(
-            pay_settings and pay_settings.provider and pay_settings.payment_mode in ("gateway", "both")
-        ),
-    } if pay_settings else None
+        "gateway_enabled": chosen_method == "gateway",
+    } if pay_settings else {"payment_method": chosen_method}
     resp["pdf_url"] = f"/api/events/public/{institution_id}/application/{str(application.id)}/pdf"
     resp["waitlisted"] = is_waitlisted
 
@@ -1010,7 +1201,7 @@ CLEAR_SENTINEL = "__CLEAR__"
 
 
 def _enrich_payment_settings(d: dict, settings: Optional[InstitutionPaymentSettings]) -> dict:
-    """Add public mode/masked indicators and strip raw secrets."""
+    """Add public mode/masked indicators, allowed methods + config flags; strip raw secrets."""
     mode = _detect_mode(settings).value.upper() if settings else "MOCK"
     masked = _mask_merchant(getattr(settings, "gateway_api_key", None)) if settings else None
     secret_set = bool((getattr(settings, "gateway_secret", None) or "").strip()) if settings else False
@@ -1019,6 +1210,8 @@ def _enrich_payment_settings(d: dict, settings: Optional[InstitutionPaymentSetti
     d["gateway_mode"] = mode
     d["gateway_api_key_masked"] = masked
     d["gateway_secret_set"] = secret_set
+    d["allowed_methods"] = _derive_institution_methods(settings)
+    d["methods_configured"] = {m: _method_is_configured(settings, m) for m in VALID_PAYMENT_METHODS}
     return d
 
 
@@ -1048,6 +1241,8 @@ async def get_payment_settings(
             "gateway_mode": "MOCK",
             "gateway_api_key_masked": None,
             "gateway_secret_set": False,
+            "allowed_methods": [],
+            "methods_configured": {m: (m == "cash") for m in VALID_PAYMENT_METHODS},
         }
 
     d = _to_dict(settings)
@@ -1081,10 +1276,16 @@ async def update_payment_settings(
         settings = InstitutionPaymentSettings(institution_id=inst_uuid)
         db.add(settings)
 
+    # Snapshot the currently-allowed methods BEFORE mutating anything.
+    old_methods = _derive_institution_methods(settings)
+
     update_data = data.model_dump(exclude_unset=True)
+    requested_methods = update_data.pop("allowed_methods", None)
+    confirm_disable = update_data.pop("confirm_disable", False)
+
+    # Apply account/gateway fields first so config checks see the new state.
     for key, value in update_data.items():
         if key in ("gateway_api_key", "gateway_secret"):
-            # Preserve existing if empty/unspecified; allow explicit clear via sentinel.
             if value is None:
                 continue
             if isinstance(value, str):
@@ -1094,6 +1295,81 @@ async def update_payment_settings(
                 if value.strip() == "":
                     continue
         setattr(settings, key, value)
+
+    # ── Two-level allowed methods ────────────────────────────────────
+    if requested_methods is not None:
+        new_methods = []
+        for m in requested_methods:
+            if m in VALID_PAYMENT_METHODS and m not in new_methods:
+                new_methods.append(m)
+        # Each enabled method must be technically configured.
+        for m in new_methods:
+            if not _method_is_configured(settings, m):
+                msgs = {
+                    "qr": "QR platbu lze povolit pouze s vyplněným číslem účtu.",
+                    "gateway": "Platební bránu Comgate lze povolit pouze s platnou konfigurací brány (poskytovatel + přihlašovací údaje).",
+                }
+                raise HTTPException(status_code=400, detail=msgs.get(m, f"Metoda {m} není správně nakonfigurována."))
+
+        removed = [m for m in old_methods if m not in new_methods]
+        if removed:
+            now = datetime.now(timezone.utc)
+            paid_events = (await db.execute(
+                select(Event).where(and_(
+                    Event.institution_id == inst_uuid,
+                    Event.price > 0,
+                    Event.is_active == True,
+                    Event.is_archived == False,
+                ))
+            )).scalars().all()
+
+            affected, would_empty = [], []
+            for ev in paid_events:
+                ev_methods = ev.allowed_payment_methods or old_methods
+                if not set(ev_methods) & set(removed):
+                    continue
+                future_cnt = (await db.execute(
+                    select(func.count(EventDate.id)).where(and_(
+                        EventDate.event_id == ev.id, EventDate.start_datetime >= now
+                    ))
+                )).scalar() or 0
+                any_cnt = (await db.execute(
+                    select(func.count(EventDate.id)).where(EventDate.event_id == ev.id)
+                )).scalar() or 0
+                if not (future_cnt > 0 or any_cnt == 0):
+                    continue  # only past-dated events are unaffected
+                remaining = [m for m in ev_methods if m not in removed]
+                entry = {"id": str(ev.id), "name": ev.name, "methods": ev_methods}
+                affected.append((ev, remaining))
+                if not remaining:
+                    would_empty.append(entry)
+
+            if would_empty:
+                raise HTTPException(status_code=409, detail={
+                    "code": "would_empty",
+                    "message": "Některým placeným akcím by po této změně nezůstala žádná platební metoda. Nejprve prosím upravte tyto akce.",
+                    "events": would_empty,
+                })
+            if affected and not confirm_disable:
+                raise HTTPException(status_code=409, detail={
+                    "code": "needs_confirm",
+                    "message": "Tuto metodu používají aktivní budoucí akce. Potvrďte změnu — metoda z nich bude odebrána.",
+                    "events": [{"id": str(ev.id), "name": ev.name, "methods": ev.allowed_payment_methods or old_methods} for ev, _ in affected],
+                })
+            # Confirmed → strip the removed method(s) from each affected event.
+            for ev, remaining in affected:
+                ev.allowed_payment_methods = remaining
+                ev.updated_at = now
+
+        settings.allowed_methods = new_methods
+        # Keep legacy payment_mode roughly in sync (cash ignored for legacy field).
+        if "qr" in new_methods and "gateway" in new_methods:
+            settings.payment_mode = "both"
+        elif "gateway" in new_methods:
+            settings.payment_mode = "gateway"
+        else:
+            settings.payment_mode = "qr"
+
     settings.updated_at = datetime.now(timezone.utc)
 
     await db.commit()

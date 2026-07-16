@@ -257,6 +257,14 @@ export const SettingsPage = () => {
     provider: null, gateway_api_key: '', gateway_secret: '',
   });
   const [eventsEnabled, setEventsEnabled] = useState(false);
+  const [disableConfirm, setDisableConfirm] = useState(null);
+
+  const togglePaymentMethod = (m) => {
+    setPaymentSettings(p => {
+      const cur = p.allowed_methods || [];
+      return { ...p, allowed_methods: cur.includes(m) ? cur.filter(x => x !== m) : [...cur, m] };
+    });
+  };
 
   useEffect(() => {
     if (activeSection === 'institution') {
@@ -307,20 +315,34 @@ export const SettingsPage = () => {
     } catch { setEventsEnabled(false); }
   };
 
-  const savePaymentSettings = async () => {
+  const savePaymentSettings = async (confirmDisable = false) => {
     try {
-      const res = await axios.put(`${API}/events/settings/payment`, paymentSettings);
-      // Reset secret/key inputs so the user sees the server-side masked indicator
-      // instead of stale local typing — server is source of truth post-save.
+      const payload = {
+        ...paymentSettings,
+        allowed_methods: paymentSettings.allowed_methods || [],
+        confirm_disable: confirmDisable,
+      };
+      const res = await axios.put(`${API}/events/settings/payment`, payload);
       setPaymentSettings(prev => ({
         ...prev,
         ...res.data,
         gateway_api_key: '',
         gateway_secret: '',
       }));
+      setDisableConfirm(null);
       toast.success('Platební nastavení uloženo');
-    } catch {
-      toast.error('Chyba při ukládání platebního nastavení');
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      if (err.response?.status === 409 && detail?.code === 'needs_confirm') {
+        setDisableConfirm(detail);
+        return;
+      }
+      if (err.response?.status === 409 && detail?.code === 'would_empty') {
+        setDisableConfirm(null);
+        toast.error(`${detail.message} Dotčené akce: ${(detail.events || []).map(e => e.name).join(', ')}`);
+        return;
+      }
+      toast.error(typeof detail === 'string' ? detail : 'Chyba při ukládání platebního nastavení');
     }
   };
 
@@ -1828,22 +1850,37 @@ export const SettingsPage = () => {
           </Card>
 
           <Card className="p-4 md:p-6 space-y-4">
-            <h3 className="font-semibold text-slate-900">Režim platby</h3>
-            <Select
-              value={paymentSettings.payment_mode || 'qr'}
-              onValueChange={v => setPaymentSettings(p => ({ ...p, payment_mode: v }))}
-            >
-              <SelectTrigger data-testid="settings-payment-mode">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="qr">QR platba (bankovní převod)</SelectItem>
-                <SelectItem value="gateway">Platební brána</SelectItem>
-                <SelectItem value="both">QR + platební brána</SelectItem>
-              </SelectContent>
-            </Select>
+            <h3 className="font-semibold text-slate-900">Povolené způsoby platby</h3>
+            <p className="text-sm text-gray-500">Vyberte, které způsoby platby vaše instituce technicky podporuje. Tuto nabídku pak lze u jednotlivých akcí dále zúžit.</p>
 
-            {(paymentSettings.payment_mode === 'gateway' || paymentSettings.payment_mode === 'both') && (
+            <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50" data-testid="method-qr">
+              <input type="checkbox" className="mt-1 w-4 h-4" checked={(paymentSettings.allowed_methods || []).includes('qr')} onChange={() => togglePaymentMethod('qr')} data-testid="method-qr-checkbox" />
+              <div>
+                <p className="text-sm font-medium text-slate-800">QR platba / bankovní převod</p>
+                <p className="text-xs text-gray-500">Vyžaduje vyplněné číslo účtu.</p>
+                {!paymentSettings.account_number && (paymentSettings.allowed_methods || []).includes('qr') && (
+                  <p className="text-xs text-amber-600 mt-0.5">Nejprve vyplňte číslo účtu výše.</p>
+                )}
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50" data-testid="method-gateway">
+              <input type="checkbox" className="mt-1 w-4 h-4" checked={(paymentSettings.allowed_methods || []).includes('gateway')} onChange={() => togglePaymentMethod('gateway')} data-testid="method-gateway-checkbox" />
+              <div>
+                <p className="text-sm font-medium text-slate-800">Platební brána Comgate</p>
+                <p className="text-xs text-gray-500">Vyžaduje platnou konfiguraci brány (poskytovatel + přihlašovací údaje).</p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50" data-testid="method-cash">
+              <input type="checkbox" className="mt-1 w-4 h-4" checked={(paymentSettings.allowed_methods || []).includes('cash')} onChange={() => togglePaymentMethod('cash')} data-testid="method-cash-checkbox" />
+              <div>
+                <p className="text-sm font-medium text-slate-800">Platba na místě</p>
+                <p className="text-xs text-gray-500">Nevyžaduje bankovní účet ani platební bránu. Platbu později ručně potvrdí oprávněná osoba.</p>
+              </div>
+            </label>
+
+            {(paymentSettings.allowed_methods || []).includes('gateway') && (
               <Card className="p-4 bg-blue-50 border-blue-200 space-y-3">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <p className="text-sm font-medium text-blue-800">Platební brána</p>
@@ -1986,9 +2023,34 @@ export const SettingsPage = () => {
             )}
           </Card>
 
-          <Button onClick={savePaymentSettings} className="bg-slate-800 text-white w-full" data-testid="settings-save-payment">
+          <Button onClick={() => savePaymentSettings(false)} className="bg-slate-800 text-white w-full" data-testid="settings-save-payment">
             Uložit platební nastavení
           </Button>
+
+          <Dialog open={!!disableConfirm} onOpenChange={(o) => { if (!o) setDisableConfirm(null); }}>
+            <DialogContent className="sm:max-w-md" data-testid="disable-method-confirm-dialog">
+              <DialogHeader>
+                <DialogTitle>Potvrdit změnu platebních metod</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3 py-1">
+                <p className="text-sm text-gray-600">{disableConfirm?.message}</p>
+                {(disableConfirm?.events || []).length > 0 && (
+                  <div className="max-h-48 overflow-y-auto rounded-lg border divide-y">
+                    {(disableConfirm?.events || []).map(ev => (
+                      <div key={ev.id} className="px-3 py-2 text-sm" data-testid={`affected-event-${ev.id}`}>
+                        <p className="font-medium text-slate-800">{ev.name}</p>
+                        <p className="text-xs text-gray-500">Metody: {(ev.methods || []).join(', ')}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDisableConfirm(null)} data-testid="disable-method-cancel">Zrušit</Button>
+                <Button className="bg-slate-800 text-white" onClick={() => savePaymentSettings(true)} data-testid="disable-method-confirm">Potvrdit a odebrat metodu</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>

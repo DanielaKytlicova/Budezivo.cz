@@ -31,7 +31,7 @@ from core.security import get_current_user
 from database.supabase import get_db
 from database.models import (
     UserCalendarIntegration, AvailabilityBlock, OAuthState, Program,
-    Reservation, Room, Institution, CalendarEventExport,
+    Reservation, Room, Institution, CalendarEventExport, User,
 )
 from services.plan_service import require_feature
 from services.google_calendar_helpers import (
@@ -267,6 +267,7 @@ async def get_connection_status(
         "auto_sync_enabled": integration.auto_sync_enabled,
         "needs_reconnect": integration.needs_reconnect,
         "has_events_scope": has_events_scope(integration.granted_scopes),
+        "export_scope": "institution" if current_user.get("role") in ("admin", "spravce") else "assigned",
     }
 
 
@@ -762,6 +763,15 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
     now = datetime.now(timezone.utc)
     today = now.strftime("%Y-%m-%d")
 
+    # Determine export scope from the integration OWNER's role (read from DB,
+    # never trusted from the client). Admin/manager export the whole institution;
+    # educators/lecturers export only reservations they are assigned to; any
+    # other role falls back to the safe personal (assigned) scope.
+    owner_role = (await db.execute(
+        select(User.role).where(User.id == integration.user_id)
+    )).scalar_one_or_none()
+    institution_scope = owner_role in ("admin", "spravce")
+
     res_rows = (await db.execute(
         select(Reservation).where(and_(
             Reservation.institution_id == inst_id,
@@ -770,7 +780,10 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
             Reservation.status.notin_(list(CANCELLED_STATUSES)),
         ))
     )).scalars().all()
-    assigned = [r for r in res_rows if user_id in reservation_assigned_user_ids(r)]
+    if institution_scope:
+        assigned = res_rows
+    else:
+        assigned = [r for r in res_rows if user_id in reservation_assigned_user_ids(r)]
     assigned_ids = {str(r.id) for r in assigned}
 
     links = (await db.execute(

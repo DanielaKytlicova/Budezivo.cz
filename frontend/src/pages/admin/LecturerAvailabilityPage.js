@@ -859,8 +859,14 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
               </div>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-medium text-slate-800">Export do Google</p>
-                  <p className="text-xs text-gray-500">Rezervace, ke kterým jste přiřazeni, se zobrazí ve vašem Google kalendáři.</p>
+                  <p className="text-sm font-medium text-slate-800">
+                    {googleStatus.export_scope === 'institution' ? 'Export rezervací instituce' : 'Export mých rezervací'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {googleStatus.export_scope === 'institution'
+                      ? 'Všechny rezervace instituce se zobrazí v připojeném Google kalendáři.'
+                      : 'Rezervace, ke kterým jste přiřazeni, se zobrazí ve vašem Google kalendáři.'}
+                  </p>
                 </div>
                 <Switch
                   checked={!!googleStatus.export_enabled}

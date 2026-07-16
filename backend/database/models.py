@@ -872,6 +872,9 @@ class Event(Base):
     is_archived = Column(Boolean, default=False)
     image_url = Column(Text)
     form_fields = Column(JSON, default=[])  # [{id, type, label, required, options, order}]
+    # Subset of the institution's globally-allowed methods offered for THIS event.
+    # NULL for free events (no payment). Values: qr, gateway, cash.
+    allowed_payment_methods = Column(JSON)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
@@ -905,7 +908,11 @@ class EventApplication(Base):
     event_id = Column(UUID(as_uuid=True), ForeignKey('events.id', ondelete='CASCADE'), nullable=False)
     event_date_id = Column(UUID(as_uuid=True), ForeignKey('event_dates.id', ondelete='SET NULL'))
     status = Column(Text, nullable=False, default='pending')  # pending, approved, rejected
-    payment_status = Column(Text, nullable=False, default='unpaid')  # unpaid, pending, paid
+    payment_status = Column(Text, nullable=False, default='unpaid')  # unpaid, pending, paid, not_required
+    payment_method = Column(Text)  # qr, gateway, cash, free
+    # Manual-payment audit (who/when marked a QR/cash payment as paid)
+    paid_marked_by_email = Column(Text)
+    paid_marked_at = Column(DateTime(timezone=True))
     total_amount = Column(Float, default=0.0)
     variable_symbol = Column(Text)
     applicant_data = Column(JSON, default={})  # form field answers
@@ -930,7 +937,9 @@ class InstitutionPaymentSettings(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False, unique=True)
-    payment_mode = Column(Text, default='qr')  # qr, gateway, both
+    payment_mode = Column(Text, default='qr')  # legacy: qr, gateway, both
+    # Globally-supported methods for the institution. Values: qr, gateway, cash.
+    allowed_methods = Column(JSON)
     provider = Column(Text)  # gopay, comgate, null
     iban = Column(Text)
     account_number = Column(Text)

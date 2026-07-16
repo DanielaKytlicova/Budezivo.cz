@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import Response
@@ -17,13 +17,63 @@ from icalendar import Calendar, Event, vText
 import pytz
 
 from database.supabase import get_db
-from database.models import Reservation, Program, Institution
+from database.models import Reservation, Program, Institution, CalendarFeedToken, User
 from core.security import get_current_user
+import secrets
+import uuid as _uuid
 
 router = APIRouter(prefix="/calendar", tags=["Calendar"])
 logger = logging.getLogger(__name__)
 
 PRAGUE_TZ = pytz.timezone("Europe/Prague")
+
+MANAGER_ROLES = {"admin", "spravce"}
+LECTURER_ROLES = {"edukator", "lektor"}
+
+
+def _hash_token(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+async def _resolve_feed_scope(db: AsyncSession, current_user: dict, feed_type: str, entity_id: Optional[str]) -> str:
+    """Verify OWNERSHIP + role permission and return the backend-decided scope.
+
+    Knowing a UUID is never enough — everything is checked against the caller's
+    institution and role. Raises 403/404 on any mismatch.
+    """
+    role = current_user.get("role")
+    inst = current_user["institution_id"]
+
+    if feed_type == "institution":
+        if entity_id and entity_id != inst:
+            raise HTTPException(status_code=403, detail="Přístup k feedu jiné instituce je zakázán")
+        if role not in MANAGER_ROLES:
+            raise HTTPException(status_code=403, detail="Institucionální feed smí vytvořit pouze správce")
+        return "institution"
+
+    if feed_type == "program":
+        if not entity_id:
+            raise HTTPException(status_code=400, detail="Chybí ID programu")
+        prog = (await db.execute(
+            select(Program).where(Program.id == _uuid.UUID(entity_id))
+        )).scalar_one_or_none()
+        if not prog or str(prog.institution_id) != inst:
+            raise HTTPException(status_code=404, detail="Program nenalezen")
+        if role not in MANAGER_ROLES:
+            raise HTTPException(status_code=403, detail="Feed programu smí vytvořit pouze správce")
+        return "institution"
+
+    if feed_type == "lecturer":
+        # Lecturer feed = only reservations assigned to that user; must be self (or manager).
+        target = entity_id or current_user["user_id"]
+        if target != current_user["user_id"] and role not in MANAGER_ROLES:
+            raise HTTPException(status_code=403, detail="Nelze vytvořit feed jiného uživatele")
+        u = (await db.execute(select(User).where(User.id == _uuid.UUID(target)))).scalar_one_or_none()
+        if not u or str(u.institution_id) != inst:
+            raise HTTPException(status_code=404, detail="Uživatel nenalezen")
+        return "assigned"
+
+    raise HTTPException(status_code=400, detail="Neplatný typ feedu")
 
 
 def _get_ics_signing_key() -> bytes:
@@ -52,8 +102,9 @@ def _parse_time_block(time_block: str) -> tuple:
     return int(parts[0]), int(parts[1]) if len(parts) > 1 else 0
 
 
-def _build_vevent(reservation: dict, program: dict, institution: dict) -> Event:
-    """Build a VEVENT from reservation + program + institution data."""
+def _build_vevent(reservation: dict, program: dict, institution: dict, minimal: bool = True) -> Event:
+    """Build a VEVENT. When `minimal` (default, used for shareable feeds) we omit
+    personal contact details and free-text notes to avoid leaking data via a URL."""
     event = Event()
 
     # UID
@@ -88,14 +139,16 @@ def _build_vevent(reservation: dict, program: dict, institution: dict) -> Event:
         desc_lines.append(f"Počet dětí: {reservation['num_students']}")
     if reservation.get("num_teachers"):
         desc_lines.append(f"Počet učitelů: {reservation['num_teachers']}")
-    if reservation.get("contact_name"):
-        desc_lines.append(f"Kontakt: {reservation['contact_name']}")
-    if reservation.get("contact_email"):
-        desc_lines.append(f"Email: {reservation['contact_email']}")
-    if reservation.get("contact_phone"):
-        desc_lines.append(f"Telefon: {reservation['contact_phone']}")
-    if reservation.get("special_requirements"):
-        desc_lines.append(f"Poznámka: {reservation['special_requirements']}")
+    if not minimal:
+        # Full detail only for one-off private downloads, never for shareable feeds.
+        if reservation.get("contact_name"):
+            desc_lines.append(f"Kontakt: {reservation['contact_name']}")
+        if reservation.get("contact_email"):
+            desc_lines.append(f"Email: {reservation['contact_email']}")
+        if reservation.get("contact_phone"):
+            desc_lines.append(f"Telefon: {reservation['contact_phone']}")
+        if reservation.get("special_requirements"):
+            desc_lines.append(f"Poznámka: {reservation['special_requirements']}")
     status_label = {
         "pending": "Čeká na potvrzení",
         "confirmed": "Potvrzeno",
@@ -145,14 +198,23 @@ def _build_calendar(name: str, events: list) -> bytes:
 
 
 def _ics_response(cal_bytes: bytes, filename: str) -> Response:
-    """Return an ICS response with proper headers."""
+    """One-off DOWNLOAD response (attachment, current snapshot)."""
     return Response(
         content=cal_bytes,
         media_type="text/calendar; charset=utf-8",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
-            "Cache-Control": "max-age=300, public",
+            "Cache-Control": "no-store",
         },
+    )
+
+
+def _ics_feed_response(cal_bytes: bytes) -> Response:
+    """Live SUBSCRIPTION response (inline, cacheable, fetched server-side by Google/MS)."""
+    return Response(
+        content=cal_bytes,
+        media_type="text/calendar; charset=utf-8",
+        headers={"Cache-Control": "max-age=900, public"},
     )
 
 
@@ -198,88 +260,218 @@ async def _get_reservations(db: AsyncSession, institution_id: str, program_id: s
     return [to_dict(r) for r in result.scalars().all()]
 
 
-# ── ICS Feed Endpoints ──────────────────────────────────────────────
+async def _get_reservations_for_scope(db: AsyncSession, institution_id: str, scope: str, owner_user_id: Optional[str], program_id: str = None) -> list:
+    from database.supabase_repositories import to_dict
+    conditions = [
+        Reservation.institution_id == _uuid.UUID(institution_id),
+        Reservation.status.in_(["pending", "confirmed", "completed"]),
+    ]
+    if program_id:
+        conditions.append(Reservation.program_id == _uuid.UUID(program_id))
+    if scope == "assigned" and owner_user_id:
+        conditions.append(Reservation.assigned_lecturer_id == _uuid.UUID(owner_user_id))
+    result = await db.execute(
+        select(Reservation).where(and_(*conditions)).order_by(Reservation.date.asc())
+    )
+    return [to_dict(r) for r in result.scalars().all()]
 
 
-@router.get("/feed-token/{entity_type}/{entity_id}")
-async def generate_feed_token(
-    entity_type: str,
-    entity_id: str,
+def _feed_base_url() -> str:
+    base = (os.environ.get("BACKEND_URL") or os.environ.get("REACT_APP_BACKEND_URL") or "").rstrip("/")
+    return base
+
+
+def _subscription_url(feed_type: str, entity_id: Optional[str], token: str) -> str:
+    base = _feed_base_url()
+    if feed_type == "institution":
+        path = f"/api/calendar/institution/{entity_id}.ics"
+    elif feed_type == "program":
+        path = f"/api/calendar/program/{entity_id}.ics"
+    else:
+        path = f"/api/calendar/lecturer/{entity_id}.ics"
+    return f"{base}{path}?token={token}" if base else f"{path}?token={token}"
+
+
+# ── ICS Feed token management (revocable) ───────────────────────────
+
+
+@router.post("/feed-tokens")
+async def create_feed_token(
+    body: dict,
     current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
-    """Generate a signed token for ICS feed URLs. Requires auth."""
-    if entity_type not in ("institution", "program", "reservation"):
-        raise HTTPException(status_code=400, detail="Neplatný typ entity")
-    # Only allow generating tokens for own institution
-    if entity_type == "institution" and entity_id != current_user["institution_id"]:
-        raise HTTPException(status_code=403, detail="Přístup odepřen")
-    token = _sign_feed_token(entity_type, entity_id)
-    return {"token": token, "url_suffix": f"?token={token}"}
+    """Create a fresh revocable subscription token. Any previous ACTIVE token for the
+    same owner+type+entity is revoked (regenerate = old URL stops working)."""
+    feed_type = body.get("feed_type")
+    entity_id = body.get("entity_id")
+    if feed_type not in ("institution", "program", "lecturer"):
+        raise HTTPException(status_code=400, detail="Neplatný typ feedu")
+
+    scope = await _resolve_feed_scope(db, current_user, feed_type, entity_id)
+    inst = current_user["institution_id"]
+    owner = current_user["user_id"]
+    resolved_entity = entity_id or (inst if feed_type == "institution" else owner)
+
+    # Revoke existing active token(s) for the same owner+type+entity.
+    now = datetime.now(timezone.utc)
+    existing = (await db.execute(
+        select(CalendarFeedToken).where(and_(
+            CalendarFeedToken.institution_id == _uuid.UUID(inst),
+            CalendarFeedToken.user_id == _uuid.UUID(owner),
+            CalendarFeedToken.feed_type == feed_type,
+            CalendarFeedToken.entity_id == _uuid.UUID(resolved_entity),
+            CalendarFeedToken.revoked_at.is_(None),
+        ))
+    )).scalars().all()
+    for t in existing:
+        t.revoked_at = now
+
+    raw = secrets.token_urlsafe(32)
+    row = CalendarFeedToken(
+        institution_id=_uuid.UUID(inst),
+        user_id=_uuid.UUID(owner),
+        feed_type=feed_type,
+        entity_id=_uuid.UUID(resolved_entity),
+        scope=scope,
+        token_hash=_hash_token(raw),
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    return {
+        "id": str(row.id),
+        "feed_type": feed_type,
+        "scope": scope,
+        "url": _subscription_url(feed_type, resolved_entity, raw),
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
+@router.get("/feed-tokens")
+async def list_feed_tokens(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List the caller's ACTIVE feed tokens (raw token never returned)."""
+    rows = (await db.execute(
+        select(CalendarFeedToken).where(and_(
+            CalendarFeedToken.institution_id == _uuid.UUID(current_user["institution_id"]),
+            CalendarFeedToken.user_id == _uuid.UUID(current_user["user_id"]),
+            CalendarFeedToken.revoked_at.is_(None),
+        )).order_by(CalendarFeedToken.created_at.desc())
+    )).scalars().all()
+    return [{
+        "id": str(r.id),
+        "feed_type": r.feed_type,
+        "scope": r.scope,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "last_used_at": r.last_used_at.isoformat() if r.last_used_at else None,
+    } for r in rows]
+
+
+@router.post("/feed-tokens/{token_id}/revoke")
+async def revoke_feed_token(
+    token_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Revoke a feed token (its URL immediately stops working). Tenant/owner-safe."""
+    row = (await db.execute(
+        select(CalendarFeedToken).where(and_(
+            CalendarFeedToken.id == _uuid.UUID(token_id),
+            CalendarFeedToken.institution_id == _uuid.UUID(current_user["institution_id"]),
+            CalendarFeedToken.user_id == _uuid.UUID(current_user["user_id"]),
+        ))
+    )).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Odkaz nenalezen")
+    if not row.revoked_at:
+        row.revoked_at = datetime.now(timezone.utc)
+        await db.commit()
+    return {"revoked": True}
+
+
+async def _consume_feed_token(db: AsyncSession, feed_type: str, entity_id: str, token: str) -> CalendarFeedToken:
+    """Validate a subscription token from the DB (hash lookup), bump last_used_at."""
+    if not token:
+        raise HTTPException(status_code=403, detail="Chybí token pro ICS feed")
+    row = (await db.execute(
+        select(CalendarFeedToken).where(and_(
+            CalendarFeedToken.token_hash == _hash_token(token),
+            CalendarFeedToken.feed_type == feed_type,
+            CalendarFeedToken.entity_id == _uuid.UUID(entity_id),
+            CalendarFeedToken.revoked_at.is_(None),
+        ))
+    )).scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=403, detail="Neplatný nebo zneplatněný odkaz")
+    row.last_used_at = datetime.now(timezone.utc)
+    await db.commit()
+    return row
+
+
+# ── Single-reservation one-off download token (short deterministic, private) ──
 
 
 @router.get("/public-feed-token/reservation/{reservation_id}")
 async def generate_public_reservation_token(reservation_id: str):
-    """Generate a signed token for a single reservation ICS download (post-booking)."""
+    """Token for a single reservation .ics DOWNLOAD (post-booking, attachment)."""
     token = _sign_feed_token("reservation", reservation_id)
     return {"token": token}
+
+
+# ── Live subscription feeds (inline, minimized, revocable) ──────────
 
 
 @router.get("/institution/{institution_id}.ics")
 async def institution_calendar_feed(
     institution_id: str,
-    token: str = Query(..., description="Signed HMAC token"),
-    status: Optional[str] = Query(None, description="Comma-separated statuses filter"),
+    token: str = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """ICS feed for ALL reservations of an institution. Requires signed token."""
-    if not _verify_feed_token("institution", institution_id, token):
-        raise HTTPException(status_code=403, detail="Neplatný token pro ICS feed")
+    await _consume_feed_token(db, "institution", institution_id, token)
     institution = await _get_institution(db, institution_id)
     programs_lookup = await _get_programs_lookup(db, institution_id)
-
-    statuses = [s.strip() for s in status.split(",")] if status else None
-    reservations = await _get_reservations(db, institution_id, statuses=statuses)
-
-    events = []
-    for r in reservations:
-        prog = programs_lookup.get(r.get("program_id"), {})
-        events.append(_build_vevent(r, prog, institution))
-
-    cal_bytes = _build_calendar(
-        f"Rezervace – {institution.get('name', 'Instituce')}", events
-    )
-    return _ics_response(cal_bytes, f"budezivo-{institution_id[:8]}.ics")
+    reservations = await _get_reservations_for_scope(db, institution_id, "institution", None)
+    events = [_build_vevent(r, programs_lookup.get(r.get("program_id"), {}), institution, minimal=True) for r in reservations]
+    cal_bytes = _build_calendar(f"Rezervace – {institution.get('name', 'Instituce')}", events)
+    return _ics_feed_response(cal_bytes)
 
 
 @router.get("/program/{program_id}.ics")
 async def program_calendar_feed(
     program_id: str,
-    token: str = Query(..., description="Signed HMAC token"),
+    token: str = Query(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """ICS feed for reservations of a specific program. Requires signed token."""
-    if not _verify_feed_token("program", program_id, token):
-        raise HTTPException(status_code=403, detail="Neplatný token pro ICS feed")
+    await _consume_feed_token(db, "program", program_id, token)
     from database.supabase_repositories import to_dict
-    import uuid
-
-    result = await db.execute(
-        select(Program).where(Program.id == uuid.UUID(program_id))
-    )
-    program = result.scalar_one_or_none()
+    program = (await db.execute(select(Program).where(Program.id == _uuid.UUID(program_id)))).scalar_one_or_none()
     if not program:
         raise HTTPException(status_code=404, detail="Program nenalezen")
     program_dict = to_dict(program)
     inst_id = program_dict["institution_id"]
-
     institution = await _get_institution(db, inst_id)
-    reservations = await _get_reservations(db, inst_id, program_id=program_id)
+    reservations = await _get_reservations_for_scope(db, inst_id, "institution", None, program_id=program_id)
+    events = [_build_vevent(r, program_dict, institution, minimal=True) for r in reservations]
+    cal_bytes = _build_calendar(f"{program_dict.get('name_cs', 'Program')} – Rezervace", events)
+    return _ics_feed_response(cal_bytes)
 
-    events = [_build_vevent(r, program_dict, institution) for r in reservations]
-    cal_bytes = _build_calendar(
-        f"{program_dict.get('name_cs', 'Program')} – Rezervace", events
-    )
-    return _ics_response(cal_bytes, f"budezivo-program-{program_id[:8]}.ics")
+
+@router.get("/lecturer/{user_id}.ics")
+async def lecturer_calendar_feed(
+    user_id: str,
+    token: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    row = await _consume_feed_token(db, "lecturer", user_id, token)
+    institution = await _get_institution(db, str(row.institution_id))
+    programs_lookup = await _get_programs_lookup(db, str(row.institution_id))
+    reservations = await _get_reservations_for_scope(db, str(row.institution_id), "assigned", user_id)
+    events = [_build_vevent(r, programs_lookup.get(r.get("program_id"), {}), institution, minimal=True) for r in reservations]
+    cal_bytes = _build_calendar("Moje rezervace – Budeživo", events)
+    return _ics_feed_response(cal_bytes)
 
 
 @router.get("/reservation/{reservation_id}.ics")

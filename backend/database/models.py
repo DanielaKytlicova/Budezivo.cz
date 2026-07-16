@@ -798,6 +798,31 @@ class CalendarEventExport(Base):
     )
 
 
+class CalendarFeedToken(Base):
+    """Revocable, hashed token for a subscribable ICS feed (live URL).
+
+    The raw token is shown to the user ONCE and stored only as a SHA-256 hash.
+    Bound to institution + owner + feed type + optional entity + role-derived scope.
+    """
+    __tablename__ = 'calendar_feed_tokens'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    feed_type = Column(Text, nullable=False)          # institution | program | lecturer
+    entity_id = Column(UUID(as_uuid=True))            # program_id / user_id / institution_id (null → institution)
+    scope = Column(Text, nullable=False, default='institution')  # institution | assigned
+    token_hash = Column(Text, nullable=False, unique=True, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    revoked_at = Column(DateTime(timezone=True))
+    last_used_at = Column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index('idx_calendar_feed_tokens_owner', 'institution_id', 'user_id', 'feed_type'),
+    )
+
+
+
 class AvailabilityBlock(Base):
     """External calendar blocks (Outlook) or manual blocks for availability."""
     __tablename__ = 'availability_blocks'

@@ -44,19 +44,20 @@ import { API } from '../../config/api';
 // Helper to download ICS with signed token
 const downloadIcs = async (entityType, entityId, token) => {
   try {
-    const tokenRes = await axios.get(`${API}/calendar/feed-token/${entityType}/${entityId}`, {
+    // entityType: 'institution' | 'program' | 'lecturer' → revocable subscription URL
+    const feedType = entityType === 'institution' ? 'institution' : (entityType === 'program' ? 'program' : 'lecturer');
+    const res = await axios.post(`${API}/calendar/feed-tokens`, { feed_type: feedType, entity_id: entityId }, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    const signedToken = tokenRes.data.token;
-    window.open(`${API}/calendar/${entityType}/${entityId}.ics?token=${signedToken}`, '_blank');
-  } catch {
-    toast.error('Nepodařilo se vygenerovat ICS odkaz');
+    if (res.data.url) window.open(res.data.url, '_blank');
+  } catch (err) {
+    toast.error(err.response?.data?.detail || 'Nepodařilo se vygenerovat ICS odkaz');
   }
 };
 
 const downloadReservationIcs = async (reservationId, token) => {
   try {
-    const tokenRes = await axios.get(`${API}/calendar/feed-token/reservation/${reservationId}`, {
+    const tokenRes = await axios.get(`${API}/calendar/public-feed-token/reservation/${reservationId}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     const signedToken = tokenRes.data.token;

@@ -257,7 +257,11 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     try {
       await axios.put(`${API}/microsoft-calendar/settings`, { import_enabled: value }, { headers });
       toast.success('Nastavení uloženo');
-      if (value) syncOutlook();
+      if (value) {
+        // Silent immediate import (no extra toast to avoid duplicates).
+        await axios.post(`${API}/microsoft-calendar/sync`, {}, { headers });
+        fetchOutlookBlocks();
+      }
     } catch (err) {
       setOutlookStatus(prev);
       toast.error(formatApiError(err, 'Nepodařilo se uložit nastavení'));
@@ -270,7 +274,10 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     try {
       await axios.put(`${API}/google-calendar/settings`, { import_enabled: value, auto_sync_enabled: value }, { headers });
       toast.success('Nastavení uloženo');
-      if (value) syncGoogle();
+      if (value) {
+        await axios.post(`${API}/google-calendar/sync`, {}, { headers });
+        fetchGoogleBlocks();
+      }
     } catch (err) {
       setGoogleStatus(prev);
       toast.error(formatApiError(err, 'Nepodařilo se uložit nastavení'));

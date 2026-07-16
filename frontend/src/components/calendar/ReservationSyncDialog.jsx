@@ -280,10 +280,10 @@ export const ReservationSyncDialog = ({ open, onClose, user, token }) => {
                 {feeds.map((f) => (
                   <div key={f.id} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2" data-testid={`feed-token-${f.id}`}>
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-slate-700 truncate">
-                        {f.feed_type === 'institution' ? 'Rezervace instituce' : f.feed_type === 'lecturer' ? 'Moje rezervace' : 'Program'}
-                        <Badge variant="outline" className="ml-1.5 text-[10px]">aktivní</Badge>
-                      </p>
+                      <div className="text-xs font-medium text-slate-700 truncate flex items-center gap-1.5">
+                        <span>{f.feed_type === 'institution' ? 'Rezervace instituce' : f.feed_type === 'lecturer' ? 'Moje rezervace' : 'Program'}</span>
+                        <Badge variant="outline" className="text-[10px]">aktivní</Badge>
+                      </div>
                       <p className="text-[11px] text-gray-400">
                         Vytvořeno {f.created_at ? new Date(f.created_at).toLocaleDateString('cs-CZ') : '—'}
                         {f.last_used_at && ` · naposledy použit ${new Date(f.last_used_at).toLocaleDateString('cs-CZ')}`}

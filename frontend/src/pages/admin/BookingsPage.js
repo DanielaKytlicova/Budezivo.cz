@@ -1270,6 +1270,7 @@ const BookingsPage = () => {
         ) : viewMode === 'calendar' ? (
           <BookingsCalendarView
             bookings={filteredBookings}
+            colorBookings={bookings}
             onSelectBooking={openDetail}
             collisionIndex={collisionIndex}
           />

@@ -635,13 +635,14 @@ async def get_default_texts(
 @router.post("/{campaign_id}/send")
 async def send_campaign(
     campaign_id: str,
-    data: SendCampaignRequest,
     background_tasks: BackgroundTasks,
+    data: Optional[SendCampaignRequest] = None,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Finalize and send a campaign. Creates recipients and triggers background sending."""
     _ensure_campaign_role(current_user)
+    data = data or SendCampaignRequest()
     institution_id = current_user["institution_id"]
 
     result = await db.execute(

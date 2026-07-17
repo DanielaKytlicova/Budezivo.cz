@@ -15,16 +15,20 @@ import axios from 'axios';
 import {
   Mail, Plus, Send, Save, Eye, Trash2, ChevronRight, ChevronLeft,
   AlertTriangle, Check, X, Search, School, FileText, Users, Clock,
-  ArrowLeft, Loader2, CheckCircle, XCircle, Info
+  ArrowLeft, Loader2, CheckCircle, XCircle, Info, CalendarClock
 } from 'lucide-react';
 import { API } from '../../config/api';
 
 const STATUS_MAP = {
   draft: { label: 'Koncept', color: 'bg-yellow-100 text-yellow-800' },
+  scheduled: { label: 'Naplánováno', color: 'bg-indigo-100 text-indigo-800' },
+  processing: { label: 'Odesílá se...', color: 'bg-blue-100 text-blue-800' },
   sending: { label: 'Odesílá se...', color: 'bg-blue-100 text-blue-800' },
   sent: { label: 'Odesláno', color: 'bg-green-100 text-green-800' },
+  partially_sent: { label: 'Částečně odesláno', color: 'bg-orange-100 text-orange-800' },
   partial: { label: 'Částečně', color: 'bg-orange-100 text-orange-800' },
   failed: { label: 'Chyba', color: 'bg-red-100 text-red-800' },
+  cancelled: { label: 'Zrušeno', color: 'bg-slate-100 text-slate-600' },
 };
 
 const MODE_LABELS = {
@@ -69,6 +73,22 @@ export const MailingsPage = () => {
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
+
+  // Handle URL param ?edit=ID — open an existing draft in the editor (from Školy)
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (editId) {
+      (async () => {
+        try {
+          const res = await axios.get(`${API}/mailings/${editId}`, { withCredentials: true });
+          setSelectedCampaign(res.data);
+          setShowWizard(true);
+        } catch { toast.error('Nepodařilo se otevřít koncept'); }
+        finally { setSearchParams({}, { replace: true }); }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const openDetail = async (id) => {
     setDetailLoading(true);
@@ -364,6 +384,28 @@ const CampaignDetail = ({ campaign, onClose, onRefresh, onEdit, onRepeatCreated 
           <div className="bg-slate-50 rounded-lg p-4 space-y-2 text-sm">
             <div><strong>Režim výběru:</strong> {MODE_LABELS[c.recipient_mode] || c.recipient_mode}</div>
             <div><strong>Předmět:</strong> {c.subject}</div>
+            {c.scheduled_at && (c.status === 'scheduled') && (
+              <div className="flex items-center justify-between">
+                <span><strong>Naplánováno na:</strong> {new Date(c.scheduled_at).toLocaleString('cs-CZ', { timeZone: 'Europe/Prague' })} (Europe/Prague)</span>
+                <Button
+                  size="sm" variant="outline"
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                  data-testid="cancel-schedule-btn"
+                  onClick={async () => {
+                    try {
+                      await axios.post(`${API}/mailings/${c.id}/cancel-schedule`, {}, { withCredentials: true });
+                      toast.success('Plánované odeslání zrušeno');
+                      onRefresh && onRefresh();
+                      onClose && onClose();
+                    } catch (e) { toast.error(e.response?.data?.detail || 'Zrušení se nezdařilo'); }
+                  }}
+                >
+                  Zrušit plánování
+                </Button>
+              </div>
+            )}
+            {c.skipped_count > 0 && <div><strong>Přeskočeno:</strong> {c.skipped_count}</div>}
+            {c.failure_reason && <div className="text-red-600"><strong>Důvod chyby:</strong> {c.failure_reason}</div>}
             {c.sent_at && <div><strong>Odesláno:</strong> {new Date(c.sent_at).toLocaleString('cs-CZ')}</div>}
             <div><strong>Vytvořeno:</strong> {new Date(c.created_at).toLocaleString('cs-CZ')}</div>
           </div>
@@ -496,6 +538,13 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
   const [campaignId, setCampaignId] = useState(editCampaign?.id || null);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
+  // Section 7 — send mode + scheduling; Section 6 — test email + preview
+  const [sendMode, setSendMode] = useState('now'); // 'now' | 'schedule'
+  const [scheduledAt, setScheduledAt] = useState('');
+  const [testEmail, setTestEmail] = useState('');
+  const [sendingTest, setSendingTest] = useState(false);
+  const [previewMode, setPreviewMode] = useState('desktop'); // 'desktop' | 'mobile'
+  const [showPreview, setShowPreview] = useState(false);
 
   // Step 1: Type & Programs
   const [campaignName, setCampaignName] = useState(editCampaign?.name || (preselectedProgram?.name ? `Nabídka: ${preselectedProgram.name}` : ''));
@@ -658,6 +707,63 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
   };
 
   const selectedPrograms = allPrograms.filter(p => selectedProgramIds.includes(p.id));
+
+  const persistDraft = async () => {
+    if (campaignId) {
+      await axios.put(`${API}/mailings/${campaignId}`, {
+        name: campaignName, recipient_mode: recipientMode,
+        program_ids: selectedProgramIds,
+        subject, greeting, intro_text: introText, closing_text: closingText, signature,
+      }, { withCredentials: true });
+      return campaignId;
+    }
+    const res = await axios.post(`${API}/mailings`, {
+      name: campaignName, type: campaignType, recipient_mode: recipientMode,
+      program_ids: selectedProgramIds,
+      subject, greeting, intro_text: introText, closing_text: closingText, signature,
+    }, { withCredentials: true });
+    setCampaignId(res.data.id);
+    return res.data.id;
+  };
+
+  const sendTestEmail = async () => {
+    if (!testEmail.trim()) { toast.error('Zadejte e-mail pro test'); return; }
+    setSendingTest(true);
+    try {
+      const id = await persistDraft();
+      await axios.post(`${API}/mailings/${id}/test-email`, { email: testEmail.trim() }, { withCredentials: true });
+      toast.success(`Testovací e-mail odeslán na ${testEmail.trim()}`);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Test se nezdařil'); }
+    finally { setSendingTest(false); }
+  };
+
+  const scheduleCampaign = async () => {
+    if (!scheduledAt) { toast.error('Vyberte datum a čas odeslání'); return; }
+    const whenLocal = new Date(scheduledAt);
+    if (isNaN(whenLocal.getTime()) || whenLocal <= new Date()) {
+      toast.error('Nelze naplánovat do minulosti'); return;
+    }
+    setSending(true);
+    try {
+      const id = await persistDraft();
+      await axios.post(`${API}/mailings/${id}/schedule`, {
+        scheduled_at: whenLocal.toISOString(),
+        manual_school_ids: (recipientMode === 'relevant_plus_manual' || recipientMode === 'manual') ? manualSchoolIds : null,
+      }, { withCredentials: true });
+      toast.success(`Kampaň naplánována na ${whenLocal.toLocaleString('cs-CZ', { timeZone: 'Europe/Prague' })} (Europe/Prague)`);
+      onComplete();
+    } catch (e) { toast.error(e.response?.data?.detail || 'Naplánování se nezdařilo'); }
+    finally { setSending(false); }
+  };
+
+  const previewHtml = `
+    <div style="font-family:Arial,sans-serif;color:#334155;line-height:1.6">
+      <p>${(greeting || '').replace(/</g, '&lt;')}</p>
+      <p>${(introText || '').replace(/</g, '&lt;').replace(/\n/g, '<br/>')}</p>
+      ${selectedPrograms.map(p => `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin:8px 0"><strong>${(p.name_cs || p.name || '').replace(/</g, '&lt;')}</strong></div>`).join('')}
+      <p>${(closingText || '').replace(/</g, '&lt;').replace(/\n/g, '<br/>')}</p>
+      <p style="color:#64748b;white-space:pre-line">${(signature || '').replace(/</g, '&lt;')}</p>
+    </div>`;
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -943,8 +1049,53 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
               <Info className="w-4 h-4 inline mr-1" />
-              Po odeslání se kampaň zpracuje na pozadí. Emaily budou odeslány postupně.
-              Stav odesílání uvidíte v archivu kampaní.
+              Před skutečným odesláním systém znovu ověří příjemce (souhlas, platnost adresy, bounce, odhlášení, duplicity). Nezpůsobilí budou přeskočeni.
+            </div>
+
+            {/* Preview (desktop / mobile) */}
+            <div className="border rounded-lg">
+              <div className="flex items-center justify-between px-3 py-2 border-b bg-slate-50">
+                <button type="button" className="text-sm font-medium text-slate-700 flex items-center gap-1" onClick={() => setShowPreview(v => !v)} data-testid="toggle-preview-btn">
+                  <Eye className="w-4 h-4" /> Náhled e-mailu
+                </button>
+                {showPreview && (
+                  <div className="flex gap-1">
+                    <Button type="button" size="sm" variant={previewMode === 'desktop' ? 'default' : 'outline'} onClick={() => setPreviewMode('desktop')} data-testid="preview-desktop-btn">Desktop</Button>
+                    <Button type="button" size="sm" variant={previewMode === 'mobile' ? 'default' : 'outline'} onClick={() => setPreviewMode('mobile')} data-testid="preview-mobile-btn">Mobil</Button>
+                  </div>
+                )}
+              </div>
+              {showPreview && (
+                <div className="p-4 flex justify-center bg-slate-100">
+                  <div style={{ width: previewMode === 'mobile' ? 360 : '100%' }} className="bg-white rounded shadow p-4" data-testid="email-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                </div>
+              )}
+            </div>
+
+            {/* Test email */}
+            <div className="border rounded-lg p-3 space-y-2">
+              <Label className="text-sm">Odeslat testovací e-mail</Label>
+              <div className="flex gap-2">
+                <Input type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="vas@email.cz" data-testid="test-email-input" />
+                <Button type="button" variant="outline" onClick={sendTestEmail} disabled={sendingTest} data-testid="send-test-email-btn">
+                  {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Odeslat test'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Send mode: now vs schedule */}
+            <div className="border rounded-lg p-3 space-y-3">
+              <Label className="text-sm">Odeslání</Label>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant={sendMode === 'now' ? 'default' : 'outline'} onClick={() => setSendMode('now')} data-testid="send-mode-now">Odeslat nyní</Button>
+                <Button type="button" size="sm" variant={sendMode === 'schedule' ? 'default' : 'outline'} onClick={() => setSendMode('schedule')} data-testid="send-mode-schedule">Naplánovat odeslání</Button>
+              </div>
+              {sendMode === 'schedule' && (
+                <div className="space-y-1">
+                  <Input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} data-testid="schedule-datetime-input" />
+                  <p className="text-xs text-slate-500">Čas se ukládá v časové zóně instituce (Europe/Prague).</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -965,11 +1116,16 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
             </Button>
             {step < 4 ? (
               <Button onClick={() => {
-                if (step === 1 && (selectedProgramIds.length === 0 || !campaignName.trim())) {
-                  toast.error('Vyplňte název a vyberte programy');
+                const manualMode = recipientMode === 'manual';
+                if (step === 1 && !campaignName.trim()) {
+                  toast.error('Vyplňte název kampaně');
                   return;
                 }
-                if (step === 2 && preview && preview.recipients.length === 0) {
+                if (step === 1 && !manualMode && selectedProgramIds.length === 0) {
+                  toast.error('Vyberte programy');
+                  return;
+                }
+                if (step === 2 && !manualMode && preview && preview.recipients.length === 0) {
                   toast.error('Žádní příjemci k odeslání');
                   return;
                 }
@@ -982,10 +1138,17 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
                 Další <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             ) : (
-              <Button onClick={sendCampaign} disabled={sending} className="bg-green-600 hover:bg-green-700" data-testid="send-campaign-btn">
-                {sending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Send className="w-4 h-4 mr-1" />}
-                Odeslat kampaň
-              </Button>
+              sendMode === 'schedule' ? (
+                <Button onClick={scheduleCampaign} disabled={sending} className="bg-indigo-600 hover:bg-indigo-700" data-testid="schedule-campaign-btn">
+                  {sending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <CalendarClock className="w-4 h-4 mr-1" />}
+                  Naplánovat odeslání
+                </Button>
+              ) : (
+                <Button onClick={sendCampaign} disabled={sending} className="bg-green-600 hover:bg-green-700" data-testid="send-campaign-btn">
+                  {sending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Send className="w-4 h-4 mr-1" />}
+                  Odeslat kampaň
+                </Button>
+              )
             )}
           </div>
         </DialogFooter>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../i18n/useTranslation';
 import { AdminLayout } from '../../components/layout/AdminLayout';
 import { Card } from '../../components/ui/card';
@@ -22,12 +23,17 @@ import { AuthContext } from '../../context/AuthContext';
 
 export const SchoolsPage = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { user } = useContext(AuthContext);
+  const canCampaign = ['admin', 'spravce', 'edukator'].includes(user?.role);
   const [schools, setSchools] = useState([]);
   const [programs, setPrograms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isPro, setIsPro] = useState(false);
   const [selectedSchools, setSelectedSchools] = useState([]);
+  const [contactSelection, setContactSelection] = useState({}); // schoolId → [contactId] (partial)
+  const [campaignSummary, setCampaignSummary] = useState(null);
+  const [creatingCampaign, setCreatingCampaign] = useState(false);
   const [showPropagationModal, setShowPropagationModal] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState('');
   const [sending, setSending] = useState(false);
@@ -504,11 +510,78 @@ export const SchoolsPage = () => {
   });
 
   const toggleSchoolSelection = (schoolId) => {
-    setSelectedSchools(prev => 
-      prev.includes(schoolId) 
+    setSelectedSchools(prev =>
+      prev.includes(schoolId)
         ? prev.filter(id => id !== schoolId)
         : [...prev, schoolId]
     );
+    // Selecting the whole school clears any partial contact selection
+    setContactSelection(prev => {
+      const next = { ...prev };
+      delete next[schoolId];
+      return next;
+    });
+  };
+
+  // Per-contact selection (partial). A school with a partial selection is
+  // rendered as indeterminate and is NOT in selectedSchools.
+  const toggleContactSelection = (schoolId, contactId) => {
+    setSelectedSchools(prev => prev.filter(id => id !== schoolId));
+    setContactSelection(prev => {
+      const cur = prev[schoolId] || [];
+      const next = cur.includes(contactId) ? cur.filter(x => x !== contactId) : [...cur, contactId];
+      const out = { ...prev };
+      if (next.length === 0) delete out[schoolId];
+      else out[schoolId] = next;
+      return out;
+    });
+  };
+
+  const schoolCheckboxState = (schoolId) => {
+    if (selectedSchools.includes(schoolId)) return true;
+    if ((contactSelection[schoolId] || []).length > 0) return 'indeterminate';
+    return false;
+  };
+
+  const buildCampaignSelections = () => {
+    const ids = new Set([...selectedSchools, ...Object.keys(contactSelection)]);
+    return Array.from(ids).map(sid => ({
+      school_id: sid,
+      contact_ids: (contactSelection[sid] && contactSelection[sid].length) ? contactSelection[sid] : null,
+    }));
+  };
+
+  const campaignSelectionCount = selectedSchools.length + Object.keys(contactSelection).length;
+
+  const openCampaignSummary = async () => {
+    const selections = buildCampaignSelections();
+    if (selections.length === 0) {
+      toast.error('Vyberte alespoň jednu školu nebo kontakt');
+      return;
+    }
+    try {
+      const res = await axios.post(`${API}/mailings/from-schools/preview`, { selections });
+      setCampaignSummary({ stats: res.data.stats, selections });
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Nepodařilo se vyhodnotit kontakty');
+    }
+  };
+
+  const confirmCreateCampaign = async () => {
+    if (!campaignSummary) return;
+    setCreatingCampaign(true);
+    try {
+      const res = await axios.post(`${API}/mailings/from-schools`, { selections: campaignSummary.selections });
+      toast.success(res.data.message || 'Koncept kampaně vytvořen');
+      setCampaignSummary(null);
+      setSelectedSchools([]);
+      setContactSelection({});
+      navigate(`/admin/mailings?edit=${res.data.id}`);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Nepodařilo se vytvořit koncept');
+    } finally {
+      setCreatingCampaign(false);
+    }
   };
 
   const selectAllSchools = () => {
@@ -614,15 +687,17 @@ export const SchoolsPage = () => {
                   <Download className="w-4 h-4 mr-2" />
                   Export CSV
                 </Button>
-                <Button
-                  onClick={() => setShowPropagationModal(true)}
-                  disabled={selectedSchools.length === 0}
-                  className="bg-slate-800 text-white"
-                  data-testid="send-propagation-btn"
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  Rozeslat ({selectedSchools.length})
-                </Button>
+                {canCampaign && (
+                  <Button
+                    onClick={openCampaignSummary}
+                    disabled={campaignSelectionCount === 0}
+                    className="bg-slate-800 text-white"
+                    data-testid="create-campaign-from-schools-btn"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Vytvořit e-mailovou kampaň ({campaignSelectionCount})
+                  </Button>
+                )}
                 <Button
                   onClick={openBulkTags}
                   disabled={selectedSchools.length === 0}
@@ -796,7 +871,7 @@ export const SchoolsPage = () => {
                 <div className="flex items-start gap-3">
                   {isPro && (
                     <Checkbox
-                      checked={selectedSchools.includes(school.id)}
+                      checked={schoolCheckboxState(school.id)}
                       onCheckedChange={() => toggleSchoolSelection(school.id)}
                       className="mt-1"
                       data-testid={`select-school-${school.id}`}
@@ -886,6 +961,13 @@ export const SchoolsPage = () => {
                             }`}
                           >
                             <div className="flex items-center gap-2 min-w-0 flex-1">
+                              {isPro && canCampaign && (
+                                <Checkbox
+                                  checked={(contactSelection[school.id] || []).includes(contact.id) || selectedSchools.includes(school.id)}
+                                  onCheckedChange={() => toggleContactSelection(school.id, contact.id)}
+                                  data-testid={`select-contact-${contact.id}`}
+                                />
+                              )}
                               {contact.is_primary && (
                                 <span className="text-yellow-500" title="Hlavní kontakt">★</span>
                               )}
@@ -978,6 +1060,55 @@ export const SchoolsPage = () => {
       </div>
 
       {/* Propagation Modal */}
+      {/* Campaign eligibility summary → create draft (Section 4) */}
+      <Dialog open={!!campaignSummary} onOpenChange={(v) => { if (!v) setCampaignSummary(null); }}>
+        <DialogContent className="max-w-md" aria-describedby={undefined} data-testid="campaign-summary-dialog">
+          <DialogHeader>
+            <DialogTitle>Vytvořit koncept kampaně</DialogTitle>
+          </DialogHeader>
+          {campaignSummary && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-500">
+                Nic se zatím neodešle. Po potvrzení vznikne <strong>koncept</strong>, který otevřete v editoru v sekci Propagace.
+              </p>
+              <div className="rounded-lg border divide-y text-sm" data-testid="campaign-summary-stats">
+                {[
+                  ['Vybrané školy', campaignSummary.stats.schools],
+                  ['Nalezené kontakty', campaignSummary.stats.contacts_found],
+                  ['Způsobilé kontakty', campaignSummary.stats.eligible],
+                  ['Duplicity', campaignSummary.stats.duplicates],
+                  ['Neplatné adresy', campaignSummary.stats.invalid],
+                  ['Nedoručitelné (bounce/spam)', campaignSummary.stats.bounced_or_complained],
+                  ['Odhlášené', campaignSummary.stats.unsubscribed],
+                  ['Bez marketingového souhlasu', campaignSummary.stats.no_marketing_consent],
+                ].map(([label, val], i) => (
+                  <div key={i} className="flex items-center justify-between px-3 py-2">
+                    <span className="text-slate-600">{label}</span>
+                    <span className={`font-medium ${label === 'Způsobilé kontakty' ? 'text-emerald-700' : 'text-slate-800'}`}>{val}</span>
+                  </div>
+                ))}
+              </div>
+              {campaignSummary.stats.eligible === 0 && (
+                <p className="text-sm text-amber-700">Mezi výběrem nejsou žádné způsobilé kontakty.</p>
+              )}
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setCampaignSummary(null)} data-testid="campaign-summary-cancel">
+                  Zrušit
+                </Button>
+                <Button
+                  className="flex-1 bg-slate-800 text-white"
+                  onClick={confirmCreateCampaign}
+                  disabled={creatingCampaign || campaignSummary.stats.eligible === 0}
+                  data-testid="campaign-summary-confirm"
+                >
+                  {creatingCampaign ? 'Vytvářím…' : 'Vytvořit koncept'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showPropagationModal} onOpenChange={setShowPropagationModal}>
         <DialogContent className="max-w-md" aria-describedby="propagation-description">
           <DialogHeader>
@@ -1076,19 +1207,30 @@ export const SchoolsPage = () => {
               {canPurge && (
                 <div className="border-t pt-3 space-y-2">
                   <p className="text-sm font-medium text-slate-800">Smazat jako testovací data</p>
-                  <label className="flex items-start gap-2 text-sm text-gray-600">
-                    <input type="checkbox" checked={purgeConfirmChecked} onChange={e => setPurgeConfirmChecked(e.target.checked)} className="mt-1" data-testid="purge-understand-checkbox" />
-                    Rozumím, že budou odstraněny také rezervace a změní se statistiky.
-                  </label>
-                  <Input placeholder="Napište SMAZAT" value={purgeConfirmText} onChange={e => setPurgeConfirmText(e.target.value)} data-testid="purge-confirm-input" />
-                  <Button
-                    className="w-full bg-red-600 hover:bg-red-700 text-white"
-                    disabled={bulkBusy || !purgeConfirmChecked || purgeConfirmText !== 'SMAZAT'}
-                    onClick={() => runBulkDelete('purge')}
-                    data-testid="bulk-delete-purge"
-                  >
-                    Smazat jako testovací data
-                  </Button>
+                  {bulkSummary.ambiguous_reservations > 0 ? (
+                    <p className="text-sm text-red-600" data-testid="purge-ambiguous-warning">
+                      {bulkSummary.ambiguous_reservations} rezervací nelze bezpečně přiřadit k těmto školám (chybí spolehlivá vazba). Automatické smazání je zablokováno — použijte „Pouze skrýt školy".
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-600" data-testid="purge-counts">
+                        Trvale bude odstraněno: <strong>{bulkSummary.school_count}</strong> škol, <strong>{bulkSummary.contact_count}</strong> kontaktů a <strong>{bulkSummary.linked_reservations ?? bulkSummary.booking_count}</strong> rezervací (včetně jejich zpětné vazby). Nevratné.
+                      </p>
+                      <label className="flex items-start gap-2 text-sm text-gray-600">
+                        <input type="checkbox" checked={purgeConfirmChecked} onChange={e => setPurgeConfirmChecked(e.target.checked)} className="mt-1" data-testid="purge-understand-checkbox" />
+                        Rozumím, že budou odstraněny také rezervace a změní se statistiky.
+                      </label>
+                      <Input placeholder="Napište SMAZAT" value={purgeConfirmText} onChange={e => setPurgeConfirmText(e.target.value)} data-testid="purge-confirm-input" />
+                      <Button
+                        className="w-full bg-red-600 hover:bg-red-700 text-white"
+                        disabled={bulkBusy || !purgeConfirmChecked || purgeConfirmText !== 'SMAZAT'}
+                        onClick={() => runBulkDelete('purge')}
+                        data-testid="bulk-delete-purge"
+                      >
+                        Smazat jako testovací data
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

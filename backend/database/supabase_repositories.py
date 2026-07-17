@@ -539,6 +539,7 @@ class BookingRepositorySupabase:
             date=booking_data['date'],
             time_block=booking_data['time_block'],
             school_name=booking_data['school_name'],
+            school_id=uuid.UUID(booking_data['school_id']) if booking_data.get('school_id') else None,
             group_type=booking_data['group_type'],
             age_or_class=booking_data.get('age_or_class'),
             num_students=booking_data['num_students'],

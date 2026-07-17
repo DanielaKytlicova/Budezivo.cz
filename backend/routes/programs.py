@@ -22,6 +22,7 @@ from database.supabase_repositories import (
 )
 from routes.audit import log_action
 from services.feature_flags import is_feature_enabled
+from core.permissions import ensure_role, PROGRAM_EDIT_ROLES
 
 router = APIRouter(prefix="/programs", tags=["Programs"])
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ async def create_program(
     db: AsyncSession = Depends(get_db)
 ):
     """Create new program."""
+    ensure_role(current_user, PROGRAM_EDIT_ROLES)
     program_repo = ProgramRepositorySupabase(db)
     program = await program_repo.create(
         program_data.model_dump(),
@@ -316,6 +318,7 @@ async def update_program(
     db: AsyncSession = Depends(get_db)
 ):
     """Update existing program."""
+    ensure_role(current_user, PROGRAM_EDIT_ROLES)
     program_repo = ProgramRepositorySupabase(db)
     result = await program_repo.update(
         program_id,
@@ -336,6 +339,7 @@ async def archive_program(
     db: AsyncSession = Depends(get_db)
 ):
     """Move program to archive."""
+    ensure_role(current_user, PROGRAM_EDIT_ROLES)
     program_repo = ProgramRepositorySupabase(db)
     program = await program_repo.find_by_id(program_id, current_user["institution_id"])
     if not program:
@@ -366,6 +370,7 @@ async def unarchive_program(
     db: AsyncSession = Depends(get_db)
 ):
     """Restore program from archive."""
+    ensure_role(current_user, PROGRAM_EDIT_ROLES)
     program_repo = ProgramRepositorySupabase(db)
     program = await program_repo.find_by_id(program_id, current_user["institution_id"])
     if not program:
@@ -537,6 +542,7 @@ async def delete_program(
     db: AsyncSession = Depends(get_db)
 ):
     """Delete program."""
+    ensure_role(current_user, PROGRAM_EDIT_ROLES)
     program_repo = ProgramRepositorySupabase(db)
     result = await program_repo.delete(program_id, current_user["institution_id"])
     if result == 0:
@@ -606,6 +612,7 @@ async def upload_program_image_endpoint(
         ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS, MAX_PROGRAM_IMAGE_SIZE, upload_program_image,
     )
 
+    ensure_role(current_user, PROGRAM_EDIT_ROLES)
     await _require_program_photos(db, current_user["institution_id"])
 
     program_repo = ProgramRepositorySupabase(db)
@@ -659,6 +666,7 @@ async def delete_program_image(
     db: AsyncSession = Depends(get_db),
 ):
     """Remove cover image from a program. Gated by `program_photos` feature flag."""
+    ensure_role(current_user, PROGRAM_EDIT_ROLES)
     await _require_program_photos(db, current_user["institution_id"])
 
     program_repo = ProgramRepositorySupabase(db)

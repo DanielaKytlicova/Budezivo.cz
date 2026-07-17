@@ -22,7 +22,7 @@ router = APIRouter(prefix="/invitations", tags=["Team Invitations"])
 logger = logging.getLogger(__name__)
 
 # Valid roles for team members
-VALID_ROLES = ["spravce", "edukator", "lektor", "pokladni", "admin", "staff", "viewer"]
+VALID_ROLES = ["spravce", "edukator", "lektor", "pokladni", "produkcni", "ucetni", "admin", "staff", "viewer"]
 
 
 # ============ Pydantic Schemas ============

@@ -30,7 +30,7 @@ SUPERADMIN_EMAILS = {
 router = APIRouter(prefix="/team", tags=["Team"])
 logger = logging.getLogger(__name__)
 
-VALID_ROLES = ["spravce", "edukator", "lektor", "pokladni", "admin", "staff", "viewer"]
+VALID_ROLES = ["spravce", "edukator", "lektor", "pokladni", "produkcni", "ucetni", "admin", "staff", "viewer"]
 
 
 @router.get("", response_model=List[TeamMember])

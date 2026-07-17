@@ -26,6 +26,7 @@ from services.mailing_service import (
 from services.plan_service import require_feature
 from services.usage_service import track_usage
 from services.feature_flags import is_feature_enabled
+from services.email_service import EmailService
 
 
 CONTACTS_FEATURE_KEY = "contacts_module"
@@ -48,6 +49,19 @@ async def require_contacts_module(
 
 router = APIRouter(prefix="/mailings", tags=["Mailings"], dependencies=[Depends(require_feature("mailing"))])
 logger = logging.getLogger(__name__)
+
+# Section 5 — only these roles may create/edit/schedule/send campaigns.
+CAMPAIGN_ROLES = {"admin", "spravce", "edukator"}
+_EMAIL_RE = __import__("re").compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _ensure_campaign_role(current_user: dict):
+    if current_user.get("role") not in CAMPAIGN_ROLES:
+        raise HTTPException(status_code=403, detail="Vaše role nemá oprávnění pracovat s e-mailovými kampaněmi.")
+
+
+def _norm_email(e: str) -> str:
+    return (e or "").strip().lower()
 
 
 # ---- Pydantic models ----
@@ -123,7 +137,10 @@ async def list_campaigns(
             "total_recipients": c.total_recipients or 0,
             "sent_count": c.sent_count or 0,
             "failed_count": c.failed_count or 0,
+            "skipped_count": c.skipped_count or 0,
             "programs_count": prog_count,
+            "scheduled_at": c.scheduled_at.isoformat() if c.scheduled_at else None,
+            "failure_reason": c.failure_reason,
             "sent_at": c.sent_at.isoformat() if c.sent_at else None,
             "created_at": c.created_at.isoformat() if c.created_at else None,
         })
@@ -416,6 +433,9 @@ async def get_campaign(
         "total_recipients": campaign.total_recipients or 0,
         "sent_count": campaign.sent_count or 0,
         "failed_count": campaign.failed_count or 0,
+        "skipped_count": campaign.skipped_count or 0,
+        "scheduled_at": campaign.scheduled_at.isoformat() if campaign.scheduled_at else None,
+        "failure_reason": campaign.failure_reason,
         "sent_at": campaign.sent_at.isoformat() if campaign.sent_at else None,
         "created_at": campaign.created_at.isoformat() if campaign.created_at else None,
         "programs": programs_data,
@@ -430,6 +450,7 @@ async def create_campaign(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new campaign (draft)."""
+    _ensure_campaign_role(current_user)
     institution_id = current_user["institution_id"]
 
     # Get institution for default signature
@@ -498,6 +519,7 @@ async def update_campaign(
     db: AsyncSession = Depends(get_db),
 ):
     """Update a draft campaign."""
+    _ensure_campaign_role(current_user)
     result = await db.execute(
         select(MailingCampaign).where(
             and_(
@@ -549,6 +571,7 @@ async def delete_campaign(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a draft campaign."""
+    _ensure_campaign_role(current_user)
     result = await db.execute(
         select(MailingCampaign).where(
             and_(
@@ -612,12 +635,14 @@ async def get_default_texts(
 @router.post("/{campaign_id}/send")
 async def send_campaign(
     campaign_id: str,
-    data: SendCampaignRequest,
     background_tasks: BackgroundTasks,
+    data: Optional[SendCampaignRequest] = None,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Finalize and send a campaign. Creates recipients and triggers background sending."""
+    _ensure_campaign_role(current_user)
+    data = data or SendCampaignRequest()
     institution_id = current_user["institution_id"]
 
     result = await db.execute(
@@ -643,32 +668,74 @@ async def send_campaign(
     campaign_programs = result.scalars().all()
     program_ids = [str(cp.program_id) for cp in campaign_programs if cp.program_id]
 
-    if not program_ids:
-        raise HTTPException(status_code=400, detail="Kampaň neobsahuje žádné programy")
+    # Snapshot campaigns (created from Školy) already carry their recipients and
+    # may have no programs → send to the existing snapshot instead.
+    existing_recipients = (await db.execute(
+        select(func.count()).select_from(MailingCampaignRecipient).where(
+            MailingCampaignRecipient.campaign_id == campaign.id
+        )
+    )).scalar() or 0
 
-    # Resolve recipients
+    if not program_ids:
+        if existing_recipients == 0:
+            raise HTTPException(status_code=400, detail="Kampaň neobsahuje žádné programy ani příjemce")
+        campaign.content_snapshot = {
+            "subject": campaign.subject, "greeting": campaign.greeting,
+            "intro_text": campaign.intro_text, "closing_text": campaign.closing_text,
+            "signature": campaign.signature,
+        }
+        campaign.status = "processing"
+        campaign.send_started_at = datetime.now(timezone.utc)
+        await db.commit()
+        background_tasks.add_task(send_campaign_emails, str(campaign.id))
+        await track_usage(db, institution_id, "mailing", {"recipients": existing_recipients})
+        return {
+            "message": f"Odesílání kampaně zahájeno pro {existing_recipients} příjemců",
+            "campaign_id": str(campaign.id),
+            "total_recipients": existing_recipients,
+        }
+
+    # Resolve + snapshot + create recipient rows (shared with scheduling)
+    count = await _finalize_program_recipients(
+        db, campaign, institution_id, program_ids, data.manual_school_ids
+    )
+    campaign.status = "processing"
+    campaign.send_started_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    # Trigger background sending
+    background_tasks.add_task(send_campaign_emails, str(campaign.id))
+
+    # Track usage
+    await track_usage(db, institution_id, "mailing", {"recipients": count})
+
+    return {
+        "message": f"Odesílání kampaně zahájeno pro {count} příjemců",
+        "campaign_id": str(campaign.id),
+        "total_recipients": count,
+    }
+
+
+async def _finalize_program_recipients(db, campaign, institution_id, program_ids, manual_school_ids):
+    """Resolve program-based recipients, write content/programs snapshots and
+    create recipient rows. Returns the recipient count. Does NOT change status."""
     resolved = await resolve_recipients(
         db=db,
         institution_id=institution_id,
         program_ids=program_ids,
         recipient_mode=campaign.recipient_mode,
-        manual_school_ids=data.manual_school_ids,
+        manual_school_ids=manual_school_ids,
     )
-
     recipients = resolved["recipients"]
     if not recipients:
         raise HTTPException(status_code=400, detail="Žádní příjemci k odeslání")
 
-    # Load actual programs for snapshots
     result = await db.execute(
-        select(Program).where(
-            Program.id.in_([uuid.UUID(pid) for pid in program_ids])
-        )
+        select(Program).where(Program.id.in_([uuid.UUID(pid) for pid in program_ids]))
     )
     programs = result.scalars().all()
     programs_map = {str(p.id): p for p in programs}
 
-    # Create program snapshots
     programs_snapshot = []
     for pid in program_ids:
         p = programs_map.get(pid)
@@ -681,7 +748,6 @@ async def send_campaign(
                 "target_groups": p.target_groups or [],
             })
 
-    # Save snapshots
     campaign.content_snapshot = {
         "subject": campaign.subject,
         "greeting": campaign.greeting,
@@ -697,9 +763,7 @@ async def send_campaign(
     }
     campaign.programs_snapshot = programs_snapshot
     campaign.total_recipients = len(recipients)
-    campaign.status = "sending"
 
-    # Create recipient records
     for r in recipients:
         recipient = MailingCampaignRecipient(
             campaign_id=campaign.id,
@@ -717,32 +781,342 @@ async def send_campaign(
         )
         db.add(recipient)
         await db.flush()
-
-        # Create recipient-program mapping
         relevant_pids = r.get("relevant_program_ids", program_ids)
         for rpid in relevant_pids:
             p = programs_map.get(rpid)
             if p:
-                rp = MailingRecipientProgram(
+                db.add(MailingRecipientProgram(
                     recipient_id=recipient.id,
                     program_id=uuid.UUID(rpid),
                     program_name=p.name_cs,
                     program_target_groups=p.target_groups or [],
-                )
-                db.add(rp)
+                ))
+    return len(recipients)
 
+
+# ─────────────────────────────────────────────────────────────────────────
+# Section 7 — Plánované odeslání kampaně
+# ─────────────────────────────────────────────────────────────────────────
+
+class ScheduleRequest(BaseModel):
+    scheduled_at: str  # ISO 8601 (UTC)
+    manual_school_ids: Optional[List[str]] = None
+
+
+class TestEmailRequest(BaseModel):
+    email: str
+
+
+def _parse_utc(value: str) -> datetime:
+    from datetime import datetime as _dt
+    v = (value or "").strip().replace("Z", "+00:00")
+    dt = _dt.fromisoformat(v)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+@router.post("/{campaign_id}/schedule")
+async def schedule_campaign(
+    campaign_id: str,
+    data: ScheduleRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Schedule a draft campaign for a future send. Finalizes recipients now
+    (snapshot) and stores scheduled_at in UTC."""
+    _ensure_campaign_role(current_user)
+    institution_id = current_user["institution_id"]
+
+    campaign = (await db.execute(
+        select(MailingCampaign).where(and_(
+            MailingCampaign.id == campaign_id,
+            MailingCampaign.institution_id == institution_id,
+        ))
+    )).scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Kampaň nenalezena")
+    if campaign.status != "draft":
+        raise HTTPException(status_code=400, detail="Naplánovat lze pouze koncept")
+
+    try:
+        when = _parse_utc(data.scheduled_at)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Neplatný formát data a času")
+    if when <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Nelze naplánovat odeslání do minulosti")
+
+    # Finalize recipients (snapshot). Reuse existing recipients if present.
+    existing = (await db.execute(
+        select(func.count()).select_from(MailingCampaignRecipient).where(
+            MailingCampaignRecipient.campaign_id == campaign.id
+        )
+    )).scalar() or 0
+    if existing == 0:
+        cps = (await db.execute(
+            select(MailingCampaignProgram).where(MailingCampaignProgram.campaign_id == campaign.id)
+        )).scalars().all()
+        program_ids = [str(cp.program_id) for cp in cps if cp.program_id]
+        if not program_ids:
+            raise HTTPException(status_code=400, detail="Kampaň neobsahuje žádné programy ani příjemce")
+        existing = await _finalize_program_recipients(db, campaign, institution_id, program_ids, data.manual_school_ids)
+    else:
+        campaign.content_snapshot = {
+            "subject": campaign.subject, "greeting": campaign.greeting,
+            "intro_text": campaign.intro_text, "closing_text": campaign.closing_text,
+            "signature": campaign.signature,
+        }
+        campaign.total_recipients = existing
+
+    campaign.status = "scheduled"
+    campaign.scheduled_at = when
+    campaign.scheduled_by = current_user["user_id"]
+    campaign.failure_reason = None
+    await db.commit()
+    return {"id": str(campaign.id), "status": "scheduled", "scheduled_at": when.isoformat(), "total_recipients": existing}
+
+
+@router.post("/{campaign_id}/cancel-schedule")
+async def cancel_schedule(
+    campaign_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel a scheduled send and return the campaign to draft."""
+    _ensure_campaign_role(current_user)
+    campaign = (await db.execute(
+        select(MailingCampaign).where(and_(
+            MailingCampaign.id == campaign_id,
+            MailingCampaign.institution_id == current_user["institution_id"],
+        ))
+    )).scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Kampaň nenalezena")
+    if campaign.status != "scheduled":
+        raise HTTPException(status_code=400, detail="Zrušit lze pouze naplánované odeslání")
+    campaign.status = "draft"
+    campaign.scheduled_at = None
+    await db.commit()
+    return {"id": str(campaign.id), "status": "draft"}
+
+
+@router.post("/{campaign_id}/test-email")
+async def send_test_email(
+    campaign_id: str,
+    data: TestEmailRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Send a single test email of the campaign content to the given address."""
+    _ensure_campaign_role(current_user)
+    email = (data.email or "").strip()
+    if not _EMAIL_RE.match(email):
+        raise HTTPException(status_code=400, detail="Neplatná e-mailová adresa")
+
+    campaign = (await db.execute(
+        select(MailingCampaign).where(and_(
+            MailingCampaign.id == campaign_id,
+            MailingCampaign.institution_id == current_user["institution_id"],
+        ))
+    )).scalar_one_or_none()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Kampaň nenalezena")
+
+    institution = (await db.execute(
+        select(Institution).where(Institution.id == campaign.institution_id)
+    )).scalar_one_or_none()
+    from services.mailing_service import _build_campaign_email_html
+    html_body = _build_campaign_email_html(
+        greeting=campaign.greeting, intro_text=campaign.intro_text,
+        programs=campaign.programs_snapshot or [], closing_text=campaign.closing_text,
+        signature=campaign.signature, institution_name=institution.name if institution else "Instituce",
+        booking_url=f"https://www.budezivo.cz/booking/{campaign.institution_id}", institution=institution,
+    )
+    result = await EmailService.send_email(
+        to_email=email, subject=f"[TEST] {campaign.subject}",
+        html_content=html_body, add_gdpr_footer=True,
+    )
+    if result.get("status") != "sent":
+        raise HTTPException(status_code=502, detail=result.get("error", "Odeslání testu se nezdařilo"))
+    return {"message": f"Testovací e-mail odeslán na {email}"}
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Section 4 — Školy → bezpečné vytvoření KONCEPTU kampaně (žádné přímé odeslání)
+# ─────────────────────────────────────────────────────────────────────────
+
+class SchoolSelectionItem(BaseModel):
+    school_id: str
+    # If provided (non-empty) → only these contacts; otherwise all eligible
+    # contacts of the school are included.
+    contact_ids: Optional[List[str]] = None
+
+
+class FromSchoolsRequest(BaseModel):
+    selections: List[SchoolSelectionItem]
+    name: Optional[str] = None
+
+
+async def _evaluate_school_selection(db: AsyncSession, institution_id: str, selections: List[SchoolSelectionItem]):
+    """Evaluate the selected schools/contacts and split them into eligible vs
+    excluded buckets. Returns (stats, eligible_recipients).
+
+    Note: school_contacts currently tracks only active/invalid + bounce flag.
+    Consent / unsubscribe / complaint are not yet stored per school-contact
+    (they arrive with the webhook phase) → reported as 0 here.
+    """
+    from database.models import School
+
+    school_ids = []
+    for s in selections:
+        try:
+            school_ids.append(uuid.UUID(s.school_id))
+        except (ValueError, TypeError):
+            continue
+    contacts_filter = {str(s.school_id): set(s.contact_ids or []) for s in selections}
+
+    schools = {}
+    if school_ids:
+        rows = (await db.execute(
+            select(School).where(and_(
+                School.id.in_(school_ids),
+                School.institution_id == institution_id,
+            ))
+        )).scalars().all()
+        schools = {str(s.id): s for s in rows}
+
+    all_contacts = {}
+    if school_ids:
+        rows = (await db.execute(
+            select(SchoolContact).where(and_(
+                SchoolContact.school_id.in_(school_ids),
+                SchoolContact.institution_id == institution_id,
+            ))
+        )).scalars().all()
+        for c in rows:
+            all_contacts.setdefault(str(c.school_id), []).append(c)
+
+    stats = {
+        "schools": len([sid for sid in contacts_filter if sid in schools]),
+        "contacts_found": 0,
+        "eligible": 0,
+        "duplicates": 0,
+        "invalid": 0,
+        "bounced_or_complained": 0,
+        "unsubscribed": 0,
+        "no_marketing_consent": 0,
+    }
+    eligible = []
+    seen_emails = set()
+
+    for sid, wanted in contacts_filter.items():
+        school = schools.get(sid)
+        if not school:
+            continue
+        for c in all_contacts.get(sid, []):
+            if wanted and str(c.id) not in wanted:
+                continue
+            stats["contacts_found"] += 1
+            email = _norm_email(c.email)
+            if not email or not _EMAIL_RE.match(email):
+                stats["invalid"] += 1
+                continue
+            if c.status == "invalid" or c.email_validation_error:
+                stats["invalid"] += 1
+                continue
+            if c.last_email_bounced:
+                stats["bounced_or_complained"] += 1
+                continue
+            if email in seen_emails:
+                stats["duplicates"] += 1
+                continue
+            seen_emails.add(email)
+            stats["eligible"] += 1
+            eligible.append({
+                "email": c.email,
+                "contact_id": str(c.id),
+                "contact_name": c.name,
+                "school_id": sid,
+                "school_name": school.name,
+            })
+
+    return stats, eligible
+
+
+@router.post("/from-schools/preview")
+async def preview_from_schools(
+    data: FromSchoolsRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Show the eligibility summary for the selected schools/contacts BEFORE a
+    draft is created. Nothing is sent or persisted."""
+    _ensure_campaign_role(current_user)
+    stats, eligible = await _evaluate_school_selection(
+        db, current_user["institution_id"], data.selections
+    )
+    return {"stats": stats, "eligible_preview": eligible[:200], "eligible_count": len(eligible)}
+
+
+@router.post("/from-schools")
+async def create_draft_from_schools(
+    data: FromSchoolsRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a DRAFT campaign from selected schools/contacts and snapshot the
+    eligible recipients. Never sends. Returns the campaign_id so the frontend
+    can open the draft editor."""
+    _ensure_campaign_role(current_user)
+    institution_id = current_user["institution_id"]
+
+    stats, eligible = await _evaluate_school_selection(db, institution_id, data.selections)
+    if not eligible:
+        raise HTTPException(status_code=400, detail="Mezi vybranými školami nejsou žádné způsobilé kontakty.")
+
+    institution = (await db.execute(
+        select(Institution).where(Institution.id == institution_id)
+    )).scalar_one_or_none()
+    inst_name = institution.name if institution else "Instituce"
+
+    tpl = DEFAULT_TEMPLATES.get("general", {})
+    campaign = MailingCampaign(
+        institution_id=institution_id,
+        created_by=current_user["user_id"],
+        name=data.name or f"Kampaň pro školy ({stats['schools']})",
+        type="custom",
+        status="draft",
+        recipient_mode="manual",
+        subject=tpl.get("subject", "Nabídka programů"),
+        greeting=tpl.get("greeting", "Dobrý den,"),
+        intro_text=tpl.get("intro_text", ""),
+        closing_text=tpl.get("closing_text", ""),
+        signature=get_default_signature(inst_name),
+        selection_snapshot={"source": "schools", "stats": stats},
+    )
+    db.add(campaign)
+    await db.flush()
+
+    for r in eligible:
+        db.add(MailingCampaignRecipient(
+            campaign_id=campaign.id,
+            school_id=uuid.UUID(r["school_id"]) if r.get("school_id") else None,
+            contact_id=uuid.UUID(r["contact_id"]) if r.get("contact_id") else None,
+            email=r["email"],
+            school_name=r.get("school_name"),
+            contact_name=r.get("contact_name"),
+            status="pending",
+            matching_reason={"selection_mode": "schools_manual"},
+        ))
+
+    campaign.total_recipients = len(eligible)
     await db.commit()
 
-    # Trigger background sending
-    background_tasks.add_task(send_campaign_emails, str(campaign.id))
-
-    # Track usage
-    await track_usage(db, institution_id, "mailing", {"recipients": len(recipients)})
-
     return {
-        "message": f"Odesílání kampaně zahájeno pro {len(recipients)} příjemců",
-        "campaign_id": str(campaign.id),
-        "total_recipients": len(recipients),
+        "id": str(campaign.id),
+        "status": "draft",
+        "stats": stats,
+        "message": f"Koncept vytvořen s {len(eligible)} příjemci",
     }
 
 

@@ -21,6 +21,16 @@ const TeacherAuthContext = createContext(null);
 
 const LS_KEY = 'bz_teacher_token';
 
+/**
+ * Dedicated axios instance for teacher auth. Created at import time so it does
+ * NOT inherit the admin AuthContext's global `axios.defaults.headers.common.Authorization`.
+ * The admin token must never be sent to teacher endpoints.
+ */
+const teacherApi = axios.create({ withCredentials: true });
+if (teacherApi.defaults.headers?.common) {
+  delete teacherApi.defaults.headers.common.Authorization;
+}
+
 const formatErr = (detail) => {
   if (detail == null) return 'Něco se pokazilo. Zkuste to prosím znovu.';
   if (typeof detail === 'string') return detail;
@@ -33,16 +43,15 @@ export const TeacherAuthProvider = ({ children }) => {
   const tokenRef = useRef(localStorage.getItem(LS_KEY) || null);
 
   const authConfig = useCallback(() => {
-    const cfg = { withCredentials: true };
-    if (tokenRef.current) {
-      cfg.headers = { Authorization: `Bearer ${tokenRef.current}` };
-    }
+    // Explicitly set Authorization from the TEACHER token only (never inherit admin's).
+    const cfg = { withCredentials: true, headers: {} };
+    cfg.headers.Authorization = tokenRef.current ? `Bearer ${tokenRef.current}` : undefined;
     return cfg;
   }, []);
 
   const refreshMe = useCallback(async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/api/teacher/auth/me`, authConfig());
+      const { data } = await teacherApi.get(`${API_URL}/api/teacher/auth/me`, authConfig());
       setTeacher(data);
       return data;
     } catch (_e) {
@@ -52,13 +61,20 @@ export const TeacherAuthProvider = ({ children }) => {
   }, [authConfig]);
 
   useEffect(() => {
-    refreshMe();
+    // Anonymous teacher state is not an error. In the admin area (no teacher token),
+    // skip the /me probe entirely so it never produces a spurious 401 in the console.
+    const isAdminArea = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+    if (tokenRef.current || !isAdminArea) {
+      refreshMe();
+    } else {
+      setTeacher(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const register = async (payload) => {
     try {
-      const { data } = await axios.post(`${API_URL}/api/teacher/auth/register`, payload, { withCredentials: true });
+      const { data } = await teacherApi.post(`${API_URL}/api/teacher/auth/register`, payload, { withCredentials: true });
       if (data.access_token) {
         tokenRef.current = data.access_token;
         localStorage.setItem(LS_KEY, data.access_token);
@@ -74,7 +90,7 @@ export const TeacherAuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const { data } = await axios.post(`${API_URL}/api/teacher/auth/login`, { email, password }, { withCredentials: true });
+      const { data } = await teacherApi.post(`${API_URL}/api/teacher/auth/login`, { email, password }, { withCredentials: true });
       if (data.access_token) {
         tokenRef.current = data.access_token;
         localStorage.setItem(LS_KEY, data.access_token);
@@ -90,7 +106,7 @@ export const TeacherAuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.post(`${API_URL}/api/teacher/auth/logout`, {}, authConfig());
+      await teacherApi.post(`${API_URL}/api/teacher/auth/logout`, {}, authConfig());
     } catch (_e) { /* noop */ }
     tokenRef.current = null;
     localStorage.removeItem(LS_KEY);
@@ -99,7 +115,7 @@ export const TeacherAuthProvider = ({ children }) => {
 
   const updateProfile = async (payload) => {
     try {
-      const { data } = await axios.patch(`${API_URL}/api/teacher/me`, payload, authConfig());
+      const { data } = await teacherApi.patch(`${API_URL}/api/teacher/me`, payload, authConfig());
       setTeacher(data);
       return { ok: true, profile: data };
     } catch (e) {

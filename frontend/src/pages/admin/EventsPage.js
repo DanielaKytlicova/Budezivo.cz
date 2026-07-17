@@ -605,6 +605,33 @@ export const EventsPage = () => {
                     </div>
                   )}
                 </div>
+                {editingEvent && applications.length > 0 && (formData.price || 0) > 0 && (() => {
+                  const b = { qr: { total: 0, paid: 0 }, gateway: { total: 0, paid: 0 }, cash: { total: 0, paid: 0 } };
+                  applications.forEach(a => {
+                    if (!b[a.payment_method]) return;
+                    b[a.payment_method].total++;
+                    if (a.payment_status === 'paid') b[a.payment_method].paid++;
+                  });
+                  const order = ['qr', 'gateway', 'cash'];
+                  const styles = {
+                    qr: 'bg-sky-50 border-sky-200 text-sky-800',
+                    gateway: 'bg-violet-50 border-violet-200 text-violet-800',
+                    cash: 'bg-amber-50 border-amber-200 text-amber-800',
+                  };
+                  const visible = order.filter(m => b[m].total > 0);
+                  if (visible.length === 0) return null;
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2" data-testid="payment-method-stats">
+                      {visible.map(m => (
+                        <div key={m} className={`rounded-lg border p-3 ${styles[m]}`} data-testid={`payment-stat-${m}`}>
+                          <p className="text-xs font-medium">{PAYMENT_METHOD_LABELS[m]}</p>
+                          <p className="text-lg font-bold leading-tight">{b[m].total}</p>
+                          <p className="text-xs opacity-80">zaplaceno {b[m].paid} / {b[m].total}</p>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {!editingEvent && <p className="text-sm text-amber-600">Nejprve uložte událost.</p>}
                 {editingEvent && applications.length === 0 && <p className="text-sm text-gray-500">Zatím žádné přihlášky.</p>}
                 {applications.map(app => {

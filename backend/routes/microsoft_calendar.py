@@ -6,6 +6,8 @@ import logging
 import os
 import uuid
 import secrets
+import json
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -18,10 +20,26 @@ from sqlalchemy import select, and_, delete
 
 from core.security import get_current_user
 from database.supabase import get_db
-from database.models import UserCalendarIntegration, AvailabilityBlock, OAuthState, Program
+from database.models import (
+    UserCalendarIntegration, AvailabilityBlock, OAuthState, Program,
+    Reservation, Room, Institution, CalendarEventExport, User,
+)
 from services.plan_service import require_feature
+from core.permissions import require_roles, CALENDAR_PERSONAL_ROLES
+from services.google_calendar_helpers import (
+    build_export_event_body, reservation_assigned_user_ids,
+)
 
-router = APIRouter(prefix="/microsoft-calendar", tags=["Microsoft Calendar"], dependencies=[Depends(require_feature("outlook_sync"))])
+_CALENDAR_ROLE_MSG = "Vaše role nemá přístup ke kalendářovým integracím."
+
+router = APIRouter(
+    prefix="/microsoft-calendar",
+    tags=["Microsoft Calendar"],
+    dependencies=[
+        Depends(require_feature("outlook_sync")),
+        Depends(require_roles(CALENDAR_PERSONAL_ROLES, _CALENDAR_ROLE_MSG)),
+    ],
+)
 logger = logging.getLogger(__name__)
 
 # ── Config ──────────────────────────────────────────────────────────
@@ -32,29 +50,39 @@ TENANT_ID = os.environ.get("MICROSOFT_TENANT_ID", "")
 REDIRECT_URI = os.environ.get("MICROSOFT_REDIRECT_URI", "")
 
 AUTHORITY = "https://login.microsoftonline.com/common"
-SCOPES = ["Calendars.Read", "User.Read", "offline_access"]
+# Calendars.ReadWrite is required to EXPORT reservations (create/update/delete our events).
+SCOPES = ["Calendars.ReadWrite", "User.Read", "offline_access"]
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+PROVIDER = "microsoft"
+CANCELLED_STATUSES = {"cancelled", "canceled", "rejected", "declined"}
+
+
+def _has_write_scope(granted_scopes: Optional[str]) -> bool:
+    """Whether the integration was granted calendar write access."""
+    if not granted_scopes:
+        return False
+    return "calendars.readwrite" in granted_scopes.lower()
 
 OAUTH_STATE_TTL_MINUTES = 10
 
 
 def _get_redirect_uri(request: Request) -> str:
-    """Build redirect URI from the current request's public-facing host."""
-    # Prefer X-Forwarded-Host (set by reverse proxy/ingress)
+    """Return the OAuth redirect URI.
+
+    The explicit env value MICROSOFT_REDIRECT_URI is authoritative: it must match
+    the Microsoft Entra app registration EXACTLY and must be identical for both
+    /connect and /callback. We never derive it from the frontend Origin/Referer
+    (that would yield the frontend host, e.g. budezivo.cz, which does not match
+    the API host api.budezivo.cz registered in Entra).
+    """
+    if REDIRECT_URI:
+        return REDIRECT_URI
+    # Dev/preview fallback: derive from the API's OWN public host.
     fwd_host = request.headers.get("x-forwarded-host")
     fwd_proto = request.headers.get("x-forwarded-proto", "https")
     if fwd_host:
         return f"{fwd_proto}://{fwd_host}/api/microsoft-calendar/callback"
-    
-    # Fallback: use Origin/Referer header
-    origin = request.headers.get("origin") or request.headers.get("referer")
-    if origin:
-        from urllib.parse import urlparse
-        parsed = urlparse(origin)
-        base = f"{parsed.scheme}://{parsed.netloc}"
-        return f"{base}/api/microsoft-calendar/callback"
-    
-    return REDIRECT_URI or "https://budezivo.cz/api/microsoft-calendar/callback"
+    return f"{request.url.scheme}://{request.url.netloc}/api/microsoft-calendar/callback"
 
 
 def _get_msal_app():
@@ -124,7 +152,9 @@ async def oauth_callback(
     """
     if error:
         logger.error(f"OAuth error: {error} - {error_description}")
-        return _close_popup_html(f"Chyba: {error_description or error}")
+        if error == "access_denied":
+            return _close_popup_html("Souhlas s přístupem ke kalendáři byl odmítnut.")
+        return _close_popup_html(error_description or error)
 
     if not code or not state:
         return _close_popup_html("Chybí autorizační kód")
@@ -159,6 +189,7 @@ async def oauth_callback(
 
     access_token = token_data.get("access_token")
     refresh_token = token_data.get("refresh_token")
+    granted_scopes = token_data.get("scope")
     expires_in = token_data.get("expires_in", 3600)
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
@@ -194,6 +225,8 @@ async def oauth_callback(
         integration.refresh_token = refresh_token
         integration.expires_at = expires_at
         integration.microsoft_user_id = ms_user_id
+        integration.granted_scopes = granted_scopes
+        integration.needs_reconnect = not _has_write_scope(granted_scopes)
         integration.is_active = True
         integration.sync_error = None
         integration.updated_at = datetime.now(timezone.utc)
@@ -206,15 +239,17 @@ async def oauth_callback(
             refresh_token=refresh_token,
             expires_at=expires_at,
             microsoft_user_id=ms_user_id,
+            granted_scopes=granted_scopes,
+            needs_reconnect=not _has_write_scope(granted_scopes),
             is_active=True,
         )
         db.add(integration)
 
     await db.commit()
 
-    # Trigger initial sync
+    # Trigger initial sync (import + export per flags)
     try:
-        await _sync_calendar_events(db, integration)
+        await _full_sync_ms(db, integration)
     except Exception as e:
         logger.error(f"Initial sync failed: {e}")
 
@@ -239,12 +274,60 @@ async def get_connection_status(
     if not integration or not integration.is_active:
         return {"connected": False}
 
+    has_write = _has_write_scope(integration.granted_scopes)
+    role = current_user.get("role")
+    export_scope = "institution" if role in ("admin", "spravce") else "assigned"
     return {
         "connected": True,
         "microsoft_user_id": integration.microsoft_user_id,
         "last_sync_at": integration.last_sync_at.isoformat() if integration.last_sync_at else None,
         "sync_error": integration.sync_error,
         "expires_at": integration.expires_at.isoformat() if integration.expires_at else None,
+        "import_enabled": integration.import_enabled,
+        "export_enabled": integration.export_enabled,
+        "has_write_scope": has_write,
+        # Export requires write scope — old connections must reconnect first.
+        "needs_reconnect": integration.needs_reconnect or not has_write,
+        "export_scope": export_scope,
+    }
+
+
+@router.put("/settings")
+async def update_ms_settings(
+    body: dict,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Toggle import (personal events → blocks) and export (reservations → Outlook)."""
+    user_uuid = uuid.UUID(current_user["user_id"])
+    integration = (await db.execute(
+        select(UserCalendarIntegration).where(and_(
+            UserCalendarIntegration.user_id == user_uuid,
+            UserCalendarIntegration.provider == "microsoft",
+        ))
+    )).scalar_one_or_none()
+    if not integration or not integration.is_active:
+        raise HTTPException(status_code=404, detail="Outlook není připojen")
+
+    if "import_enabled" in body:
+        integration.import_enabled = bool(body["import_enabled"])
+    if "export_enabled" in body:
+        want_export = bool(body["export_enabled"])
+        if want_export and not _has_write_scope(integration.granted_scopes):
+            # No write permission → require reconnect, never silently enable.
+            integration.needs_reconnect = True
+            await db.commit()
+            raise HTTPException(
+                status_code=403,
+                detail="Pro export rezervací je potřeba Outlook znovu připojit (chybí oprávnění k zápisu do kalendáře).",
+            )
+        integration.export_enabled = want_export
+    integration.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(integration)
+    return {
+        "import_enabled": integration.import_enabled,
+        "export_enabled": integration.export_enabled,
     }
 
 
@@ -295,8 +378,8 @@ async def trigger_sync(
         raise HTTPException(status_code=404, detail="Outlook není připojen")
 
     try:
-        count = await _sync_calendar_events(db, integration)
-        return {"message": f"Synchronizováno {count} událostí z Outlooku", "synced_count": count}
+        result = await _full_sync_ms(db, integration)
+        return {"message": "Synchronizace dokončena", **result}
     except Exception as e:
         logger.error(f"Manual sync failed: {e}")
         raise HTTPException(status_code=500, detail=f"Synchronizace selhala: {str(e)}")
@@ -613,6 +696,175 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
     return count
 
 
+# ── Reservation EXPORT (Budeživo → Outlook), Microsoft Graph write ──
+
+
+def _graph_body_from_google(g: dict) -> dict:
+    """Translate the shared Google export body into a Microsoft Graph event body."""
+    return {
+        "subject": g.get("summary", "Rezervace"),
+        "body": {"contentType": "text", "content": g.get("description", "")},
+        "start": g.get("start"),   # {dateTime, timeZone} — same shape as Graph
+        "end": g.get("end"),
+        "categories": ["Budeživo"],
+    }
+
+
+async def _graph_request(method: str, token: str, path: str, json_body=None):
+    async with httpx.AsyncClient() as client:
+        return await client.request(
+            method, f"{GRAPH_BASE}{path}",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=json_body, timeout=30,
+        )
+
+
+async def _export_reservations_ms(db: AsyncSession, integration: UserCalendarIntegration) -> dict:
+    """Reconcile the owner's reservations with their Outlook calendar (idempotent).
+
+    Creates missing events, updates changed ones, deletes events for reservations the
+    user is no longer assigned to / that were cancelled. Only events we tracked in
+    calendar_event_exports (Budeživo-owned) are ever touched — never personal events.
+    Scope is derived from the OWNER's role in the DB (never trusted from the client).
+    """
+    stats = {"created": 0, "updated": 0, "deleted": 0, "errors": 0}
+    if not integration.export_enabled:
+        return stats
+    if not _has_write_scope(integration.granted_scopes):
+        integration.needs_reconnect = True
+        await db.commit()
+        return stats
+
+    token = await _get_valid_token(db, integration)
+    if not token:
+        await db.commit()
+        return stats
+
+    user_id = str(integration.user_id)
+    inst_id = integration.institution_id
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    owner_role = (await db.execute(
+        select(User.role).where(User.id == integration.user_id)
+    )).scalar_one_or_none()
+    institution_scope = owner_role in ("admin", "spravce")
+
+    res_rows = (await db.execute(
+        select(Reservation).where(and_(
+            Reservation.institution_id == inst_id,
+            Reservation.date >= today,
+            Reservation.deleted_at.is_(None),
+            Reservation.status.notin_(list(CANCELLED_STATUSES)),
+        ))
+    )).scalars().all()
+    assigned = res_rows if institution_scope else [r for r in res_rows if user_id in reservation_assigned_user_ids(r)]
+    assigned_ids = {str(r.id) for r in assigned}
+
+    links = (await db.execute(
+        select(CalendarEventExport).where(and_(
+            CalendarEventExport.user_id == integration.user_id,
+            CalendarEventExport.provider == PROVIDER,
+        ))
+    )).scalars().all()
+    link_by_booking = {str(l.booking_id): l for l in links}
+
+    prog_ids = {r.program_id for r in assigned}
+    programs = {p.id: p for p in (await db.execute(
+        select(Program).where(Program.id.in_(prog_ids))
+    )).scalars().all()} if prog_ids else {}
+    room_ids = {programs[r.program_id].room_id for r in assigned
+                if programs.get(r.program_id) and programs[r.program_id].room_id}
+    rooms = {rm.id: rm.name for rm in (await db.execute(
+        select(Room).where(Room.id.in_(room_ids))
+    )).scalars().all()} if room_ids else {}
+    inst_name = (await db.execute(
+        select(Institution.name).where(Institution.id == inst_id)
+    )).scalar_one_or_none() or ""
+    admin_base = os.environ.get("FRONTEND_URL", "").rstrip("/")
+
+    for r in assigned:
+        prog = programs.get(r.program_id)
+        g_body = build_export_event_body(
+            booking_id=str(r.id), institution_id=str(inst_id), user_id=user_id,
+            program_name=(prog.name_cs or prog.name_en) if prog else "Program",
+            status=r.status, date_str=r.date, time_block=r.time_block,
+            duration=prog.duration if prog else None, institution_name=inst_name,
+            room_name=rooms.get(prog.room_id) if prog and prog.room_id else None,
+            school_name=r.school_name, group_type=r.group_type,
+            num_students=r.num_students, admin_base_url=admin_base,
+        )
+        if not g_body:
+            continue
+        body = _graph_body_from_google(g_body)
+        link = link_by_booking.get(str(r.id))
+        try:
+            if link and link.external_event_id:
+                resp = await _graph_request("PATCH", token, f"/me/events/{link.external_event_id}", body)
+                if resp.status_code == 404:
+                    resp = await _graph_request("POST", token, "/me/events", body)
+                    if resp.status_code in (200, 201):
+                        link.external_event_id = resp.json().get("id")
+                        stats["created"] += 1
+                    else:
+                        stats["errors"] += 1
+                        continue
+                elif resp.status_code in (200, 201):
+                    stats["updated"] += 1
+                else:
+                    stats["errors"] += 1
+                    continue
+                link.last_synced_at = datetime.now(timezone.utc)
+            else:
+                resp = await _graph_request("POST", token, "/me/events", body)
+                if resp.status_code in (200, 201):
+                    ev_id = resp.json().get("id")
+                    if link:
+                        link.external_event_id = ev_id
+                        link.last_synced_at = datetime.now(timezone.utc)
+                    else:
+                        db.add(CalendarEventExport(
+                            institution_id=inst_id, user_id=integration.user_id,
+                            booking_id=r.id, provider=PROVIDER,
+                            external_event_id=ev_id, last_synced_at=datetime.now(timezone.utc),
+                        ))
+                    stats["created"] += 1
+                else:
+                    stats["errors"] += 1
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"MS export failed for reservation {r.id}: {type(e).__name__}")
+            stats["errors"] += 1
+
+    # Remove events for reservations no longer in scope / cancelled.
+    for booking_id, link in link_by_booking.items():
+        if booking_id in assigned_ids:
+            continue
+        try:
+            if link.external_event_id:
+                resp = await _graph_request("DELETE", token, f"/me/events/{link.external_event_id}")
+                if resp.status_code not in (200, 204, 404):
+                    stats["errors"] += 1
+                    continue
+            await db.delete(link)
+            stats["deleted"] += 1
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"MS export delete failed for booking {booking_id}: {type(e).__name__}")
+            stats["errors"] += 1
+
+    integration.last_sync_at = datetime.now(timezone.utc)
+    await db.commit()
+    return stats
+
+
+async def _full_sync_ms(db: AsyncSession, integration: UserCalendarIntegration) -> dict:
+    """Run import (personal events → blocks) and export (reservations → Outlook) per flags."""
+    imported = 0
+    if integration.import_enabled:
+        imported = await _sync_calendar_events(db, integration)
+    export_stats = await _export_reservations_ms(db, integration)
+    return {"imported": imported, "export": export_stats}
+
+
+
 def _block_to_dict(block: AvailabilityBlock) -> dict:
     return {
         "id": str(block.id),
@@ -626,18 +878,37 @@ def _block_to_dict(block: AvailabilityBlock) -> dict:
     }
 
 
+def _extract_aadsts(msg: Optional[str]) -> Optional[str]:
+    if not msg:
+        return None
+    m = re.search(r"AADSTS\d+", msg)
+    return m.group(0) if m else None
+
+
 def _close_popup_html(error: Optional[str]) -> "HTMLResponse":
-    """Return HTML that communicates result to parent window and closes popup."""
+    """Return HTML that posts the result to the opener and closes the popup.
+
+    Error detail is delivered via postMessage as JSON (safely escaped) — never
+    interpolated raw into HTML/JS. Secrets/tokens/codes are never included here.
+    """
     from fastapi.responses import HTMLResponse
-    # Use restrictive targetOrigin — read from env for production safety
-    origin = os.environ.get("FRONTEND_URL", os.environ.get("CORS_ORIGINS", "").split(",")[0] if os.environ.get("CORS_ORIGINS") else "*")
+    origin = os.environ.get("FRONTEND_URL") or (
+        os.environ.get("CORS_ORIGINS", "").split(",")[0] if os.environ.get("CORS_ORIGINS") else "*"
+    )
     if error:
-        script = f'window.opener && window.opener.postMessage({{type:"outlook_error",error:"{error}"}}, "{origin}"); window.close();'
+        payload = {"type": "outlook_error", "error": error, "aadsts": _extract_aadsts(error)}
+        visible = "Připojení Outlooku se nezdařilo. Toto okno se zavře…"
     else:
-        script = f'window.opener && window.opener.postMessage({{type:"outlook_connected"}}, "{origin}"); window.close();'
-    html = f"""<!DOCTYPE html><html><body>
-    <p>{"Chyba: " + error if error else "Připojeno! Toto okno se zavře..."}</p>
-    <script>{script}</script>
+        payload = {"type": "outlook_connected"}
+        visible = "Připojeno! Toto okno se zavře…"
+    payload_json = json.dumps(payload)
+    origin_json = json.dumps(origin)
+    html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
+    <p>{visible}</p>
+    <script>
+      try {{ window.opener && window.opener.postMessage({payload_json}, {origin_json}); }} catch (e) {{}}
+      window.close();
+    </script>
     </body></html>"""
     return HTMLResponse(content=html)
 
@@ -659,7 +930,7 @@ async def sync_all_integrations():
 
         for integration in integrations:
             try:
-                await _sync_calendar_events(db, integration)
+                await _full_sync_ms(db, integration)
                 logger.info(f"Background sync completed for user {integration.user_id}")
             except Exception as e:
                 logger.error(f"Background sync failed for user {integration.user_id}: {e}")

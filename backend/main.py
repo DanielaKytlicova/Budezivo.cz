@@ -347,6 +347,16 @@ async def startup_event():
                     "ALTER TABLE programs ADD COLUMN IF NOT EXISTS is_in_catalog BOOLEAN NOT NULL DEFAULT FALSE"
                 )
             )
+            # Visit-reminder tracking (customer.visit_reminder)
+            await s.execute(_text("ALTER TABLE reservations ADD COLUMN IF NOT EXISTS visit_reminder_sent_at TIMESTAMPTZ"))
+            await s.execute(_text("ALTER TABLE reservations ADD COLUMN IF NOT EXISTS visit_reminder_last_attempt_at TIMESTAMPTZ"))
+            await s.execute(_text("ALTER TABLE reservations ADD COLUMN IF NOT EXISTS visit_reminder_error TEXT"))
+            # Mailing campaign scheduling (Section 7)
+            await s.execute(_text("ALTER TABLE mailing_campaigns ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMPTZ"))
+            await s.execute(_text("ALTER TABLE mailing_campaigns ADD COLUMN IF NOT EXISTS scheduled_by UUID"))
+            await s.execute(_text("ALTER TABLE mailing_campaigns ADD COLUMN IF NOT EXISTS send_started_at TIMESTAMPTZ"))
+            await s.execute(_text("ALTER TABLE mailing_campaigns ADD COLUMN IF NOT EXISTS failure_reason TEXT"))
+            await s.execute(_text("ALTER TABLE mailing_campaigns ADD COLUMN IF NOT EXISTS skipped_count INTEGER DEFAULT 0"))
             await s.commit()
         logger.info("Default feature flags ensured")
     except Exception as e:

@@ -712,6 +712,48 @@ async def process_visit_reminders():
             await db.rollback()
 
 
+async def process_scheduled_campaigns():
+    """Send scheduled mailing campaigns whose time has come (Section 7).
+
+    Uses an ATOMIC status transition scheduled→processing (UPDATE ... RETURNING)
+    so that with multiple backend instances a campaign is claimed exactly once.
+    Idempotent and safe across restarts (state lives in the DB).
+    """
+    from sqlalchemy import text as _sqltext
+    from services.mailing_service import send_campaign_emails
+    async with AsyncSessionLocal() as db:
+        try:
+            now = datetime.now(timezone.utc)
+            claimed = (await db.execute(_sqltext(
+                """
+                UPDATE mailing_campaigns
+                SET status = 'processing', send_started_at = :now
+                WHERE id IN (
+                    SELECT id FROM mailing_campaigns
+                    WHERE status = 'scheduled' AND scheduled_at <= :now
+                    ORDER BY scheduled_at
+                    LIMIT 20
+                    FOR UPDATE SKIP LOCKED
+                )
+                RETURNING id
+                """
+            ), {"now": now})).fetchall()
+            await db.commit()
+            campaign_ids = [str(row[0]) for row in claimed]
+        except Exception as e:
+            logger.error(f"Scheduled campaign claim failed: {e}")
+            await db.rollback()
+            return
+
+    if campaign_ids:
+        logger.info(f"Sending {len(campaign_ids)} scheduled campaign(s)")
+    for cid in campaign_ids:
+        try:
+            await send_campaign_emails(cid)
+        except Exception as e:
+            logger.error(f"Scheduled campaign {cid} send failed: {e}")
+
+
 def start_scheduler():
     """Start the APScheduler with feedback job."""
     if scheduler.running:
@@ -780,6 +822,16 @@ def start_scheduler():
         id='visit_reminders',
         replace_existing=True,
         misfire_grace_time=3600
+    )
+
+    # Scheduled campaign sender: check every minute (idempotent, multi-instance safe)
+    from apscheduler.triggers.interval import IntervalTrigger as _Interval
+    scheduler.add_job(
+        process_scheduled_campaigns,
+        _Interval(minutes=1),
+        id='scheduled_campaigns',
+        replace_existing=True,
+        misfire_grace_time=300
     )
     
     # Outlook calendar sync — every 5 minutes

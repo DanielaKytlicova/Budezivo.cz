@@ -19,6 +19,78 @@ from services.email_service import EmailService
 
 logger = logging.getLogger(__name__)
 
+import re as _re
+_EMAIL_RE = _re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+async def reverify_pending_recipients(db: AsyncSession, campaign) -> dict:
+    """Re-verify pending recipients right before sending (Section 6/7).
+
+    Marks recipients as 'skipped' (with a reason) when they became ineligible
+    after the draft was created: invalid email, hard bounce/invalid contact,
+    withdrawn marketing consent, or a duplicate within the campaign. Returns
+    counts. Never sends anything.
+    """
+    from database.models import Contact
+
+    rows = (await db.execute(
+        select(MailingCampaignRecipient).where(and_(
+            MailingCampaignRecipient.campaign_id == campaign.id,
+            MailingCampaignRecipient.status == 'pending',
+        ))
+    )).scalars().all()
+
+    # Suppressed school-contacts for this institution
+    sc_ids = [r.contact_id for r in rows if r.contact_id]
+    suppressed_sc = set()
+    if sc_ids:
+        scs = (await db.execute(
+            select(SchoolContact).where(SchoolContact.id.in_(sc_ids))
+        )).scalars().all()
+        for c in scs:
+            if c.status == 'invalid' or c.email_validation_error or c.last_email_bounced:
+                suppressed_sc.add(str(c.id))
+
+    # Central contacts that withdrew marketing consent (by normalized email)
+    emails = list({(r.email or '').strip().lower() for r in rows if r.email})
+    no_consent = set()
+    if emails:
+        try:
+            contacts = (await db.execute(
+                select(Contact).where(and_(
+                    Contact.institution_id == campaign.institution_id,
+                    func.lower(Contact.email).in_(emails),
+                ))
+            )).scalars().all()
+            for c in contacts:
+                if c.marketing_consent is False:
+                    no_consent.add((c.email or '').strip().lower())
+        except Exception:
+            pass  # Contact table optional
+
+    seen = set()
+    counts = {"eligible": 0, "skipped_invalid": 0, "skipped_suppressed": 0,
+              "skipped_no_consent": 0, "skipped_duplicate": 0}
+    for r in rows:
+        email = (r.email or '').strip().lower()
+        if not email or not _EMAIL_RE.match(email):
+            r.status = 'skipped'; r.failure_reason = 'Neplatná e-mailová adresa'
+            counts["skipped_invalid"] += 1; continue
+        if r.contact_id and str(r.contact_id) in suppressed_sc:
+            r.status = 'skipped'; r.failure_reason = 'Nedoručitelná/neplatná adresa (suppression)'
+            counts["skipped_suppressed"] += 1; continue
+        if email in no_consent:
+            r.status = 'skipped'; r.failure_reason = 'Chybí marketingový souhlas / odhlášeno'
+            counts["skipped_no_consent"] += 1; continue
+        if email in seen:
+            r.status = 'skipped'; r.failure_reason = 'Duplicitní adresa'
+            counts["skipped_duplicate"] += 1; continue
+        seen.add(email)
+        counts["eligible"] += 1
+
+    await db.flush()
+    return counts
+
 # ---- Relevance mapping: program target_groups → school tags ----
 TARGET_GROUP_TO_SCHOOL_TAGS = {
     "ms_3_6":    ["MŠ"],
@@ -242,8 +314,23 @@ async def send_campaign_emails(campaign_id: str):
                 select(MailingCampaign).where(MailingCampaign.id == campaign_id)
             )
             campaign = result.scalar_one_or_none()
-            if not campaign or campaign.status not in ('sending',):
+            if not campaign or campaign.status not in ('sending', 'processing'):
                 logger.warning(f"Campaign {campaign_id} not in sending state, skipping")
+                return
+
+            campaign.send_started_at = campaign.send_started_at or datetime.now(timezone.utc)
+
+            # Re-verify pending recipients right before sending (Section 6/7)
+            rv = await reverify_pending_recipients(db, campaign)
+            campaign.skipped_count = (campaign.skipped_count or 0) + (
+                rv["skipped_invalid"] + rv["skipped_suppressed"] + rv["skipped_no_consent"] + rv["skipped_duplicate"]
+            )
+            if rv["eligible"] == 0:
+                campaign.status = "failed"
+                campaign.failure_reason = "Po ověření nezůstali žádní způsobilí příjemci."
+                await db.commit()
+                await _notify_campaign_author(db, campaign, "Kampaň nebyla odeslána – žádní způsobilí příjemci.")
+                logger.warning(f"Campaign {campaign_id} has no eligible recipients after re-verify")
                 return
 
             # Load institution for branding
@@ -335,8 +422,10 @@ async def send_campaign_emails(campaign_id: str):
             # Update campaign stats
             campaign.sent_count = (campaign.sent_count or 0) + sent
             campaign.failed_count = (campaign.failed_count or 0) + failed
-            campaign.status = "sent" if failed == 0 else ("partial" if sent > 0 else "failed")
+            campaign.status = "sent" if failed == 0 else ("partially_sent" if sent > 0 else "failed")
             campaign.sent_at = datetime.now(timezone.utc)
+            if campaign.status == "failed":
+                campaign.failure_reason = "Odeslání se nezdařilo u všech příjemců."
 
             await db.commit()
             logger.info(f"Campaign {campaign_id} sending complete: {sent} sent, {failed} failed")
@@ -352,6 +441,29 @@ async def send_campaign_emails(campaign_id: str):
                 await db.commit()
             except Exception:
                 pass
+
+
+async def _notify_campaign_author(db: AsyncSession, campaign, message: str):
+    """Notify the campaign author (or institution email) about a send outcome."""
+    try:
+        from database.models import User
+        to_email = None
+        if campaign.created_by:
+            u = (await db.execute(select(User).where(User.id == campaign.created_by))).scalar_one_or_none()
+            to_email = getattr(u, "email", None) if u else None
+        if not to_email:
+            inst = (await db.execute(select(Institution).where(Institution.id == campaign.institution_id))).scalar_one_or_none()
+            to_email = getattr(inst, "email", None) if inst else None
+        if not to_email:
+            return
+        await EmailService.send_email(
+            to_email=to_email,
+            subject=f"Kampaň „{campaign.name}“ – {message}",
+            html_content=f"<p>{html.escape(message)}</p><p>Kampaň: <strong>{html.escape(campaign.name)}</strong></p>",
+            add_gdpr_footer=False,
+        )
+    except Exception as e:
+        logger.error(f"Failed to notify campaign author: {e}")
 
 
 def _build_campaign_email_html(

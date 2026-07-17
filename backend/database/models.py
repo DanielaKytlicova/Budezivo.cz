@@ -1104,6 +1104,13 @@ class MailingCampaign(Base):
     total_recipients = Column(Integer, default=0)
     sent_count = Column(Integer, default=0)
     failed_count = Column(Integer, default=0)
+    skipped_count = Column(Integer, default=0)
+
+    # Scheduling (Section 7). scheduled_at stored in UTC; shown in institution tz.
+    scheduled_at = Column(DateTime(timezone=True))
+    scheduled_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
+    send_started_at = Column(DateTime(timezone=True))
+    failure_reason = Column(Text)
 
     # Timestamps
     sent_at = Column(DateTime(timezone=True))

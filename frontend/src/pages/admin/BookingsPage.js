@@ -36,10 +36,13 @@ import {
   Download,
   CalendarPlus,
   Bell,
-  AlertTriangle
+  AlertTriangle,
+  List,
+  LayoutGrid
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API } from '../../config/api';
+import { BookingsCalendarView } from '../../components/admin/BookingsCalendarView';
 
 // Helper to download ICS with signed token
 const downloadIcs = async (entityType, entityId, token) => {
@@ -143,6 +146,13 @@ const BookingsPage = () => {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState(() => {
+    try { return localStorage.getItem('bz_bookings_view') || 'list'; } catch { return 'list'; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('bz_bookings_view', viewMode); } catch { /* noop */ }
+  }, [viewMode]);
 
   useEffect(() => {
     fetchBookings();
@@ -1110,6 +1120,27 @@ const BookingsPage = () => {
           </div>
         </div>
 
+        <div className="flex justify-end">
+          <div className="flex rounded-lg bg-slate-100 p-1" data-testid="bookings-view-switcher">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              data-testid="bookings-list-view-btn"
+            >
+              <List className="h-4 w-4" /> Seznam
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('calendar')}
+              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${viewMode === 'calendar' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
+              data-testid="bookings-calendar-view-btn"
+            >
+              <LayoutGrid className="h-4 w-4" /> Kalendář
+            </button>
+          </div>
+        </div>
+
         {/* Filters & Search */}
         {!loading && bookings.length > 0 && (
           <div className="space-y-3">
@@ -1236,6 +1267,12 @@ const BookingsPage = () => {
           <Card className="p-12 text-center">
             <p className="text-gray-500">Žádné rezervace neodpovídají filtru</p>
           </Card>
+        ) : viewMode === 'calendar' ? (
+          <BookingsCalendarView
+            bookings={filteredBookings}
+            onSelectBooking={openDetail}
+            collisionIndex={collisionIndex}
+          />
         ) : (
           <div className="space-y-4">
             {/* Select all row */}
@@ -1391,4 +1428,3 @@ const BookingsPage = () => {
 
 export { BookingsPage };
 export default BookingsPage;
-

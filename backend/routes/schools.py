@@ -470,9 +470,9 @@ async def get_all_tags(
 ):
     """Get all unique tags used by schools in institution."""
     result = await db.execute(text("""
-        SELECT DISTINCT jsonb_array_elements_text(tags) as tag
+        SELECT DISTINCT jsonb_array_elements_text(tags::jsonb) as tag
         FROM schools
-        WHERE institution_id = :inst_id AND tags IS NOT NULL AND jsonb_array_length(tags) > 0
+        WHERE institution_id = :inst_id AND tags IS NOT NULL AND jsonb_array_length(tags::jsonb) > 0
         ORDER BY tag
     """), {"inst_id": current_user["institution_id"]})
     

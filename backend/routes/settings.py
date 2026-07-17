@@ -312,22 +312,36 @@ async def upload_logo(
     db: AsyncSession = Depends(get_db),
 ):
     """Upload institution logo (PNG, JPG, SVG, WebP). Max 2 MB."""
-    from services.storage_service import ALLOWED_IMAGE_TYPES, MAX_LOGO_SIZE, upload_logo
+    from services.storage_service import (
+        ALLOWED_IMAGE_TYPES, ALLOWED_IMAGE_EXTENSIONS, MAX_LOGO_SIZE, upload_logo,
+    )
 
-    if file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(status_code=400, detail="Nepodporovaný formát. Povoleno: PNG, JPG, SVG, WebP")
+    filename = (file.filename or "").lower()
+    ext = filename.rsplit(".", 1)[-1] if "." in filename else ""
+    content_type_ok = (file.content_type or "").lower() in ALLOWED_IMAGE_TYPES
+    ext_ok = ext in ALLOWED_IMAGE_EXTENSIONS
+    if not (content_type_ok or ext_ok):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Nepodporovaný formát ({file.content_type or 'unknown'}). Povoleno: PNG, JPG/JPEG, SVG, WebP, GIF",
+        )
 
     data = await file.read()
     if len(data) > MAX_LOGO_SIZE:
         raise HTTPException(status_code=400, detail="Soubor je příliš velký (max 2 MB)")
 
-    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "png"
+    if not ext:
+        ext = "png"
+    # Normalize ext to a safe value
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        ext = "png"
 
     try:
-        storage_path = upload_logo(current_user["institution_id"], data, file.content_type, ext)
+        storage_path = upload_logo(current_user["institution_id"], data, file.content_type or f"image/{ext}", ext)
     except Exception as e:
-        logger.error(f"Logo upload failed: {e}")
-        raise HTTPException(status_code=500, detail="Nahrání loga selhalo")
+        import traceback
+        logger.error(f"Logo upload failed: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Nahrání loga selhalo: {str(e)[:200]}")
 
     # Update institution and theme with new logo path
     institution_repo = InstitutionRepositorySupabase(db)

@@ -9,6 +9,7 @@ import { Label } from '../../components/ui/label';
 import { Card } from '../../components/ui/card';
 import { BookingHeader } from '../../components/layout/BookingHeader';
 import { toast } from 'sonner';
+import { resolveAssetUrl } from '../../config/api';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -52,7 +53,7 @@ export default function PublicEventsPage() {
       const res = await axios.get(`${API_URL}/api/settings/theme/public/${institutionId}`);
       setInstitutionData({
         name: res.data.institution_name || '',
-        logoUrl: res.data.logo_url,
+        logoUrl: resolveAssetUrl(res.data.logo_url),
         primaryColor: res.data.primary_color || '#5a7aae',
         secondaryColor: res.data.secondary_color || '#c5ac87',
         headerStyle: res.data.header_style || 'light',

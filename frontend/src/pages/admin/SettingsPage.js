@@ -43,7 +43,7 @@ import {
 import { Checkbox } from '../../components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import ComgatePortalUrls from '../../components/settings/ComgatePortalUrls';
-import { API } from '../../config/api';
+import { API, resolveAssetUrl } from '../../config/api';
 
 // Menu položky nastavení — group key drives visual section in the hub.
 const SETTINGS_MENU = [
@@ -447,9 +447,12 @@ export const SettingsPage = () => {
   };
 
   const handleLogoUpload = async (file) => {
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      toast.error('Nepodporovaný formát. Povoleno: PNG, JPG, SVG, WebP');
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp', 'image/gif'];
+    const fileName = (file?.name || '').toLowerCase();
+    const allowedExt = ['.png', '.jpg', '.jpeg', '.jpe', '.svg', '.webp', '.gif'];
+    const extOk = allowedExt.some(ext => fileName.endsWith(ext));
+    if (!allowedTypes.includes(file.type) && !extOk) {
+      toast.error('Nepodporovaný formát. Povoleno: PNG, JPG/JPEG, SVG, WebP, GIF');
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
@@ -875,7 +878,7 @@ export const SettingsPage = () => {
             {institutionData.logo_url ? (
               <div className="space-y-2">
                 <img
-                  src={institutionData.logo_url.startsWith('/api') ? `${API.replace('/api', '')}${institutionData.logo_url}` : institutionData.logo_url}
+                  src={resolveAssetUrl(institutionData.logo_url)}
                   alt="Logo"
                   className="max-h-16 mx-auto object-contain"
                   data-testid="logo-preview"

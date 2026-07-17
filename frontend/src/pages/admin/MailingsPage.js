@@ -70,6 +70,22 @@ export const MailingsPage = () => {
     }
   }, [searchParams, setSearchParams]);
 
+  // Handle URL param ?edit=ID — open an existing draft in the editor (from Školy)
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (editId) {
+      (async () => {
+        try {
+          const res = await axios.get(`${API}/mailings/${editId}`, { withCredentials: true });
+          setSelectedCampaign(res.data);
+          setShowWizard(true);
+        } catch { toast.error('Nepodařilo se otevřít koncept'); }
+        finally { setSearchParams({}, { replace: true }); }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const openDetail = async (id) => {
     setDetailLoading(true);
     try {

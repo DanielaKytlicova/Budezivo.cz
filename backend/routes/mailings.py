@@ -49,6 +49,19 @@ async def require_contacts_module(
 router = APIRouter(prefix="/mailings", tags=["Mailings"], dependencies=[Depends(require_feature("mailing"))])
 logger = logging.getLogger(__name__)
 
+# Section 5 — only these roles may create/edit/schedule/send campaigns.
+CAMPAIGN_ROLES = {"admin", "spravce", "edukator"}
+_EMAIL_RE = __import__("re").compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _ensure_campaign_role(current_user: dict):
+    if current_user.get("role") not in CAMPAIGN_ROLES:
+        raise HTTPException(status_code=403, detail="Vaše role nemá oprávnění pracovat s e-mailovými kampaněmi.")
+
+
+def _norm_email(e: str) -> str:
+    return (e or "").strip().lower()
+
 
 # ---- Pydantic models ----
 
@@ -430,6 +443,7 @@ async def create_campaign(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new campaign (draft)."""
+    _ensure_campaign_role(current_user)
     institution_id = current_user["institution_id"]
 
     # Get institution for default signature
@@ -498,6 +512,7 @@ async def update_campaign(
     db: AsyncSession = Depends(get_db),
 ):
     """Update a draft campaign."""
+    _ensure_campaign_role(current_user)
     result = await db.execute(
         select(MailingCampaign).where(
             and_(
@@ -549,6 +564,7 @@ async def delete_campaign(
     db: AsyncSession = Depends(get_db),
 ):
     """Delete a draft campaign."""
+    _ensure_campaign_role(current_user)
     result = await db.execute(
         select(MailingCampaign).where(
             and_(
@@ -618,6 +634,7 @@ async def send_campaign(
     db: AsyncSession = Depends(get_db),
 ):
     """Finalize and send a campaign. Creates recipients and triggers background sending."""
+    _ensure_campaign_role(current_user)
     institution_id = current_user["institution_id"]
 
     result = await db.execute(
@@ -743,6 +760,185 @@ async def send_campaign(
         "message": f"Odesílání kampaně zahájeno pro {len(recipients)} příjemců",
         "campaign_id": str(campaign.id),
         "total_recipients": len(recipients),
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Section 4 — Školy → bezpečné vytvoření KONCEPTU kampaně (žádné přímé odeslání)
+# ─────────────────────────────────────────────────────────────────────────
+
+class SchoolSelectionItem(BaseModel):
+    school_id: str
+    # If provided (non-empty) → only these contacts; otherwise all eligible
+    # contacts of the school are included.
+    contact_ids: Optional[List[str]] = None
+
+
+class FromSchoolsRequest(BaseModel):
+    selections: List[SchoolSelectionItem]
+    name: Optional[str] = None
+
+
+async def _evaluate_school_selection(db: AsyncSession, institution_id: str, selections: List[SchoolSelectionItem]):
+    """Evaluate the selected schools/contacts and split them into eligible vs
+    excluded buckets. Returns (stats, eligible_recipients).
+
+    Note: school_contacts currently tracks only active/invalid + bounce flag.
+    Consent / unsubscribe / complaint are not yet stored per school-contact
+    (they arrive with the webhook phase) → reported as 0 here.
+    """
+    from database.models import School
+
+    school_ids = []
+    for s in selections:
+        try:
+            school_ids.append(uuid.UUID(s.school_id))
+        except (ValueError, TypeError):
+            continue
+    contacts_filter = {str(s.school_id): set(s.contact_ids or []) for s in selections}
+
+    schools = {}
+    if school_ids:
+        rows = (await db.execute(
+            select(School).where(and_(
+                School.id.in_(school_ids),
+                School.institution_id == institution_id,
+            ))
+        )).scalars().all()
+        schools = {str(s.id): s for s in rows}
+
+    all_contacts = {}
+    if school_ids:
+        rows = (await db.execute(
+            select(SchoolContact).where(and_(
+                SchoolContact.school_id.in_(school_ids),
+                SchoolContact.institution_id == institution_id,
+            ))
+        )).scalars().all()
+        for c in rows:
+            all_contacts.setdefault(str(c.school_id), []).append(c)
+
+    stats = {
+        "schools": len([sid for sid in contacts_filter if sid in schools]),
+        "contacts_found": 0,
+        "eligible": 0,
+        "duplicates": 0,
+        "invalid": 0,
+        "bounced_or_complained": 0,
+        "unsubscribed": 0,
+        "no_marketing_consent": 0,
+    }
+    eligible = []
+    seen_emails = set()
+
+    for sid, wanted in contacts_filter.items():
+        school = schools.get(sid)
+        if not school:
+            continue
+        for c in all_contacts.get(sid, []):
+            if wanted and str(c.id) not in wanted:
+                continue
+            stats["contacts_found"] += 1
+            email = _norm_email(c.email)
+            if not email or not _EMAIL_RE.match(email):
+                stats["invalid"] += 1
+                continue
+            if c.status == "invalid" or c.email_validation_error:
+                stats["invalid"] += 1
+                continue
+            if c.last_email_bounced:
+                stats["bounced_or_complained"] += 1
+                continue
+            if email in seen_emails:
+                stats["duplicates"] += 1
+                continue
+            seen_emails.add(email)
+            stats["eligible"] += 1
+            eligible.append({
+                "email": c.email,
+                "contact_id": str(c.id),
+                "contact_name": c.name,
+                "school_id": sid,
+                "school_name": school.name,
+            })
+
+    return stats, eligible
+
+
+@router.post("/from-schools/preview")
+async def preview_from_schools(
+    data: FromSchoolsRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Show the eligibility summary for the selected schools/contacts BEFORE a
+    draft is created. Nothing is sent or persisted."""
+    _ensure_campaign_role(current_user)
+    stats, eligible = await _evaluate_school_selection(
+        db, current_user["institution_id"], data.selections
+    )
+    return {"stats": stats, "eligible_preview": eligible[:200], "eligible_count": len(eligible)}
+
+
+@router.post("/from-schools")
+async def create_draft_from_schools(
+    data: FromSchoolsRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a DRAFT campaign from selected schools/contacts and snapshot the
+    eligible recipients. Never sends. Returns the campaign_id so the frontend
+    can open the draft editor."""
+    _ensure_campaign_role(current_user)
+    institution_id = current_user["institution_id"]
+
+    stats, eligible = await _evaluate_school_selection(db, institution_id, data.selections)
+    if not eligible:
+        raise HTTPException(status_code=400, detail="Mezi vybranými školami nejsou žádné způsobilé kontakty.")
+
+    institution = (await db.execute(
+        select(Institution).where(Institution.id == institution_id)
+    )).scalar_one_or_none()
+    inst_name = institution.name if institution else "Instituce"
+
+    tpl = DEFAULT_TEMPLATES.get("general", {})
+    campaign = MailingCampaign(
+        institution_id=institution_id,
+        created_by=current_user["user_id"],
+        name=data.name or f"Kampaň pro školy ({stats['schools']})",
+        type="custom",
+        status="draft",
+        recipient_mode="manual",
+        subject=tpl.get("subject", "Nabídka programů"),
+        greeting=tpl.get("greeting", "Dobrý den,"),
+        intro_text=tpl.get("intro_text", ""),
+        closing_text=tpl.get("closing_text", ""),
+        signature=get_default_signature(inst_name),
+        selection_snapshot={"source": "schools", "stats": stats},
+    )
+    db.add(campaign)
+    await db.flush()
+
+    for r in eligible:
+        db.add(MailingCampaignRecipient(
+            campaign_id=campaign.id,
+            school_id=uuid.UUID(r["school_id"]) if r.get("school_id") else None,
+            contact_id=uuid.UUID(r["contact_id"]) if r.get("contact_id") else None,
+            email=r["email"],
+            school_name=r.get("school_name"),
+            contact_name=r.get("contact_name"),
+            status="pending",
+            matching_reason={"selection_mode": "schools_manual"},
+        ))
+
+    campaign.total_recipients = len(eligible)
+    await db.commit()
+
+    return {
+        "id": str(campaign.id),
+        "status": "draft",
+        "stats": stats,
+        "message": f"Koncept vytvořen s {len(eligible)} příjemci",
     }
 
 

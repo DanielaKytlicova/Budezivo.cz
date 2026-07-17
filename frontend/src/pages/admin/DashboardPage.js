@@ -40,6 +40,11 @@ import { OnboardingWizard } from '../../components/admin/OnboardingWizard';
 import UncoveredCollisionsBanner from '../../components/UncoveredCollisionsBanner';
 import { PlanUsageBanner } from '../../components/admin/PlanUsageBanner';
 import {
+  PROGRAM_CALENDAR_COLORS,
+  programCalendarKey,
+  buildProgramCalendarColorMap,
+} from '../../components/admin/programCalendarColors';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -328,7 +333,7 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
   const getReservationsForDate = (date) => {
     if (!Array.isArray(reservations)) return [];
     const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-    return reservations.filter(r => r.date === dateStr);
+    return reservations.filter(r => r.date === dateStr && r.status !== 'cancelled');
   };
 
   // Time slots (8AM - 7PM)
@@ -366,49 +371,18 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
   // Brand-defined 8-color palette. Each entry includes the foreground text colour
   // because the palette mixes light backgrounds (cream, peach, powder blue) where
   // white text would be unreadable.
-  const PROGRAM_COLORS = [
-    { bg: '#8DA992', border: '#6c8a72', text: '#ffffff' }, // sage
-    { bg: '#457B56', border: '#2f5d3e', text: '#ffffff' }, // forest green
-    { bg: '#FCF3D4', border: '#e7d8a3', text: '#5a4b1e' }, // cream
-    { bg: '#E5C877', border: '#bf9f4f', text: '#4d3a0c' }, // mustard
-    { bg: '#EE7D36', border: '#c45c1c', text: '#ffffff' }, // orange
-    { bg: '#FCEED8', border: '#e8d6b3', text: '#5a4524' }, // peach
-    { bg: '#DEE9FC', border: '#a8bee0', text: '#1f3461' }, // powder blue
-    { bg: '#263FA8', border: '#172a7a', text: '#ffffff' }, // deep blue
-  ];
-
-  // Stable key identifying a program (independent of individual reservation).
-  const programKey = (reservation) =>
-    String(reservation.program_id || reservation.program_name || '—');
-
   // Map each distinct program to a UNIQUE colour. We assign colours sequentially
   // by the program's position in a deterministically sorted list of the distinct
   // programs present, so two different programs can never share a colour (the old
   // hash-modulo approach collided, e.g. two programs both rendered cream). Beyond
   // the 8 curated colours we generate extra distinct hues via the golden angle.
-  const programColorMap = React.useMemo(() => {
-    const keys = Array.from(
-      new Set((Array.isArray(reservations) ? reservations : []).map(programKey))
-    ).sort();
-    const map = {};
-    keys.forEach((k, idx) => {
-      if (idx < PROGRAM_COLORS.length) {
-        map[k] = PROGRAM_COLORS[idx];
-      } else {
-        const hue = Math.round((idx * 137.508) % 360);
-        map[k] = {
-          bg: `hsl(${hue}, 62%, 48%)`,
-          border: `hsl(${hue}, 62%, 36%)`,
-          text: '#ffffff',
-        };
-      }
-    });
-    return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reservations]);
+  const programColorMap = React.useMemo(
+    () => buildProgramCalendarColorMap(Array.isArray(reservations) ? reservations : []),
+    [reservations]
+  );
 
   const getReservationColor = (reservation) =>
-    programColorMap[programKey(reservation)] || PROGRAM_COLORS[0];
+    programColorMap[programCalendarKey(reservation)] || PROGRAM_CALENDAR_COLORS[0];
 
   // Parse time to get hour
   const getHourFromTime = (timeStr) => {
@@ -653,6 +627,7 @@ export const DashboardPage = () => {
   
   const [stats, setStats] = useState(null);
   const [reservations, setReservations] = useState([]);
+  const [calendarReservations, setCalendarReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // View state
@@ -705,6 +680,10 @@ export const DashboardPage = () => {
         b.date >= today && b.status !== 'cancelled'
       );
       setReservations(upcomingBookings);
+      // Keep the complete institution set for a stable program→colour mapping.
+      // Cancelled reservations remain hidden by WeekCalendar, while completed
+      // and past reservations stay visible when navigating backwards.
+      setCalendarReservations(allBookings);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -884,7 +863,7 @@ export const DashboardPage = () => {
           {/* Section Header with View Switcher */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <h2 className="text-xl font-semibold text-slate-900">
-              Nadcházející rezervace
+              {view === 'calendar' ? 'Kalendář rezervací' : 'Nadcházející rezervace'}
             </h2>
             <ViewSwitcher view={view} onViewChange={setView} />
           </div>
@@ -900,7 +879,7 @@ export const DashboardPage = () => {
               />
             ) : (
               <WeekCalendar
-                reservations={reservations}
+                reservations={calendarReservations}
                 currentDate={calendarDate}
                 onDateChange={setCalendarDate}
                 onSelectReservation={handleSelectReservation}

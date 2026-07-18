@@ -415,7 +415,10 @@ async def list_blocks(
     )
     blocks = result.scalars().all()
 
-    return [_block_to_dict(b) for b in blocks]
+    return [
+        _block_to_dict(b, viewer_user_id=current_user["user_id"])
+        for b in blocks
+    ]
 
 
 @router.post("/blocks/{block_id}/override")
@@ -443,7 +446,7 @@ async def toggle_override(
     action = "povoleny" if block.override else "blokovány"
     return {
         "message": f"Rezervace {action} v tomto čase",
-        "block": _block_to_dict(block),
+        "block": _block_to_dict(block, viewer_user_id=current_user["user_id"]),
     }
 
 
@@ -865,15 +868,18 @@ async def _full_sync_ms(db: AsyncSession, integration: UserCalendarIntegration) 
 
 
 
-def _block_to_dict(block: AvailabilityBlock) -> dict:
+def _block_to_dict(block: AvailabilityBlock, viewer_user_id: Optional[str] = None) -> dict:
+    is_external = block.source in ("google", "outlook")
+    is_owner = viewer_user_id is not None and str(block.user_id) == str(viewer_user_id)
+    redact = is_external and not is_owner
     return {
         "id": str(block.id),
         "user_id": str(block.user_id),
         "start_time": block.start_time.isoformat() if block.start_time else None,
         "end_time": block.end_time.isoformat() if block.end_time else None,
         "source": block.source,
-        "external_event_id": block.external_event_id,
-        "title": block.title,
+        "external_event_id": None if redact else block.external_event_id,
+        "title": "Obsazeno – externí kalendář" if redact else block.title,
         "override": block.override,
     }
 

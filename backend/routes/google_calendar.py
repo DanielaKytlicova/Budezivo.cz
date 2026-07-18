@@ -452,7 +452,10 @@ async def list_blocks(
     result = await db.execute(
         select(AvailabilityBlock).where(and_(*conditions)).order_by(AvailabilityBlock.start_time)
     )
-    return [_block_to_dict(b) for b in result.scalars().all()]
+    return [
+        _block_to_dict(b, viewer_user_id=current_user["user_id"])
+        for b in result.scalars().all()
+    ]
 
 
 @router.post("/blocks/{block_id}/override")
@@ -479,7 +482,10 @@ async def toggle_override(
     await db.commit()
 
     action = "povoleny" if block.override else "blokovány"
-    return {"message": f"Rezervace {action} v tomto čase", "block": _block_to_dict(block)}
+    return {
+        "message": f"Rezervace {action} v tomto čase",
+        "block": _block_to_dict(block, viewer_user_id=current_user["user_id"]),
+    }
 
 
 # ── Internal Helpers ────────────────────────────────────────────────
@@ -920,15 +926,16 @@ async def _full_sync(db: AsyncSession, integration: UserCalendarIntegration) -> 
     return stats
 
 
-def _block_to_dict(block: AvailabilityBlock) -> dict:
+def _block_to_dict(block: AvailabilityBlock, viewer_user_id: Optional[str] = None) -> dict:
+    is_owner = viewer_user_id is not None and str(block.user_id) == str(viewer_user_id)
     return {
         "id": str(block.id),
         "user_id": str(block.user_id),
         "start_time": block.start_time.isoformat() if block.start_time else None,
         "end_time": block.end_time.isoformat() if block.end_time else None,
         "source": block.source,
-        "external_event_id": block.external_event_id,
-        "title": block.title,
+        "external_event_id": block.external_event_id if is_owner else None,
+        "title": block.title if is_owner else "Obsazeno – externí kalendář",
         "override": block.override,
     }
 

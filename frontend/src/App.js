@@ -62,7 +62,7 @@ function TitleUpdater() {
   
   useEffect(() => {
     const isAdminRoute = location.pathname.startsWith('/admin');
-    document.title = isAdminRoute ? 'Dashboard Bude živo' : 'Bude živo';
+    document.title = isAdminRoute ? 'Dashboard | Budeživo.cz' : 'Budeživo.cz';
   }, [location]);
   
   return null;

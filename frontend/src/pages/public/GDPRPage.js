@@ -1,7 +1,7 @@
 import React from 'react';
 import { Header } from '../../components/layout/Header';
 import { Card } from '../../components/ui/card';
-import { Shield, Lock, Eye, FileText, Trash2, Download, Mail, Building } from 'lucide-react';
+import { Shield, Lock, Eye, FileText, Trash2, Download, Mail, Building, CalendarDays } from 'lucide-react';
 
 export const GDPRPage = () => {
   return (
@@ -367,10 +367,72 @@ export const GDPRPage = () => {
             </div>
           </Card>
 
+          {/* Externí kalendáře */}
+          <Card className="p-6 md:p-8" data-testid="gdpr-calendar-integrations">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <CalendarDays className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold text-slate-900 mb-3">10. Propojení s Google Kalendářem a Outlookem</h2>
+                <div className="space-y-5 text-gray-600">
+                  <p>
+                    Uživatelé Bude živo mohou propojit svůj účet s Google Kalendářem nebo Outlookem. Propojení slouží k synchronizaci rezervací a kalendářních událostí, kontrole dostupnosti a předcházení časovým kolizím. Propojení není podmínkou používání služby a uživatel jej může kdykoli zrušit.
+                  </p>
+
+                  <div>
+                    <h3 className="font-medium text-slate-900 mb-2">Jaké údaje získáváme</h3>
+                    <p className="text-sm leading-relaxed">
+                      Po udělení oprávnění může Bude živo získat identifikátor nebo e-mail propojeného Google či Microsoft účtu a údaje o kalendářních událostech, zejména identifikátor události, její název, datum a čas začátku a konce a informaci o obsazenosti termínu. Přihlašovací heslo ke Google ani Microsoft účtu Bude živo nezískává ani neukládá.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-medium text-slate-900 mb-2">Jak údaje používáme</h3>
+                    <p className="text-sm leading-relaxed">
+                      Údaje z připojeného kalendáře používáme výhradně k zobrazení obsazených termínů, vytvoření blokací dostupnosti, kontrole možných časových kolizí a synchronizaci rezervací. Ostatním oprávněným členům stejné instituce se osobní událost zobrazuje pouze jako blokace dostupnosti; její název ani externí identifikátor se jim nezobrazuje. Údaje nepoužíváme pro reklamu ani profilování a neprodáváme je třetím stranám.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-medium text-slate-900 mb-2">Jaké údaje zapisujeme do kalendáře</h3>
+                    <p className="text-sm leading-relaxed">
+                      Pokud uživatel zapne export rezervací, může Bude živo vytvářet a aktualizovat události v jeho Google Kalendáři nebo Outlooku. Tyto události mohou obsahovat název programu, instituci, školu nebo skupinu, typ skupiny, počet účastníků, stav rezervace, místnost, datum, čas a odkaz na detail rezervace. Kontaktní e-mail, telefon, interní poznámky ani zvláštní požadavky účastníků se do externího kalendáře nepřenášejí.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-medium text-slate-900 mb-2">Uchovávání a zabezpečení</h3>
+                    <p className="text-sm leading-relaxed">
+                      Pro zajištění synchronizace uchováváme autorizační údaje OAuth, rozsah udělených oprávnění, identifikátor propojeného účtu a nezbytné údaje o synchronizovaných událostech. Tyto údaje uchováváme po dobu aktivního propojení kalendáře a chráníme je přiměřenými technickými a organizačními opatřeními. Přístup je omezen na oprávněné osoby a systémy nezbytné pro provoz služby.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-medium text-slate-900 mb-2">Odpojení a odstranění údajů</h3>
+                    <p className="text-sm leading-relaxed">
+                      Po odpojení kalendáře odstraníme uložené autorizační tokeny, údaje o propojení a importované blokace dostupnosti. Uživatel si při odpojení může zvolit také odstranění událostí, které Bude živo vytvořilo v externím kalendáři. Pokud jejich odstranění nezvolí, zůstanou v jeho kalendáři a může je odstranit přímo u příslušného poskytovatele. Vlastní události uživatele Bude živo nemaže ani neupravuje.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-medium text-slate-900 mb-2">Sdílení údajů a pravidla Google API</h3>
+                    <p className="text-sm leading-relaxed">
+                      Údaje získané prostřednictvím Google API nebo Microsoft Graph neposkytujeme třetím stranám s výjimkou technických poskytovatelů nezbytných pro zabezpečený provoz služby nebo případů vyžadovaných právními předpisy. Nepředáváme je reklamním platformám ani datovým brokerům. Používání údajů získaných prostřednictvím Google API dodržuje zásady{' '}
+                      <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        Google API Services User Data Policy
+                      </a>, včetně požadavků Limited Use.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
           {/* Aktualizace */}
           <Card className="p-6 md:p-8 bg-gray-50" data-testid="gdpr-updates">
             <p className="text-sm text-gray-600 text-center">
-              Tyto zásady ochrany osobních údajů jsou platné od <strong>1. ledna 2026</strong>.<br />
+              Tyto zásady ochrany osobních údajů jsou platné od <strong>18. července 2026</strong>.<br />
               O případných změnách vás budeme informovat na této stránce.
             </p>
           </Card>

@@ -212,7 +212,7 @@ export const HomePage = () => {
               Méně administrativy.<br />
               Více prostoru pro <span className="text-[#C4AB86]">kreativitu</span>.
             </h1>
-            <p className="text-lg md:text-xl text-white/85 leading-relaxed mb-8">
+            <p className="text-base text-white/85 leading-relaxed mb-8">
               Bude živo je online rezervační systém pro muzea, galerie, knihovny a další kulturní a vzdělávací instituce. Pomáhá spravovat rezervace programů, termíny, dostupnost lektorů a místností na jednom místě.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
@@ -492,28 +492,6 @@ export const HomePage = () => {
                   </div>
                 );
               })}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Existing calendar integrations — compact OAuth verification disclosure */}
-      <section className="bg-white border-b border-slate-100" aria-labelledby="calendar-integration-title">
-        <div className="max-w-7xl mx-auto px-6 md:px-8 py-10 md:py-12">
-          <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-start gap-5 md:gap-7 rounded-2xl border border-slate-200 bg-[#F8F9FA] p-6 md:p-8">
-            <div className="w-12 h-12 rounded-xl bg-[#4A6FA5]/10 flex items-center justify-center flex-shrink-0">
-              <CalendarCheck2 className="w-6 h-6 text-[#4A6FA5]" aria-hidden="true" />
-            </div>
-            <div>
-              <h2 id="calendar-integration-title" className="text-xl md:text-2xl font-bold text-[#2B3E50] mb-3">
-                Kalendáře, které už používáte
-              </h2>
-              <p className="text-slate-600 leading-relaxed">
-                Pro snazší plánování lze Bude živo propojit s Google Kalendářem nebo Outlookem, které už používáte. Rezervace a obsazené termíny se mohou automaticky synchronizovat, takže nemusíte spravovat další samostatný kalendář a systém může včas upozornit na možné časové kolize.
-              </p>
-              <p className="text-sm text-slate-500 mt-3">
-                Propojení aktivujete přímo ve svém účtu a můžete ho kdykoli zase zrušit.
-              </p>
             </div>
           </div>
         </div>
@@ -873,6 +851,46 @@ export const HomePage = () => {
                 </Button>
               </DialogTrigger>
             </Dialog>
+          </div>
+        </div>
+      </section>
+
+      {/* Calendar integrations — public OAuth disclosure */}
+      <section className="bg-[#243446] text-white py-16 md:py-20" aria-labelledby="calendar-integration-title">
+        <div className="max-w-7xl mx-auto px-6 md:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-[136px_1fr] gap-8 md:gap-10 items-start">
+            <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-white/5 flex items-center justify-center">
+              <CalendarCheck2 className="w-9 h-9 md:w-10 md:h-10 text-[#C4AB86]" aria-hidden="true" />
+            </div>
+
+            <div className="max-w-5xl">
+              <p className="text-xs md:text-sm font-semibold tracking-[0.25em] uppercase text-[#C4AB86] mb-4">
+                Propojení
+              </p>
+              <h2 id="calendar-integration-title" className="text-3xl md:text-4xl font-bold text-white mb-6">
+                Kalendáře, které už používáte
+              </h2>
+              <p className="text-base md:text-lg text-white/75 leading-relaxed max-w-4xl">
+                Pro snazší plánování lze Bude živo propojit s Google Kalendářem nebo Outlookem, které už používáte. Rezervace a obsazené termíny se mohou automaticky synchronizovat, takže nemusíte spravovat další samostatný kalendář a systém může včas upozornit na možné časové kolize.
+              </p>
+              <p className="text-sm md:text-base text-white/55 mt-5">
+                Propojení aktivujete přímo ve svém účtu a můžete ho kdykoli zase zrušit.
+              </p>
+
+              <div className="mt-8 pt-7 border-t border-white/10 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+                <span className="text-sm text-white/50">Funguje s</span>
+                <div className="flex flex-wrap gap-3">
+                  <div className="inline-flex items-center gap-2.5 rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white/90">
+                    <CalendarDays className="w-4 h-4" aria-hidden="true" />
+                    <span>Google Kalendář</span>
+                  </div>
+                  <div className="inline-flex items-center gap-2.5 rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white/90">
+                    <Mail className="w-4 h-4" aria-hidden="true" />
+                    <span>Outlook</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

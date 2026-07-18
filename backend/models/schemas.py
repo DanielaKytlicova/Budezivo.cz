@@ -91,8 +91,8 @@ class ProgramBase(BaseModel):
     end_date: Optional[str] = None
     min_days_before_booking: int = 14
     max_days_before_booking: int = 90
-    preparation_time: int = 10
-    cleanup_time: int = 30
+    preparation_time: int = 0
+    cleanup_time: int = 0
     # Collision & Parallel Settings
     allow_parallel: bool = False
     collision_resources: List[str] = []

@@ -128,6 +128,7 @@ const BookingsPage = () => {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [calendarFocus, setCalendarFocus] = useState({ date: null, requestId: 0 });
   const [viewMode, setViewMode] = useState(() => {
     try { return localStorage.getItem('bz_bookings_view') || 'list'; } catch { return 'list'; }
   });
@@ -283,6 +284,32 @@ const BookingsPage = () => {
     }
     return sortBookingsBy(filtered, sortKey);
   }, [bookings, statusFilter, searchQuery, sortKey, collisionIndex]);
+
+  const selectStatusFilter = (key) => {
+    setStatusFilter(key);
+    setSelectedIds(new Set());
+    if (viewMode !== 'calendar') return;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (key === 'all') {
+      setCalendarFocus({ date: today, requestId: Date.now() });
+      return;
+    }
+    const q = searchQuery.trim().toLowerCase();
+    const matches = bookings.filter((b) => {
+      const statusMatches = key === 'collision' ? collisionIndex.has(b.id) : b.status === key;
+      if (!statusMatches) return false;
+      return !q || [b.school_name, b.contact_name, b.contact_email, b.program_name]
+        .some((value) => String(value || '').toLowerCase().includes(q));
+    });
+    if (!matches.length) {
+      toast.info('Pro vybraný filtr nebyla nalezena žádná rezervace.');
+      return;
+    }
+    const future = matches.filter((b) => b.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+    const past = matches.filter((b) => b.date < today).sort((a, b) => b.date.localeCompare(a.date));
+    setCalendarFocus({ date: (future[0] || past[0]).date, requestId: Date.now() });
+  };
 
 
   const toggleSelect = (id) => {
@@ -1133,7 +1160,7 @@ const BookingsPage = () => {
                   key={f.key}
                   size="sm"
                   variant={statusFilter === f.key ? 'default' : 'outline'}
-                  onClick={() => { setStatusFilter(f.key); setSelectedIds(new Set()); }}
+                  onClick={() => selectStatusFilter(f.key)}
                   className={
                     statusFilter === f.key
                       ? 'bg-slate-800 text-white'
@@ -1248,6 +1275,8 @@ const BookingsPage = () => {
             colorBookings={bookings}
             onSelectBooking={openDetail}
             collisionIndex={collisionIndex}
+            focusDate={calendarFocus.date}
+            focusRequestId={calendarFocus.requestId}
           />
         ) : (
           <div className="space-y-4">

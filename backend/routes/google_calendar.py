@@ -38,6 +38,8 @@ from core.permissions import require_roles, CALENDAR_PERSONAL_ROLES
 from services.google_calendar_helpers import (
     SCOPES, EVENTS_SCOPE, has_events_scope, is_budezivo_event,
     build_export_event_body, reservation_assigned_user_ids, CANCELLED_STATUSES,
+    GOOGLE_PROGRAM_COLOR_IDS,
+    program_color_index,
 )
 from pydantic import BaseModel
 
@@ -833,6 +835,7 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
             group_type=r.group_type,
             num_students=r.num_students,
             admin_base_url=admin_base,
+            color_id=GOOGLE_PROGRAM_COLOR_IDS[program_color_index(str(r.program_id))],
         )
         if not body:
             continue

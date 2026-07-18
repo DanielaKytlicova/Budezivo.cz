@@ -58,6 +58,7 @@ from routes.teacher import router as teacher_router
 from routes.analytics import router as analytics_router
 from routes.contacts import router as contacts_router
 from routes.institution_join import router as institution_join_router
+from routes.marketing import router as marketing_router
 from models.schemas import ContactFormData, InstitutionSettings
 
 # Configure logging
@@ -149,6 +150,7 @@ api_router.include_router(teacher_router)
 api_router.include_router(analytics_router)
 api_router.include_router(contacts_router)
 api_router.include_router(institution_join_router)
+api_router.include_router(marketing_router)
 
 
 # ============ Additional Routes ============

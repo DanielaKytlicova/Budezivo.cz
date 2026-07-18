@@ -440,6 +440,9 @@ function ContactDetailPanel({ contactId, onClose, onSave, onDelete }) {
                 >
                   <ConsentBadge consent={contact.marketing_consent} />
                 </button>
+                {!contact.marketing_consent && (
+                  <p className="mt-1 text-xs text-slate-500">Kliknutím obnovíte odběr této instituce.</p>
+                )}
               </div>
             </section>
 

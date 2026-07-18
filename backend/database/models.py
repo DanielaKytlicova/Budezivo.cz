@@ -70,7 +70,10 @@ class Institution(Base):
     default_target_group = Column(Text, default='schools')
     
     # Settings
-    notification_settings = Column(JSON, default={"new_reservation": True, "confirmation": True, "cancellation": True, "sms_enabled": False})
+    notification_settings = Column(JSON, default=lambda: {
+        "customer": {},
+        "admin": {"new_reservation": False, "recipient_user_ids": []},
+    })
     locale_settings = Column(JSON, default={"language": "cs", "timezone": "Europe/Prague", "date_format": "dd.mm.yyyy", "time_format": "24h"})
     gdpr_settings = Column(JSON, default={"data_retention": "never", "anonymize": False})
     pro_settings = Column(JSON, default={})
@@ -175,8 +178,8 @@ class Program(Base):
     # Booking Parameters
     min_days_before_booking = Column(Integer, default=7)
     max_days_before_booking = Column(Integer, default=180)
-    preparation_time = Column(Integer, default=10)
-    cleanup_time = Column(Integer, default=30)
+    preparation_time = Column(Integer, default=0)
+    cleanup_time = Column(Integer, default=0)
     
     # Collision & Parallel Settings
     allow_parallel = Column(Boolean, default=False)  # If True, program can run in parallel with others
@@ -1178,6 +1181,27 @@ class MailingRecipientProgram(Base):
 
     __table_args__ = (
         Index('idx_mrp_recipient', 'recipient_id'),
+    )
+
+
+class MarketingSubscription(Base):
+    """Institution-scoped promotional-mail consent state for one e-mail."""
+    __tablename__ = 'marketing_subscriptions'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    email = Column(Text, nullable=False)
+    subscribed = Column(Boolean, nullable=False, default=True)
+    unsubscribed_at = Column(DateTime(timezone=True))
+    resubscribed_at = Column(DateTime(timezone=True))
+    unsubscribe_reason = Column(Text)
+    unsubscribe_comment = Column(Text)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('uq_marketing_subscription_inst_email', 'institution_id', 'email', unique=True),
+        Index('idx_marketing_subscription_status', 'institution_id', 'subscribed'),
     )
 
 

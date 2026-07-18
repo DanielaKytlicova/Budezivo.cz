@@ -12,19 +12,18 @@ export const PROGRAM_CALENDAR_COLORS = [
 export const programCalendarKey = (reservation) =>
   String(reservation.program_id || reservation.program_name || '—');
 
+// Deterministic across pages and integrations: the colour no longer changes
+// when filters hide another program or a newly-created program is added.
+export const programCalendarColorIndex = (key) => {
+  let hash = 0;
+  for (const char of String(key || '—')) hash = ((hash * 31) + char.charCodeAt(0)) >>> 0;
+  return hash % PROGRAM_CALENDAR_COLORS.length;
+};
+
 export const buildProgramCalendarColorMap = (reservations = []) => {
   const keys = Array.from(new Set(reservations.map(programCalendarKey))).sort();
-  return keys.reduce((map, key, index) => {
-    if (index < PROGRAM_CALENDAR_COLORS.length) {
-      map[key] = PROGRAM_CALENDAR_COLORS[index];
-    } else {
-      const hue = Math.round((index * 137.508) % 360);
-      map[key] = {
-        bg: `hsl(${hue}, 62%, 48%)`,
-        border: `hsl(${hue}, 62%, 36%)`,
-        text: '#ffffff',
-      };
-    }
+  return keys.reduce((map, key) => {
+    map[key] = PROGRAM_CALENDAR_COLORS[programCalendarColorIndex(key)];
     return map;
   }, {});
 };

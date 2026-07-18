@@ -25,6 +25,18 @@ STATUS_LABELS = {
     "no_show": "Nedostavili se",
 }
 
+# Closest Google Calendar event colours to the eight Budeživo program colours
+# (Google accepts only its fixed colourId palette, not arbitrary HEX values).
+GOOGLE_PROGRAM_COLOR_IDS = ("2", "10", "5", "5", "6", "5", "7", "9")
+
+
+def program_color_index(key: str) -> int:
+    """Same stable 31-based hash used by frontend programCalendarColors.js."""
+    value = 0
+    for char in str(key or "—"):
+        value = ((value * 31) + ord(char)) & 0xFFFFFFFF
+    return value % len(GOOGLE_PROGRAM_COLOR_IDS)
+
 
 def has_events_scope(granted_scopes: Optional[str]) -> bool:
     """True if the stored grant includes calendar.events (needed for export)."""
@@ -95,6 +107,7 @@ def build_export_event_body(
     group_type: Optional[str],
     num_students: Optional[int],
     admin_base_url: str,
+    color_id: Optional[str] = None,
 ) -> Optional[dict]:
     """Build a Google event body for an exported reservation.
 
@@ -134,6 +147,8 @@ def build_export_event_body(
     }
     if room_name:
         body["location"] = room_name
+    if color_id:
+        body["colorId"] = str(color_id)
     return body
 
 

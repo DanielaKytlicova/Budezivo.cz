@@ -21,11 +21,11 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
-from database.models import Contact, ContactLink
+from database.models import Contact, ContactLink, MarketingSubscription
 from database.supabase import get_db
 from services.contact_service import (
     list_contacts_for_institution,
@@ -336,6 +336,23 @@ async def update_contact(
         if k == 'marketing_consent' and v is True and c.marketing_consent is not True:
             c.marketing_consent_at = datetime.now(timezone.utc)
         setattr(c, k, v)
+    if 'marketing_consent' in data:
+        email = (c.email or '').strip().lower()
+        subscription = (await db.execute(select(MarketingSubscription).where(and_(
+            MarketingSubscription.institution_id == inst,
+            func.lower(MarketingSubscription.email) == email,
+        )))).scalar_one_or_none()
+        if not subscription:
+            subscription = MarketingSubscription(institution_id=inst, email=email)
+            db.add(subscription)
+        subscription.subscribed = bool(data['marketing_consent'])
+        now = datetime.now(timezone.utc)
+        if subscription.subscribed:
+            subscription.resubscribed_at = now
+            subscription.unsubscribe_reason = None
+            subscription.unsubscribe_comment = None
+        else:
+            subscription.unsubscribed_at = now
     await db.commit()
     await db.refresh(c)
     return _to_out(c)

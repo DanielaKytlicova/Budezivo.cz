@@ -63,6 +63,7 @@ export const StatisticsPage = () => {
   const [isPro, setIsPro] = useState(false);
   const [feedbackStats, setFeedbackStats] = useState(null);
   const [loadingFeedback, setLoadingFeedback] = useState(true);
+  const [marketingStats, setMarketingStats] = useState(null);
 
   // Advanced analytics state
   const [heatmapData, setHeatmapData] = useState(null);
@@ -81,7 +82,17 @@ export const StatisticsPage = () => {
     fetchFeedbackStatistics();
     checkProStatus();
     fetchAdvancedAnalytics();
+    fetchMarketingStatistics();
   }, [periodType, selectedYear, selectedMonth, selectedSemester]);
+
+  const fetchMarketingStatistics = async () => {
+    try {
+      const response = await axios.get(`${API}/marketing/subscription-stats`);
+      setMarketingStats(response.data);
+    } catch {
+      setMarketingStats(null);
+    }
+  };
 
   const checkProStatus = async () => {
     try {
@@ -456,6 +467,41 @@ export const StatisticsPage = () => {
             </div>
           </Card>
         </div>
+
+        {marketingStats && (
+          <Card className="p-6" data-testid="marketing-subscription-statistics">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">Odběr propagačních novinek</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div><p className="text-sm text-gray-500">Aktuální odběratelé</p><p className="text-2xl font-bold">{marketingStats.subscribers || 0}</p></div>
+              <div><p className="text-sm text-gray-500">Zrušené odběry</p><p className="text-2xl font-bold">{marketingStats.unsubscribed || 0}</p></div>
+              <div><p className="text-sm text-gray-500">Obnovené odběry</p><p className="text-2xl font-bold">{marketingStats.restored || 0}</p></div>
+            </div>
+            {Object.keys(marketingStats.unsubscribe_reasons || {}).length > 0 && (
+              <div className="mt-4 border-t pt-4">
+                <p className="text-sm font-medium mb-2">Důvody odhlášení</p>
+                {Object.entries(marketingStats.unsubscribe_reasons).map(([reason, count]) => (
+                  <div key={reason} className="flex justify-between text-sm py-1"><span>{reason}</span><strong>{count}</strong></div>
+                ))}
+              </div>
+            )}
+            {(marketingStats.trend || []).length > 0 && (
+              <div className="mt-6 h-[240px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={marketingStats.trend}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="new_subscriptions" name="Nové souhlasy" stroke="#22C55E" />
+                    <Line type="monotone" dataKey="unsubscribed" name="Zrušené odběry" stroke="#EF4444" />
+                    <Line type="monotone" dataKey="restored" name="Obnovené odběry" stroke="#3B82F6" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Grafy */}
         <div className="grid md:grid-cols-2 gap-6">

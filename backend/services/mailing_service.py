@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.models import (
     School, SchoolContact, Program, Institution,
     MailingCampaign, MailingCampaignProgram,
-    MailingCampaignRecipient, MailingRecipientProgram,
+    MailingCampaignRecipient, MailingRecipientProgram, MarketingSubscription,
 )
 from services.email_service import EmailService
 
@@ -67,6 +67,15 @@ async def reverify_pending_recipients(db: AsyncSession, campaign) -> dict:
                     no_consent.add((c.email or '').strip().lower())
         except Exception:
             pass  # Contact table optional
+
+        unsubscribed = (await db.execute(
+            select(MarketingSubscription.email).where(and_(
+                MarketingSubscription.institution_id == campaign.institution_id,
+                MarketingSubscription.subscribed.is_(False),
+                func.lower(MarketingSubscription.email).in_(emails),
+            ))
+        )).scalars().all()
+        no_consent.update((e or '').strip().lower() for e in unsubscribed)
 
     seen = set()
     counts = {"eligible": 0, "skipped_invalid": 0, "skipped_suppressed": 0,
@@ -379,6 +388,8 @@ async def send_campaign_emails(campaign_id: str):
             failed = 0
             booking_base_url = f"https://www.budezivo.cz/booking/{campaign.institution_id}"
 
+            from routes.marketing import create_unsubscribe_token
+
             for recipient in recipients:
                 try:
                     # Get programs for this specific recipient
@@ -394,6 +405,10 @@ async def send_campaign_emails(campaign_id: str):
                         institution_name=inst_name,
                         booking_url=booking_base_url,
                         institution=institution,
+                        unsubscribe_url=(
+                            f"{__import__('os').environ.get('BACKEND_URL', 'https://api.budezivo.cz').rstrip('/')}/api/marketing/unsubscribe"
+                            f"?token={create_unsubscribe_token(str(campaign.institution_id), recipient.email)}"
+                        ),
                     )
 
                     result = await EmailService.send_email(
@@ -475,6 +490,7 @@ def _build_campaign_email_html(
     institution_name: str,
     booking_url: str,
     institution=None,
+    unsubscribe_url: Optional[str] = None,
 ) -> str:
     """Build promotional mailing HTML."""
     primary_color = "#1E293B"
@@ -523,6 +539,14 @@ def _build_campaign_email_html(
 
     signature_html = signature.replace("\n", "<br>") if signature else ""
 
+    unsubscribe_html = ""
+    if unsubscribe_url:
+        safe_unsubscribe_url = html.escape(unsubscribe_url, quote=True)
+        unsubscribe_html = f'''
+        <div style="border-top:1px solid #E2E8F0;margin-top:24px;padding-top:16px;text-align:center;">
+            <a href="{safe_unsubscribe_url}" style="color:#64748B;font-size:12px;text-decoration:underline;">Zrušit odběr novinek této instituce</a>
+        </div>'''
+
     return f"""
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
         <div style="background:{primary_color};padding:24px;border-radius:8px 8px 0 0;">
@@ -545,6 +569,7 @@ def _build_campaign_email_html(
             <p style="color:#475569;font-size:15px;line-height:1.6;">{closing_text}</p>
 
             <p style="color:#64748B;font-size:14px;line-height:1.6;margin-top:24px;">{signature_html}</p>
+            {unsubscribe_html}
         </div>
     </div>
     """

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -50,9 +50,14 @@ const CalendarEvent = ({ booking, onSelect, collision, color, className = '', st
   </button>
 );
 
-export const BookingsCalendarView = ({ bookings, colorBookings = bookings, onSelectBooking, collisionIndex }) => {
+export const BookingsCalendarView = ({ bookings, colorBookings = bookings, onSelectBooking, collisionIndex, focusDate, focusRequestId }) => {
   const [mode, setMode] = useState('week');
   const [anchorDate, setAnchorDate] = useState(new Date());
+  useEffect(() => {
+    if (!focusDate) return;
+    const next = new Date(`${focusDate}T12:00:00`);
+    if (!Number.isNaN(next.getTime())) setAnchorDate(next);
+  }, [focusDate, focusRequestId]);
   const byDate = useMemo(() => {
     const map = new Map();
     bookings.forEach((booking) => {

@@ -206,14 +206,14 @@ export const HomePage = () => {
             {/* Eyebrow with gold accent — keeps brand palette visible on dark */}
             <p className="text-xs font-semibold tracking-[0.25em] uppercase text-[#C4AB86] mb-4 inline-flex items-center gap-2" data-testid="hero-eyebrow">
               <span className="w-6 h-px bg-[#C4AB86]" />
-              Pro kulturní instituce
+              Bude živo · pro kulturní instituce
             </p>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
               Méně administrativy.<br />
               Více prostoru pro <span className="text-[#C4AB86]">kreativitu</span>.
             </h1>
             <p className="text-lg md:text-xl text-white/85 leading-relaxed mb-8">
-              Spravujte rezervace školních a skupinových programů přehledně, bez e-mailového chaosu a tabulek.
+              Bude živo je online rezervační systém pro muzea, galerie, knihovny a další kulturní a vzdělávací instituce. Pomáhá spravovat rezervace programů, termíny, dostupnost lektorů a místností na jednom místě.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link to="/register" data-testid="hero-cta-trial">
@@ -492,6 +492,28 @@ export const HomePage = () => {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Existing calendar integrations — compact OAuth verification disclosure */}
+      <section className="bg-white border-b border-slate-100" aria-labelledby="calendar-integration-title">
+        <div className="max-w-7xl mx-auto px-6 md:px-8 py-10 md:py-12">
+          <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-start gap-5 md:gap-7 rounded-2xl border border-slate-200 bg-[#F8F9FA] p-6 md:p-8">
+            <div className="w-12 h-12 rounded-xl bg-[#4A6FA5]/10 flex items-center justify-center flex-shrink-0">
+              <CalendarCheck2 className="w-6 h-6 text-[#4A6FA5]" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 id="calendar-integration-title" className="text-xl md:text-2xl font-bold text-[#2B3E50] mb-3">
+                Kalendáře, které už používáte
+              </h2>
+              <p className="text-slate-600 leading-relaxed">
+                Pro snazší plánování lze Bude živo propojit s Google Kalendářem nebo Outlookem, které už používáte. Rezervace a obsazené termíny se mohou automaticky synchronizovat, takže nemusíte spravovat další samostatný kalendář a systém může včas upozornit na možné časové kolize.
+              </p>
+              <p className="text-sm text-slate-500 mt-3">
+                Propojení aktivujete přímo ve svém účtu a můžete ho kdykoli zase zrušit.
+              </p>
             </div>
           </div>
         </div>
@@ -1041,4 +1063,3 @@ const DashboardPreview = () => {
     </div>
   );
 };
-

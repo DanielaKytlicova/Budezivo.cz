@@ -19,7 +19,7 @@ from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import (
-    Contact, ContactLink,
+    Contact, ContactLink, MarketingSubscription,
     Reservation, EventApplication, Event, Program,
 )
 
@@ -314,6 +314,19 @@ async def _upsert(
         elif marketing_consent is False and contact.marketing_consent is None:
             contact.marketing_consent = False
         contact.last_activity_at = now
+
+    # A newly submitted explicit opt-in is also an intentional re-subscribe.
+    # Clear an older institution-scoped unsubscribe suppression, if present.
+    if marketing_consent is True:
+        subscription = (await db.execute(select(MarketingSubscription).where(and_(
+            MarketingSubscription.institution_id == institution_id,
+            func.lower(MarketingSubscription.email) == email_norm,
+        )))).scalar_one_or_none()
+        if subscription and not subscription.subscribed:
+            subscription.subscribed = True
+            subscription.resubscribed_at = now
+            subscription.unsubscribe_reason = None
+            subscription.unsubscribe_comment = None
 
     # 2) Idempotent link
     link_q = select(ContactLink).where(ContactLink.contact_id == contact.id)

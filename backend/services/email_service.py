@@ -33,7 +33,7 @@ def _init_resend():
     api_key = get_resend_api_key()
     if api_key:
         resend.api_key = api_key
-        logger.info(f"Resend API initialized: {api_key[:8]}...")
+        logger.info("Resend API initialized")
         return True
     else:
         logger.warning("RESEND_API_KEY not found - email sending disabled")
@@ -111,21 +111,19 @@ class EmailService:
         api_key = get_resend_api_key()
         configured = bool(api_key)
         if configured:
-            logger.debug(f"Email service configured: API key {api_key[:8]}...")
+            logger.debug("Email service configured")
         else:
             logger.debug("Email service NOT configured: RESEND_API_KEY missing")
         return configured
     
     @classmethod
     def get_config_status(cls) -> Dict[str, Any]:
-        """Get current email service configuration status."""
-        api_key = get_resend_api_key()
+        """Get non-sensitive email service configuration status."""
         return {
             "configured": cls.is_configured(),
             "development_mode": is_development(),
             "available_templates": get_available_templates(),
             "sender_addresses": {k.value: v for k, v in get_sender_addresses().items()},
-            "api_key_preview": f"{api_key[:8]}..." if api_key else None,
         }
     
     @classmethod

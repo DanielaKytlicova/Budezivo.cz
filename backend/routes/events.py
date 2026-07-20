@@ -85,6 +85,17 @@ FEATURE_KEY = "events_module"
 
 # ============ Guards ============
 
+def _parse_public_uuid(value: str, field_name: str) -> uuid.UUID:
+    """Parse an untrusted public identifier without leaking an internal error."""
+    try:
+        return uuid.UUID(value)
+    except (AttributeError, TypeError, ValueError):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Neplatný identifikátor: {field_name}.",
+        ) from None
+
+
 async def require_events_module(db: AsyncSession, institution_id: str):
     """Raise 404 if events module is not enabled for institution."""
     enabled = await is_feature_enabled(db, FEATURE_KEY, institution_id)
@@ -873,7 +884,15 @@ async def get_public_events(
                 EventDate.start_datetime > datetime.now(timezone.utc),
             )).order_by(EventDate.start_datetime)
         )
-        ev_dict["dates"] = [_to_dict(d) for d in dates_result.scalars().all()]
+        future_dates = dates_result.scalars().all()
+        if not future_dates:
+            has_any_date = (await db.execute(
+                select(EventDate.id).where(EventDate.event_id == ev.id).limit(1)
+            )).scalar_one_or_none()
+            if has_any_date is not None:
+                continue
+        ev_dict["dates"] = [_to_dict(d) for d in future_dates]
+        ev_dict["accepts_preregistration"] = not future_dates
 
         # Applications count per date
         apps_count = await db.execute(
@@ -895,14 +914,17 @@ async def get_public_event_detail(
     db: AsyncSession = Depends(get_db),
 ):
     """Get single public event with dates."""
+    inst_uuid = _parse_public_uuid(institution_id, "instituce")
+    event_uuid = _parse_public_uuid(event_id, "událost")
+
     enabled = await is_feature_enabled(db, FEATURE_KEY, institution_id)
     if not enabled:
         raise HTTPException(status_code=404, detail="Not found")
 
     result = await db.execute(
         select(Event).where(and_(
-            Event.id == uuid.UUID(event_id),
-            Event.institution_id == uuid.UUID(institution_id),
+            Event.id == event_uuid,
+            Event.institution_id == inst_uuid,
             Event.is_active == True,
         ))
     )
@@ -923,9 +945,19 @@ async def get_public_event_detail(
     }
 
     dates_result = await db.execute(
-        select(EventDate).where(EventDate.event_id == event.id).order_by(EventDate.start_datetime)
+        select(EventDate).where(and_(
+            EventDate.event_id == event.id,
+            EventDate.start_datetime > datetime.now(timezone.utc),
+        )).order_by(EventDate.start_datetime)
     )
     dates = dates_result.scalars().all()
+    if not dates:
+        has_any_date = (await db.execute(
+            select(EventDate.id).where(EventDate.event_id == event.id).limit(1)
+        )).scalar_one_or_none()
+        if has_any_date is not None:
+            raise HTTPException(status_code=404, detail="Událost již nemá dostupný termín")
+
     dates_out = []
     for d in dates:
         dd = _to_dict(d)
@@ -944,15 +976,24 @@ async def get_public_event_detail(
             ))
         )
         dd["waitlist_count"] = wl.scalar() or 0
-        dd["capacity"] = d.capacity_override or event.capacity
-        dd["spots_left"] = max(0, dd["capacity"] - dd["applications_count"])
+        dd["capacity"] = (
+            d.capacity_override
+            if d.capacity_override is not None
+            else event.capacity
+        )
+        dd["spots_left"] = (
+            max(0, dd["capacity"] - dd["applications_count"])
+            if dd["capacity"] > 0
+            else None
+        )
         dd["is_full"] = dd["capacity"] > 0 and dd["applications_count"] >= dd["capacity"]
         dates_out.append(dd)
 
     ev_dict["dates"] = dates_out
+    ev_dict["accepts_preregistration"] = not dates_out
 
     # Payment methods offered for this event (intersected with institution + config).
-    settings = await _get_payment_settings(db, uuid.UUID(institution_id))
+    settings = await _get_payment_settings(db, inst_uuid)
     inst_methods = [m for m in _derive_institution_methods(settings) if _method_is_configured(settings, m)]
     is_free = (event.price or 0) <= 0
     methods = [] if is_free else _event_methods(event, inst_methods)
@@ -973,16 +1014,22 @@ async def submit_application(
     db: AsyncSession = Depends(get_db),
 ):
     """Submit a public application for an event."""
+    inst_uuid = _parse_public_uuid(institution_id, "instituce")
+    event_uuid = _parse_public_uuid(data.event_id, "událost")
+    event_date_uuid = (
+        _parse_public_uuid(data.event_date_id, "termín")
+        if data.event_date_id
+        else None
+    )
+
     enabled = await is_feature_enabled(db, FEATURE_KEY, institution_id)
     if not enabled:
         raise HTTPException(status_code=404, detail="Not found")
 
-    inst_uuid = uuid.UUID(institution_id)
-
     # Verify event exists and is active
     result = await db.execute(
         select(Event).where(and_(
-            Event.id == uuid.UUID(data.event_id),
+            Event.id == event_uuid,
             Event.institution_id == inst_uuid,
             Event.is_active == True,
         ))
@@ -991,7 +1038,33 @@ async def submit_application(
     if not event:
         raise HTTPException(status_code=404, detail="Událost nenalezena")
 
-    event_date_uuid = uuid.UUID(data.event_date_id) if data.event_date_id else None
+    if event_date_uuid:
+        event_date_result = await db.execute(
+            select(EventDate).where(and_(
+                EventDate.id == event_date_uuid,
+                EventDate.event_id == event.id,
+            ))
+        )
+        event_date = event_date_result.scalar_one_or_none()
+        if event_date is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Zvolený termín nepatří k této události.",
+            )
+        if event_date.start_datetime <= datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=400,
+                detail="Přihlašování na tento termín již bylo ukončeno.",
+            )
+    else:
+        has_dates_result = await db.execute(
+            select(EventDate.id).where(EventDate.event_id == event.id).limit(1)
+        )
+        if has_dates_result.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Vyberte prosím termín události.",
+            )
 
     # A10 — race-safe capacity check. When full → onto the waitlist, not rejected.
     app_status = await _resolve_application_status(db, event, event_date_uuid)

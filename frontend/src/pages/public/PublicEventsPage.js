@@ -76,7 +76,7 @@ export default function PublicEventsPage() {
       const res = await axios.get(`${API_URL}/api/events/public/${institutionId}/${eventId}`);
       setSelectedEvent(res.data);
       // Auto-select date if only one available
-      const availableDates = (res.data.dates || []).filter(d => d.spots_left > 0);
+      const availableDates = (res.data.dates || []).filter(d => !d.is_full);
       if (availableDates.length === 1) {
         setSelectedDate(availableDates[0]);
       }
@@ -376,7 +376,7 @@ export default function PublicEventsPage() {
               {selectedDate && <p className="text-sm text-gray-500 mb-2">Termín: {formatDate(selectedDate.start_datetime)}</p>}
               {selectedEvent.price > 0 && <p className="text-sm font-medium text-slate-700 mb-4">Cena: {selectedEvent.price} Kč</p>}
 
-              {(selectedDate?.is_full || selectedDate?.spots_left <= 0) && (
+              {selectedDate?.is_full && (
                 <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4" data-testid="waitlist-notice">
                   <p className="text-sm font-medium text-amber-800">Tento termín je plně obsazen.</p>
                   <p className="text-xs text-amber-700 mt-1">
@@ -466,7 +466,7 @@ export default function PublicEventsPage() {
                   className="w-full bg-[#5a7aae] hover:bg-[#4a6a9e] disabled:bg-gray-300 h-12 mt-6"
                   data-testid="submit-application-btn"
                 >
-                  {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Odesílám...</> : ((selectedDate?.is_full || selectedDate?.spots_left <= 0) ? 'Přihlásit na čekací listinu' : (selectedEvent.price > 0 ? 'Objednat a přejít k platbě' : 'Závazně přihlásit'))}
+                  {submitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Odesílám...</> : (selectedDate?.is_full ? 'Přihlásit na čekací listinu' : (selectedEvent.price > 0 ? 'Objednat a přejít k platbě' : 'Závazně přihlásit'))}
                 </Button>
               </form>
             </Card>
@@ -491,17 +491,21 @@ export default function PublicEventsPage() {
                 <h1 className="text-2xl font-bold text-gray-900 mb-2">{selectedEvent.name}</h1>
                 {selectedEvent.description && <p className="text-gray-600 mb-6 whitespace-pre-wrap">{selectedEvent.description}</p>}
                 <div className="flex flex-wrap gap-4 mb-6 text-sm text-gray-500">
-                  <span className="flex items-center gap-1"><Users className="w-4 h-4" /> Kapacita: {selectedEvent.capacity}</span>
+                  <span className="flex items-center gap-1"><Users className="w-4 h-4" /> Kapacita: {selectedEvent.capacity > 0 ? selectedEvent.capacity : 'bez omezení'}</span>
                   {selectedEvent.price > 0 && <span className="font-medium text-slate-700">{selectedEvent.price} Kč</span>}
                 </div>
 
-                <h3 className="font-semibold text-slate-900 mb-3">Vyberte termín</h3>
+                <h3 className="font-semibold text-slate-900 mb-3">
+                  {(selectedEvent.dates || []).length > 0 ? 'Vyberte termín' : 'Předzápis na událost'}
+                </h3>
                 {(selectedEvent.dates || []).length === 0 ? (
-                  <p className="text-sm text-gray-500">Žádné dostupné termíny.</p>
+                  <p className="text-sm text-gray-500 mb-6">
+                    Termín zatím nebyl stanoven. Po jeho doplnění vás pořadatel bude informovat.
+                  </p>
                 ) : (
                   <div className="space-y-2 mb-6">
                     {selectedEvent.dates.map(d => {
-                      const isFull = d.spots_left <= 0 || d.is_full;
+                      const isFull = d.is_full;
                       const isSelected = selectedDate?.id === d.id;
                       return (
                         <button key={d.id} type="button" onClick={() => setSelectedDate(isSelected ? null : d)}
@@ -515,7 +519,9 @@ export default function PublicEventsPage() {
                             <div className="text-right">
                               {isFull
                                 ? <span className="text-xs text-amber-600 font-medium" data-testid={`date-waitlist-${d.id}`}>Plný – čekací listina</span>
-                                : <span className="text-xs text-green-600">{d.spots_left} volných míst</span>}
+                                : d.capacity > 0
+                                  ? <span className="text-xs text-green-600">{d.spots_left} volných míst</span>
+                                  : <span className="text-xs text-green-600">Kapacita bez omezení</span>}
                             </div>
                           </div>
                         </button>
@@ -524,7 +530,7 @@ export default function PublicEventsPage() {
                   </div>
                 )}
                 <Button onClick={() => { setFormValues({}); setSelectedMethod((selectedEvent.payment_methods || []).length === 1 ? selectedEvent.payment_methods[0] : null); setStep('form'); }} disabled={!selectedDate && (selectedEvent.dates || []).length > 0} className="w-full bg-[#5a7aae] hover:bg-[#4a6a9e] h-12" data-testid="proceed-to-form-btn">
-                  Pokračovat k přihlášce <ArrowRight className="w-4 h-4 ml-2" />
+                  {(selectedEvent.dates || []).length > 0 ? 'Pokračovat k přihlášce' : 'Pokračovat k předzápisu'} <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>
             </Card>
@@ -553,8 +559,17 @@ export default function PublicEventsPage() {
                   <h2 className="text-lg font-semibold text-gray-900 mb-1">{ev.name}</h2>
                   {ev.description && <p className="text-sm text-gray-500 line-clamp-2 mb-3">{ev.description}</p>}
                   <div className="flex flex-wrap gap-3 text-sm text-gray-500">
-                    <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {(ev.dates || []).length} termínů</span>
-                    <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {ev.capacity} míst</span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {(ev.dates || []).length === 0
+                        ? 'Termín bude upřesněn'
+                        : ev.dates.length === 1
+                          ? '1 termín'
+                          : ev.dates.length < 5
+                            ? `${ev.dates.length} termíny`
+                            : `${ev.dates.length} termínů`}
+                    </span>
+                    <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {ev.capacity > 0 ? `${ev.capacity} míst` : 'Bez omezení'}</span>
                     {ev.price > 0 && <span className="font-medium text-slate-700">{ev.price} Kč</span>}
                     {ev.price === 0 && <span className="text-green-600">Zdarma</span>}
                   </div>

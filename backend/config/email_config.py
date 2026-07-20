@@ -105,7 +105,7 @@ def get_sender_addresses() -> Dict[SenderType, str]:
 def _get_resend_api_key_compat():
     key = os.environ.get("RESEND_API_KEY")
     if key:
-        logger.debug(f"RESEND_API_KEY loaded: {key[:8]}...")
+        logger.debug("RESEND_API_KEY loaded")
     else:
         logger.warning("RESEND_API_KEY not found in environment")
     return key

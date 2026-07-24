@@ -101,6 +101,9 @@ class ContactOut(BaseModel):
     note: Optional[str] = None
     created_at: datetime
     last_activity_at: Optional[datetime] = None
+    deliverability_status: str = 'unknown'
+    deliverability_reason: Optional[str] = None
+    deliverability_updated_at: Optional[datetime] = None
 
 
 class ContactDetail(ContactOut):
@@ -137,6 +140,7 @@ class ContactStats(BaseModel):
     unknown_consent: int
     schools: int
     public: int
+    undeliverable: int
 
 
 def _to_out(c: Contact) -> ContactOut:
@@ -155,6 +159,9 @@ def _to_out(c: Contact) -> ContactOut:
         note=c.note,
         created_at=c.created_at,
         last_activity_at=c.last_activity_at,
+        deliverability_status=c.deliverability_status or 'unknown',
+        deliverability_reason=c.deliverability_reason,
+        deliverability_updated_at=c.deliverability_updated_at,
     )
 
 
@@ -187,6 +194,7 @@ async def list_contacts(
     type: Optional[str] = Query(None, alias="type"),
     source: Optional[str] = None,
     consent: Optional[str] = None,
+    deliverability: Optional[str] = None,
     search: Optional[str] = None,
     limit: int = Query(500, ge=1, le=2000),
     db: AsyncSession = Depends(get_db),
@@ -199,6 +207,14 @@ async def list_contacts(
         type_filter=type, source_filter=source, consent_filter=consent,
         search=search, limit=limit,
     )
+    if deliverability:
+        requested = {
+            'problem': {'bounced_hard', 'complained', 'suppressed', 'unsubscribed', 'failed'},
+            'warning': {'bounced_soft'},
+            'ok': {'delivered'},
+            'unknown': {'unknown'},
+        }.get(deliverability, {deliverability})
+        contacts = [c for c in contacts if (c.deliverability_status or 'unknown') in requested]
     return [_to_out(c) for c in contacts]
 
 
@@ -216,9 +232,13 @@ async def contacts_stats(
     unknown_c = (await db.execute(base.where(Contact.marketing_consent.is_(None)))).scalar() or 0
     schools = (await db.execute(base.where(Contact.type.in_(['pedagog', 'skola'])))).scalar() or 0
     public = (await db.execute(base.where(Contact.type.in_(['rodic', 'verejnost'])))).scalar() or 0
+    undeliverable = (await db.execute(base.where(Contact.deliverability_status.in_(
+        ['bounced_hard', 'complained', 'suppressed', 'unsubscribed', 'failed']
+    )))).scalar() or 0
     return ContactStats(
         total=total, with_consent=with_c, without_consent=without_c,
         unknown_consent=unknown_c, schools=schools, public=public,
+        undeliverable=undeliverable,
     )
 
 

@@ -9,7 +9,7 @@ import { ImpersonationBanner } from '../admin/ImpersonationBanner';
 import SuperadminAlertBanner from '../SuperadminAlertBanner';
 
 // Logo Budeživo.cz - oficiální SVG
-const BudezivoLogo = ({ showText = true }) => (
+const BudezivoLogo = ({ showText = true, inverse = false }) => (
   <div className="flex items-center">
     {showText ? (
       <svg 
@@ -18,7 +18,7 @@ const BudezivoLogo = ({ showText = true }) => (
         aria-label="Budeživo.cz"
       >
         <defs>
-          <style>{`.admin-logo-blue{fill:#5a7aae;}.admin-logo-gold{fill:#c5ac87;}`}</style>
+          <style>{`.admin-logo-blue{fill:${inverse ? '#ffffff' : '#5a7aae'};}.admin-logo-gold{fill:${inverse ? '#ffffff' : '#c5ac87'};}`}</style>
         </defs>
         <path className="admin-logo-blue" d="M41.23,40.83a5.17,5.17,0,0,0-2.42-.69V39.9a5.64,5.64,0,0,0,2.1-.88,4.54,4.54,0,0,0,1.43-1.62,4.61,4.61,0,0,0,.52-2.22A5,5,0,0,0,42,32.29a5.43,5.43,0,0,0-2.48-1.94,10.42,10.42,0,0,0-4.09-.7h-9V51.48h9.73a9.64,9.64,0,0,0,4.12-.8,6,6,0,0,0,2.57-2.16,5.69,5.69,0,0,0,.88-3.14A5.26,5.26,0,0,0,43,42.64,5,5,0,0,0,41.23,40.83Zm-9.65-7h3.09a3.28,3.28,0,0,1,2.13.64,2.13,2.13,0,0,1,.79,1.75,2.28,2.28,0,0,1-.39,1.34,2.58,2.58,0,0,1-1.07.84,4,4,0,0,1-1.54.29h-3Zm5.91,12.85a4,4,0,0,1-2.57.67H31.58V42H35a4.12,4.12,0,0,1,1.76.34,2.67,2.67,0,0,1,1.14,1,2.75,2.75,0,0,1,.39,1.48A2.22,2.22,0,0,1,37.49,46.63Z"/>
         <path className="admin-logo-blue" d="M56.91,44.44a3.48,3.48,0,0,1-.35,1.64,2.5,2.5,0,0,1-1,1,2.91,2.91,0,0,1-1.47.36,2.51,2.51,0,0,1-2-.79,3.06,3.06,0,0,1-.71-2.16V35.1H46.34V45.53a7.09,7.09,0,0,0,.7,3.24,5.21,5.21,0,0,0,2,2.15,5.77,5.77,0,0,0,3,.76,4.82,4.82,0,0,0,3.43-1.19,6.67,6.67,0,0,0,1.69-2.59l.08,3.58H62V35.1H56.91Z"/>
@@ -205,10 +205,10 @@ export const AdminLayout = ({ children }) => {
       <ImpersonationBanner />
       {/* Desktop Sidebar */}
       <aside className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
-        <div className="flex flex-col flex-grow border-r border-border bg-white overflow-y-auto">
-          <div className="flex items-center flex-shrink-0 px-6 py-6 border-b border-border">
+        <div className="flex flex-col flex-grow border-r border-white/10 bg-[#192938] overflow-y-auto text-white">
+          <div className="flex items-center flex-shrink-0 px-6 py-6 border-b border-white/15">
             <Link to="/">
-              <BudezivoLogo />
+              <BudezivoLogo inverse />
             </Link>
           </div>
 
@@ -223,11 +223,11 @@ export const AdminLayout = ({ children }) => {
                     <button
                       type="button"
                       onClick={() => toggleGroup(item.key)}
-                      className="w-full flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors text-slate-700 hover:bg-slate-100"
+                      className="w-full flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors text-white hover:bg-white/10"
                       aria-expanded={isOpen}
                       data-testid={`${item.testId}-toggle`}
                     >
-                      <Chevron className="mr-3 h-4 w-4 text-slate-500" />
+                      <Chevron className="mr-3 h-4 w-4 text-white" />
                       <span className="flex-1 text-left">{item.label}</span>
                     </button>
                     {isOpen && (
@@ -242,8 +242,8 @@ export const AdminLayout = ({ children }) => {
                               data-testid={child.testId}
                               className={`flex items-center px-4 py-2.5 text-sm font-medium rounded-md transition-colors ${
                                 childActive
-                                  ? 'bg-slate-800 text-white'
-                                  : 'text-slate-700 hover:bg-slate-100'
+                                  ? 'bg-[#294765] text-white'
+                                  : 'text-white hover:bg-white/10'
                               }`}
                             >
                               <ChildIcon className="mr-3 h-5 w-5" />
@@ -268,11 +268,11 @@ export const AdminLayout = ({ children }) => {
                     key={item.path}
                     data-testid={item.testId}
                     onClick={() => showUpgrade(item.featureKey)}
-                    className="flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors text-slate-400 hover:bg-slate-50 w-full text-left"
+                    className="flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors text-white/55 hover:bg-white/10 w-full text-left"
                   >
                     <Icon className="mr-3 h-5 w-5 opacity-40" />
                     <span className="flex-1">{item.label}</span>
-                    <Lock className="h-3.5 w-3.5 text-slate-300" />
+                    <Lock className="h-3.5 w-3.5 text-white/45" />
                   </button>
                 );
               }
@@ -284,8 +284,8 @@ export const AdminLayout = ({ children }) => {
                   data-testid={item.testId}
                   className={`flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors ${
                     isActive
-                      ? 'bg-slate-800 text-white'
-                      : 'text-slate-700 hover:bg-slate-100'
+                      ? 'bg-[#294765] text-white'
+                      : 'text-white hover:bg-white/10'
                   }`}
                 >
                   <Icon className="mr-3 h-5 w-5" />
@@ -295,10 +295,10 @@ export const AdminLayout = ({ children }) => {
             })}
           </div>
 
-          <div className="p-4 border-t border-border">
-            <div className="px-4 py-3 bg-muted rounded-md mb-3">
-              <p className="text-sm font-medium text-foreground">{user?.institution_name}</p>
-              <p className="text-xs text-muted-foreground">{user?.name || user?.email}</p>
+          <div className="p-4 border-t border-white/15">
+            <div className="px-4 py-3 bg-white/10 border border-white/10 rounded-md mb-3">
+              <p className="text-sm font-medium text-white">{user?.institution_name}</p>
+              <p className="text-xs text-white/75">{user?.name || user?.email}</p>
               <span className={`inline-block mt-2 px-2 py-0.5 text-xs rounded-full ${getRoleBadgeColor(user?.role)}`}>
                 {getRoleLabel(user?.role)}
               </span>
@@ -306,7 +306,7 @@ export const AdminLayout = ({ children }) => {
             <button
               data-testid="admin-logout-button"
               onClick={handleLogout}
-              className="w-full flex items-center px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100 rounded-md transition-colors"
+              className="w-full flex items-center px-4 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-md transition-colors"
             >
               <LogOut className="mr-3 h-5 w-5" />
               Odhlásit se

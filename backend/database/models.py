@@ -407,6 +407,9 @@ class SchoolContact(Base):
     email_validation_error = Column(Text)
     last_email_sent_at = Column(DateTime(timezone=True))
     last_email_bounced = Column(Boolean, default=False)
+    deliverability_status = Column(Text, nullable=False, default='unknown')
+    deliverability_reason = Column(Text)
+    deliverability_updated_at = Column(DateTime(timezone=True))
     
     # Primary contact flag
     is_primary = Column(Boolean, default=False)
@@ -1157,6 +1160,8 @@ class MailingCampaignRecipient(Base):
     sent_at = Column(DateTime(timezone=True))
     failure_reason = Column(Text)
     email_provider_id = Column(Text)  # Resend email ID
+    delivery_status = Column(Text, nullable=False, default='unknown')
+    delivery_event_at = Column(DateTime(timezone=True))
 
     # Why this recipient was selected
     matching_reason = Column(JSON, default={})  # {selection_mode, matched_segments, manual_override}
@@ -1399,6 +1404,9 @@ class Contact(Base):
     # GDPR / marketing
     marketing_consent = Column(Boolean)          # NULL = unknown (legacy); True = opted in; False = explicitly refused
     marketing_consent_at = Column(DateTime(timezone=True))
+    deliverability_status = Column(Text, nullable=False, default='unknown')
+    deliverability_reason = Column(Text)
+    deliverability_updated_at = Column(DateTime(timezone=True))
 
     # Free-form admin note
     note = Column(Text)
@@ -1412,6 +1420,24 @@ class Contact(Base):
         Index('idx_contacts_email_inst', 'institution_id', 'email', unique=True),
         Index('idx_contacts_type', 'type'),
         Index('idx_contacts_consent', 'marketing_consent'),
+    )
+
+
+class ResendWebhookEvent(Base):
+    """Minimal audit record used to process Resend webhooks exactly once."""
+    __tablename__ = 'resend_webhook_events'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    svix_id = Column(Text, nullable=False, unique=True)
+    event_type = Column(Text, nullable=False)
+    provider_email_id = Column(Text)
+    recipient_email = Column(Text)
+    event_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index('idx_resend_webhook_provider_email', 'provider_email_id'),
+        Index('idx_resend_webhook_recipient', 'recipient_email'),
     )
 
 

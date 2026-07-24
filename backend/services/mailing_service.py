@@ -63,7 +63,9 @@ async def reverify_pending_recipients(db: AsyncSession, campaign) -> dict:
                 ))
             )).scalars().all()
             for c in contacts:
-                if c.marketing_consent is False:
+                if c.marketing_consent is False or c.deliverability_status in {
+                    'bounced_hard', 'complained', 'suppressed', 'unsubscribed'
+                }:
                     no_consent.add((c.email or '').strip().lower())
         except Exception:
             pass  # Contact table optional

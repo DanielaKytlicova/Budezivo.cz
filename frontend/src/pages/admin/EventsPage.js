@@ -41,12 +41,22 @@ const getDefaultEvent = () => ({
   is_active: true,
   form_fields: [],
   allowed_payment_methods: null,
+  registration_deadline: '',
 });
 
 const PAYMENT_METHOD_LABELS = {
   qr: 'QR platba / bankovní převod',
   gateway: 'Platební brána Comgate',
   cash: 'Platba na místě',
+};
+
+const toApiDateTime = (value) => value ? new Date(value).toISOString() : null;
+
+const toDateTimeLocal = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset();
+  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16);
 };
 
 export const EventsPage = () => {
@@ -58,7 +68,7 @@ export const EventsPage = () => {
   const [formData, setFormData] = useState(getDefaultEvent());
   const [activeTab, setActiveTab] = useState('detail');
   const [eventDates, setEventDates] = useState([]);
-  const [newDate, setNewDate] = useState({ start: '', end: '' });
+  const [newDate, setNewDate] = useState({ start: '', end: '', registrationDeadline: '' });
   const [applications, setApplications] = useState([]);
   const [showAppDialog, setShowAppDialog] = useState(false);
   const [selectedApp, setSelectedApp] = useState(null);
@@ -121,6 +131,7 @@ export const EventsPage = () => {
       is_active: event.is_active !== false,
       form_fields: event.form_fields || [],
       allowed_payment_methods: event.allowed_payment_methods || null,
+      registration_deadline: toDateTimeLocal(event.registration_deadline),
     });
     setActiveTab('detail');
     setShowDialog(true);
@@ -130,11 +141,15 @@ export const EventsPage = () => {
 
   const handleSave = async () => {
     try {
+      const payload = {
+        ...formData,
+        registration_deadline: toApiDateTime(formData.registration_deadline),
+      };
       if (editingEvent) {
-        await axios.put(`${API}/events/${editingEvent.id}`, formData);
+        await axios.put(`${API}/events/${editingEvent.id}`, payload);
         toast.success('Událost aktualizována');
       } else {
-        const res = await axios.post(`${API}/events`, formData);
+        const res = await axios.post(`${API}/events`, payload);
         setEditingEvent(res.data);
         toast.success('Událost vytvořena');
       }
@@ -158,13 +173,29 @@ export const EventsPage = () => {
     if (!editingEvent || !newDate.start || !newDate.end) return;
     try {
       await axios.post(`${API}/events/${editingEvent.id}/dates`, {
-        start_datetime: newDate.start,
-        end_datetime: newDate.end,
+        start_datetime: toApiDateTime(newDate.start),
+        end_datetime: toApiDateTime(newDate.end),
+        registration_deadline_override: toApiDateTime(newDate.registrationDeadline),
       });
-      setNewDate({ start: '', end: '' });
+      setNewDate({ start: '', end: '', registrationDeadline: '' });
       await fetchEventDetail(editingEvent.id);
       toast.success('Termín přidán');
-    } catch { toast.error('Chyba při přidávání termínu'); }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Chyba při přidávání termínu');
+    }
+  };
+
+  const updateDateDeadline = async (dateId, value) => {
+    if (!editingEvent) return;
+    try {
+      await axios.put(`${API}/events/${editingEvent.id}/dates/${dateId}`, {
+        registration_deadline_override: toApiDateTime(value),
+      });
+      await fetchEventDetail(editingEvent.id);
+      toast.success(value ? 'Uzávěrka termínu uložena' : 'Termín opět používá výchozí uzávěrku');
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Chyba při ukládání uzávěrky');
+    }
   };
 
   const removeDate = async (dateId) => {
@@ -431,6 +462,19 @@ export const EventsPage = () => {
                     />
                   </div>
                 </div>
+                <div>
+                  <Label className="text-gray-500 text-sm">Výchozí uzávěrka přihlášek (volitelné)</Label>
+                  <Input
+                    type="datetime-local"
+                    value={formData.registration_deadline}
+                    onChange={e => setFormData(p => ({ ...p, registration_deadline: e.target.value }))}
+                    className="mt-1"
+                    data-testid="event-registration-deadline"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Platí pro všechny termíny bez vlastní výjimky. Bez uzávěrky končí přihlašování zahájením termínu.
+                  </p>
+                </div>
                 {/* Free-event toggle: kept in sync with the price field */}
                 <div className="flex items-center justify-between rounded-lg border border-sky-100 bg-sky-50/50 p-3">
                   <div>
@@ -513,20 +557,57 @@ export const EventsPage = () => {
                         <Input type="datetime-local" value={newDate.end} onChange={e => setNewDate(p => ({ ...p, end: e.target.value }))} className="mt-1" data-testid="event-date-end" />
                       </div>
                     </div>
+                    <div>
+                      <Label className="text-xs text-gray-500">Vlastní uzávěrka tohoto termínu (volitelné)</Label>
+                      <Input
+                        type="datetime-local"
+                        value={newDate.registrationDeadline}
+                        onChange={e => setNewDate(p => ({ ...p, registrationDeadline: e.target.value }))}
+                        className="mt-1"
+                        data-testid="event-date-registration-deadline"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Nevyplněný termín použije výchozí uzávěrku události.</p>
+                    </div>
                     <Button onClick={addDate} disabled={!newDate.start || !newDate.end} className="bg-slate-800 text-white" data-testid="add-event-date-btn">
                       <Plus className="w-4 h-4 mr-2" /> Přidat termín
                     </Button>
                     {eventDates.length > 0 ? (
                       <div className="space-y-2 mt-4">
                         {eventDates.map(d => (
-                          <div key={d.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                            <div>
+                          <div key={d.id} className="p-3 bg-gray-50 rounded-lg space-y-3">
+                            <div className="flex items-start justify-between">
+                              <div>
                               <p className="text-sm font-medium">{formatDate(d.start_datetime)}</p>
                               <p className="text-xs text-gray-500">do {formatDate(d.end_datetime)}</p>
+                              </div>
+                              <Button size="sm" variant="ghost" onClick={() => removeDate(d.id)} className="text-red-400 hover:text-red-600">
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
                             </div>
-                            <Button size="sm" variant="ghost" onClick={() => removeDate(d.id)} className="text-red-400 hover:text-red-600">
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <div>
+                              <Label className="text-xs text-gray-500">Výjimka uzávěrky</Label>
+                              <div className="flex flex-col sm:flex-row gap-2 mt-1">
+                                <Input
+                                  type="datetime-local"
+                                  defaultValue={toDateTimeLocal(d.registration_deadline_override)}
+                                  id={`date-deadline-${d.id}`}
+                                  data-testid={`event-date-deadline-${d.id}`}
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => updateDateDeadline(
+                                    d.id,
+                                    document.getElementById(`date-deadline-${d.id}`)?.value || ''
+                                  )}
+                                >
+                                  Uložit
+                                </Button>
+                              </div>
+                              {!d.registration_deadline_override && (
+                                <p className="text-xs text-gray-500 mt-1">Používá výchozí uzávěrku události.</p>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>

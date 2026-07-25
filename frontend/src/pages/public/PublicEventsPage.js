@@ -76,7 +76,9 @@ export default function PublicEventsPage() {
       const res = await axios.get(`${API_URL}/api/events/public/${institutionId}/${eventId}`);
       setSelectedEvent(res.data);
       // Auto-select date if only one available
-      const availableDates = (res.data.dates || []).filter(d => !d.is_full);
+      const availableDates = (res.data.dates || []).filter(
+        d => d.is_registration_open !== false && !d.is_full
+      );
       if (availableDates.length === 1) {
         setSelectedDate(availableDates[0]);
       }
@@ -128,6 +130,17 @@ export default function PublicEventsPage() {
   const shortDate = (iso) => {
     if (!iso) return '';
     return new Date(iso).toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDeadline = (iso) => {
+    if (!iso) return '';
+    return new Date(iso).toLocaleDateString('cs-CZ', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   const headerProps = {
@@ -506,18 +519,26 @@ export default function PublicEventsPage() {
                   <div className="space-y-2 mb-6">
                     {selectedEvent.dates.map(d => {
                       const isFull = d.is_full;
+                      const isClosed = d.is_registration_open === false;
                       const isSelected = selectedDate?.id === d.id;
                       return (
-                        <button key={d.id} type="button" onClick={() => setSelectedDate(isSelected ? null : d)}
-                          className={`w-full text-left p-4 border rounded-lg transition-all ${isSelected ? 'border-[#5a7aae] bg-[#5a7aae]/5 ring-1 ring-[#5a7aae]' : isFull ? 'border-amber-200 bg-amber-50 hover:border-amber-300' : 'border-gray-200 hover:border-gray-300'}`}
+                        <button key={d.id} type="button" disabled={isClosed} onClick={() => setSelectedDate(isSelected ? null : d)}
+                          className={`w-full text-left p-4 border rounded-lg transition-all ${isClosed ? 'border-gray-200 bg-gray-100 opacity-70 cursor-not-allowed' : isSelected ? 'border-[#5a7aae] bg-[#5a7aae]/5 ring-1 ring-[#5a7aae]' : isFull ? 'border-amber-200 bg-amber-50 hover:border-amber-300' : 'border-gray-200 hover:border-gray-300'}`}
                           data-testid={`date-option-${d.id}`}>
                           <div className="flex justify-between items-center">
                             <div>
                               <p className="text-sm font-medium">{formatDate(d.start_datetime)}</p>
                               <p className="text-xs text-gray-500">do {shortDate(d.end_datetime)}</p>
+                              {d.registration_deadline && (
+                                <p className={`text-xs mt-1 ${isClosed ? 'text-red-600' : 'text-gray-500'}`}>
+                                  Uzávěrka přihlášek: {formatDeadline(d.registration_deadline)}
+                                </p>
+                              )}
                             </div>
                             <div className="text-right">
-                              {isFull
+                              {isClosed
+                                ? <span className="text-xs text-red-600 font-medium">Přihlašování ukončeno</span>
+                                : isFull
                                 ? <span className="text-xs text-amber-600 font-medium" data-testid={`date-waitlist-${d.id}`}>Plný – čekací listina</span>
                                 : d.capacity > 0
                                   ? <span className="text-xs text-green-600">{d.spots_left} volných míst</span>
@@ -529,8 +550,18 @@ export default function PublicEventsPage() {
                     })}
                   </div>
                 )}
-                <Button onClick={() => { setFormValues({}); setSelectedMethod((selectedEvent.payment_methods || []).length === 1 ? selectedEvent.payment_methods[0] : null); setStep('form'); }} disabled={!selectedDate && (selectedEvent.dates || []).length > 0} className="w-full bg-[#5a7aae] hover:bg-[#4a6a9e] h-12" data-testid="proceed-to-form-btn">
-                  {(selectedEvent.dates || []).length > 0 ? 'Pokračovat k přihlášce' : 'Pokračovat k předzápisu'} <ArrowRight className="w-4 h-4 ml-2" />
+                {(selectedEvent.dates || []).length === 0 && selectedEvent.registration_deadline && (
+                  <p className={`text-sm mb-4 ${selectedEvent.is_registration_open === false ? 'text-red-600' : 'text-gray-500'}`}>
+                    Uzávěrka předzápisu: {formatDeadline(selectedEvent.registration_deadline)}
+                  </p>
+                )}
+                <Button onClick={() => { setFormValues({}); setSelectedMethod((selectedEvent.payment_methods || []).length === 1 ? selectedEvent.payment_methods[0] : null); setStep('form'); }} disabled={selectedEvent.is_registration_open === false || (!selectedDate && (selectedEvent.dates || []).length > 0)} className="w-full bg-[#5a7aae] hover:bg-[#4a6a9e] h-12" data-testid="proceed-to-form-btn">
+                  {selectedEvent.is_registration_open === false
+                    ? 'Přihlašování bylo ukončeno'
+                    : (selectedEvent.dates || []).length > 0
+                      ? 'Pokračovat k přihlášce'
+                      : 'Pokračovat k předzápisu'}
+                  {selectedEvent.is_registration_open !== false && <ArrowRight className="w-4 h-4 ml-2" />}
                 </Button>
               </div>
             </Card>
@@ -572,6 +603,7 @@ export default function PublicEventsPage() {
                     <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {ev.capacity > 0 ? `${ev.capacity} míst` : 'Bez omezení'}</span>
                     {ev.price > 0 && <span className="font-medium text-slate-700">{ev.price} Kč</span>}
                     {ev.price === 0 && <span className="text-green-600">Zdarma</span>}
+                    {ev.is_registration_open === false && <span className="text-red-600 font-medium">Přihlašování ukončeno</span>}
                   </div>
                 </Card>
               ))}

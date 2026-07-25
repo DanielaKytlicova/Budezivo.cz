@@ -915,6 +915,7 @@ class Event(Base):
     is_archived = Column(Boolean, default=False)
     image_url = Column(Text)
     form_fields = Column(JSON, default=[])  # [{id, type, label, required, options, order}]
+    registration_deadline = Column(DateTime(timezone=True))
     # Subset of the institution's globally-allowed methods offered for THIS event.
     # NULL for free events (no payment). Values: qr, gateway, cash.
     allowed_payment_methods = Column(JSON)
@@ -935,6 +936,7 @@ class EventDate(Base):
     start_datetime = Column(DateTime(timezone=True), nullable=False)
     end_datetime = Column(DateTime(timezone=True), nullable=False)
     capacity_override = Column(Integer)
+    registration_deadline_override = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (

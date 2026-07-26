@@ -51,8 +51,18 @@ const CalendarEvent = ({ booking, onSelect, collision, color, className = '', st
 );
 
 export const BookingsCalendarView = ({ bookings, colorBookings = bookings, onSelectBooking, collisionIndex, focusDate, focusRequestId }) => {
-  const [mode, setMode] = useState('week');
+  const [mode, setMode] = useState(() => {
+    try {
+      const savedMode = localStorage.getItem('bz_bookings_calendar_mode');
+      return ['week', 'month'].includes(savedMode) ? savedMode : 'week';
+    } catch {
+      return 'week';
+    }
+  });
   const [anchorDate, setAnchorDate] = useState(new Date());
+  useEffect(() => {
+    try { localStorage.setItem('bz_bookings_calendar_mode', mode); } catch { /* noop */ }
+  }, [mode]);
   useEffect(() => {
     if (!focusDate) return;
     const next = new Date(`${focusDate}T12:00:00`);
@@ -70,6 +80,17 @@ export const BookingsCalendarView = ({ bookings, colorBookings = bookings, onSel
   }, [bookings]);
   const colorMap = useMemo(() => buildProgramCalendarColorMap(colorBookings), [colorBookings]);
   const colorFor = (booking) => colorMap[programCalendarKey(booking)] || PROGRAM_CALENDAR_COLORS[0];
+  const visibleHours = useMemo(() => {
+    let firstHour = 8;
+    let lastHour = 19;
+    bookings.forEach((booking) => {
+      const { start } = parseTimeRange(booking.time_block);
+      const startHour = Math.max(0, Math.min(23, Math.floor(start / 60)));
+      firstHour = Math.min(firstHour, startHour);
+      lastHour = Math.max(lastHour, startHour);
+    });
+    return Array.from({ length: lastHour - firstHour + 1 }, (_, index) => firstHour + index);
+  }, [bookings]);
 
   const visibleDays = useMemo(() => {
     if (mode === 'week') {
@@ -101,9 +122,15 @@ export const BookingsCalendarView = ({ bookings, colorBookings = bookings, onSel
           <Button variant="ghost" size="sm" aria-label="Následující období" onClick={() => move(1)}><ChevronRight className="h-4 w-4" /></Button>
           <span className="ml-2 font-semibold capitalize">{title}</span>
         </div>
-        <div className="flex rounded-lg bg-slate-100 p-1">
+        <div className="flex rounded-lg bg-slate-100 p-1" role="group" aria-label="Rozsah kalendáře">
           {['week', 'month'].map((value) => (
-            <button key={value} type="button" onClick={() => setMode(value)} className={`rounded-md px-3 py-1.5 text-sm ${mode === value ? 'bg-white shadow-sm' : 'text-slate-600'}`}>
+            <button
+              key={value}
+              type="button"
+              onClick={() => setMode(value)}
+              aria-pressed={mode === value}
+              className={`rounded-md px-3 py-1.5 text-sm ${mode === value ? 'bg-white shadow-sm' : 'text-slate-600'}`}
+            >
               {value === 'week' ? 'Týden' : 'Měsíc'}
             </button>
           ))}
@@ -114,7 +141,7 @@ export const BookingsCalendarView = ({ bookings, colorBookings = bookings, onSel
         <div className="overflow-x-auto">
           <div className="min-w-[900px]">
             <div className="grid grid-cols-8 border-b">
-              <div className="border-r p-3 text-xs text-slate-500">GMT+01</div>
+              <div className="border-r p-3 text-xs text-slate-500">Čas</div>
               {visibleDays.map((day) => {
                 const dateKey = toDateKey(day);
                 const today = dateKey === toDateKey(new Date());
@@ -127,7 +154,7 @@ export const BookingsCalendarView = ({ bookings, colorBookings = bookings, onSel
               })}
             </div>
             <div className="max-h-[600px] overflow-y-auto">
-              {Array.from({ length: 12 }, (_, index) => index + 8).map((hour) => (
+              {visibleHours.map((hour) => (
                 <div key={hour} className="grid min-h-[64px] grid-cols-8 border-b last:border-b-0">
                   <div className="border-r p-2 text-right text-xs text-slate-500">{hour}:00</div>
                   {visibleDays.map((day) => {

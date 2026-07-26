@@ -207,7 +207,7 @@ export const SettingsPage = () => {
     { key: 'reservation_confirmed', title: 'Potvrzení rezervace', desc: 'Po schválení rezervace odešle objednávajícímu definitivní potvrzení.' },
     { key: 'reservation_cancelled', title: 'Zrušení rezervace', desc: 'Po zrušení rezervace odešle objednávajícímu informační e-mail.' },
     { key: 'visit_reminder', title: 'Připomínka před návštěvou', desc: 'Odešle objednávajícímu připomínku dva pracovní dny před návštěvou.' },
-    { key: 'event_registration_received', title: 'Přijetí registrace na akci', desc: 'Po přihlášení na jednorázovou akci odešle účastníkovi potvrzení o přijetí registrace.' },
+    { key: 'event_registration_received', title: 'Přijetí registrace na akci', desc: 'Povinné potvrzení, že systém registraci přijal. Nelze vypnout.', mandatory: true },
     { key: 'event_registration_confirmed', title: 'Potvrzení místa na akci', desc: 'Po schválení přihlášky nebo přesunu z čekací listiny odešle účastníkovi potvrzení místa.' },
     { key: 'event_registration_cancelled', title: 'Zrušení účasti na akci', desc: 'Po zrušení přihlášky odešle účastníkovi informační e-mail.' },
   ];
@@ -485,7 +485,7 @@ export const SettingsPage = () => {
       ]);
       setNotifications(nres.data);
       const eligible = (tres.data || []).filter(
-        (m) => ['admin', 'spravce', 'edukator'].includes(m.role) && m.status === 'active'
+        (m) => ['admin', 'spravce'].includes(m.role) && m.status === 'active'
       );
       setNotifTeam(eligible);
     } catch (error) {
@@ -1016,15 +1016,18 @@ export const SettingsPage = () => {
     const recipients = adm.recipient_user_ids || [];
     const disabled = !canEditNotif;
 
-    const Row = ({ meta, checked, onChange, testid }) => (
-      <div className={`flex items-start justify-between gap-3 ${disabled ? 'opacity-70' : ''}`}>
-        <div>
-          <p className="font-medium text-slate-900">{meta.title}</p>
-          <p className="text-sm text-gray-500">{meta.desc}</p>
+    const Row = ({ meta, checked, onChange, testid }) => {
+      const rowDisabled = disabled || meta.mandatory;
+      return (
+        <div className={`flex items-start justify-between gap-3 ${rowDisabled ? 'opacity-70' : ''}`}>
+          <div>
+            <p className="font-medium text-slate-900">{meta.title}</p>
+            <p className="text-sm text-gray-500">{meta.desc}</p>
+          </div>
+          <Switch checked={meta.mandatory ? true : !!checked} onCheckedChange={onChange} disabled={rowDisabled} data-testid={testid} />
         </div>
-        <Switch checked={!!checked} onCheckedChange={onChange} disabled={disabled} data-testid={testid} />
-      </div>
-    );
+      );
+    };
 
     return (
       <div className="space-y-6" data-testid="notifications-section">
@@ -1064,7 +1067,7 @@ export const SettingsPage = () => {
           {/* Recipients */}
           <div className="pt-3 border-t">
             <p className="font-medium text-slate-900 mb-1">Příjemci provozních upozornění</p>
-            <p className="text-sm text-gray-500 mb-3">Vyberte členy týmu (admin, správce, edukátor). Bez výběru se použije kontaktní e-mail instituce.</p>
+            <p className="text-sm text-gray-500 mb-3">Vyberte administrátory a správce. Bez výběru se použije kontaktní e-mail instituce.</p>
             <div className="space-y-2" data-testid="notif-recipients">
               {notifTeam.length === 0 && <p className="text-sm text-gray-400">Žádní vhodní členové týmu.</p>}
               {notifTeam.map((m) => (

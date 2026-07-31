@@ -5,6 +5,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Link as LinkIcon, ExternalLink, Copy, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
+import { ContextHelp } from '../help/ContextHelp';
 
 const URL_AGE_OPTIONS = [
   { code: 'MS', label: 'MŠ (3-6 let)' },
@@ -103,6 +104,8 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6 pb-4 sm:pb-6 -webkit-overflow-scrolling-touch">
           <div className="space-y-4 py-4">
+            <ContextHelp guideId="web-links" />
+
             {/* Výběr programu */}
             <div>
               <Label className="text-sm font-medium text-slate-700 mb-2 block">Vyberte program</Label>

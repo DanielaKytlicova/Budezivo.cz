@@ -5,6 +5,7 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Link as LinkIcon, ExternalLink, Copy } from 'lucide-react';
 import { toast } from 'sonner';
+import { ContextHelp } from '../help/ContextHelp';
 
 export const EventUrlModal = ({ open, onOpenChange, events, institutionId }) => {
   const [selectedEvent, setSelectedEvent] = useState('all');
@@ -72,6 +73,8 @@ export const EventUrlModal = ({ open, onOpenChange, events, institutionId }) => 
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6 pb-4 sm:pb-6">
           <div className="space-y-4 py-4">
+            <ContextHelp guideId="web-links" />
+
             <div>
               <Label className="text-sm font-medium text-slate-700 mb-2 block">Vyberte událost</Label>
               <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">

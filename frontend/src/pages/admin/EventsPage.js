@@ -75,6 +75,7 @@ export const EventsPage = () => {
   const [paymentSettings, setPaymentSettings] = useState(null);
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [expandedApp, setExpandedApp] = useState(null);
+  const [savingEvent, setSavingEvent] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -140,6 +141,13 @@ export const EventsPage = () => {
   };
 
   const handleSave = async () => {
+    if (!formData.name.trim()) {
+      setActiveTab('detail');
+      toast.error('Vyplňte název události');
+      return;
+    }
+
+    setSavingEvent(true);
     try {
       const payload = {
         ...formData,
@@ -156,6 +164,8 @@ export const EventsPage = () => {
       fetchEvents();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Chyba při ukládání');
+    } finally {
+      setSavingEvent(false);
     }
   };
 
@@ -405,7 +415,7 @@ export const EventsPage = () => {
 
         {/* Tabs */}
         <div className="flex border-b overflow-x-auto">
-          {['detail', 'dates', 'form', 'applications', 'payment']
+          {['detail', 'registration', 'dates', 'form', 'applications', 'payment']
             .filter(tab => !(tab === 'payment' && (formData.price || 0) <= 0))
             .map(tab => (
             <button
@@ -416,12 +426,12 @@ export const EventsPage = () => {
               }`}
               data-testid={`event-tab-${tab}`}
             >
-              {{ detail: 'Detail', dates: 'Termíny', form: 'Formulář', applications: 'Přihlášky', payment: 'Platby' }[tab]}
+              {{ detail: 'Detail', registration: 'Přihlašování', dates: 'Termíny', form: 'Formulář', applications: 'Přihlášky', payment: 'Platby' }[tab]}
             </button>
           ))}
         </div>
 
-        <div className="max-h-[65vh] overflow-y-auto pb-20">
+        <div className="max-h-[65vh] overflow-y-auto pb-32 md:pb-20">
           {/* DETAIL TAB */}
           {activeTab === 'detail' && (
             <div className="space-y-6">
@@ -461,19 +471,6 @@ export const EventsPage = () => {
                       data-testid="event-price-input"
                     />
                   </div>
-                </div>
-                <div>
-                  <Label className="text-gray-500 text-sm">Výchozí uzávěrka přihlášek (volitelné)</Label>
-                  <Input
-                    type="datetime-local"
-                    value={formData.registration_deadline}
-                    onChange={e => setFormData(p => ({ ...p, registration_deadline: e.target.value }))}
-                    className="mt-1"
-                    data-testid="event-registration-deadline"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Platí pro všechny termíny bez vlastní výjimky. Bez uzávěrky končí přihlašování zahájením termínu.
-                  </p>
                 </div>
                 {/* Free-event toggle: kept in sync with the price field */}
                 <div className="flex items-center justify-between rounded-lg border border-sky-100 bg-sky-50/50 p-3">
@@ -536,6 +533,37 @@ export const EventsPage = () => {
                   </Card>
                 );
               })()}
+            </div>
+          )}
+
+          {/* REGISTRATION SETTINGS TAB */}
+          {activeTab === 'registration' && (
+            <div className="space-y-6">
+              <Card className="p-4 md:p-6 space-y-4">
+                <div>
+                  <h3 className="font-semibold text-slate-900">Nastavení přihlašování</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Určete, dokdy se mohou návštěvníci na událost přihlásit.
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-gray-700 text-sm">Výchozí uzávěrka přihlášek (volitelné)</Label>
+                  <Input
+                    type="datetime-local"
+                    value={formData.registration_deadline}
+                    onChange={e => setFormData(p => ({ ...p, registration_deadline: e.target.value }))}
+                    className="mt-1"
+                    data-testid="event-registration-deadline"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Platí pro všechny termíny této události, pokud u konkrétního termínu nenastavíte jinou uzávěrku.
+                    Bez zadané uzávěrky se přihlašování ukončí začátkem termínu.
+                  </p>
+                </div>
+                <div className="rounded-lg border border-sky-100 bg-sky-50 p-3 text-sm text-sky-900">
+                  Vlastní uzávěrku jednotlivého termínu můžete nastavit v záložce Termíny.
+                </div>
+              </Card>
             </div>
           )}
 
@@ -831,9 +859,9 @@ export const EventsPage = () => {
 
         {/* Fixed footer */}
         {activeTab !== 'payment' && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 flex gap-2 md:relative md:border-0 md:p-0 md:mt-4">
-            <Button onClick={handleSave} className="flex-1 bg-slate-800 text-white hover:bg-slate-700" data-testid="save-event-btn">
-              Uložit událost
+          <div className="fixed bottom-[72px] left-0 right-0 z-50 bg-white border-t p-3 shadow-[0_-4px_12px_rgba(15,23,42,0.08)] flex gap-2 md:relative md:bottom-auto md:z-auto md:border-0 md:p-0 md:mt-4 md:shadow-none">
+            <Button onClick={handleSave} disabled={savingEvent} className="flex-1 bg-slate-800 text-white hover:bg-slate-700" data-testid="save-event-btn">
+              {savingEvent ? 'Ukládám…' : 'Uložit událost'}
             </Button>
             {editingEvent && (
               <Button variant="outline" onClick={() => handleDelete(editingEvent.id)} className="text-red-500 border-red-200 hover:bg-red-50" data-testid="delete-event-btn">

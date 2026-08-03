@@ -38,11 +38,14 @@ import {
   GraduationCap,
   BarChart3,
   CalendarDays,
-  RefreshCw
+  RefreshCw,
+  LifeBuoy
 } from 'lucide-react';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
 import ComgatePortalUrls from '../../components/settings/ComgatePortalUrls';
+import { ContextHelp } from '../../components/help/ContextHelp';
+import { HelpCenter } from '../../components/help/HelpCenter';
 import { API, resolveAssetUrl } from '../../config/api';
 
 // Menu položky nastavení — group key drives visual section in the hub.
@@ -119,6 +122,13 @@ const SETTINGS_MENU = [
     title: 'Audit log',
     description: 'Historie všech změn a akcí v systému',
     link: '/admin/audit-log',
+    group: 'system',
+  },
+  {
+    id: 'help',
+    icon: LifeBuoy,
+    title: 'Nápověda a návody',
+    description: 'Postupy pro web, platby a předání kolegům',
     group: 'system',
   },
 ];
@@ -1763,6 +1773,8 @@ export const SettingsPage = () => {
         return renderVopSection();
       case 'payment':
         return renderPaymentSettings();
+      case 'help':
+        return <HelpCenter onBack={() => setActiveSection(null)} />;
       case 'password':
         return renderPasswordSettings();
       case 'delete-account':
@@ -2047,6 +2059,7 @@ export const SettingsPage = () => {
                 </div>
                 {paymentSettings.provider === 'comgate' && (
                   <>
+                    <ContextHelp guideId="comgate" />
                     <div>
                       <div className="flex items-center justify-between gap-2">
                         <Label className="text-gray-500 text-sm">Comgate Merchant ID</Label>

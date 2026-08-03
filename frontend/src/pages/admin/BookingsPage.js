@@ -105,6 +105,15 @@ const sortBookingsBy = (list, key) => {
   }
 };
 
+const nearestBookingDate = (list, today) => {
+  const dates = list
+    .map((booking) => booking.date)
+    .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date || ''));
+  const future = dates.filter((date) => date >= today).sort((a, b) => a.localeCompare(b));
+  const past = dates.filter((date) => date < today).sort((a, b) => b.localeCompare(a));
+  return future[0] || past[0] || null;
+};
+
 const BookingsPage = () => {
   const { t } = useTranslation();
   const { user } = useContext(AuthContext);
@@ -130,7 +139,12 @@ const BookingsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [calendarFocus, setCalendarFocus] = useState({ date: null, requestId: 0 });
   const [viewMode, setViewMode] = useState(() => {
-    try { return localStorage.getItem('bz_bookings_view') || 'list'; } catch { return 'list'; }
+    try {
+      const savedView = localStorage.getItem('bz_bookings_view');
+      return ['list', 'calendar'].includes(savedView) ? savedView : 'list';
+    } catch {
+      return 'list';
+    }
   });
 
   useEffect(() => {
@@ -284,6 +298,30 @@ const BookingsPage = () => {
     }
     return sortBookingsBy(filtered, sortKey);
   }, [bookings, statusFilter, searchQuery, sortKey, collisionIndex]);
+
+  useEffect(() => {
+    if (loading || viewMode !== 'calendar' || calendarFocus.date || filteredBookings.length === 0) return;
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const nearestDate = nearestBookingDate(filteredBookings, today);
+    if (nearestDate) {
+      setCalendarFocus({ date: nearestDate, requestId: Date.now() });
+    }
+  }, [loading, viewMode, calendarFocus.date, filteredBookings]);
+
+  const changeViewMode = (nextView) => {
+    setSelectedIds(new Set());
+    setViewMode(nextView);
+    if (nextView !== 'calendar' || filteredBookings.length === 0) return;
+
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const nearestDate = nearestBookingDate(filteredBookings, today);
+
+    if (nearestDate) {
+      setCalendarFocus({ date: nearestDate, requestId: Date.now() });
+    }
+  };
 
   const selectStatusFilter = (key) => {
     setStatusFilter(key);
@@ -1123,10 +1161,16 @@ const BookingsPage = () => {
         </div>
 
         <div className="flex justify-end">
-          <div className="flex rounded-lg bg-slate-100 p-1" data-testid="bookings-view-switcher">
+          <div
+            className="flex rounded-lg bg-slate-100 p-1"
+            role="group"
+            aria-label="Zobrazení rezervací"
+            data-testid="bookings-view-switcher"
+          >
             <button
               type="button"
-              onClick={() => setViewMode('list')}
+              onClick={() => changeViewMode('list')}
+              aria-pressed={viewMode === 'list'}
               className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
               data-testid="bookings-list-view-btn"
             >
@@ -1134,7 +1178,8 @@ const BookingsPage = () => {
             </button>
             <button
               type="button"
-              onClick={() => setViewMode('calendar')}
+              onClick={() => changeViewMode('calendar')}
+              aria-pressed={viewMode === 'calendar'}
               className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${viewMode === 'calendar' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
               data-testid="bookings-calendar-view-btn"
             >

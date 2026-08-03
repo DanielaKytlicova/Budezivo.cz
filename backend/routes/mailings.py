@@ -981,6 +981,7 @@ async def _evaluate_school_selection(db: AsyncSession, institution_id: str, sele
             select(School).where(and_(
                 School.id.in_(school_ids),
                 School.institution_id == institution_id,
+                School.deleted_at.is_(None),
             ))
         )).scalars().all()
         schools = {str(s.id): s for s in rows}
@@ -991,6 +992,7 @@ async def _evaluate_school_selection(db: AsyncSession, institution_id: str, sele
             select(SchoolContact).where(and_(
                 SchoolContact.school_id.in_(school_ids),
                 SchoolContact.institution_id == institution_id,
+                SchoolContact.status == "active",
             ))
         )).scalars().all()
         for c in rows:

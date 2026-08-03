@@ -623,7 +623,9 @@ async def _auto_flag_failed_contacts(db, institution_id):
                     select(SchoolContact).where(
                         and_(
                             SchoolContact.id == contact_id,
-                            SchoolContact.status != 'invalid',
+                            # Archived contacts must stay archived even when an
+                            # old campaign later reports another delivery failure.
+                            SchoolContact.status == 'active',
                         )
                     )
                 )

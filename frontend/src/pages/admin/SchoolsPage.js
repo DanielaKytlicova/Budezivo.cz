@@ -14,7 +14,7 @@ import {
   Download, Send, Mail, Phone, User, Building, CheckCircle, 
   Upload, FileSpreadsheet, AlertTriangle, X, Loader2, FileText,
   Tag, Filter, Search, Plus, ChevronDown, ChevronUp, Users,
-  AlertCircle, Check, Trash2, Edit2
+  AlertCircle, Check, Trash2, Edit2, Archive, RotateCcw
 } from 'lucide-react';
 import { API } from '../../config/api';
 import { Input } from '../../components/ui/input';
@@ -42,6 +42,8 @@ export const SchoolsPage = () => {
   const [sourceFilter, setSourceFilter] = useState('all');
   const [tagFilter, setTagFilter] = useState('all');
   const [invalidFilter, setInvalidFilter] = useState(false);
+  const [schoolView, setSchoolView] = useState('active');
+  const [showArchivedContacts, setShowArchivedContacts] = useState(false);
   const [availableTags, setAvailableTags] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -83,6 +85,7 @@ export const SchoolsPage = () => {
   const [bulkTags, setBulkTags] = useState([]);
   const [bulkNewTag, setBulkNewTag] = useState('');
   const [bulkTagMode, setBulkTagMode] = useState('add');
+  const [archiveConfirm, setArchiveConfirm] = useState(null);
 
   const role = user?.role;
   const canPurge = role === 'admin' || role === 'spravce';
@@ -111,7 +114,7 @@ export const SchoolsPage = () => {
       const d = res.data;
       const parts = [];
       if (d.deleted_schools) parts.push(`${d.deleted_schools} škol`);
-      if (d.hidden_schools) parts.push(`${d.hidden_schools} skrytých škol`);
+      if (d.hidden_schools) parts.push(`${d.hidden_schools} archivovaných škol`);
       if (d.deleted_contacts) parts.push(`${d.deleted_contacts} kontaktů`);
       if (d.deleted_reservations) parts.push(`${d.deleted_reservations} testovacích rezervací`);
       toast.success('Hotovo: ' + (parts.join(', ') || 'bez změn'));
@@ -162,6 +165,45 @@ export const SchoolsPage = () => {
     }
   };
 
+  const selectedContactIds = Object.values(contactSelection).flat();
+  const selectedContacts = schools
+    .flatMap((school) => school.contacts || [])
+    .filter((contact) => selectedContactIds.includes(contact.id));
+  const selectedArchivedContactCount = selectedContacts.filter(
+    (contact) => contact.status?.startsWith('archived')
+  ).length;
+  const selectedActiveContactCount = selectedContacts.length - selectedArchivedContactCount;
+
+  const runArchiveAction = async () => {
+    if (!archiveConfirm) return;
+    setBulkBusy(true);
+    try {
+      const isSchoolAction = archiveConfirm.type === 'schools';
+      const response = await axios.post(
+        isSchoolAction ? `${API}/schools/bulk/archive` : `${API}/schools/contacts/bulk/archive`,
+        isSchoolAction
+          ? { school_ids: selectedSchools, action: archiveConfirm.action }
+          : { contact_ids: selectedContactIds, action: archiveConfirm.action }
+      );
+      const count = isSchoolAction
+        ? response.data.updated_schools
+        : response.data.updated_contacts;
+      toast.success(
+        archiveConfirm.action === 'archive'
+          ? `Archivováno: ${count} ${isSchoolAction ? 'škol' : 'kontaktů'}`
+          : `Obnoveno: ${count} ${isSchoolAction ? 'škol' : 'kontaktů'}`
+      );
+      setArchiveConfirm(null);
+      setSelectedSchools([]);
+      setContactSelection({});
+      await fetchData();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Změnu archivu se nepodařilo uložit');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
     fetchTags();
@@ -189,6 +231,10 @@ export const SchoolsPage = () => {
       }
       if (invalidFilter) {
         params.append('has_invalid', 'true');
+      }
+      params.append('archived', schoolView === 'archived' ? 'true' : 'false');
+      if (showArchivedContacts || schoolView === 'archived') {
+        params.append('include_archived_contacts', 'true');
       }
       
       const [schoolsRes, proRes, programsRes] = await Promise.all([
@@ -221,7 +267,12 @@ export const SchoolsPage = () => {
     if (!loading) {
       fetchData();
     }
-  }, [sourceFilter, tagFilter, invalidFilter]);
+  }, [sourceFilter, tagFilter, invalidFilter, schoolView, showArchivedContacts]);
+
+  useEffect(() => {
+    setSelectedSchools([]);
+    setContactSelection({});
+  }, [schoolView, showArchivedContacts]);
 
   const handleExportCSV = async () => {
     try {
@@ -426,15 +477,16 @@ export const SchoolsPage = () => {
     }
   };
 
-  const handleDeleteContact = async (schoolId, contactId) => {
-    if (!window.confirm('Opravdu chcete odstranit tento kontakt?')) return;
-    
+  const handleArchiveContact = async (schoolId, contactId, action) => {
     try {
-      await axios.delete(`${API}/schools/${schoolId}/contacts/${contactId}`);
-      toast.success('Kontakt odstraněn');
+      await axios.post(`${API}/schools/contacts/bulk/archive`, {
+        contact_ids: [contactId],
+        action,
+      });
+      toast.success(action === 'archive' ? 'Kontakt archivován' : 'Kontakt obnoven');
       fetchData();
     } catch (error) {
-      toast.error('Nepodařilo se odstranit kontakt');
+      toast.error(error.response?.data?.detail || 'Nepodařilo se změnit stav kontaktu');
     }
   };
 
@@ -487,6 +539,9 @@ export const SchoolsPage = () => {
   };
 
   const getStatusBadge = (status) => {
+    if (status?.startsWith('archived')) {
+      return <Badge className="bg-slate-100 text-slate-600 text-xs">Archiv</Badge>;
+    }
     switch (status) {
       case 'invalid':
         return <Badge className="bg-red-100 text-red-700 text-xs">Neplatný</Badge>;
@@ -654,40 +709,46 @@ export const SchoolsPage = () => {
           </div>
           
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="outline"
-              onClick={async () => {
-                try {
-                  const res = await axios.post(`${API}/schools/auto-tag`, {}, { withCredentials: true });
-                  toast.success(res.data.message);
-                  fetchData();
-                } catch { toast.error('Chyba při auto-tagování'); }
-              }}
-              data-testid="auto-tag-schools-btn"
-            >
-              <Tag className="w-4 h-4 mr-2" />
-              Auto-tag
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setShowImportModal(true)}
-              data-testid="import-schools-btn"
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              Importovat
-            </Button>
-            
-            {isPro && (
+            {schoolView === 'active' && (
               <>
                 <Button
                   variant="outline"
-                  onClick={handleExportCSV}
-                  data-testid="export-csv-btn"
+                  onClick={async () => {
+                    try {
+                      const res = await axios.post(`${API}/schools/auto-tag`, {}, { withCredentials: true });
+                      toast.success(res.data.message);
+                      fetchData();
+                    } catch { toast.error('Chyba při auto-tagování'); }
+                  }}
+                  data-testid="auto-tag-schools-btn"
                 >
-                  <Download className="w-4 h-4 mr-2" />
-                  Export CSV
+                  <Tag className="w-4 h-4 mr-2" />
+                  Auto-tag
                 </Button>
-                {canCampaign && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowImportModal(true)}
+                  data-testid="import-schools-btn"
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Importovat
+                </Button>
+              </>
+            )}
+
+            {isPro && (
+              <>
+                {schoolView === 'active' && (
+                  <Button
+                    variant="outline"
+                    onClick={handleExportCSV}
+                    data-testid="export-csv-btn"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export CSV
+                  </Button>
+                )}
+                {schoolView === 'active' && canCampaign && (
                   <Button
                     onClick={openCampaignSummary}
                     disabled={campaignSelectionCount === 0}
@@ -695,28 +756,71 @@ export const SchoolsPage = () => {
                     data-testid="create-campaign-from-schools-btn"
                   >
                     <Send className="w-4 h-4 mr-2" />
-                    Vytvořit e-mailovou kampaň ({campaignSelectionCount})
+                    Vytvořit novou e-mailovou kampaň ({campaignSelectionCount})
+                  </Button>
+                )}
+                {schoolView === 'active' && (
+                  <Button
+                    onClick={openBulkTags}
+                    disabled={selectedSchools.length === 0}
+                    variant="outline"
+                    data-testid="bulk-add-tags-btn"
+                  >
+                    <Tag className="w-4 h-4 mr-2" />
+                    Přidat tagy
+                  </Button>
+                )}
+                {selectedActiveContactCount > 0 && (
+                  <Button
+                    onClick={() => setArchiveConfirm({
+                      type: 'contacts',
+                      action: 'archive',
+                    })}
+                    variant="outline"
+                    data-testid="bulk-archive-contacts-btn"
+                  >
+                    <Archive className="w-4 h-4 mr-2" />
+                    Archivovat kontakty ({selectedActiveContactCount})
+                  </Button>
+                )}
+                {selectedArchivedContactCount > 0 && (
+                  <Button
+                    onClick={() => setArchiveConfirm({
+                      type: 'contacts',
+                      action: 'restore',
+                    })}
+                    variant="outline"
+                    data-testid="bulk-restore-contacts-btn"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Obnovit kontakty ({selectedArchivedContactCount})
                   </Button>
                 )}
                 <Button
-                  onClick={openBulkTags}
+                  onClick={() => setArchiveConfirm({
+                    type: 'schools',
+                    action: schoolView === 'archived' ? 'restore' : 'archive',
+                  })}
                   disabled={selectedSchools.length === 0}
                   variant="outline"
-                  data-testid="bulk-add-tags-btn"
+                  data-testid="bulk-archive-schools-btn"
                 >
-                  <Tag className="w-4 h-4 mr-2" />
-                  Přidat tagy
+                  {schoolView === 'archived'
+                    ? <RotateCcw className="w-4 h-4 mr-2" />
+                    : <Archive className="w-4 h-4 mr-2" />}
+                  {schoolView === 'archived' ? 'Obnovit školy' : 'Archivovat školy'} ({selectedSchools.length})
                 </Button>
-                <Button
-                  onClick={openBulkDelete}
-                  disabled={selectedSchools.length === 0}
-                  variant="outline"
-                  className="text-red-600 border-red-200 hover:bg-red-50"
-                  data-testid="bulk-delete-schools-btn"
-                >
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Smazat vybrané školy ({selectedSchools.length})
-                </Button>
+                {schoolView === 'active' && canPurge && selectedSchools.length > 0 && (
+                  <Button
+                    onClick={openBulkDelete}
+                    variant="ghost"
+                    className="text-red-600 hover:bg-red-50"
+                    data-testid="bulk-delete-schools-btn"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Pokročilé smazání
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -725,6 +829,17 @@ export const SchoolsPage = () => {
         {/* Filters Section */}
         <Card className="p-4">
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-wrap">
+            <Select value={schoolView} onValueChange={setSchoolView}>
+              <SelectTrigger className="w-full sm:w-[180px]" data-testid="school-view-filter">
+                <Archive className="w-4 h-4 mr-2 text-gray-400" />
+                <SelectValue placeholder="Stav" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Aktivní školy</SelectItem>
+                <SelectItem value="archived">Archivované školy</SelectItem>
+              </SelectContent>
+            </Select>
+
             {/* Search */}
             <div className="relative flex-1 w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -780,9 +895,23 @@ export const SchoolsPage = () => {
                 S neplatnými kontakty
               </label>
             </div>
+
+            {schoolView === 'active' && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="archived-contacts-filter"
+                  checked={showArchivedContacts}
+                  onCheckedChange={setShowArchivedContacts}
+                />
+                <label htmlFor="archived-contacts-filter" className="text-sm text-gray-700 cursor-pointer flex items-center gap-1">
+                  <Archive className="w-4 h-4 text-slate-500" />
+                  Zobrazit archivované kontakty
+                </label>
+              </div>
+            )}
             
             {/* Reset filters */}
-            {(sourceFilter !== 'all' || tagFilter !== 'all' || searchQuery || invalidFilter) && (
+            {(sourceFilter !== 'all' || tagFilter !== 'all' || searchQuery || invalidFilter || showArchivedContacts) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -791,6 +920,7 @@ export const SchoolsPage = () => {
                   setTagFilter('all');
                   setSearchQuery('');
                   setInvalidFilter(false);
+                  setShowArchivedContacts(false);
                 }}
                 data-testid="reset-filters-btn"
               >
@@ -803,7 +933,7 @@ export const SchoolsPage = () => {
           {/* Results count */}
           <div className="mt-3 text-sm text-gray-500">
             Nalezeno: {filteredSchools.length} škol
-            {(sourceFilter !== 'all' || tagFilter !== 'all' || invalidFilter) && (
+            {(sourceFilter !== 'all' || tagFilter !== 'all' || invalidFilter || showArchivedContacts) && (
               <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
                 Filtrováno
               </span>
@@ -840,8 +970,16 @@ export const SchoolsPage = () => {
             <Building className="w-12 h-12 mx-auto text-gray-400 mb-4" />
             {schools.length === 0 ? (
               <>
-                <p className="text-gray-500">Zatím nemáte žádné registrované školy</p>
-                <p className="text-sm text-gray-400 mt-2">Importujte školy z Excelu nebo se automaticky přidají po rezervaci</p>
+                <p className="text-gray-500">
+                  {schoolView === 'archived'
+                    ? 'Archiv škol je prázdný'
+                    : 'Zatím nemáte žádné registrované školy'}
+                </p>
+                <p className="text-sm text-gray-400 mt-2">
+                  {schoolView === 'archived'
+                    ? 'Archivované školy zde půjde kdykoliv obnovit bez ztráty statistik.'
+                    : 'Importujte školy z Excelu nebo se automaticky přidají po rezervaci'}
+                </p>
               </>
             ) : (
               <>
@@ -893,6 +1031,11 @@ export const SchoolsPage = () => {
                         <Badge className={`text-xs ${getSourceColor(school.source)}`}>
                           {getSourceLabel(school.source)}
                         </Badge>
+                        {school.is_archived && (
+                          <Badge className="bg-slate-100 text-slate-600 text-xs">
+                            Archiv
+                          </Badge>
+                        )}
                         {school.invalid_contacts_count > 0 && (
                           <Badge className="bg-red-100 text-red-700 text-xs">
                             <AlertCircle className="w-3 h-3 mr-1" />
@@ -913,14 +1056,16 @@ export const SchoolsPage = () => {
                       ) : (
                         <span className="text-xs text-gray-400 italic">Bez tagů</span>
                       )}
-                      <button
-                        onClick={() => handleEditTags(school)}
-                        className="ml-1 p-0.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
-                        title="Upravit tagy"
-                        data-testid={`edit-tags-${school.id}`}
-                      >
-                        <Edit2 className="w-3 h-3" />
-                      </button>
+                      {schoolView === 'active' && (
+                        <button
+                          onClick={() => handleEditTags(school)}
+                          className="ml-1 p-0.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                          title="Upravit tagy"
+                          data-testid={`edit-tags-${school.id}`}
+                        >
+                          <Edit2 className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                     
                     {/* Contacts Section */}
@@ -938,15 +1083,17 @@ export const SchoolsPage = () => {
                             <ChevronDown className="w-4 h-4" />
                           )}
                         </button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleAddContact(school)}
-                          className="h-7 px-2"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Přidat
-                        </Button>
+                        {schoolView === 'active' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAddContact(school)}
+                            className="h-7 px-2"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Přidat
+                          </Button>
+                        )}
                       </div>
                       
                       {/* Contact list */}
@@ -957,11 +1104,15 @@ export const SchoolsPage = () => {
                           <div 
                             key={contact.id || idx} 
                             className={`flex items-center justify-between p-2 rounded-lg text-sm ${
-                              contact.status === 'invalid' ? 'bg-red-50' : 'bg-gray-50'
+                              contact.status === 'invalid'
+                                ? 'bg-red-50'
+                                : contact.status?.startsWith('archived')
+                                  ? 'bg-slate-100 opacity-75'
+                                  : 'bg-gray-50'
                             }`}
                           >
                             <div className="flex items-center gap-2 min-w-0 flex-1">
-                              {isPro && canCampaign && (
+                              {isPro && canCampaign && schoolView === 'active' && (
                                 <Checkbox
                                   checked={(contactSelection[school.id] || []).includes(contact.id) || selectedSchools.includes(school.id)}
                                   onCheckedChange={() => toggleContactSelection(school.id, contact.id)}
@@ -996,7 +1147,15 @@ export const SchoolsPage = () => {
                             
                             {contact.id && (
                               <div className="flex items-center gap-1 shrink-0 ml-2">
-                                {contact.status === 'invalid' ? (
+                                {contact.status?.startsWith('archived') ? (
+                                  <button
+                                    onClick={() => handleArchiveContact(school.id, contact.id, 'restore')}
+                                    className="p-1 text-green-600 hover:bg-green-100 rounded"
+                                    title="Obnovit kontakt"
+                                  >
+                                    <RotateCcw className="w-3 h-3" />
+                                  </button>
+                                ) : contact.status === 'invalid' ? (
                                   <button
                                     onClick={() => handleMarkActive(school.id, contact.id)}
                                     className="p-1 text-green-600 hover:bg-green-100 rounded"
@@ -1014,11 +1173,13 @@ export const SchoolsPage = () => {
                                   </button>
                                 )}
                                 <button
-                                  onClick={() => handleDeleteContact(school.id, contact.id)}
-                                  className="p-1 text-red-600 hover:bg-red-100 rounded"
-                                  title="Odstranit kontakt"
+                                  onClick={() => handleArchiveContact(school.id, contact.id, 'archive')}
+                                  className={`p-1 text-slate-600 hover:bg-slate-200 rounded ${
+                                    contact.status?.startsWith('archived') ? 'hidden' : ''
+                                  }`}
+                                  title="Archivovat kontakt"
                                 >
-                                  <Trash2 className="w-3 h-3" />
+                                  <Archive className="w-3 h-3" />
                                 </button>
                               </div>
                             )}
@@ -1176,6 +1337,48 @@ export const SchoolsPage = () => {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!archiveConfirm} onOpenChange={(open) => { if (!open) setArchiveConfirm(null); }}>
+        <DialogContent className="sm:max-w-md" data-testid="archive-confirm-dialog">
+          <DialogHeader>
+            <DialogTitle>
+              {archiveConfirm?.action === 'archive' ? 'Potvrdit archivaci' : 'Potvrdit obnovení'}
+            </DialogTitle>
+          </DialogHeader>
+          {archiveConfirm && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-700">
+                {archiveConfirm.type === 'schools' ? (
+                  archiveConfirm.action === 'archive'
+                    ? <>Vybrané školy ({selectedSchools.length}) se přesunou do archivu. Rezervace, kontakty i statistiky zůstanou zachované.</>
+                    : <>Vybrané školy ({selectedSchools.length}) se vrátí mezi aktivní školy včetně kontaktů a historie.</>
+                ) : (
+                  archiveConfirm.action === 'archive'
+                    ? <>Vybrané kontakty ({selectedActiveContactCount}) se přestanou nabízet pro nové e-mailové kampaně. Kdykoliv je můžete obnovit.</>
+                    : <>Vybrané kontakty ({selectedArchivedContactCount}) se obnoví a znovu budou dostupné pro e-mailové kampaně.</>
+                )}
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setArchiveConfirm(null)}>
+                  Zrušit
+                </Button>
+                <Button
+                  className="bg-slate-800 text-white"
+                  disabled={bulkBusy}
+                  onClick={runArchiveAction}
+                  data-testid="archive-confirm-submit"
+                >
+                  {bulkBusy
+                    ? 'Ukládám…'
+                    : archiveConfirm.action === 'archive'
+                      ? 'Archivovat'
+                      : 'Obnovit'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Bulk delete schools */}
       <Dialog open={showBulkDelete} onOpenChange={setShowBulkDelete}>
         <DialogContent className="sm:max-w-lg" data-testid="bulk-delete-dialog">
@@ -1202,14 +1405,14 @@ export const SchoolsPage = () => {
                 Vybrané školy mají <strong>{bulkSummary.booking_count}</strong> navázaných rezervací. Jejich odstranění by ovlivnilo statistiky a historii rezervací.
               </div>
               <Button variant="outline" className="w-full" disabled={bulkBusy} onClick={() => runBulkDelete('hide')} data-testid="bulk-delete-hide">
-                Pouze skrýt školy (rezervace i statistiky zůstanou)
+                Archivovat školy (rezervace i statistiky zůstanou)
               </Button>
               {canPurge && (
                 <div className="border-t pt-3 space-y-2">
                   <p className="text-sm font-medium text-slate-800">Smazat jako testovací data</p>
                   {bulkSummary.ambiguous_reservations > 0 ? (
                     <p className="text-sm text-red-600" data-testid="purge-ambiguous-warning">
-                      {bulkSummary.ambiguous_reservations} rezervací nelze bezpečně přiřadit k těmto školám (chybí spolehlivá vazba). Automatické smazání je zablokováno — použijte „Pouze skrýt školy".
+                      {bulkSummary.ambiguous_reservations} rezervací nelze bezpečně přiřadit k těmto školám (chybí spolehlivá vazba). Automatické smazání je zablokováno — použijte archivaci.
                     </p>
                   ) : (
                     <>

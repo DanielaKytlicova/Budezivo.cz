@@ -472,7 +472,8 @@ async def get_all_tags(
     result = await db.execute(text("""
         SELECT DISTINCT jsonb_array_elements_text(tags::jsonb) as tag
         FROM schools
-        WHERE institution_id = :inst_id AND tags IS NOT NULL AND jsonb_array_length(tags::jsonb) > 0
+        WHERE institution_id = :inst_id AND deleted_at IS NULL
+          AND tags IS NOT NULL AND jsonb_array_length(tags::jsonb) > 0
         ORDER BY tag
     """), {"inst_id": current_user["institution_id"]})
     
@@ -502,11 +503,39 @@ class BulkTagsRequest(BaseModel):
     mode: str = 'add'  # 'add' | 'replace'
 
 
+class BulkArchiveRequest(BaseModel):
+    school_ids: List[str]
+    action: str  # 'archive' | 'restore'
+
+
+class BulkContactArchiveRequest(BaseModel):
+    contact_ids: List[str]
+    action: str  # 'archive' | 'restore'
+
+
 def _validate_ids(ids: List[str]):
     if not ids:
         raise HTTPException(status_code=400, detail="Nebyly vybrány žádné školy")
     if len(ids) > MAX_BULK_SCHOOLS:
         raise HTTPException(status_code=400, detail=f"Najednou lze zpracovat maximálně {MAX_BULK_SCHOOLS} škol")
+
+
+def _clean_uuid_ids(ids: List[str], entity_label: str) -> List[str]:
+    """Validate, normalize and deduplicate IDs before using expanding SQL params."""
+    clean = []
+    for raw_id in ids:
+        try:
+            normalized = str(uuid.UUID(str(raw_id)))
+        except (ValueError, TypeError, AttributeError):
+            raise HTTPException(status_code=400, detail=f"Neplatné ID {entity_label}") from None
+        if normalized not in clean:
+            clean.append(normalized)
+    return clean
+
+
+def _require_school_management_role(current_user: dict) -> None:
+    if current_user.get("role") not in ("admin", "spravce", "edukator"):
+        raise HTTPException(status_code=403, detail="Nemáte oprávnění spravovat školy a kontakty")
 
 
 async def _owned_school_names(db, inst_id, ids: List[str]) -> List[str]:
@@ -562,6 +591,101 @@ async def bulk_delete_summary(
         # Reservations are now safely linked via school_id → purge is possible.
         "reservations_deletable": True,
     }
+
+
+@router.post("/bulk/archive")
+async def bulk_archive_schools(
+    data: BulkArchiveRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Archive or restore schools without deleting contacts, bookings or statistics."""
+    _require_school_management_role(current_user)
+    _validate_ids(data.school_ids)
+    if data.action not in ("archive", "restore"):
+        raise HTTPException(status_code=400, detail="Neplatná akce")
+
+    school_ids = _clean_uuid_ids(data.school_ids, "školy")
+    inst = current_user["institution_id"]
+    id_filter = bindparam("ids", expanding=True)
+    if data.action == "archive":
+        stmt = text(
+            "UPDATE schools SET deleted_at = NOW(), updated_at = NOW() "
+            "WHERE institution_id = :inst AND deleted_at IS NULL AND id IN :ids"
+        ).bindparams(id_filter)
+    else:
+        stmt = text(
+            "UPDATE schools SET deleted_at = NULL, updated_at = NOW() "
+            "WHERE institution_id = :inst AND deleted_at IS NOT NULL AND id IN :ids"
+        ).bindparams(id_filter)
+
+    try:
+        result = await db.execute(stmt, {"inst": inst, "ids": school_ids})
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Změnu archivu se nepodařilo uložit, všechny změny byly vráceny zpět",
+        )
+
+    return {
+        "action": data.action,
+        "updated_schools": result.rowcount,
+        "preserved_bookings": True,
+        "preserved_statistics": True,
+    }
+
+
+@router.post("/contacts/bulk/archive")
+async def bulk_archive_school_contacts(
+    data: BulkContactArchiveRequest,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Archive or restore selected contacts belonging to the current institution."""
+    _require_school_management_role(current_user)
+    if not data.contact_ids:
+        raise HTTPException(status_code=400, detail="Nebyly vybrány žádné kontakty")
+    if len(data.contact_ids) > MAX_BULK_SCHOOLS:
+        raise HTTPException(status_code=400, detail=f"Najednou lze zpracovat maximálně {MAX_BULK_SCHOOLS} kontaktů")
+    if data.action not in ("archive", "restore"):
+        raise HTTPException(status_code=400, detail="Neplatná akce")
+
+    contact_ids = _clean_uuid_ids(data.contact_ids, "kontaktu")
+    id_filter = bindparam("ids", expanding=True)
+    if data.action == "archive":
+        stmt = text(
+            "UPDATE school_contacts "
+            "SET status = CASE WHEN status = 'invalid' THEN 'archived_invalid' ELSE 'archived' END, "
+            "updated_at = NOW() "
+            "WHERE institution_id = :inst AND status NOT LIKE 'archived%' AND id IN :ids"
+        ).bindparams(id_filter)
+    else:
+        stmt = text(
+            "UPDATE school_contacts "
+            "SET status = CASE WHEN status = 'archived_invalid' THEN 'invalid' ELSE 'active' END, "
+            "updated_at = NOW() "
+            "WHERE institution_id = :inst AND status LIKE 'archived%' AND id IN :ids"
+        ).bindparams(id_filter)
+
+    try:
+        result = await db.execute(
+            stmt,
+            {
+                "inst": current_user["institution_id"],
+                "ids": contact_ids,
+            },
+        )
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Změnu kontaktů se nepodařilo uložit, všechny změny byly vráceny zpět",
+        )
+
+    return {"action": data.action, "updated_contacts": result.rowcount}
 
 
 @router.post("/bulk/delete")
@@ -932,6 +1056,8 @@ async def get_schools(
     source: Optional[str] = None,
     tag: Optional[str] = None,
     has_invalid: Optional[bool] = None,
+    archived: bool = False,
+    include_archived_contacts: bool = False,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -945,9 +1071,14 @@ async def get_schools(
             s.booking_count, s.created_at, s.email as legacy_email, 
             s.contact_person as legacy_contact, s.phone as legacy_phone
         FROM schools s
-        WHERE s.institution_id = :inst_id AND s.deleted_at IS NULL
+        WHERE s.institution_id = :inst_id
     """
     params = {"inst_id": inst_id}
+
+    if archived:
+        query += " AND s.deleted_at IS NOT NULL"
+    else:
+        query += " AND s.deleted_at IS NULL"
     
     if source and source != 'all':
         query += " AND s.source = :source"
@@ -1003,10 +1134,19 @@ async def get_schools(
     schools = []
     for s in schools_raw:
         school_id = str(s[0])
-        contacts = contacts_map.get(school_id, [])
+        all_contacts = contacts_map.get(school_id, [])
+        contacts = (
+            all_contacts
+            if include_archived_contacts
+            else [
+                contact
+                for contact in all_contacts
+                if not (contact.get("status") or "").startswith("archived")
+            ]
+        )
         
         # If no contacts, create one from legacy fields
-        if not contacts and s[9]:  # legacy_email exists (index 9)
+        if not all_contacts and s[9]:  # legacy_email exists (index 9)
             contacts = [{
                 "id": None,
                 "school_id": school_id,
@@ -1047,6 +1187,7 @@ async def get_schools(
             "booking_count": s[7] or 0,
             "contacts": contacts,
             "invalid_contacts_count": invalid_count,
+            "is_archived": archived,
             "created_at": s[8].isoformat() if s[8] else None,
             # Legacy fields for backward compatibility
             "email": contacts[0]["email"] if contacts else s[9],

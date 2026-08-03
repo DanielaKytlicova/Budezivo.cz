@@ -125,6 +125,7 @@ class EventCreate(BaseModel):
     image_url: Optional[str] = None
     form_fields: List[dict] = []
     allowed_payment_methods: Optional[List[str]] = None
+    registration_deadline: Optional[str] = None
 
 
 class EventUpdate(BaseModel):
@@ -139,12 +140,18 @@ class EventUpdate(BaseModel):
     image_url: Optional[str] = None
     form_fields: Optional[List[dict]] = None
     allowed_payment_methods: Optional[List[str]] = None
+    registration_deadline: Optional[str] = None
 
 
 class EventDateCreate(BaseModel):
     start_datetime: str
     end_datetime: str
     capacity_override: Optional[int] = None
+    registration_deadline_override: Optional[str] = None
+
+
+class EventDateUpdate(BaseModel):
+    registration_deadline_override: Optional[str] = None
 
 
 class ApplicationCreate(BaseModel):
@@ -189,6 +196,31 @@ def _to_dict(obj) -> dict:
             value = value.isoformat()
         result[c.name] = value
     return result
+
+
+def _parse_datetime(value: Optional[str], field_name: str) -> Optional[datetime]:
+    """Parse an API datetime and normalize it to UTC.
+
+    Older clients sent naive ISO values, so they remain accepted as UTC. The
+    current frontend sends an explicit offset/UTC value to avoid timezone drift.
+    """
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail=f"Neplatné datum a čas: {field_name}.") from None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _effective_registration_deadline(event: Event, event_date: Optional[EventDate] = None) -> Optional[datetime]:
+    if event_date and event_date.registration_deadline_override is not None:
+        return event_date.registration_deadline_override
+    if event.registration_deadline is not None:
+        return event.registration_deadline
+    return event_date.start_datetime if event_date else None
 
 
 def _generate_variable_symbol() -> str:
@@ -411,6 +443,7 @@ async def create_event(
         image_url=data.image_url,
         form_fields=data.form_fields,
         allowed_payment_methods=methods,
+        registration_deadline=_parse_datetime(data.registration_deadline, "uzávěrka přihlášek"),
     )
     db.add(event)
     await db.commit()
@@ -478,6 +511,23 @@ async def update_event(
         raise HTTPException(status_code=404, detail="Událost nenalezena")
 
     update_data = data.model_dump(exclude_unset=True)
+    if "registration_deadline" in update_data:
+        update_data["registration_deadline"] = _parse_datetime(
+            update_data["registration_deadline"], "uzávěrka přihlášek"
+        )
+        if update_data["registration_deadline"] is not None:
+            dates_result = await db.execute(
+                select(EventDate).where(and_(
+                    EventDate.event_id == event.id,
+                    EventDate.registration_deadline_override.is_(None),
+                    EventDate.start_datetime < update_data["registration_deadline"],
+                )).limit(1)
+            )
+            if dates_result.scalar_one_or_none() is not None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Výchozí uzávěrka nesmí být později než začátek žádného termínu, který ji používá.",
+                )
 
     # Guard: switching a PAID event to FREE while payments already exist must not
     # silently wipe payment history. Block and report the affected count.
@@ -568,13 +618,84 @@ async def add_event_date(
     ensure_role(current_user, EVENT_MANAGE_ROLES)
     await require_events_module(db, current_user["institution_id"])
 
+    event_uuid = uuid.UUID(event_id)
+    event = (await db.execute(
+        select(Event).where(and_(
+            Event.id == event_uuid,
+            Event.institution_id == uuid.UUID(current_user["institution_id"]),
+        ))
+    )).scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Událost nenalezena")
+
+    start_datetime = _parse_datetime(data.start_datetime, "začátek termínu")
+    end_datetime = _parse_datetime(data.end_datetime, "konec termínu")
+    deadline_override = _parse_datetime(
+        data.registration_deadline_override, "uzávěrka termínu"
+    )
+    if end_datetime <= start_datetime:
+        raise HTTPException(status_code=400, detail="Konec termínu musí být později než začátek.")
+    effective_deadline = deadline_override or event.registration_deadline
+    if effective_deadline is not None and effective_deadline > start_datetime:
+        raise HTTPException(
+            status_code=400,
+            detail="Uzávěrka přihlášek nesmí být později než začátek termínu.",
+        )
+
     event_date = EventDate(
-        event_id=uuid.UUID(event_id),
-        start_datetime=datetime.fromisoformat(data.start_datetime),
-        end_datetime=datetime.fromisoformat(data.end_datetime),
+        event_id=event_uuid,
+        start_datetime=start_datetime,
+        end_datetime=end_datetime,
         capacity_override=data.capacity_override,
+        registration_deadline_override=deadline_override,
     )
     db.add(event_date)
+    await db.commit()
+    await db.refresh(event_date)
+    return _to_dict(event_date)
+
+
+@router.put("/{event_id}/dates/{date_id}")
+async def update_event_date(
+    event_id: str,
+    date_id: str,
+    data: EventDateUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Update the per-date registration deadline override."""
+    ensure_role(current_user, EVENT_MANAGE_ROLES)
+    await require_events_module(db, current_user["institution_id"])
+
+    event_uuid = uuid.UUID(event_id)
+    event = (await db.execute(
+        select(Event).where(and_(
+            Event.id == event_uuid,
+            Event.institution_id == uuid.UUID(current_user["institution_id"]),
+        ))
+    )).scalar_one_or_none()
+    if event is None:
+        raise HTTPException(status_code=404, detail="Událost nenalezena")
+
+    event_date = (await db.execute(
+        select(EventDate).where(and_(
+            EventDate.id == uuid.UUID(date_id),
+            EventDate.event_id == event.id,
+        ))
+    )).scalar_one_or_none()
+    if event_date is None:
+        raise HTTPException(status_code=404, detail="Termín nenalezen")
+
+    deadline_override = _parse_datetime(
+        data.registration_deadline_override, "uzávěrka termínu"
+    )
+    effective_deadline = deadline_override or event.registration_deadline
+    if effective_deadline is not None and effective_deadline > event_date.start_datetime:
+        raise HTTPException(
+            status_code=400,
+            detail="Uzávěrka přihlášek nesmí být později než začátek termínu.",
+        )
+    event_date.registration_deadline_override = deadline_override
     await db.commit()
     await db.refresh(event_date)
     return _to_dict(event_date)
@@ -876,6 +997,9 @@ async def get_public_events(
             "currency": ev.currency,
             "image_url": ev.image_url,
             "form_fields": ev.form_fields or [],
+            "registration_deadline": (
+                ev.registration_deadline.isoformat() if ev.registration_deadline else None
+            ),
         }
         # Get future dates
         dates_result = await db.execute(
@@ -891,8 +1015,24 @@ async def get_public_events(
             )).scalar_one_or_none()
             if has_any_date is not None:
                 continue
-        ev_dict["dates"] = [_to_dict(d) for d in future_dates]
+        now = datetime.now(timezone.utc)
+        dates_out = []
+        for d in future_dates:
+            dd = _to_dict(d)
+            deadline = _effective_registration_deadline(ev, d)
+            explicit_deadline = d.registration_deadline_override or ev.registration_deadline
+            dd["registration_deadline"] = (
+                explicit_deadline.isoformat() if explicit_deadline else None
+            )
+            dd["is_registration_open"] = deadline is None or now < deadline
+            dates_out.append(dd)
+        ev_dict["dates"] = dates_out
         ev_dict["accepts_preregistration"] = not future_dates
+        ev_dict["is_registration_open"] = (
+            any(d["is_registration_open"] for d in dates_out)
+            if dates_out
+            else ev.registration_deadline is None or now < ev.registration_deadline
+        )
 
         # Applications count per date
         apps_count = await db.execute(
@@ -942,6 +1082,9 @@ async def get_public_event_detail(
         "currency": event.currency,
         "image_url": event.image_url,
         "form_fields": event.form_fields or [],
+        "registration_deadline": (
+            event.registration_deadline.isoformat() if event.registration_deadline else None
+        ),
     }
 
     dates_result = await db.execute(
@@ -959,8 +1102,15 @@ async def get_public_event_detail(
             raise HTTPException(status_code=404, detail="Událost již nemá dostupný termín")
 
     dates_out = []
+    now = datetime.now(timezone.utc)
     for d in dates:
         dd = _to_dict(d)
+        deadline = _effective_registration_deadline(event, d)
+        explicit_deadline = d.registration_deadline_override or event.registration_deadline
+        dd["registration_deadline"] = (
+            explicit_deadline.isoformat() if explicit_deadline else None
+        )
+        dd["is_registration_open"] = deadline is None or now < deadline
         # Count seat-occupying applications for this date (waitlist/rejected excluded)
         cnt = await db.execute(
             select(func.count(EventApplication.id)).where(and_(
@@ -991,6 +1141,11 @@ async def get_public_event_detail(
 
     ev_dict["dates"] = dates_out
     ev_dict["accepts_preregistration"] = not dates_out
+    ev_dict["is_registration_open"] = (
+        any(d["is_registration_open"] for d in dates_out)
+        if dates_out
+        else event.registration_deadline is None or now < event.registration_deadline
+    )
 
     # Payment methods offered for this event (intersected with institution + config).
     settings = await _get_payment_settings(db, inst_uuid)
@@ -1056,6 +1211,12 @@ async def submit_application(
                 status_code=400,
                 detail="Přihlašování na tento termín již bylo ukončeno.",
             )
+        deadline = _effective_registration_deadline(event, event_date)
+        if deadline is not None and datetime.now(timezone.utc) >= deadline:
+            raise HTTPException(
+                status_code=400,
+                detail="Uzávěrka přihlášek na tento termín již uplynula.",
+            )
     else:
         has_dates_result = await db.execute(
             select(EventDate.id).where(EventDate.event_id == event.id).limit(1)
@@ -1064,6 +1225,14 @@ async def submit_application(
             raise HTTPException(
                 status_code=400,
                 detail="Vyberte prosím termín události.",
+            )
+        if (
+            event.registration_deadline is not None
+            and datetime.now(timezone.utc) >= event.registration_deadline
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Uzávěrka předzápisu na tuto událost již uplynula.",
             )
 
     # A10 — race-safe capacity check. When full → onto the waitlist, not rejected.

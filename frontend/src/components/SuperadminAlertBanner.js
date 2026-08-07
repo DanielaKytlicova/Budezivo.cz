@@ -21,7 +21,7 @@ import { API } from '../config/api';
  * table lives. The "×" dismisses the banner for the current tab session.
  */
 const POLL_INTERVAL_MS = 60_000;
-const SUPERADMIN_EMAILS = ['demo@budezivo.cz', 'admin@budezivo.cz'];
+const SUPERADMIN_EMAILS = ['demo@budezivo.cz'];
 
 export default function SuperadminAlertBanner() {
   const { user } = useContext(AuthContext);

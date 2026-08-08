@@ -133,6 +133,37 @@ const SETTINGS_MENU = [
   },
 ];
 
+const COMGATE_HELP_STEPS = [
+  {
+    targetTestId: 'method-gateway',
+    title: 'Zapněte platební bránu',
+    body: 'Nejdřív musí být povolený způsob platby Platební brána Comgate. Bez toho se brána u akcí nenabídne.',
+  },
+  {
+    targetTestId: 'gateway-provider',
+    title: 'Vyberte poskytovatele Comgate',
+    body: 'V poli poskytovatele vyberte Comgate. Teprve potom se zobrazí přihlašovací údaje a URL pro portál.',
+  },
+  {
+    targetTestId: 'gateway-merchant',
+    title: 'Doplňte Merchant ID',
+    body: 'Merchant ID vložte přesně podle Comgate. Hodnota začínající TEST_ přepne bránu do sandbox režimu.',
+    placement: 'left',
+  },
+  {
+    targetTestId: 'gateway-secret',
+    title: 'Doplňte Secret',
+    body: 'Secret je citlivý údaj. Vkládejte ho jen v platebním nastavení a neposílejte ho e-mailem ani v chatu.',
+    placement: 'left',
+  },
+  {
+    targetTestId: 'comgate-portal-urls',
+    title: 'Zkopírujte URL do Comgate portálu',
+    body: 'Tyto návratové a notify URL vložte v Comgate Klientském portálu do nastavení integrace a potom spusťte test integrace.',
+    placement: 'left',
+  },
+];
+
 // Grouped sections rendered in the hub (order matters).
 const SETTINGS_GROUPS = [
   { key: 'general',  label: 'Obecné' },
@@ -2059,7 +2090,12 @@ export const SettingsPage = () => {
                 </div>
                 {paymentSettings.provider === 'comgate' && (
                   <>
-                    <ContextHelp guideId="comgate" />
+                    <ContextHelp
+                      guideId="comgate"
+                      variant="tour"
+                      label="Jak založit a propojit Comgate bránu"
+                      tourSteps={COMGATE_HELP_STEPS}
+                    />
                     <div>
                       <div className="flex items-center justify-between gap-2">
                         <Label className="text-gray-500 text-sm">Comgate Merchant ID</Label>

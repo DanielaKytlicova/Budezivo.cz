@@ -7,6 +7,25 @@ import { Link as LinkIcon, ExternalLink, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { ContextHelp } from '../help/ContextHelp';
 
+const EVENT_URL_HELP_STEPS = [
+  {
+    targetTestId: 'event-url-select-panel',
+    title: 'Vyberte rozsah odkazu',
+    body: 'Můžete zveřejnit stránku se všemi aktivními akcemi nebo odkaz jen na jednu konkrétní akci.',
+  },
+  {
+    targetTestId: 'event-url-output-panel',
+    title: 'Zkopírujte odkaz pro web',
+    body: 'Po výběru se zobrazí URL a jednoduchý HTML odkaz. URL je vhodná pro tlačítko ve webovém editoru.',
+    placement: 'left',
+  },
+  {
+    targetTestId: 'event-preview-url',
+    title: 'Ověřte veřejný náhled',
+    body: 'Před zveřejněním otevřete náhled a zkontrolujte ho ideálně i v anonymním okně a na mobilu.',
+  },
+];
+
 export const EventUrlModal = ({ open, onOpenChange, events, institutionId }) => {
   const [selectedEvent, setSelectedEvent] = useState('all');
   const [urlData, setUrlData] = useState(null);
@@ -72,10 +91,15 @@ export const EventUrlModal = ({ open, onOpenChange, events, institutionId }) => 
         </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6 pb-4 sm:pb-6">
-          <div className="space-y-4 py-4">
-            <ContextHelp guideId="web-links" />
+          <div className="space-y-4 pt-3 pb-4">
+            <ContextHelp
+              guideId="web-links"
+              variant="tour"
+              label="Jak vložit rezervační formulář na web"
+              tourSteps={EVENT_URL_HELP_STEPS}
+            />
 
-            <div>
+            <div data-testid="event-url-select-panel">
               <Label className="text-sm font-medium text-slate-700 mb-2 block">Vyberte událost</Label>
               <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">
                 <button
@@ -111,7 +135,7 @@ export const EventUrlModal = ({ open, onOpenChange, events, institutionId }) => 
                   <p className="font-medium">{urlData.event_name}</p>
                 </div>
 
-                <div>
+                <div data-testid="event-url-output-panel">
                   <Label className="text-xs text-gray-500">URL pro události</Label>
                   <div className="flex gap-2 mt-1">
                     <Input value={urlData.url} readOnly className="flex-1 text-sm font-mono" data-testid="event-external-url" />

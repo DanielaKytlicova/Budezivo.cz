@@ -1,12 +1,58 @@
 import React, { useState } from 'react';
 import { ChevronDown, Download, ExternalLink, HelpCircle } from 'lucide-react';
 import { HELP_GUIDES, HELP_MANUAL_URL, getHelpGuidePdfUrl } from './helpGuides';
+import { GuidedHelpTour } from './GuidedHelpTour';
 
-export const ContextHelp = ({ guideId, className = '' }) => {
+export const ContextHelp = ({
+  guideId,
+  className = '',
+  variant = 'panel',
+  label,
+  tourSteps = [],
+}) => {
   const [expanded, setExpanded] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const guide = HELP_GUIDES[guideId];
 
   if (!guide) return null;
+
+  if (variant === 'tour') {
+    return (
+      <>
+        <div className={`flex flex-wrap items-center gap-2 ${className}`}>
+          <button
+            type="button"
+            onClick={() => setTourOpen(true)}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#192938] underline decoration-[#C4AB86] decoration-2 underline-offset-4 hover:text-[#2B3E50]"
+            data-testid={`context-help-tour-${guide.id}`}
+          >
+            <HelpCircle className="h-4 w-4 text-[#C4AB86]" aria-hidden="true" />
+            {label || guide.title}
+          </button>
+          <a
+            href={getHelpGuidePdfUrl(guide)}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-slate-500 underline hover:text-slate-800"
+            data-testid={`help-open-pdf-${guide.id}`}
+          >
+            PDF <ExternalLink className="h-3 w-3" aria-hidden="true" />
+          </a>
+        </div>
+        {tourOpen && (
+          <GuidedHelpTour
+            title={guide.title}
+            pdfUrl={getHelpGuidePdfUrl(guide)}
+            steps={tourSteps.length ? tourSteps : guide.steps.map((step, index) => ({
+              title: `Krok ${index + 1}`,
+              body: step,
+            }))}
+            onClose={() => setTourOpen(false)}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <aside

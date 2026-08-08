@@ -7,6 +7,30 @@ import { Link as LinkIcon, ExternalLink, Copy, SlidersHorizontal } from 'lucide-
 import { toast } from 'sonner';
 import { ContextHelp } from '../help/ContextHelp';
 
+const PROGRAM_URL_HELP_STEPS = [
+  {
+    targetTestId: 'program-url-select-panel',
+    title: 'Vyberte programy pro web',
+    body: 'Nechte vybrané všechny programy, nebo zvolte jen jeden konkrétní program pro samostatné tlačítko na webu.',
+  },
+  {
+    targetTestId: 'program-url-age-panel',
+    title: 'Volitelně zúžte věkovou skupinu',
+    body: 'Filtr se hodí, když chcete z webu posílat školy přímo na nabídku pro konkrétní stupeň.',
+  },
+  {
+    targetTestId: 'program-url-output-panel',
+    title: 'Zkopírujte URL nebo HTML kód',
+    body: 'URL vložte do tlačítka ve webovém editoru. HTML kód použijte jen tam, kde editor dovoluje vkládat vlastní HTML.',
+    placement: 'left',
+  },
+  {
+    targetTestId: 'program-preview-url',
+    title: 'Zkontrolujte veřejný náhled',
+    body: 'Náhled otevřete před zveřejněním a ověřte, že učitel vidí správné programy i na mobilu.',
+  },
+];
+
 const URL_AGE_OPTIONS = [
   { code: 'MS', label: 'MŠ (3-6 let)' },
   { code: 'ZS1', label: 'I. stupeň ZŠ (7-12 let)' },
@@ -103,11 +127,16 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
         </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6 pb-4 sm:pb-6 -webkit-overflow-scrolling-touch">
-          <div className="space-y-4 py-4">
-            <ContextHelp guideId="web-links" />
+          <div className="space-y-4 pt-3 pb-4">
+            <ContextHelp
+              guideId="web-links"
+              variant="tour"
+              label="Jak vložit rezervační formulář na web"
+              tourSteps={PROGRAM_URL_HELP_STEPS}
+            />
 
             {/* Výběr programu */}
-            <div>
+            <div data-testid="program-url-select-panel">
               <Label className="text-sm font-medium text-slate-700 mb-2 block">Vyberte program</Label>
               <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">
                 <button
@@ -141,7 +170,7 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
             </div>
 
             {/* Věkový filtr */}
-            <div>
+            <div data-testid="program-url-age-panel">
               <Label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-2">
                 <SlidersHorizontal className="w-4 h-4" />
                 Filtr věkové skupiny (volitelné)
@@ -172,48 +201,50 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
             {/* Vygenerované URL */}
             {urlData && (
               <>
-                <div>
-                  <Label className="text-xs text-gray-500">Vybraný program</Label>
-                  <p className="font-medium">{urlData.program_name}</p>
-                </div>
-
-                <div>
-                  <Label className="text-xs text-gray-500">URL pro rezervaci</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      value={urlData.url}
-                      readOnly
-                      className="flex-1 text-sm font-mono"
-                      data-testid="external-url-input"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => copyToClipboard(urlData.url)}
-                      className="bg-slate-800 text-white shrink-0"
-                      data-testid="copy-url-btn"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
+                <div className="space-y-4" data-testid="program-url-output-panel">
+                  <div>
+                    <Label className="text-xs text-gray-500">Vybraný program</Label>
+                    <p className="font-medium">{urlData.program_name}</p>
                   </div>
-                </div>
 
-                <div>
-                  <Label className="text-xs text-gray-500">HTML kód pro vložení</Label>
-                  <div className="flex gap-2 mt-1">
-                    <Input
-                      value={urlData.embed_code}
-                      readOnly
-                      className="flex-1 text-sm font-mono"
-                      data-testid="embed-code-input"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => copyToClipboard(urlData.embed_code)}
-                      className="shrink-0"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
+                  <div>
+                    <Label className="text-xs text-gray-500">URL pro rezervaci</Label>
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        value={urlData.url}
+                        readOnly
+                        className="flex-1 text-sm font-mono"
+                        data-testid="external-url-input"
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => copyToClipboard(urlData.url)}
+                        className="bg-slate-800 text-white shrink-0"
+                        data-testid="copy-url-btn"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-gray-500">HTML kód pro vložení</Label>
+                    <div className="flex gap-2 mt-1">
+                      <Input
+                        value={urlData.embed_code}
+                        readOnly
+                        className="flex-1 text-sm font-mono"
+                        data-testid="embed-code-input"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyToClipboard(urlData.embed_code)}
+                        className="shrink-0"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
@@ -222,7 +253,7 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
                     variant="outline"
                     onClick={() => window.open(urlData.previewUrl, '_blank')}
                     className="flex-1"
-                    data-testid="preview-url-btn"
+                    data-testid="program-preview-url"
                   >
                     <ExternalLink className="w-4 h-4 mr-2" />
                     Náhled

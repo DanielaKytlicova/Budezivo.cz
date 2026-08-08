@@ -9,7 +9,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
-from sqlalchemy import select, and_, func, desc
+from sqlalchemy import select, and_, func, desc, text, bindparam
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
@@ -988,15 +988,23 @@ async def _evaluate_school_selection(db: AsyncSession, institution_id: str, sele
 
     all_contacts = {}
     if school_ids:
+        # Keep this query on explicit columns. Full ORM loading selects newer
+        # deliverability columns and can break campaign previews until the
+        # Resend migration has been applied in production.
         rows = (await db.execute(
-            select(SchoolContact).where(and_(
-                SchoolContact.school_id.in_(school_ids),
-                SchoolContact.institution_id == institution_id,
-                SchoolContact.status == "active",
-            ))
-        )).scalars().all()
+            text(
+                """
+                SELECT id, school_id, email, name, email_validation_error, last_email_bounced
+                FROM school_contacts
+                WHERE school_id IN :school_ids
+                  AND institution_id = :institution_id
+                  AND status = 'active'
+                """
+            ).bindparams(bindparam("school_ids", expanding=True)),
+            {"school_ids": school_ids, "institution_id": institution_id},
+        )).mappings().all()
         for c in rows:
-            all_contacts.setdefault(str(c.school_id), []).append(c)
+            all_contacts.setdefault(str(c["school_id"]), []).append(c)
 
     stats = {
         "schools": len([sid for sid in contacts_filter if sid in schools]),
@@ -1016,17 +1024,17 @@ async def _evaluate_school_selection(db: AsyncSession, institution_id: str, sele
         if not school:
             continue
         for c in all_contacts.get(sid, []):
-            if wanted and str(c.id) not in wanted:
+            if wanted and str(c["id"]) not in wanted:
                 continue
             stats["contacts_found"] += 1
-            email = _norm_email(c.email)
+            email = _norm_email(c["email"])
             if not email or not _EMAIL_RE.match(email):
                 stats["invalid"] += 1
                 continue
-            if c.status == "invalid" or c.email_validation_error:
+            if c["email_validation_error"]:
                 stats["invalid"] += 1
                 continue
-            if c.last_email_bounced:
+            if c["last_email_bounced"]:
                 stats["bounced_or_complained"] += 1
                 continue
             if email in seen_emails:
@@ -1035,9 +1043,9 @@ async def _evaluate_school_selection(db: AsyncSession, institution_id: str, sele
             seen_emails.add(email)
             stats["eligible"] += 1
             eligible.append({
-                "email": c.email,
-                "contact_id": str(c.id),
-                "contact_name": c.name,
+                "email": c["email"],
+                "contact_id": str(c["id"]),
+                "contact_name": c["name"],
                 "school_id": sid,
                 "school_name": school.name,
             })

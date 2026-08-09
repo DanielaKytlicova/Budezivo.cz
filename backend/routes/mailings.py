@@ -239,22 +239,43 @@ async def get_delivery_health(
 
     problematic.sort(key=lambda x: x["failed"], reverse=True)
 
-    result = await db.execute(
-        select(SchoolContact).where(
-            and_(
-                SchoolContact.institution_id == institution_id,
-                SchoolContact.status == 'invalid',
-            )
-        )
-    )
-    already_invalid = result.scalars().all()
+    already_invalid_count = (await db.execute(
+        text("""
+            SELECT COUNT(*) AS count
+            FROM school_contacts
+            WHERE institution_id = :institution_id
+              AND status = 'invalid'
+        """),
+        {"institution_id": institution_id},
+    )).scalar() or 0
+    already_invalid = (await db.execute(
+        text("""
+            SELECT
+                id,
+                email,
+                name,
+                school_id,
+                to_jsonb(school_contacts)->>'email_validation_error' AS email_validation_error
+            FROM school_contacts
+            WHERE institution_id = :institution_id
+              AND status = 'invalid'
+            ORDER BY email
+        """),
+        {"institution_id": institution_id},
+    )).mappings().all()
 
     return {
         "problematic_contacts": problematic,
         "healthy_count": len(healthy),
-        "already_invalid_count": len(already_invalid),
+        "already_invalid_count": already_invalid_count,
         "already_invalid": [
-            {"id": str(c.id), "email": c.email, "name": c.name, "school_id": str(c.school_id), "email_validation_error": c.email_validation_error}
+            {
+                "id": str(c["id"]),
+                "email": c["email"],
+                "name": c["name"],
+                "school_id": str(c["school_id"]) if c["school_id"] else None,
+                "email_validation_error": c["email_validation_error"],
+            }
             for c in already_invalid
         ],
         "summary": {
@@ -1013,7 +1034,13 @@ async def _evaluate_school_selection(db: AsyncSession, institution_id: str, sele
         rows = (await db.execute(
             text(
                 """
-                SELECT id, school_id, email, name, email_validation_error, last_email_bounced
+                SELECT
+                    id,
+                    school_id,
+                    email,
+                    name,
+                    to_jsonb(school_contacts)->>'email_validation_error' AS email_validation_error,
+                    COALESCE(NULLIF(to_jsonb(school_contacts)->>'last_email_bounced', '')::boolean, false) AS last_email_bounced
                 FROM school_contacts
                 WHERE school_id IN :school_ids
                   AND institution_id = :institution_id
@@ -1127,16 +1154,29 @@ async def create_draft_from_schools(
     await db.flush()
 
     for r in eligible:
-        db.add(MailingCampaignRecipient(
-            campaign_id=campaign.id,
-            school_id=uuid.UUID(r["school_id"]) if r.get("school_id") else None,
-            contact_id=uuid.UUID(r["contact_id"]) if r.get("contact_id") else None,
-            email=r["email"],
-            school_name=r.get("school_name"),
-            contact_name=r.get("contact_name"),
-            status="pending",
-            matching_reason={"selection_mode": "schools_manual"},
-        ))
+        await db.execute(
+            text("""
+                INSERT INTO mailing_campaign_recipients (
+                    id, campaign_id, school_id, contact_id, email, school_name,
+                    contact_name, status, matching_reason, created_at
+                )
+                VALUES (
+                    :id, :campaign_id, :school_id, :contact_id, :email, :school_name,
+                    :contact_name, 'pending', CAST(:matching_reason AS json), :created_at
+                )
+            """),
+            {
+                "id": str(uuid.uuid4()),
+                "campaign_id": str(campaign.id),
+                "school_id": r.get("school_id"),
+                "contact_id": r.get("contact_id"),
+                "email": r["email"],
+                "school_name": r.get("school_name"),
+                "contact_name": r.get("contact_name"),
+                "matching_reason": json.dumps({"selection_mode": "schools_manual"}),
+                "created_at": datetime.now(timezone.utc),
+            },
+        )
 
     campaign.total_recipients = len(eligible)
     await db.commit()

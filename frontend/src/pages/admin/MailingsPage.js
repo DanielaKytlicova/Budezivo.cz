@@ -196,6 +196,7 @@ export const MailingsPage = () => {
           <CampaignWizard
             editCampaign={selectedCampaign?.status === 'draft' ? selectedCampaign : null}
             preselectedProgram={preselectedProgram}
+            user={user}
             onClose={() => { setShowWizard(false); setPreselectedProgram(null); fetchCampaigns(); }}
             onComplete={() => { setShowWizard(false); setSelectedCampaign(null); setPreselectedProgram(null); fetchCampaigns(); }}
           />
@@ -532,7 +533,7 @@ const CampaignDetail = ({ campaign, onClose, onRefresh, onEdit, onRepeatCreated 
 };
 
 /* ==================== CAMPAIGN WIZARD ==================== */
-const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete }) => {
+const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onComplete }) => {
   const [step, setStep] = useState(1);
   const [programs, setPrograms] = useState([]);
   const [allPrograms, setAllPrograms] = useState([]);

@@ -1161,7 +1161,9 @@ async def create_draft_from_schools(
                     contact_name, status, matching_reason, created_at
                 )
                 VALUES (
-                    :id, :campaign_id, :school_id, :contact_id, :email, :school_name,
+                    CAST(:id AS uuid), CAST(:campaign_id AS uuid),
+                    CAST(:school_id AS uuid), CAST(:contact_id AS uuid),
+                    :email, :school_name,
                     :contact_name, 'pending', CAST(:matching_reason AS json), :created_at
                 )
             """),

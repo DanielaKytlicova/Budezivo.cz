@@ -4,7 +4,6 @@ import { AdminLayout } from '../../components/layout/AdminLayout';
 import { AuthContext } from '../../context/AuthContext';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Checkbox } from '../../components/ui/checkbox';
@@ -1131,9 +1130,36 @@ const BookingsPage = () => {
   return (
     <AdminLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Rezervace</h1>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
+            <div
+              className="flex h-9 rounded-md border border-slate-200 bg-slate-50 p-0.5"
+              role="group"
+              aria-label="Zobrazení rezervací"
+              data-testid="bookings-view-switcher"
+            >
+              <button
+                type="button"
+                onClick={() => changeViewMode('list')}
+                aria-pressed={viewMode === 'list'}
+                className={`flex h-8 items-center gap-1.5 rounded px-3 text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                data-testid="bookings-list-view-btn"
+              >
+                <List className="h-4 w-4" />
+                <span>Seznam</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => changeViewMode('calendar')}
+                aria-pressed={viewMode === 'calendar'}
+                className={`flex h-8 items-center gap-1.5 rounded px-3 text-sm font-medium transition-colors ${viewMode === 'calendar' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                data-testid="bookings-calendar-view-btn"
+              >
+                <LayoutGrid className="h-4 w-4" />
+                <span>Kalendář</span>
+              </button>
+            </div>
             <Button
               variant="outline"
               size="sm"
@@ -1154,37 +1180,6 @@ const BookingsPage = () => {
                 <span className="hidden sm:inline">Synchronizace kalendáře</span>
               </Button>
             )}
-            <Badge variant="outline" className="text-sm">
-              Role: {currentUserRole}
-            </Badge>
-          </div>
-        </div>
-
-        <div className="flex justify-end">
-          <div
-            className="flex rounded-lg bg-slate-100 p-1"
-            role="group"
-            aria-label="Zobrazení rezervací"
-            data-testid="bookings-view-switcher"
-          >
-            <button
-              type="button"
-              onClick={() => changeViewMode('list')}
-              aria-pressed={viewMode === 'list'}
-              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${viewMode === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-              data-testid="bookings-list-view-btn"
-            >
-              <List className="h-4 w-4" /> Seznam
-            </button>
-            <button
-              type="button"
-              onClick={() => changeViewMode('calendar')}
-              aria-pressed={viewMode === 'calendar'}
-              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${viewMode === 'calendar' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-              data-testid="bookings-calendar-view-btn"
-            >
-              <LayoutGrid className="h-4 w-4" /> Kalendář
-            </button>
           </div>
         </div>
 

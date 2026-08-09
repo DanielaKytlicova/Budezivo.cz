@@ -435,25 +435,27 @@ async def trigger_reservation_created_emails(
     booking_data: Dict[str, Any],
     program_data: Dict[str, Any],
     institution_data: Dict[str, Any],
+    *,
+    send_teacher: bool = True,
+    institution_recipients: Optional[list[str]] = None,
 ) -> Dict[str, Any]:
     """Trigger emails after reservation is created."""
     results = {}
 
     context = _build_email_context(booking_data, program_data, institution_data)
     
-    # Send to teacher
-    results["teacher"] = await EmailService.send_transactional_email(
-        template_name="reservation_created_teacher",
-        to_email=booking_data.get("contact_email", ""),
-        data=context,
-        reply_to=institution_data.get("email"),
-    )
+    if send_teacher:
+        results["teacher"] = await EmailService.send_transactional_email(
+            template_name="reservation_created_teacher",
+            to_email=booking_data.get("contact_email", ""),
+            data=context,
+            reply_to=institution_data.get("email"),
+        )
     
-    # Send to institution (if email configured)
-    if institution_data.get("email"):
-        results["institution"] = await EmailService.send_transactional_email(
+    for index, recipient in enumerate(dict.fromkeys(institution_recipients or [])):
+        results[f"institution_{index}"] = await EmailService.send_transactional_email(
             template_name="reservation_created_institution",
-            to_email=institution_data.get("email"),
+            to_email=recipient,
             data=context,
         )
     

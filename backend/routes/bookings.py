@@ -33,6 +33,10 @@ from services.collision_service import check_booking_collision, check_lecturer_c
 from services.collision_classifier import classify as classify_collision
 from services.lecturer_assignment_service import pick_main_lecturer, SOURCE_MANUAL, SOURCE_UNASSIGNED
 from services.contact_service import seed_contact_from_booking_dict
+from services.notification_preferences import (
+    ADMIN_RECIPIENT_ROLES,
+    normalize_notifications,
+)
 from routes.audit import log_action
 
 from pydantic import BaseModel as PydanticBaseModel
@@ -62,6 +66,45 @@ _INTERNAL_BOOKING_FIELDS = {
 def _strip_internal_fields(booking: dict) -> dict:
     """Remove internal metadata from booking for public response."""
     return {k: v for k, v in booking.items() if k not in _INTERNAL_BOOKING_FIELDS}
+
+
+async def _notification_recipient_emails(
+    db: AsyncSession,
+    institution_id: str,
+    institution: dict,
+    settings: dict,
+) -> list[str]:
+    """Resolve selected active admin/spravce recipients.
+
+    When no recipient is selected, fall back to the institution contact email.
+    """
+    selected_ids = settings["admin"].get("recipient_user_ids") or []
+    emails: list[str] = []
+    if selected_ids:
+        import uuid as _uuid
+        from sqlalchemy import select
+        from database.models import User
+
+        clean_ids = []
+        for value in selected_ids:
+            try:
+                clean_ids.append(_uuid.UUID(str(value)))
+            except (ValueError, TypeError, AttributeError):
+                continue
+        if clean_ids:
+            rows = (await db.execute(
+                select(User.email).where(
+                    User.id.in_(clean_ids),
+                    User.institution_id == _uuid.UUID(str(institution_id)),
+                    User.role.in_(list(ADMIN_RECIPIENT_ROLES)),
+                    User.status == "active",
+                    User.deleted_at.is_(None),
+                )
+            )).all()
+            emails = [row[0].strip() for row in rows if row[0] and row[0].strip()]
+    if not emails and institution.get("email"):
+        emails = [institution["email"].strip()]
+    return list(dict.fromkeys(emails))
 
 
 async def _resolve_main_lecturer(
@@ -279,14 +322,34 @@ async def create_public_booking(
         program = await program_repo.find_by_id(booking_data.program_id, institution_id)
         institution = await institution_repo.find_by_id_with_theme(institution_id)
         
-        if program and program.get("send_email_notification", False):
+        if program:
             email_template = await template_repo.find_by_program(booking_data.program_id)
+            notification_settings = normalize_notifications(
+                (institution or {}).get("notification_settings")
+            )
+            send_teacher = (
+                notification_settings["customer"]["reservation_created"]
+                and program.get("send_email_notification", False)
+            )
+            institution_recipients = []
+            if notification_settings["admin"]["new_reservation"]:
+                institution_recipients = await _notification_recipient_emails(
+                    db,
+                    institution_id,
+                    institution or {},
+                    notification_settings,
+                )
             
             # Send emails asynchronously using new trigger system
             async def send_booking_emails():
                 try:
                     # Use custom template if available, otherwise use transactional templates
-                    if email_template and email_template.get("subject") and email_template.get("body"):
+                    if (
+                        send_teacher
+                        and email_template
+                        and email_template.get("subject")
+                        and email_template.get("body")
+                    ):
                         result = await EmailService.send_booking_confirmation(
                             booking_data=booking,
                             program_data=program,
@@ -305,26 +368,32 @@ async def create_public_booking(
                             "error_message": result.get("error"),
                             "email_id": result.get("email_id"),
                         })
-                    else:
-                        # Use standard transactional emails
-                        results = await trigger_reservation_created_emails(
-                            booking_data=booking,
-                            program_data=program,
-                            institution_data=institution or {},
-                        )
-                        
-                        # Log emails
-                        for recipient, result in results.items():
-                            await log_repo.create({
-                                "institution_id": institution_id,
-                                "program_id": booking_data.program_id,
-                                "reservation_id": booking["id"],
-                                "recipient_email": result.get("actual_recipient", booking_data.contact_email),
-                                "subject": f"reservation_created_{recipient}",
-                                "status": result.get("status", "sent"),
-                                "error_message": result.get("error"),
-                                "email_id": result.get("email_id"),
-                            })
+
+                    # Standard teacher mail is skipped when a custom teacher
+                    # template was used; institution alerts are always standard.
+                    results = await trigger_reservation_created_emails(
+                        booking_data=booking,
+                        program_data=program,
+                        institution_data=institution or {},
+                        send_teacher=send_teacher and not (
+                            email_template
+                            and email_template.get("subject")
+                            and email_template.get("body")
+                        ),
+                        institution_recipients=institution_recipients,
+                    )
+
+                    for recipient, result in results.items():
+                        await log_repo.create({
+                            "institution_id": institution_id,
+                            "program_id": booking_data.program_id,
+                            "reservation_id": booking["id"],
+                            "recipient_email": result.get("actual_recipient", booking_data.contact_email),
+                            "subject": f"reservation_created_{recipient}",
+                            "status": result.get("status", "sent"),
+                            "error_message": result.get("error"),
+                            "email_id": result.get("email_id"),
+                        })
                     
                     logger.info(f"Booking confirmation emails sent for {booking['id']}")
                 except Exception as e:
@@ -400,11 +469,18 @@ async def update_booking_status(
             
             if not program or not institution:
                 return
+
+            preferences = normalize_notifications(institution.get("notification_settings"))
             
             email_result = None
             template_name = None
             
-            if status == "confirmed" and old_status != "confirmed":
+            if (
+                status == "confirmed"
+                and old_status != "confirmed"
+                and preferences["customer"]["reservation_confirmed"]
+                and program.get("send_email_notification", False)
+            ):
                 email_result = await trigger_reservation_confirmed_email(
                     booking_data=booking,
                     program_data=program,
@@ -413,13 +489,17 @@ async def update_booking_status(
                 template_name = "reservation_confirmed"
                 
             elif status == "cancelled" and old_status != "cancelled":
-                email_result = await trigger_reservation_cancelled_email(
-                    booking_data=booking,
-                    program_data=program,
-                    institution_data=institution,
-                    cancellation_reason="",
-                )
-                template_name = "reservation_cancelled"
+                if (
+                    preferences["customer"]["reservation_cancelled"]
+                    and program.get("send_email_notification", False)
+                ):
+                    email_result = await trigger_reservation_cancelled_email(
+                        booking_data=booking,
+                        program_data=program,
+                        institution_data=institution,
+                        cancellation_reason="",
+                    )
+                    template_name = "reservation_cancelled"
                 
                 # Waitlist Phase 2: notify candidates about freed slot
                 try:
@@ -623,6 +703,9 @@ async def bulk_update_booking_status(
     async def send_bulk_emails():
         try:
             institution = await institution_repo.find_by_id_with_theme(current_user["institution_id"])
+            preferences = normalize_notifications(
+                (institution or {}).get("notification_settings")
+            )
             for booking in bookings_before:
                 old_status = booking.get("status")
                 if old_status == request.status:
@@ -637,18 +720,27 @@ async def bulk_update_booking_status(
                     email_result = None
                     template_name = None
                     
-                    if request.status == "confirmed" and old_status != "confirmed":
+                    if (
+                        request.status == "confirmed"
+                        and old_status != "confirmed"
+                        and preferences["customer"]["reservation_confirmed"]
+                        and program.get("send_email_notification", False)
+                    ):
                         email_result = await trigger_reservation_confirmed_email(
                             booking_data=booking, program_data=program,
                             institution_data=institution,
                         )
                         template_name = "reservation_confirmed"
                     elif request.status == "cancelled" and old_status != "cancelled":
-                        email_result = await trigger_reservation_cancelled_email(
-                            booking_data=booking, program_data=program,
-                            institution_data=institution, cancellation_reason="",
-                        )
-                        template_name = "reservation_cancelled"
+                        if (
+                            preferences["customer"]["reservation_cancelled"]
+                            and program.get("send_email_notification", False)
+                        ):
+                            email_result = await trigger_reservation_cancelled_email(
+                                booking_data=booking, program_data=program,
+                                institution_data=institution, cancellation_reason="",
+                            )
+                            template_name = "reservation_cancelled"
                         
                         # Waitlist Phase 2: notify candidates about freed slot
                         try:

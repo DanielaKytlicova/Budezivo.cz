@@ -72,7 +72,7 @@ class Institution(Base):
     # Settings
     notification_settings = Column(JSON, default=lambda: {
         "customer": {},
-        "admin": {"new_reservation": False, "recipient_user_ids": []},
+        "admin": {"new_reservation": True, "recipient_user_ids": []},
     })
     locale_settings = Column(JSON, default={"language": "cs", "timezone": "Europe/Prague", "date_format": "dd.mm.yyyy", "time_format": "24h"})
     gdpr_settings = Column(JSON, default={"data_retention": "never", "anonymize": False})

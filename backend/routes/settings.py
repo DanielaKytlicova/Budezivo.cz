@@ -18,6 +18,13 @@ from database.supabase_repositories import (
     ThemeRepositorySupabase,
     SettingsRepositorySupabase
 )
+from services.notification_preferences import (
+    ADMIN_NOTIF_KEYS,
+    ADMIN_RECIPIENT_ROLES,
+    CUSTOMER_NOTIF_KEYS,
+    NOTIF_MANAGE_ROLES,
+    normalize_notifications,
+)
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 logger = logging.getLogger(__name__)
@@ -138,60 +145,6 @@ async def update_pro_settings(
 
 # ============ Notification Settings ============
 
-# Canonical, normalized default structure (single source of truth).
-CUSTOMER_NOTIF_KEYS = {
-    "reservation_created": True,
-    "reservation_confirmed": True,
-    "reservation_cancelled": True,
-    "visit_reminder": False,            # default OFF for existing institutions
-    "event_registration_received": True,
-    "event_registration_confirmed": True,
-    "event_registration_cancelled": True,
-}
-ADMIN_NOTIF_KEYS = {
-    "new_reservation": False,
-    "reservation_cancelled": True,
-    "event_capacity_reached": False,
-    "new_event_registration": False,
-    "integration_error": False,
-}
-ADMIN_RECIPIENT_ROLES = {"admin", "spravce", "edukator"}
-NOTIF_MANAGE_ROLES = {"admin", "spravce"}
-
-
-def normalize_notifications(stored: dict) -> dict:
-    """Return the notification settings in the canonical nested shape, merging
-    any stored values (incl. legacy flat keys) over the defaults."""
-    stored = stored or {}
-    customer = {**CUSTOMER_NOTIF_KEYS}
-    admin = {**ADMIN_NOTIF_KEYS}
-
-    stored_customer = stored.get("customer") or {}
-    stored_admin = stored.get("admin") or {}
-    for k in customer:
-        if isinstance(stored_customer.get(k), bool):
-            customer[k] = stored_customer[k]
-    for k in admin:
-        if isinstance(stored_admin.get(k), bool):
-            admin[k] = stored_admin[k]
-
-    # Legacy flat keys (best-effort mapping, only if nested not present)
-    if "customer" not in stored and "confirmation" in stored:
-        customer["reservation_confirmed"] = bool(stored.get("confirmation"))
-    if "admin" not in stored:
-        if "new_reservation" in stored:
-            admin["new_reservation"] = bool(stored.get("new_reservation"))
-        if "cancellation" in stored:
-            admin["reservation_cancelled"] = bool(stored.get("cancellation"))
-
-    recipients = stored_admin.get("recipient_user_ids")
-    if not isinstance(recipients, list):
-        recipients = []
-    admin["recipient_user_ids"] = [str(x) for x in recipients]
-
-    return {"customer": customer, "admin": admin}
-
-
 @router.get("/notifications")
 async def get_notification_settings(
     current_user: dict = Depends(get_current_user),
@@ -235,6 +188,9 @@ async def update_notification_settings(
     for k in ADMIN_NOTIF_KEYS:
         if isinstance(incoming_admin.get(k), bool):
             current["admin"][k] = incoming_admin[k]
+
+    # A one-off event registration receipt is mandatory transactional mail.
+    current["customer"]["event_registration_received"] = True
 
     # Validate & filter recipient_user_ids (same institution, allowed role, active)
     if "recipient_user_ids" in incoming_admin:

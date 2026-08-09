@@ -632,8 +632,9 @@ async def process_visit_reminders():
 
             sent = 0
             for res, inst, prog in rows:
-                ns = inst.notification_settings or {}
-                if not (ns.get('customer') or {}).get('visit_reminder', False):
+                from services.notification_preferences import normalize_notifications
+                ns = normalize_notifications(inst.notification_settings)
+                if not ns["customer"]["visit_reminder"]:
                     continue
                 # Program-level opt-out also applies to customer emails
                 if prog.send_email_notification is False:

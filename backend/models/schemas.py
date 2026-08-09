@@ -295,9 +295,9 @@ class InstitutionSettings(BaseModel):
 
 
 class NotificationSettings(BaseModel):
-    new_reservation: bool = False
+    new_reservation: bool = True
     confirmation: bool = False
-    cancellation: bool = True
+    cancellation: bool = False
     sms_enabled: bool = False
 
 

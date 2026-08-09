@@ -4,12 +4,13 @@ Mailing Campaign routes — CRUD, preview, send.
 import uuid
 import logging
 import asyncio
+import json
 from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
-from sqlalchemy import select, and_, func, desc
+from sqlalchemy import select, and_, func, desc, text, bindparam
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
@@ -62,6 +63,17 @@ def _ensure_campaign_role(current_user: dict):
 
 def _norm_email(e: str) -> str:
     return (e or "").strip().lower()
+
+
+def _json_value(value, default):
+    if value is None:
+        return default
+    if isinstance(value, (dict, list)):
+        return value
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return default
 
 
 # ---- Pydantic models ----
@@ -376,16 +388,23 @@ async def get_campaign(
                     "age_group": p.age_group,
                 })
 
-    # Load recipients
+    # Load only columns required by the detail view. Selecting the ORM model
+    # includes newer delivery columns and can break previews/details before the
+    # production DB has finished the Resend migration.
     result = await db.execute(
-        select(MailingCampaignRecipient).where(
-            MailingCampaignRecipient.campaign_id == campaign.id
-        ).order_by(MailingCampaignRecipient.school_name)
+        text("""
+            SELECT id, school_name, contact_name, email, status, sent_at,
+                   failure_reason, matching_reason
+            FROM mailing_campaign_recipients
+            WHERE campaign_id = :campaign_id
+            ORDER BY school_name NULLS LAST, email
+        """),
+        {"campaign_id": str(campaign.id)},
     )
-    recipients = result.scalars().all()
+    recipients = result.mappings().all()
 
     # Load recipient programs
-    recipient_ids = [r.id for r in recipients]
+    recipient_ids = [r["id"] for r in recipients]
     rp_map = {}
     if recipient_ids:
         result = await db.execute(
@@ -405,15 +424,15 @@ async def get_campaign(
     recipients_data = []
     for r in recipients:
         recipients_data.append({
-            "id": str(r.id),
-            "school_name": r.school_name,
-            "contact_name": r.contact_name,
-            "email": r.email,
-            "status": r.status,
-            "sent_at": r.sent_at.isoformat() if r.sent_at else None,
-            "failure_reason": r.failure_reason,
-            "matching_reason": r.matching_reason or {},
-            "programs": rp_map.get(str(r.id), []),
+            "id": str(r["id"]),
+            "school_name": r["school_name"],
+            "contact_name": r["contact_name"],
+            "email": r["email"],
+            "status": r["status"],
+            "sent_at": r["sent_at"].isoformat() if r["sent_at"] else None,
+            "failure_reason": r["failure_reason"],
+            "matching_reason": _json_value(r["matching_reason"], {}),
+            "programs": rp_map.get(str(r["id"]), []),
         })
 
     return {
@@ -988,15 +1007,23 @@ async def _evaluate_school_selection(db: AsyncSession, institution_id: str, sele
 
     all_contacts = {}
     if school_ids:
+        # Keep this query on explicit columns. Full ORM loading selects newer
+        # deliverability columns and can break campaign previews until the
+        # Resend migration has been applied in production.
         rows = (await db.execute(
-            select(SchoolContact).where(and_(
-                SchoolContact.school_id.in_(school_ids),
-                SchoolContact.institution_id == institution_id,
-                SchoolContact.status == "active",
-            ))
-        )).scalars().all()
+            text(
+                """
+                SELECT id, school_id, email, name, email_validation_error, last_email_bounced
+                FROM school_contacts
+                WHERE school_id IN :school_ids
+                  AND institution_id = :institution_id
+                  AND status = 'active'
+                """
+            ).bindparams(bindparam("school_ids", expanding=True)),
+            {"school_ids": school_ids, "institution_id": institution_id},
+        )).mappings().all()
         for c in rows:
-            all_contacts.setdefault(str(c.school_id), []).append(c)
+            all_contacts.setdefault(str(c["school_id"]), []).append(c)
 
     stats = {
         "schools": len([sid for sid in contacts_filter if sid in schools]),
@@ -1016,17 +1043,17 @@ async def _evaluate_school_selection(db: AsyncSession, institution_id: str, sele
         if not school:
             continue
         for c in all_contacts.get(sid, []):
-            if wanted and str(c.id) not in wanted:
+            if wanted and str(c["id"]) not in wanted:
                 continue
             stats["contacts_found"] += 1
-            email = _norm_email(c.email)
+            email = _norm_email(c["email"])
             if not email or not _EMAIL_RE.match(email):
                 stats["invalid"] += 1
                 continue
-            if c.status == "invalid" or c.email_validation_error:
+            if c["email_validation_error"]:
                 stats["invalid"] += 1
                 continue
-            if c.last_email_bounced:
+            if c["last_email_bounced"]:
                 stats["bounced_or_complained"] += 1
                 continue
             if email in seen_emails:
@@ -1035,9 +1062,9 @@ async def _evaluate_school_selection(db: AsyncSession, institution_id: str, sele
             seen_emails.add(email)
             stats["eligible"] += 1
             eligible.append({
-                "email": c.email,
-                "contact_id": str(c.id),
-                "contact_name": c.name,
+                "email": c["email"],
+                "contact_id": str(c["id"]),
+                "contact_name": c["name"],
                 "school_id": sid,
                 "school_name": school.name,
             })
@@ -1248,11 +1275,16 @@ async def export_recipients_csv(
     if not campaign:
         raise HTTPException(404, "Campaign not found")
 
-    recipients = list((await db.execute(
-        select(MailingCampaignRecipient)
-        .where(MailingCampaignRecipient.campaign_id == cid)
-        .order_by(MailingCampaignRecipient.school_name.nullslast(), MailingCampaignRecipient.email)
-    )).scalars().all())
+    recipients = (await db.execute(
+        text("""
+            SELECT email, contact_name, school_name, status, sent_at,
+                   failure_reason, email_provider_id
+            FROM mailing_campaign_recipients
+            WHERE campaign_id = :campaign_id
+            ORDER BY school_name NULLS LAST, email
+        """),
+        {"campaign_id": str(cid)},
+    )).mappings().all()
 
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=';')
@@ -1261,13 +1293,13 @@ async def export_recipients_csv(
     ])
     for r in recipients:
         w.writerow([
-            r.email,
-            r.contact_name or '',
-            r.school_name or '',
-            r.status,
-            r.sent_at.isoformat() if r.sent_at else '',
-            r.failure_reason or '',
-            r.email_provider_id or '',
+            r["email"],
+            r["contact_name"] or '',
+            r["school_name"] or '',
+            r["status"],
+            r["sent_at"].isoformat() if r["sent_at"] else '',
+            r["failure_reason"] or '',
+            r["email_provider_id"] or '',
         ])
 
     buf.seek(0)

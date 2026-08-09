@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
-from sqlalchemy import select, and_, func, func
+from sqlalchemy import select, and_, func, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.models import (
@@ -167,21 +167,26 @@ async def resolve_recipients(
     )
     schools = result.scalars().all()
 
-    # Fetch all active contacts
+    # Fetch only the columns needed for recipient preview. Loading the full
+    # SchoolContact ORM row also selects newer deliverability columns, which can
+    # break previews before the production DB migration has run.
     result = await db.execute(
-        select(SchoolContact).where(
-            and_(
-                SchoolContact.institution_id == institution_id,
-                SchoolContact.status == 'active',
-            )
-        )
+        text(
+            """
+            SELECT id, school_id, email, name
+            FROM school_contacts
+            WHERE institution_id = :institution_id
+              AND status = 'active'
+            """
+        ),
+        {"institution_id": institution_id},
     )
-    contacts = result.scalars().all()
+    contacts = result.mappings().all()
 
     # Build contact map: school_id → [contacts]
     contact_map = {}
     for c in contacts:
-        sid = str(c.school_id)
+        sid = str(c["school_id"])
         if sid not in contact_map:
             contact_map[sid] = []
         contact_map[sid].append(c)
@@ -250,9 +255,9 @@ async def resolve_recipients(
                 "school_name": school.name,
                 "school_city": school.city,
                 "school_tags": school_tags,
-                "contact_id": str(contact.id) if contact.id else None,
-                "contact_name": getattr(contact, 'name', None) or school.name,
-                "email": contact.email,
+                "contact_id": str(contact["id"]) if contact["id"] else None,
+                "contact_name": contact["name"] or school.name,
+                "email": contact["email"],
                 "is_relevant": is_relevant,
                 "relevant_program_ids": relevant_program_ids,
                 "matched_segments": matched_segments,
@@ -498,6 +503,14 @@ def _build_campaign_email_html(
     primary_color = "#1E293B"
     if institution:
         primary_color = institution.primary_color or "#1E293B"
+    if not _re.fullmatch(r"#[0-9A-Fa-f]{6}", str(primary_color)):
+        primary_color = "#1E293B"
+
+    def safe_text(value: Any, *, line_breaks: bool = False) -> str:
+        escaped = html.escape(str(value or ""))
+        return escaped.replace("\r\n", "<br>").replace("\n", "<br>") if line_breaks else escaped
+
+    safe_booking_url = html.escape(str(booking_url or ""), quote=True)
 
     # Build program cards — each card is a full-width clickable link that opens
     # the public booking page pre-selected on this program (jumps to the date
@@ -522,6 +535,7 @@ def _build_campaign_email_html(
                 {duration_html}
                 <span style="color:#64748B;font-size:13px;">{html.escape(tg_labels)}</span>
             </div>
+            {f'<div style="margin-top:12px;color:{primary_color};font-size:14px;font-weight:700;">Vybrat termín →</div>' if pid else ''}
         """
 
         if pid:
@@ -539,7 +553,7 @@ def _build_campaign_email_html(
         </div>
         """
 
-    signature_html = signature.replace("\n", "<br>") if signature else ""
+    signature_html = safe_text(signature, line_breaks=True)
 
     unsubscribe_html = ""
     if unsubscribe_url:
@@ -552,23 +566,23 @@ def _build_campaign_email_html(
     return f"""
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
         <div style="background:{primary_color};padding:24px;border-radius:8px 8px 0 0;">
-            <h1 style="color:white;margin:0;font-size:20px;">{institution_name}</h1>
+            <h1 style="color:white;margin:0;font-size:20px;">{safe_text(institution_name)}</h1>
         </div>
         <div style="padding:24px;">
-            <p style="color:#334155;font-size:15px;line-height:1.6;">{greeting}</p>
-            <p style="color:#475569;font-size:15px;line-height:1.6;">{intro_text}</p>
+            <p style="color:#334155;font-size:15px;line-height:1.6;">{safe_text(greeting, line_breaks=True)}</p>
+            <p style="color:#475569;font-size:15px;line-height:1.6;">{safe_text(intro_text, line_breaks=True)}</p>
 
             <div style="margin:24px 0;">
                 {program_cards}
             </div>
 
             <div style="text-align:center;margin:24px 0;">
-                <a href="{booking_url}" style="display:inline-block;background:{primary_color};color:white;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:500;">
+                <a href="{safe_booking_url}" style="display:inline-block;background:{primary_color};color:white;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:15px;font-weight:500;">
                     Zobrazit termíny a rezervovat
                 </a>
             </div>
 
-            <p style="color:#475569;font-size:15px;line-height:1.6;">{closing_text}</p>
+            <p style="color:#475569;font-size:15px;line-height:1.6;">{safe_text(closing_text, line_breaks=True)}</p>
 
             <p style="color:#64748B;font-size:14px;line-height:1.6;margin-top:24px;">{signature_html}</p>
             {unsubscribe_html}

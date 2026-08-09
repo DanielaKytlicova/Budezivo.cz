@@ -18,6 +18,7 @@ import {
   ArrowLeft, Loader2, CheckCircle, XCircle, Info, CalendarClock
 } from 'lucide-react';
 import { API } from '../../config/api';
+import { buildCampaignPreviewHtml } from '../../lib/campaignPreview';
 
 const STATUS_MAP = {
   draft: { label: 'Koncept', color: 'bg-yellow-100 text-yellow-800' },
@@ -756,14 +757,15 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
     finally { setSending(false); }
   };
 
-  const previewHtml = `
-    <div style="font-family:Arial,sans-serif;color:#334155;line-height:1.6">
-      <p>${(greeting || '').replace(/</g, '&lt;')}</p>
-      <p>${(introText || '').replace(/</g, '&lt;').replace(/\n/g, '<br/>')}</p>
-      ${selectedPrograms.map(p => `<div style="border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin:8px 0"><strong>${(p.name_cs || p.name || '').replace(/</g, '&lt;')}</strong></div>`).join('')}
-      <p>${(closingText || '').replace(/</g, '&lt;').replace(/\n/g, '<br/>')}</p>
-      <p style="color:#64748b;white-space:pre-line">${(signature || '').replace(/</g, '&lt;')}</p>
-    </div>`;
+  const previewHtml = buildCampaignPreviewHtml({
+    greeting,
+    introText,
+    programs: selectedPrograms,
+    closingText,
+    signature,
+    institutionId: user?.institution_id,
+    institutionName: user?.institution_name,
+  });
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -1066,11 +1068,16 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, onClose, onComplete 
                 )}
               </div>
               {showPreview && (
-                <div className="p-4 flex justify-center bg-slate-100">
-                  <div style={{ width: previewMode === 'mobile' ? 360 : '100%' }} className="bg-white rounded shadow p-4" data-testid="email-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} />
+                <div className="p-4 flex justify-center overflow-x-auto bg-slate-100">
+                  <div style={{ width: previewMode === 'mobile' ? 360 : '100%', maxWidth: 640 }} className="bg-white rounded shadow" data-testid="email-preview" dangerouslySetInnerHTML={{ __html: previewHtml }} />
                 </div>
               )}
             </div>
+
+            <p className="text-xs text-slate-500 flex items-start gap-1.5">
+              <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              Karty programů i hlavní tlačítko v odeslaném e-mailu vedou přímo na rezervační stránku. Kliknutím v náhledu můžete odkaz před odesláním ověřit.
+            </p>
 
             {/* Test email */}
             <div className="border rounded-lg p-3 space-y-2">

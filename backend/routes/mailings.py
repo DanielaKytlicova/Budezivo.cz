@@ -4,6 +4,7 @@ Mailing Campaign routes — CRUD, preview, send.
 import uuid
 import logging
 import asyncio
+import json
 from datetime import datetime, timezone
 from typing import List, Optional
 
@@ -62,6 +63,17 @@ def _ensure_campaign_role(current_user: dict):
 
 def _norm_email(e: str) -> str:
     return (e or "").strip().lower()
+
+
+def _json_value(value, default):
+    if value is None:
+        return default
+    if isinstance(value, (dict, list)):
+        return value
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return default
 
 
 # ---- Pydantic models ----
@@ -376,16 +388,23 @@ async def get_campaign(
                     "age_group": p.age_group,
                 })
 
-    # Load recipients
+    # Load only columns required by the detail view. Selecting the ORM model
+    # includes newer delivery columns and can break previews/details before the
+    # production DB has finished the Resend migration.
     result = await db.execute(
-        select(MailingCampaignRecipient).where(
-            MailingCampaignRecipient.campaign_id == campaign.id
-        ).order_by(MailingCampaignRecipient.school_name)
+        text("""
+            SELECT id, school_name, contact_name, email, status, sent_at,
+                   failure_reason, matching_reason
+            FROM mailing_campaign_recipients
+            WHERE campaign_id = :campaign_id
+            ORDER BY school_name NULLS LAST, email
+        """),
+        {"campaign_id": str(campaign.id)},
     )
-    recipients = result.scalars().all()
+    recipients = result.mappings().all()
 
     # Load recipient programs
-    recipient_ids = [r.id for r in recipients]
+    recipient_ids = [r["id"] for r in recipients]
     rp_map = {}
     if recipient_ids:
         result = await db.execute(
@@ -405,15 +424,15 @@ async def get_campaign(
     recipients_data = []
     for r in recipients:
         recipients_data.append({
-            "id": str(r.id),
-            "school_name": r.school_name,
-            "contact_name": r.contact_name,
-            "email": r.email,
-            "status": r.status,
-            "sent_at": r.sent_at.isoformat() if r.sent_at else None,
-            "failure_reason": r.failure_reason,
-            "matching_reason": r.matching_reason or {},
-            "programs": rp_map.get(str(r.id), []),
+            "id": str(r["id"]),
+            "school_name": r["school_name"],
+            "contact_name": r["contact_name"],
+            "email": r["email"],
+            "status": r["status"],
+            "sent_at": r["sent_at"].isoformat() if r["sent_at"] else None,
+            "failure_reason": r["failure_reason"],
+            "matching_reason": _json_value(r["matching_reason"], {}),
+            "programs": rp_map.get(str(r["id"]), []),
         })
 
     return {
@@ -1256,11 +1275,16 @@ async def export_recipients_csv(
     if not campaign:
         raise HTTPException(404, "Campaign not found")
 
-    recipients = list((await db.execute(
-        select(MailingCampaignRecipient)
-        .where(MailingCampaignRecipient.campaign_id == cid)
-        .order_by(MailingCampaignRecipient.school_name.nullslast(), MailingCampaignRecipient.email)
-    )).scalars().all())
+    recipients = (await db.execute(
+        text("""
+            SELECT email, contact_name, school_name, status, sent_at,
+                   failure_reason, email_provider_id
+            FROM mailing_campaign_recipients
+            WHERE campaign_id = :campaign_id
+            ORDER BY school_name NULLS LAST, email
+        """),
+        {"campaign_id": str(cid)},
+    )).mappings().all()
 
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=';')
@@ -1269,13 +1293,13 @@ async def export_recipients_csv(
     ])
     for r in recipients:
         w.writerow([
-            r.email,
-            r.contact_name or '',
-            r.school_name or '',
-            r.status,
-            r.sent_at.isoformat() if r.sent_at else '',
-            r.failure_reason or '',
-            r.email_provider_id or '',
+            r["email"],
+            r["contact_name"] or '',
+            r["school_name"] or '',
+            r["status"],
+            r["sent_at"].isoformat() if r["sent_at"] else '',
+            r["failure_reason"] or '',
+            r["email_provider_id"] or '',
         ])
 
     buf.seek(0)

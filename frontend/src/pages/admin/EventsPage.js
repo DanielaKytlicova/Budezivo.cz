@@ -472,6 +472,19 @@ export const EventsPage = () => {
                     />
                   </div>
                 </div>
+                <div>
+                  <Label className="text-gray-500 text-sm">Výchozí uzávěrka přihlášek (volitelné)</Label>
+                  <Input
+                    type="datetime-local"
+                    value={formData.registration_deadline}
+                    onChange={e => setFormData(p => ({ ...p, registration_deadline: e.target.value }))}
+                    className="mt-1"
+                    data-testid="event-registration-deadline"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Platí pro všechny termíny bez vlastní výjimky. Bez uzávěrky končí přihlašování zahájením termínu.
+                  </p>
+                </div>
                 {/* Free-event toggle: kept in sync with the price field */}
                 <div className="flex items-center justify-between rounded-lg border border-sky-100 bg-sky-50/50 p-3">
                   <div>

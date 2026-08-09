@@ -117,7 +117,7 @@ export const AdminLayout = ({ children }) => {
     ];
 
     // Superadmin nav item (only for platform owner)
-    if (user?.email === 'demo@budezivo.cz' || user?.email === 'admin@budezivo.cz') {
+    if (user?.email === 'demo@budezivo.cz') {
       baseItems.push({
         path: '/admin/superadmin', icon: Shield, label: 'Superadmin', testId: 'nav-superadmin', roles: ['admin', 'spravce']
       });

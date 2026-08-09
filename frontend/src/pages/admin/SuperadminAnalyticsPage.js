@@ -46,7 +46,6 @@ export default function SuperadminAnalyticsPage() {
   // visibility rule) — same convention as `/admin/superadmin`.
   const isSuperadmin = !user || (
     user.email === 'demo@budezivo.cz' ||
-    user.email === 'admin@budezivo.cz' ||
     user.role === 'superadmin'
   );
 

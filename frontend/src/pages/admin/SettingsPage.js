@@ -624,7 +624,7 @@ export const SettingsPage = () => {
     // The bottom nav only shows the first 4 flat nav items + "Více" (which leads
     // here). All remaining admin pages are surfaced here on mobile only.
     const role = user?.role || 'viewer';
-    const isPlatformOwner = user?.email === 'demo@budezivo.cz' || user?.email === 'admin@budezivo.cz';
+    const isPlatformOwner = user?.email === 'demo@budezivo.cz';
     const allMobileQuickItems = [
       { path: '/admin', icon: LayoutDashboard, label: 'Přehled', roles: ['admin','spravce','edukator','lektor','pokladni','staff','viewer'] },
       { path: '/admin/programs', icon: Calendar, label: 'Programy', roles: ['admin','spravce','edukator','staff','viewer'] },

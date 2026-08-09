@@ -21,7 +21,7 @@ from services.plan_service import has_feature_access
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/exports", tags=["Exports"])
 
-SUPERADMIN_EMAILS = ["demo@budezivo.cz", "admin@budezivo.cz"]
+SUPERADMIN_EMAILS = ["demo@budezivo.cz"]
 
 
 async def _authorize(db: AsyncSession, user: dict) -> None:

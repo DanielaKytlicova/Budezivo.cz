@@ -85,11 +85,9 @@ CNAME www   cname.vercel-dns.com
 ### Railway (Backend)
 Není potřeba custom domain - frontend používá Railway URL přímo.
 
-## 5. Testovací Credentials
-```
-Email: demo@budezivo.cz
-Password: Demo2026!
-```
+## 5. Testovací přístup
+Testovací účet a heslo nastavte bezpečným kanálem mimo repozitář. Do dokumentace
+ani zdrojových souborů nevkládejte konkrétní hesla.
 
 ---
 

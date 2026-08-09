@@ -1042,7 +1042,7 @@ const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => {
               <tbody>
                 {users.map(u => {
                   const isSelf = me?.id === u.id;
-                  const isAnotherSuperadmin = ['demo@budezivo.cz', 'admin@budezivo.cz'].includes(u.email);
+                  const isAnotherSuperadmin = ['demo@budezivo.cz'].includes(u.email);
                   const cantImpersonate = isSelf || isAnotherSuperadmin || u.status !== 'active';
                   return (
                   <tr key={u.id} className="border-b last:border-0 hover:bg-slate-50" data-testid={`user-row-${u.id}`}>

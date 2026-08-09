@@ -180,7 +180,7 @@ def _ensure_superadmin(user: dict) -> None:
     """The platform owner is identified by e-mail (matches AdminLayout's
     ``Superadmin`` nav-item gating) rather than a DB role flag.
     """
-    superadmin_emails = {"demo@budezivo.cz", "admin@budezivo.cz"}
+    superadmin_emails = {"demo@budezivo.cz"}
     extra = os.environ.get("SUPERADMIN_EMAILS", "")
     for piece in extra.split(","):
         p = piece.strip().lower()

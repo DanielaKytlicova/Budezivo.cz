@@ -28,7 +28,7 @@ from services.usage_service import get_institution_usage
 router = APIRouter(prefix="/superadmin", tags=["Superadmin"])
 logger = logging.getLogger(__name__)
 
-SUPERADMIN_EMAILS = ["demo@budezivo.cz", "admin@budezivo.cz"]
+SUPERADMIN_EMAILS = ["demo@budezivo.cz"]
 
 
 # ---- Audit helper ----

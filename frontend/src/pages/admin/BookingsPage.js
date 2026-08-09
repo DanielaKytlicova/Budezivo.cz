@@ -1133,6 +1133,26 @@ const BookingsPage = () => {
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Rezervace</h1>
           <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/admin/waitlist')}
+              data-testid="bookings-waitlist-btn"
+            >
+              <Bell className="w-4 h-4 mr-1.5" />
+              <span className="hidden sm:inline">Zájemci</span>
+            </Button>
+            {CALENDAR_SYNC_ROLES.includes(currentUserRole) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSyncDialog(true)}
+                data-testid="calendar-sync-btn"
+              >
+                <CalendarPlus className="w-4 h-4 mr-1.5" />
+                <span className="hidden sm:inline">Synchronizace kalendáře</span>
+              </Button>
+            )}
             <div
               className="flex h-9 rounded-md border border-slate-200 bg-slate-50 p-0.5"
               role="group"
@@ -1160,26 +1180,6 @@ const BookingsPage = () => {
                 <span>Kalendář</span>
               </button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/admin/waitlist')}
-              data-testid="bookings-waitlist-btn"
-            >
-              <Bell className="w-4 h-4 mr-1.5" />
-              <span className="hidden sm:inline">Zájemci</span>
-            </Button>
-            {CALENDAR_SYNC_ROLES.includes(currentUserRole) && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowSyncDialog(true)}
-                data-testid="calendar-sync-btn"
-              >
-                <CalendarPlus className="w-4 h-4 mr-1.5" />
-                <span className="hidden sm:inline">Synchronizace kalendáře</span>
-              </Button>
-            )}
           </div>
         </div>
 

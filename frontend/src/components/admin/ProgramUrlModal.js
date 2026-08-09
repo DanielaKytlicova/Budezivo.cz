@@ -40,11 +40,11 @@ const URL_AGE_OPTIONS = [
 ];
 
 export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData }) => {
-  const [selectedProgramForUrl, setSelectedProgramForUrl] = useState('all');
+  const [selectedProgramForUrl, setSelectedProgramForUrl] = useState('');
   const [urlAgeFilters, setUrlAgeFilters] = useState([]);
   const [urlData, setUrlData] = useState(null);
 
-  const generateUrl = (programId = 'all', ageFilters = []) => {
+  const generateUrl = (programId, ageFilters = []) => {
     if (!institutionData) return;
 
     const baseUrl = "https://budezivo.cz";
@@ -53,7 +53,7 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
     const institutionName = institutionData.institution_name || 'Vaše instituce';
 
     const params = new URLSearchParams();
-    if (programId !== 'all') params.set('program', programId);
+    if (programId && programId !== 'all') params.set('program', programId);
     if (ageFilters.length > 0) params.set('age', ageFilters.join(','));
     const queryStr = params.toString() ? `?${params.toString()}` : '';
     const path = `/booking/${institutionId}${queryStr}`;
@@ -68,7 +68,7 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
         institution_name: institutionName,
         embed_code: `<a href="${url}" target="_blank">Rezervovat program v ${institutionName}</a>`
       });
-    } else {
+    } else if (programId) {
       const program = programs.find(p => p.id === programId);
       const url = `${baseUrl}${path}`;
       setUrlData({
@@ -78,6 +78,8 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
         institution_name: institutionName,
         embed_code: `<a href="${url}" target="_blank">Rezervovat: ${program?.name_cs || 'Program'}</a>`
       });
+    } else {
+      setUrlData(null);
     }
   };
 
@@ -91,7 +93,7 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
       ? urlAgeFilters.filter(c => c !== code)
       : [...urlAgeFilters, code];
     setUrlAgeFilters(newFilters);
-    generateUrl(selectedProgramForUrl, newFilters);
+    if (selectedProgramForUrl) generateUrl(selectedProgramForUrl, newFilters);
   };
 
   const copyToClipboard = (text) => {
@@ -101,7 +103,7 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
 
   const handleOpenChange = (val) => {
     if (!val) {
-      setSelectedProgramForUrl('all');
+      setSelectedProgramForUrl('');
       setUrlAgeFilters([]);
       setUrlData(null);
     }
@@ -114,7 +116,7 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
         className="max-w-lg max-h-[85dvh] sm:max-h-[90vh] flex flex-col p-0 overflow-hidden"
         aria-describedby="url-description"
       >
-        <div className="p-4 sm:p-6 pb-0 shrink-0">
+        <div className="px-4 pt-4 sm:px-6 sm:pt-6 shrink-0">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <LinkIcon className="w-5 h-5" />
@@ -127,7 +129,7 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
         </div>
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-6 pb-4 sm:pb-6 -webkit-overflow-scrolling-touch">
-          <div className="space-y-4 pt-3 pb-4">
+          <div className="space-y-4 pt-2 pb-4">
             <ContextHelp
               guideId="web-links"
               variant="tour"
@@ -199,9 +201,10 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
             </div>
 
             {/* Vygenerované URL */}
-            {urlData && (
-              <>
-                <div className="space-y-4" data-testid="program-url-output-panel">
+            <>
+              <div className="space-y-4" data-testid="program-url-output-panel">
+                {urlData ? (
+                  <>
                   <div>
                     <Label className="text-xs text-gray-500">Vybraný program</Label>
                     <p className="font-medium">{urlData.program_name}</p>
@@ -246,8 +249,15 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
                       </Button>
                     </div>
                   </div>
-                </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-sm text-slate-500">
+                    Vyberte program nebo všechny programy. Potom se tady zobrazí URL a HTML kód pro vložení.
+                  </div>
+                )}
+              </div>
 
+              {urlData && (
                 <div className="flex gap-2 pt-4 border-t sticky bottom-0 bg-white pb-2">
                   <Button
                     variant="outline"
@@ -266,8 +276,8 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
                     Zavřít
                   </Button>
                 </div>
-              </>
-            )}
+              )}
+            </>
           </div>
         </div>
       </DialogContent>

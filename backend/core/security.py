@@ -11,7 +11,7 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 
-from .config import JWT_SECRET, JWT_ALGORITHM
+from .config import JWT_SECRET, JWT_ALGORITHM, JWT_DECODE_SECRETS
 
 security = HTTPBearer(auto_error=False)
 
@@ -64,6 +64,30 @@ def create_jwt_token(
     return pyjwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+def decode_jwt_token(token: str, *, secrets_to_try: Optional[list[str]] = None) -> dict:
+    """Decode a JWT with the current secret and optional previous secrets.
+
+    New tokens are always minted with ``JWT_SECRET``. During planned secret
+    rotation, validation also accepts ``JWT_PREVIOUS_SECRET`` /
+    ``JWT_PREVIOUS_SECRETS`` so existing short-lived and emailed tokens can
+    expire naturally.
+    """
+    secrets = secrets_to_try or JWT_DECODE_SECRETS
+    saw_expired_signature = False
+
+    for secret in secrets:
+        try:
+            return pyjwt.decode(token, secret, algorithms=[JWT_ALGORITHM])
+        except pyjwt.ExpiredSignatureError:
+            saw_expired_signature = True
+        except pyjwt.InvalidTokenError:
+            continue
+
+    if saw_expired_signature:
+        raise pyjwt.ExpiredSignatureError()
+    raise pyjwt.InvalidTokenError()
+
+
 def generate_refresh_token() -> str:
     """Generate a cryptographically secure opaque refresh token."""
     return secrets.token_urlsafe(64)
@@ -108,7 +132,7 @@ async def get_current_user(
     """
     token = _extract_token(request, credentials)
     try:
-        payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = decode_jwt_token(token)
     except pyjwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token has expired")
     except pyjwt.InvalidTokenError:

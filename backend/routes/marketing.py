@@ -10,7 +10,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import JWT_ALGORITHM, JWT_SECRET
-from core.security import get_current_user
+from core.security import decode_jwt_token, get_current_user
 from database.models import Contact, Institution, MarketingSubscription
 from database.supabase import get_db
 
@@ -39,7 +39,7 @@ def create_unsubscribe_token(institution_id: str, email: str) -> str:
 
 def _decode(token: str) -> tuple[str, str]:
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = decode_jwt_token(token)
     except jwt.PyJWTError:
         raise HTTPException(400, "Odkaz je neplatný nebo vypršel.")
     if payload.get("purpose") != "marketing_unsubscribe":

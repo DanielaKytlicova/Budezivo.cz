@@ -13,7 +13,8 @@
 ## DŮLEŽITÉ: Cross-Origin API Architecture
 
 Frontend přímo volá Railway backend API (cross-origin).
-**CORS je povolen** na backendu (`CORS_ORIGINS=*`).
+Backend povoluje pouze explicitně vyjmenované frontend domény. Nepoužívejte
+wildcard `*`; backend ji z bezpečnostních důvodů ignoruje.
 
 ## 1. Backend - Railway
 
@@ -26,10 +27,16 @@ Frontend přímo volá Railway backend API (cross-origin).
 ```
 DATABASE_URL=postgresql://postgres.[supabase-ref]:password@aws-1-eu-west-1.pooler.supabase.com:6543/postgres
 JWT_SECRET=your-secure-jwt-secret-min-32-chars
-CORS_ORIGINS=*
+CORS_ORIGINS=https://www.budezivo.cz,https://budezivo.cz
+FRONTEND_URL=https://www.budezivo.cz
+BACKEND_URL=https://YOUR-RAILWAY-URL.up.railway.app
 RESEND_API_KEY=re_xxxxxx (optional)
 SENDER_EMAIL=noreply@yourdomain.com (optional)
 ```
+
+Pro preview nebo testovací frontend přidejte konkrétní preview URL do
+`CORS_ORIGINS` jako další hodnotu oddělenou čárkou. Nikdy nenastavujte
+`CORS_ORIGINS=*`.
 
 ### Ověření backendu
 Po deployment zkontrolujte:
@@ -53,7 +60,7 @@ REACT_APP_BACKEND_URL=https://YOUR-RAILWAY-URL.up.railway.app
 ⚠️ **DŮLEŽITÉ:** 
 - Tato proměnná MUSÍ ukazovat na váš Railway backend
 - Frontend bude volat API přímo na Railway (cross-origin)
-- CORS je povolen na backendu
+- Backend musí mít ve `CORS_ORIGINS` uvedenou přesnou frontend doménu
 
 ### Po nastavení env variable
 1. **Redeploy** projekt na Vercel (nebo nový commit)
@@ -105,7 +112,11 @@ ani zdrojových souborů nevkládejte konkrétní hesla.
 **Příčina:** Backend nepovoluje cross-origin požadavky.
 
 **Řešení:**
-Na Railway nastavte: `CORS_ORIGINS=*`
+1. Na Railway → Backend → Variables nastavte konkrétní frontend domény:
+   `CORS_ORIGINS=https://www.budezivo.cz,https://budezivo.cz`
+2. Pro preview přidejte také přesnou preview URL, například:
+   `CORS_ORIGINS=https://www.budezivo.cz,https://budezivo.cz,https://preview.example.vercel.app`
+3. Proveďte redeploy backendu.
 
 ### ❌ Login nefunguje ale curl funguje
 **Příčina:** Frontend env variable chybí nebo nebyl proveden redeploy.

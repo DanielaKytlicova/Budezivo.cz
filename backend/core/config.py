@@ -10,8 +10,6 @@ load_dotenv(ROOT_DIR / '.env')
 
 # Database
 DATABASE_URL = os.environ.get('DATABASE_URL')
-MONGO_URL = os.environ.get('MONGO_URL')
-DB_NAME = os.environ.get('DB_NAME')
 
 # JWT Configuration
 JWT_SECRET = os.environ.get('JWT_SECRET')

@@ -376,11 +376,6 @@ class PaymentTransaction(BaseModel):
     created_at: datetime
 
 
-class PaymentSessionCreate(BaseModel):
-    package: str
-    billing_cycle: str
-
-
 # ============ Contact Models ============
 
 class ContactFormData(BaseModel):

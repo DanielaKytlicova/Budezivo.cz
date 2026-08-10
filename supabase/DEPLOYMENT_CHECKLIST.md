@@ -14,7 +14,7 @@
 - [ ] Set `SUPABASE_ANON_KEY` from dashboard
 - [ ] Set `SUPABASE_SERVICE_ROLE_KEY` (server-only!)
 - [ ] Set `DATABASE_URL` for migrations
-- [ ] Configure `STRIPE_*` keys for payments
+- [ ] Configure Comgate/QR payment settings only if the pilot uses paid events
 
 ### 3. Run Database Migrations
 ```bash

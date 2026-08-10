@@ -97,7 +97,7 @@ Následující proměnné jsou dostupné ve všech šablonách:
 
 ```env
 # Povinné
-RESEND_API_KEY=re_xxxxx          # API klíč z Resend
+RESEND_API_KEY=<set-in-env-only> # API klíč z Resend; nevkládat do repozitáře
 
 # Volitelné
 ENV=development|production        # development = přesměrování na dev email

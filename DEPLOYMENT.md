@@ -29,8 +29,8 @@ DATABASE_URL=postgresql://postgres.[supabase-ref]:password@aws-1-eu-west-1.poole
 JWT_SECRET=your-secure-jwt-secret-min-32-chars
 CORS_ORIGINS=https://www.budezivo.cz,https://budezivo.cz
 FRONTEND_URL=https://www.budezivo.cz
-BACKEND_URL=https://YOUR-RAILWAY-URL.up.railway.app
-RESEND_API_KEY=re_xxxxxx (optional)
+BACKEND_URL=https://api.budezivo.cz
+RESEND_API_KEY=<set-in-railway-only> (optional)
 SENDER_EMAIL=noreply@yourdomain.com (optional)
 ```
 
@@ -38,11 +38,15 @@ Pro preview nebo testovací frontend přidejte konkrétní preview URL do
 `CORS_ORIGINS` jako další hodnotu oddělenou čárkou. Nikdy nenastavujte
 `CORS_ORIGINS=*`.
 
+Hodnoty v dokumentaci jsou pouze placeholdery. Skutečné hodnoty `DATABASE_URL`,
+`JWT_SECRET`, `RESEND_API_KEY` ani jiné secrets nevkládejte do repozitáře,
+Notion poznámek ani screenshotů.
+
 ### Ověření backendu
 Po deployment zkontrolujte:
 ```bash
-curl https://YOUR-RAILWAY-URL.up.railway.app/api/
-# Mělo by vrátit: {"message": "KulturaBooking API v2.0 - Supabase Edition"}
+curl -i https://api.budezivo.cz/health
+# Mělo by vrátit HTTP 200 a {"status":"ok"}
 ```
 
 ## 2. Frontend - Vercel
@@ -54,11 +58,11 @@ curl https://YOUR-RAILWAY-URL.up.railway.app/api/
 
 ### Environment Variables (Vercel) - KRITICKÉ!
 ```
-REACT_APP_BACKEND_URL=https://YOUR-RAILWAY-URL.up.railway.app
+REACT_APP_BACKEND_URL=https://api.budezivo.cz
 ```
 
 ⚠️ **DŮLEŽITÉ:** 
-- Tato proměnná MUSÍ ukazovat na váš Railway backend
+- Tato proměnná MUSÍ ukazovat na produkční backend API
 - Frontend bude volat API přímo na Railway (cross-origin)
 - Backend musí mít ve `CORS_ORIGINS` uvedenou přesnou frontend doménu
 
@@ -71,7 +75,9 @@ REACT_APP_BACKEND_URL=https://YOUR-RAILWAY-URL.up.railway.app
 ### Nastavení
 1. Vytvořte projekt na supabase.com
 2. Použijte Transaction Pooler connection string (port 6543)
-3. Spusťte migrace: `alembic upgrade head`
+3. Railway backend při startu automaticky spouští `alembic upgrade head`
+   před startem aplikace. Pokud `DATABASE_URL` chybí, backend musí bezpečně
+   selhat a nesmí se spustit v nekonzistentním stavu.
 
 ### Connection String Format
 ```
@@ -90,7 +96,8 @@ CNAME www   cname.vercel-dns.com
 ```
 
 ### Railway (Backend)
-Není potřeba custom domain - frontend používá Railway URL přímo.
+Produkční backend používá custom domain `api.budezivo.cz`. Railway interní URL
+nepoužívejte ve frontend produkční konfiguraci, pokud nejde o dočasné preview.
 
 ## 5. Testovací přístup
 Testovací účet a heslo nastavte bezpečným kanálem mimo repozitář. Do dokumentace
@@ -105,7 +112,7 @@ ani zdrojových souborů nevkládejte konkrétní hesla.
 
 **Řešení:**
 1. Na Vercel → Settings → Environment Variables
-2. Přidejte/opravte: `REACT_APP_BACKEND_URL` = `https://YOUR-RAILWAY-URL.up.railway.app`
+2. Přidejte/opravte: `REACT_APP_BACKEND_URL` = `https://api.budezivo.cz`
 3. Redeploy projekt
 
 ### ❌ CORS chyby

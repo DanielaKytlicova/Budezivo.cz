@@ -36,7 +36,6 @@ from .schemas import (
     DashboardStats,
     # Payments
     PaymentTransaction,
-    PaymentSessionCreate,
     # Contact
     ContactFormData,
     # Propagation

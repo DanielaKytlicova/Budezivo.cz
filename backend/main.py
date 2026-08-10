@@ -26,7 +26,6 @@ from routes import (
     settings_router,
     team_router,
     dashboard_router,
-    payments_router,
     availability_router,
     statistics_router,
     email_templates_router,
@@ -120,7 +119,6 @@ api_router.include_router(schools_router)
 api_router.include_router(settings_router)
 api_router.include_router(team_router)
 api_router.include_router(dashboard_router)
-api_router.include_router(payments_router)
 api_router.include_router(calendar_export_router)
 api_router.include_router(availability_router)
 api_router.include_router(statistics_router)

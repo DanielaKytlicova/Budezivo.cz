@@ -26,9 +26,6 @@ JWT_PREVIOUS_SECRETS = [
 ]
 JWT_DECODE_SECRETS = [JWT_SECRET] + JWT_PREVIOUS_SECRETS
 
-# Stripe
-STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY')
-
 # CORS
 # CORS — SECURITY (audit P1 #6): a literal "*" origin combined with
 # allow_credentials=True makes Starlette reflect ANY Origin and return

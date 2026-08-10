@@ -3,6 +3,7 @@ Seed script for demo@budezivo.cz presentation account.
 Creates realistic programs, schools, reservations, and feedback data.
 """
 import asyncio
+import os
 import uuid
 import random
 import secrets
@@ -11,7 +12,10 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import text
 
-DB_URL = "postgresql+asyncpg://postgres.dhuujqpxazadbbdlwago:myZwog-7sydhy-tubbec@aws-1-eu-west-1.pooler.supabase.com:6543/postgres"
+raw_db_url = os.environ.get("DATABASE_URL")
+if not raw_db_url:
+    raise RuntimeError("DATABASE_URL environment variable is required")
+DB_URL = raw_db_url.replace("postgresql://", "postgresql+asyncpg://")
 
 INSTITUTION_ID = "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
 USER_ID = "2868bc35-7d6e-4046-87fa-013ee5efdb60"

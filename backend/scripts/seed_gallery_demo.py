@@ -20,11 +20,20 @@ from database.models import (
 )
 from core.security import hash_password
 
-DB_URL = os.environ["DATABASE_URL"].replace("postgresql://", "postgresql+asyncpg://")
+raw_db_url = os.environ.get("DATABASE_URL")
+if not raw_db_url:
+    raise RuntimeError("DATABASE_URL environment variable is required")
+DB_URL = raw_db_url.replace("postgresql://", "postgresql+asyncpg://")
 RNG = random.Random(42)
 
 GALLERY_EMAIL = "galerie@budezivo.cz"
-GALLERY_PASSWORD = "Galerie2026!"
+GALLERY_PASSWORD = os.environ.get("GALLERY_DEMO_PASSWORD")
+LECTURER_PASSWORD = os.environ.get("GALLERY_DEMO_LECTURER_PASSWORD")
+
+if not GALLERY_PASSWORD or not LECTURER_PASSWORD:
+    raise RuntimeError(
+        "GALLERY_DEMO_PASSWORD and GALLERY_DEMO_LECTURER_PASSWORD environment variables are required"
+    )
 
 
 async def main():
@@ -77,13 +86,13 @@ async def main():
         )
         lecturers = [
             User(id=uuid.uuid4(), institution_id=inst_id,
-                 email="anna.dvorakova@budezivo.cz", password_hash=hash_password("Lektor2026!"),
+                 email="anna.dvorakova@budezivo.cz", password_hash=hash_password(LECTURER_PASSWORD),
                  name="Mgr. Anna Dvořáková", role="lektor", status="active"),
             User(id=uuid.uuid4(), institution_id=inst_id,
-                 email="petr.kucera@budezivo.cz", password_hash=hash_password("Lektor2026!"),
+                 email="petr.kucera@budezivo.cz", password_hash=hash_password(LECTURER_PASSWORD),
                  name="MgA. Petr Kučera", role="lektor", status="active"),
             User(id=uuid.uuid4(), institution_id=inst_id,
-                 email="klara.novakova@budezivo.cz", password_hash=hash_password("Lektor2026!"),
+                 email="klara.novakova@budezivo.cz", password_hash=hash_password(LECTURER_PASSWORD),
                  name="Bc. Klára Nováková", role="lektor", status="active"),
         ]
         db.add_all([admin] + lecturers)
@@ -416,7 +425,8 @@ async def main():
         print("Demo dataset created")
         print("=" * 60)
         print(f"Institution        : Galerie U Zlatého kohouta ({inst_id})")
-        print(f"Admin login        : {GALLERY_EMAIL} / {GALLERY_PASSWORD}")
+        print(f"Admin email        : {GALLERY_EMAIL}")
+        print("Passwords          : configured via environment variables; not displayed")
         print(f"Lecturers          : 3 (Anna, Petr, Klára)")
         print(f"Rooms              : 3")
         print(f"Programs           : {len(programs)}")

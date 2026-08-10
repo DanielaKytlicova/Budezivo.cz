@@ -3,7 +3,6 @@ Authentication routes: register, login, refresh, logout, verify, forgot password
 Uses Supabase (PostgreSQL) for database operations.
 """
 import logging
-import os
 import re
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -18,7 +17,7 @@ from models.schemas import UserCreate, UserLogin, TokenResponse, ForgotPasswordR
 from pydantic import BaseModel, EmailStr
 from core.security import (
     hash_password, verify_password, create_jwt_token, get_current_user,
-    generate_refresh_token, hash_refresh_token,
+    generate_refresh_token, hash_refresh_token, decode_jwt_token,
     REFRESH_TOKEN_EXPIRE_DAYS, ACCESS_TOKEN_EXPIRE_MINUTES,
     COOKIE_NAME, REFRESH_COOKIE_NAME,
 )
@@ -414,12 +413,8 @@ async def reset_password(
     import jwt as pyjwt
 
     user_repo = UserRepositorySupabase(db)
-    secret_key = os.environ.get("JWT_SECRET")
-    if not secret_key:
-        raise HTTPException(status_code=500, detail="Konfigurace serveru není kompletní")
-
     try:
-        payload = pyjwt.decode(data.token, secret_key, algorithms=["HS256"])
+        payload = decode_jwt_token(data.token)
         if payload.get("type") != "password_reset":
             raise HTTPException(status_code=400, detail="Neplatný token")
         if payload.get("email") != data.email:

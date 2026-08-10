@@ -76,23 +76,33 @@ async def _resolve_feed_scope(db: AsyncSession, current_user: dict, feed_type: s
     raise HTTPException(status_code=400, detail="Neplatný typ feedu")
 
 
-def _get_ics_signing_key() -> bytes:
-    """Derive a stable signing key from JWT_SECRET."""
-    secret = os.environ.get("JWT_SECRET", "")
-    return hashlib.sha256(f"ics-feed-{secret}".encode()).digest()
+def _get_ics_signing_keys() -> list[bytes]:
+    """Derive current and previous signing keys for ICS feed URLs."""
+    current = os.environ.get("JWT_SECRET", "")
+    previous_env = os.environ.get("JWT_PREVIOUS_SECRETS") or os.environ.get("JWT_PREVIOUS_SECRET", "")
+    secrets = [current] + [
+        secret.strip()
+        for secret in previous_env.split(",")
+        if secret.strip() and secret.strip() != current
+    ]
+    return [hashlib.sha256(f"ics-feed-{secret}".encode()).digest() for secret in secrets]
 
 
 def _sign_feed_token(entity_type: str, entity_id: str) -> str:
     """Generate HMAC token for an ICS feed URL."""
-    key = _get_ics_signing_key()
+    key = _get_ics_signing_keys()[0]
     msg = f"{entity_type}:{entity_id}".encode()
     return hmac.new(key, msg, hashlib.sha256).hexdigest()[:32]
 
 
 def _verify_feed_token(entity_type: str, entity_id: str, token: str) -> bool:
     """Verify HMAC token for an ICS feed URL."""
-    expected = _sign_feed_token(entity_type, entity_id)
-    return hmac.compare_digest(expected, token)
+    msg = f"{entity_type}:{entity_id}".encode()
+    for key in _get_ics_signing_keys():
+        expected = hmac.new(key, msg, hashlib.sha256).hexdigest()[:32]
+        if hmac.compare_digest(expected, token):
+            return True
+    return False
 
 
 def _parse_time_block(time_block: str) -> tuple:

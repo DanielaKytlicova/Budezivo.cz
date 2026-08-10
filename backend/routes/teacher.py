@@ -38,6 +38,7 @@ from sqlalchemy import select, and_, or_, delete as sa_delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import JWT_SECRET, JWT_ALGORITHM
+from core.security import decode_jwt_token
 from database.supabase import get_db
 from database.models import (
     TeacherAccount, TeacherFavorite, TeacherLoginAttempt,
@@ -145,7 +146,7 @@ async def get_current_teacher(
 ) -> TeacherAccount:
     token = _extract_teacher_token(request, credentials)
     try:
-        payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = decode_jwt_token(token)
     except pyjwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Platnost přihlášení vypršela")
     except pyjwt.InvalidTokenError:

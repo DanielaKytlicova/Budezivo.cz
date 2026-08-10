@@ -18,6 +18,13 @@ JWT_SECRET = os.environ.get('JWT_SECRET')
 if not JWT_SECRET:
     raise RuntimeError("JWT_SECRET environment variable is required")
 JWT_ALGORITHM = "HS256"
+_jwt_previous_env = os.environ.get('JWT_PREVIOUS_SECRETS') or os.environ.get('JWT_PREVIOUS_SECRET', '')
+JWT_PREVIOUS_SECRETS = [
+    secret.strip()
+    for secret in _jwt_previous_env.split(',')
+    if secret.strip() and secret.strip() != JWT_SECRET
+]
+JWT_DECODE_SECRETS = [JWT_SECRET] + JWT_PREVIOUS_SECRETS
 
 # Stripe
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY')

@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import binascii
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import and_, func, select
@@ -24,47 +23,11 @@ from database.models import (
     SchoolContact,
 )
 from database.supabase import get_db
+from services.resend_delivery import PERMANENT_SUPPRESSION, delivery_update_from_payload
 
 
 router = APIRouter(prefix="/resend", tags=["Resend"])
 logger = logging.getLogger(__name__)
-
-_STATUS_BY_EVENT = {
-    "email.delivered": "delivered",
-    "email.delivery_delayed": "bounced_soft",
-    "email.bounced": "bounced_hard",
-    "email.complained": "complained",
-    "email.suppressed": "suppressed",
-    "email.failed": "failed",
-    "email.unsubscribed": "unsubscribed",
-}
-_PERMANENT_SUPPRESSION = {"bounced_hard", "complained", "suppressed", "unsubscribed"}
-
-
-def _parse_datetime(value) -> datetime:
-    if not value:
-        return datetime.now(timezone.utc)
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except (TypeError, ValueError):
-        return datetime.now(timezone.utc)
-
-
-def _reason(data: dict, status: str) -> str | None:
-    bounce = data.get("bounce") or {}
-    return (
-        bounce.get("message")
-        or bounce.get("subType")
-        or bounce.get("type")
-        or data.get("reason")
-        or {
-            "complained": "Příjemce označil zprávu jako spam",
-            "suppressed": "Adresa je na suppression seznamu poskytovatele",
-            "unsubscribed": "Příjemce se odhlásil",
-            "bounced_soft": "Doručení je dočasně zpožděné",
-        }.get(status)
-    )
-
 
 @router.post("/webhook")
 async def resend_webhook(request: Request, db: AsyncSession = Depends(get_db)):
@@ -88,10 +51,10 @@ async def resend_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         raise HTTPException(400, "Neplatný podpis webhooku")
 
     payload = verified if isinstance(verified, dict) else json.loads(raw_body)
-    event_type = payload.get("type")
-    status = _STATUS_BY_EVENT.get(event_type)
-    if not status:
+    delivery_update = delivery_update_from_payload(payload)
+    if not delivery_update:
         return {"ok": True, "ignored": True}
+    event_type = delivery_update["event_type"]
 
     svix_id = headers["svix-id"]
     if (await db.execute(
@@ -99,17 +62,11 @@ async def resend_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     )).scalar_one_or_none():
         return {"ok": True, "duplicate": True}
 
-    data = payload.get("data") or {}
-    if event_type == "email.bounced":
-        bounce_type = str((data.get("bounce") or {}).get("type") or "").lower()
-        if bounce_type in {"transient", "soft"}:
-            status = "bounced_soft"
-    provider_email_id = data.get("email_id") or data.get("id")
-    to_value = data.get("to") or []
-    recipient_email = (to_value[0] if isinstance(to_value, list) and to_value else to_value) or None
-    recipient_email = recipient_email.strip().lower() if isinstance(recipient_email, str) else None
-    event_at = _parse_datetime(payload.get("created_at") or data.get("created_at"))
-    reason = _reason(data, status)
+    status = delivery_update["status"]
+    provider_email_id = delivery_update["provider_email_id"]
+    recipient_email = delivery_update["recipient_email"]
+    event_at = delivery_update["event_at"]
+    reason = delivery_update["reason"]
 
     db.add(ResendWebhookEvent(
         svix_id=svix_id,
@@ -159,7 +116,7 @@ async def resend_webhook(request: Request, db: AsyncSession = Depends(get_db)):
             contact.deliverability_reason = reason
             contact.deliverability_updated_at = event_at
 
-        if status in _PERMANENT_SUPPRESSION:
+        if status in PERMANENT_SUPPRESSION:
             for contact in school_contacts:
                 contact.last_email_bounced = status == "bounced_hard"
                 contact.status = "invalid"

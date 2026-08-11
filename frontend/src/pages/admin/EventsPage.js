@@ -60,6 +60,21 @@ const toDateTimeLocal = (value) => {
   return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16);
 };
 
+const isLocalDateTimeAfter = (value, compareTo) => {
+  if (!value || !compareTo) return false;
+  return new Date(value).getTime() > new Date(compareTo).getTime();
+};
+
+const addHoursToLocalDateTime = (value, hours = 1) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setHours(date.getHours() + hours);
+  return toDateTimeLocal(date.toISOString());
+};
+
+const errorInputClass = 'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500';
+
 export const EventsPage = () => {
   const { user } = useContext(AuthContext);
   const [events, setEvents] = useState([]);
@@ -71,6 +86,8 @@ export const EventsPage = () => {
   const [eventDates, setEventDates] = useState([]);
   const [newDate, setNewDate] = useState({ start: '', end: '', registrationDeadline: '' });
   const [newDateDeadlineEnabled, setNewDateDeadlineEnabled] = useState(false);
+  const [newDateErrors, setNewDateErrors] = useState({});
+  const [dateDeadlineErrors, setDateDeadlineErrors] = useState({});
   const [visibleDateDeadlines, setVisibleDateDeadlines] = useState({});
   const [applications, setApplications] = useState([]);
   const [showAppDialog, setShowAppDialog] = useState(false);
@@ -105,6 +122,7 @@ export const EventsPage = () => {
       const res = await axios.get(`${API}/events/${eventId}`);
       const dates = res.data.dates || [];
       setEventDates(dates);
+      setDateDeadlineErrors({});
       setVisibleDateDeadlines(Object.fromEntries(
         dates.map(d => [d.id, Boolean(d.registration_deadline_override)])
       ));
@@ -125,6 +143,8 @@ export const EventsPage = () => {
     setVisibleDateDeadlines({});
     setNewDate({ start: '', end: '', registrationDeadline: '' });
     setNewDateDeadlineEnabled(false);
+    setNewDateErrors({});
+    setDateDeadlineErrors({});
     setApplications([]);
     setActiveTab('detail');
     setShowDialog(true);
@@ -191,6 +211,21 @@ export const EventsPage = () => {
 
   const addDate = async () => {
     if (!editingEvent || !newDate.start || !newDate.end) return;
+    if (!isLocalDateTimeAfter(newDate.end, newDate.start)) {
+      setNewDateErrors({ end: 'Konec termínu musí být později než začátek termínu.' });
+      toast.error('Konec termínu musí být později než začátek termínu.');
+      return;
+    }
+    if (
+      newDateDeadlineEnabled &&
+      newDate.registrationDeadline &&
+      isLocalDateTimeAfter(newDate.registrationDeadline, newDate.start)
+    ) {
+      setNewDateErrors({ registrationDeadline: 'Uzávěrka přihlášek musí být před začátkem termínu.' });
+      toast.error('Uzávěrka přihlášek musí být nejpozději v čase začátku termínu.');
+      return;
+    }
+    setNewDateErrors({});
     try {
       await axios.post(`${API}/events/${editingEvent.id}/dates`, {
         start_datetime: toApiDateTime(newDate.start),
@@ -208,6 +243,21 @@ export const EventsPage = () => {
 
   const updateDateDeadline = async (dateId, value) => {
     if (!editingEvent) return;
+    const date = eventDates.find(d => d.id === dateId);
+    const startValue = toDateTimeLocal(date?.start_datetime);
+    if (value && startValue && isLocalDateTimeAfter(value, startValue)) {
+      setDateDeadlineErrors(prev => ({
+        ...prev,
+        [dateId]: 'Uzávěrka přihlášek musí být před začátkem termínu.',
+      }));
+      toast.error('Uzávěrka přihlášek musí být nejpozději v čase začátku termínu.');
+      return;
+    }
+    setDateDeadlineErrors(prev => {
+      const next = { ...prev };
+      delete next[dateId];
+      return next;
+    });
     try {
       await axios.put(`${API}/events/${editingEvent.id}/dates/${dateId}`, {
         registration_deadline_override: toApiDateTime(value),
@@ -222,6 +272,38 @@ export const EventsPage = () => {
   const toggleDateDeadline = async (dateId, checked) => {
     setVisibleDateDeadlines(prev => ({ ...prev, [dateId]: checked }));
     if (!checked) await updateDateDeadline(dateId, '');
+  };
+
+  const updateNewDateStart = (value) => {
+    setNewDate(prev => ({
+      ...prev,
+      start: value,
+      end: prev.end && isLocalDateTimeAfter(prev.end, value)
+        ? prev.end
+        : addHoursToLocalDateTime(value),
+      registrationDeadline: (
+        prev.registrationDeadline && isLocalDateTimeAfter(prev.registrationDeadline, value)
+      ) ? '' : prev.registrationDeadline,
+    }));
+    setNewDateErrors({});
+  };
+
+  const updateNewDateEnd = (value) => {
+    setNewDate(prev => ({ ...prev, end: value }));
+    setNewDateErrors(prev => {
+      const next = { ...prev };
+      delete next.end;
+      return next;
+    });
+  };
+
+  const updateNewDateRegistrationDeadline = (value) => {
+    setNewDate(prev => ({ ...prev, registrationDeadline: value }));
+    setNewDateErrors(prev => {
+      const next = { ...prev };
+      delete next.registrationDeadline;
+      return next;
+    });
   };
 
   const removeDate = async (dateId) => {
@@ -563,11 +645,20 @@ export const EventsPage = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <Label className="text-xs text-gray-500">Začátek</Label>
-                        <Input type="datetime-local" value={newDate.start} onChange={e => setNewDate(p => ({ ...p, start: e.target.value }))} className="mt-1" data-testid="event-date-start" />
+                        <Input type="datetime-local" value={newDate.start} onChange={e => updateNewDateStart(e.target.value)} className="mt-1" data-testid="event-date-start" />
                       </div>
                       <div>
                         <Label className="text-xs text-gray-500">Konec</Label>
-                        <Input type="datetime-local" value={newDate.end} onChange={e => setNewDate(p => ({ ...p, end: e.target.value }))} className="mt-1" data-testid="event-date-end" />
+                        <Input
+                          type="datetime-local"
+                          value={newDate.end}
+                          min={newDate.start || undefined}
+                          onChange={e => updateNewDateEnd(e.target.value)}
+                          className={`mt-1 ${newDateErrors.end ? errorInputClass : ''}`}
+                          aria-invalid={Boolean(newDateErrors.end)}
+                          data-testid="event-date-end"
+                        />
+                        {newDateErrors.end && <p className="mt-1 text-xs text-red-600">{newDateErrors.end}</p>}
                       </div>
                     </div>
                     <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
@@ -589,10 +680,13 @@ export const EventsPage = () => {
                           <Input
                             type="datetime-local"
                             value={newDate.registrationDeadline}
-                            onChange={e => setNewDate(p => ({ ...p, registrationDeadline: e.target.value }))}
-                            className="mt-1 bg-white"
+                            max={newDate.start || undefined}
+                            onChange={e => updateNewDateRegistrationDeadline(e.target.value)}
+                            className={`mt-1 bg-white ${newDateErrors.registrationDeadline ? errorInputClass : ''}`}
+                            aria-invalid={Boolean(newDateErrors.registrationDeadline)}
                             data-testid="event-date-registration-deadline"
                           />
+                          {newDateErrors.registrationDeadline && <p className="mt-1 text-xs text-red-600">{newDateErrors.registrationDeadline}</p>}
                         </div>
                       )}
                     </div>
@@ -626,7 +720,10 @@ export const EventsPage = () => {
                                   <Input
                                     type="datetime-local"
                                     defaultValue={toDateTimeLocal(d.registration_deadline_override)}
+                                    max={toDateTimeLocal(d.start_datetime) || undefined}
                                     id={`date-deadline-${d.id}`}
+                                    className={dateDeadlineErrors[d.id] ? errorInputClass : ''}
+                                    aria-invalid={Boolean(dateDeadlineErrors[d.id])}
                                     data-testid={`event-date-deadline-${d.id}`}
                                   />
                                   <Button
@@ -639,6 +736,9 @@ export const EventsPage = () => {
                                   >
                                     Uložit
                                   </Button>
+                                  {dateDeadlineErrors[d.id] && (
+                                    <p className="sm:basis-full text-xs text-red-600">{dateDeadlineErrors[d.id]}</p>
+                                  )}
                                 </div>
                               )}
                               {!visibleDateDeadlines[d.id] && (

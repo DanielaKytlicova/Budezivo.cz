@@ -633,7 +633,7 @@ export const SettingsPage = () => {
       { path: '/admin/mailings', icon: Mail, label: 'Propagace', roles: ['admin','spravce','edukator','staff'] },
       { path: '/admin/schools', icon: School, label: 'Školy', roles: ['admin','spravce','edukator','staff'] },
       { path: '/admin/feedback', icon: MessageSquare, label: 'Zpětná vazba', roles: ['admin','spravce','edukator','staff'] },
-      { path: '/admin/lecturer-profile', icon: GraduationCap, label: 'Lektorský profil', roles: ['admin','spravce','edukator','lektor','pokladni','staff','viewer'] },
+      { path: '/admin/lecturer-profile', icon: GraduationCap, label: 'Lektorský profil', roles: ['admin','spravce','edukator','lektor','staff','viewer'] },
       { path: '/admin/statistics', icon: BarChart3, label: 'Statistiky', roles: ['admin','spravce','edukator','staff'] },
       { path: '/admin/superadmin', icon: Shield, label: 'Superadmin', roles: ['admin','spravce'], superadminOnly: true },
     ];

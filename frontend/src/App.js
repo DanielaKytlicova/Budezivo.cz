@@ -1,8 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
 import { LanguageProvider } from './context/LanguageContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthContext, AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { TeacherAuthProvider } from './context/TeacherAuthContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
@@ -66,6 +66,16 @@ function TitleUpdater() {
   }, [location]);
   
   return null;
+}
+
+function LecturerProfileRoute() {
+  const { user } = useContext(AuthContext);
+
+  if (user?.role === 'pokladni') {
+    return <Navigate to="/admin/bookings" replace />;
+  }
+
+  return <LecturerProfilePage />;
 }
 
 function App() {
@@ -184,7 +194,7 @@ function App() {
                 path="/admin/lecturer-profile"
                 element={
                   <ProtectedRoute>
-                    <LecturerProfilePage />
+                    <LecturerProfileRoute />
                   </ProtectedRoute>
                 }
               />

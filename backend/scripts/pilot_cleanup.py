@@ -15,12 +15,12 @@ Deletes:
 import asyncio
 import sys
 
-import asyncpg
-
 try:
     from scripts.safety import asyncpg_url, require_test_database_url
 except ModuleNotFoundError:
     from safety import asyncpg_url, require_test_database_url
+
+import asyncpg
 
 TEST_INSTITUTION_IDS = [
     "7ea0fc1a-19da-4c13-a8f9-a9700cf3a100",  # Testovací Muzeum Supabase

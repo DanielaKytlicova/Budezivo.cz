@@ -1,6 +1,14 @@
 """Ad-hoc test for the visit-reminder scheduler job (Phase 1)."""
 import asyncio
+import os
+import sys
 from datetime import datetime, timezone, timedelta, date
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from scripts.safety import configure_sqlalchemy_test_database
+
+configure_sqlalchemy_test_database("test_visit_reminder.py")
 
 from sqlalchemy import select, delete
 from database.supabase import AsyncSessionLocal

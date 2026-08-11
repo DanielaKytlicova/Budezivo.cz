@@ -12,11 +12,14 @@ Goals:
 Run:  python /app/backend/scripts/seed_test_muzeum_bookable.py
 """
 import asyncio
-import os
-import sys
 from datetime import date, timedelta
 
 import asyncpg
+
+try:
+    from scripts.safety import asyncpg_url, require_test_database_url
+except ModuleNotFoundError:
+    from safety import asyncpg_url, require_test_database_url
 
 INSTITUTION_ID = "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
 
@@ -25,18 +28,7 @@ GOOD_AVAILABLE_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"]
 
 
 async def main():
-    db_url = os.environ.get("DATABASE_URL")
-    if not db_url:
-        # Fall back to backend/.env
-        env_path = "/app/backend/.env"
-        if os.path.exists(env_path):
-            for line in open(env_path):
-                if line.startswith("DATABASE_URL="):
-                    db_url = line.split("=", 1)[1].strip().strip('"')
-                    break
-    if not db_url:
-        print("✗ DATABASE_URL is not set", file=sys.stderr)
-        sys.exit(1)
+    db_url = asyncpg_url(require_test_database_url("seed_test_muzeum_bookable.py"))
 
     conn = await asyncpg.connect(db_url, statement_cache_size=0)
 

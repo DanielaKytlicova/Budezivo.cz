@@ -19,8 +19,6 @@ try:
 except ModuleNotFoundError:
     from safety import asyncpg_url, require_test_database_url
 
-import asyncpg
-
 INSTITUTION_ID = "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
 
 GOOD_TIME_BLOCKS = ["09:00-10:30", "10:45-12:15", "13:00-14:30", "14:45-16:15"]

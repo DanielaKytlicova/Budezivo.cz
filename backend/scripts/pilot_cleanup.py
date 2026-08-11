@@ -20,8 +20,6 @@ try:
 except ModuleNotFoundError:
     from safety import asyncpg_url, require_test_database_url
 
-import asyncpg
-
 TEST_INSTITUTION_IDS = [
     "7ea0fc1a-19da-4c13-a8f9-a9700cf3a100",  # Testovací Muzeum Supabase
     "86b1837e-00e6-40a6-bc8b-74d50be94ee6",  # Testovací Muzeum Supabase (duplicate)
@@ -36,6 +34,9 @@ TEST_INSTITUTION_IDS = [
 async def main():
     execute = "--execute" in sys.argv
     db = asyncpg_url(require_test_database_url("pilot_cleanup.py"))
+
+    import asyncpg
+
     conn = await asyncpg.connect(db, statement_cache_size=0)
 
     # --- Resolve real test institution IDs by name (safer than hard-coding) ---

@@ -940,6 +940,41 @@ async def cancel_schedule(
     return {"id": str(campaign.id), "status": "draft"}
 
 
+async def _campaign_programs_for_email(db: AsyncSession, campaign: MailingCampaign) -> list:
+    """Return program cards for campaign emails, even before snapshot finalization."""
+    if campaign.programs_snapshot:
+        return campaign.programs_snapshot
+
+    result = await db.execute(
+        select(MailingCampaignProgram).where(
+            MailingCampaignProgram.campaign_id == campaign.id
+        ).order_by(MailingCampaignProgram.display_order)
+    )
+    campaign_programs = result.scalars().all()
+    program_ids = [cp.program_id for cp in campaign_programs if cp.program_id]
+    if not program_ids:
+        return []
+
+    result = await db.execute(select(Program).where(Program.id.in_(program_ids)))
+    programs = result.scalars().all()
+    programs_map = {str(program.id): program for program in programs}
+
+    cards = []
+    for program_id in program_ids:
+        program = programs_map.get(str(program_id))
+        if not program:
+            continue
+        cards.append({
+            "id": str(program.id),
+            "name": program.name_cs,
+            "description": (program.description_cs or "")[:300],
+            "duration": program.duration,
+            "target_groups": program.target_groups or [],
+            "age_group": program.age_group,
+        })
+    return cards
+
+
 @router.post("/{campaign_id}/test-email")
 async def send_test_email(
     campaign_id: str,
@@ -968,7 +1003,7 @@ async def send_test_email(
     from services.mailing_service import _build_campaign_email_html
     html_body = _build_campaign_email_html(
         greeting=campaign.greeting, intro_text=campaign.intro_text,
-        programs=campaign.programs_snapshot or [], closing_text=campaign.closing_text,
+        programs=await _campaign_programs_for_email(db, campaign), closing_text=campaign.closing_text,
         signature=campaign.signature, institution_name=institution.name if institution else "Instituce",
         booking_url=f"https://www.budezivo.cz/booking/{campaign.institution_id}", institution=institution,
     )

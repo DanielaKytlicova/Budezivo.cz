@@ -5,11 +5,17 @@ Idempotent — if the camp already exists by name + institution, it is updated i
 Run via: python -m scripts.seed_demo_camp (from /app/backend) or python /app/backend/scripts/seed_demo_camp.py
 """
 import asyncio
+import os
 import sys
 import uuid
 from datetime import datetime, timezone
 
 sys.path.insert(0, '/app/backend')
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from scripts.safety import configure_sqlalchemy_test_database
+
+configure_sqlalchemy_test_database("seed_demo_camp.py")
 
 from sqlalchemy import select, and_
 from database.supabase import AsyncSessionLocal

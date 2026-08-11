@@ -19,11 +19,9 @@ from database.models import (
     LecturerAvailability, AvailabilityBlock, ThemeSetting,
 )
 from core.security import hash_password
+from scripts.safety import require_test_database_url, sqlalchemy_async_url
 
-raw_db_url = os.environ.get("DATABASE_URL")
-if not raw_db_url:
-    raise RuntimeError("DATABASE_URL environment variable is required")
-DB_URL = raw_db_url.replace("postgresql://", "postgresql+asyncpg://")
+DB_URL = sqlalchemy_async_url(require_test_database_url("seed_gallery_demo.py"))
 RNG = random.Random(42)
 
 GALLERY_EMAIL = "galerie@budezivo.cz"

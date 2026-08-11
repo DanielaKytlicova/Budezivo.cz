@@ -13,10 +13,14 @@ Deletes:
   - Duplicate event "Příměstský tábor Léto 2026" (kept "Příměstský tábor – Léto 2026")
 """
 import asyncio
-import os
 import sys
 
 import asyncpg
+
+try:
+    from scripts.safety import asyncpg_url, require_test_database_url
+except ModuleNotFoundError:
+    from safety import asyncpg_url, require_test_database_url
 
 TEST_INSTITUTION_IDS = [
     "7ea0fc1a-19da-4c13-a8f9-a9700cf3a100",  # Testovací Muzeum Supabase
@@ -30,12 +34,8 @@ TEST_INSTITUTION_IDS = [
 
 
 async def main():
-    db = os.environ.get("DATABASE_URL")
-    if not db:
-        for line in open("/app/backend/.env"):
-            if line.startswith("DATABASE_URL="):
-                db = line.split("=", 1)[1].strip().strip('"')
-                break
+    execute = "--execute" in sys.argv
+    db = asyncpg_url(require_test_database_url("pilot_cleanup.py"))
     conn = await asyncpg.connect(db, statement_cache_size=0)
 
     # --- Resolve real test institution IDs by name (safer than hard-coding) ---
@@ -48,6 +48,11 @@ async def main():
     institution_ids = [r["id"] for r in rows]
     print(f"┌─ Will remove {len(institution_ids)} test institutions:")
     for r in rows: print(f"│   · {r['name']}  [{str(r['id'])[:8]}]")
+
+    if not execute:
+        print("└─ DRY RUN only. Re-run with --execute to apply deletes against TEST_DATABASE_URL.")
+        await conn.close()
+        return
 
     # --- Cascade delete via FK ON DELETE CASCADE (programs, reservations, users, settings…) ---
     if institution_ids:

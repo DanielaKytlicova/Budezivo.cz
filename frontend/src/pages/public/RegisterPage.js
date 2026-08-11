@@ -69,6 +69,13 @@ const TARGET_GROUPS = [
   { value: 'schools', label: 'Školy a veřejnost' },
 ];
 
+const FIELD_ERROR_CLASS = 'border-red-500 ring-1 ring-red-500 focus-visible:ring-red-500';
+
+const FieldError = ({ message }) => {
+  if (!message) return null;
+  return <p className="mt-1 text-sm text-red-600">{message}</p>;
+};
+
 export const RegisterPage = () => {
   const { t } = useTranslation();
   const { register } = useContext(AuthContext);
@@ -78,6 +85,7 @@ export const RegisterPage = () => {
   const [aresLoading, setAresLoading] = useState(false);
   const [aresValidated, setAresValidated] = useState(null); // null = not checked, true = valid, false = invalid
   const [aresData, setAresData] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
   
   const [formData, setFormData] = useState({
     // Step 1 - Account
@@ -108,7 +116,17 @@ export const RegisterPage = () => {
     default_target_group: 'zs1_7_12',
   });
 
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
   const updateField = (field, value) => {
+    clearFieldError(field);
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -185,20 +203,27 @@ export const RegisterPage = () => {
 
   const validateStep = (step) => {
     switch (step) {
-      case 0:
-        if (!formData.name || !formData.institution_name || !formData.institution_type || !formData.email || !formData.password) {
-          toast.error('Vyplňte prosím všechna povinná pole');
-          return false;
+      case 0: {
+        const errors = {};
+        if (!formData.name?.trim()) errors.name = 'Vyplňte jméno a příjmení.';
+        if (!formData.institution_name?.trim()) errors.institution_name = 'Vyplňte název instituce.';
+        if (!formData.institution_type) errors.institution_type = 'Vyberte typ instituce.';
+        if (!formData.email?.trim()) {
+          errors.email = 'Vyplňte admin e-mail.';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+          errors.email = 'Zadejte platnou e-mailovou adresu.';
         }
-        if (!formData.gdpr_consent) {
-          toast.error('Pro pokračování musíte souhlasit se zpracováním osobních údajů');
-          return false;
-        }
-        if (!formData.terms_accepted) {
-          toast.error('Pro pokračování musíte souhlasit s obchodními podmínkami');
+        if (!formData.password) errors.password = 'Vyplňte heslo.';
+        if (!formData.gdpr_consent) errors.gdpr_consent = 'Potvrďte souhlas se zpracováním osobních údajů.';
+        if (!formData.terms_accepted) errors.terms_accepted = 'Potvrďte souhlas s obchodními podmínkami.';
+
+        setFieldErrors(errors);
+        if (Object.keys(errors).length > 0) {
+          toast.error('Zkontrolujte zvýrazněná pole.');
           return false;
         }
         return true;
+      }
       case 1:
       case 2:
       case 3:
@@ -245,6 +270,11 @@ export const RegisterPage = () => {
   });
 
   const handleSubmit = async () => {
+    if (!validateStep(0)) {
+      setCurrentStep(0);
+      return;
+    }
+
     setLoading(true);
     try {
       // Phase 83: pre-flight duplicate check (always runs unless the user
@@ -345,8 +375,9 @@ export const RegisterPage = () => {
           onChange={(e) => updateField('name', e.target.value)}
           placeholder="Jan Novák"
           required
-          className="mt-2"
+          className={`mt-2 ${fieldErrors.name ? FIELD_ERROR_CLASS : ''}`}
         />
+        <FieldError message={fieldErrors.name} />
       </div>
 
       <div>
@@ -358,8 +389,9 @@ export const RegisterPage = () => {
           onChange={(e) => updateField('institution_name', e.target.value)}
           placeholder="Oblastní galerie"
           required
-          className="mt-2"
+          className={`mt-2 ${fieldErrors.institution_name ? FIELD_ERROR_CLASS : ''}`}
         />
+        <FieldError message={fieldErrors.institution_name} />
       </div>
 
       <div>
@@ -368,7 +400,7 @@ export const RegisterPage = () => {
           value={formData.institution_type}
           onValueChange={(value) => updateField('institution_type', value)}
         >
-          <SelectTrigger className="mt-2" data-testid="register-institution-type">
+          <SelectTrigger className={`mt-2 ${fieldErrors.institution_type ? FIELD_ERROR_CLASS : ''}`} data-testid="register-institution-type">
             <SelectValue placeholder="vyber typ" />
           </SelectTrigger>
           <SelectContent>
@@ -380,6 +412,7 @@ export const RegisterPage = () => {
             <SelectItem value="other">Jiné</SelectItem>
           </SelectContent>
         </Select>
+        <FieldError message={fieldErrors.institution_type} />
       </div>
 
       <div>
@@ -408,8 +441,9 @@ export const RegisterPage = () => {
           onChange={(e) => updateField('email', e.target.value)}
           placeholder="admin@galerie.cz"
           required
-          className="mt-2"
+          className={`mt-2 ${fieldErrors.email ? FIELD_ERROR_CLASS : ''}`}
         />
+        <FieldError message={fieldErrors.email} />
       </div>
 
       <div>
@@ -422,8 +456,9 @@ export const RegisterPage = () => {
           onChange={(e) => updateField('password', e.target.value)}
           placeholder="Min. 8 znaků, velké+malé+číslo"
           required
-          className="mt-2"
+          className={`mt-2 ${fieldErrors.password ? FIELD_ERROR_CLASS : ''}`}
         />
+        <FieldError message={fieldErrors.password} />
         <PasswordStrength password={formData.password} />
       </div>
 
@@ -433,6 +468,7 @@ export const RegisterPage = () => {
           data-testid="register-gdpr-consent"
           checked={formData.gdpr_consent}
           onCheckedChange={(checked) => updateField('gdpr_consent', checked)}
+          className={fieldErrors.gdpr_consent ? FIELD_ERROR_CLASS : ''}
         />
         <label htmlFor="gdpr_consent" className="text-sm text-gray-600 cursor-pointer">
           <Link to="/gdpr" className="underline hover:text-slate-800">
@@ -440,6 +476,7 @@ export const RegisterPage = () => {
           </Link>
         </label>
       </div>
+      <FieldError message={fieldErrors.gdpr_consent} />
 
       <div className="flex items-start space-x-2">
         <Checkbox
@@ -447,7 +484,7 @@ export const RegisterPage = () => {
           data-testid="register-terms-accepted"
           checked={formData.terms_accepted}
           onCheckedChange={(checked) => updateField('terms_accepted', checked)}
-          className="mt-0.5"
+          className={`mt-0.5 ${fieldErrors.terms_accepted ? FIELD_ERROR_CLASS : ''}`}
         />
         <label htmlFor="terms_accepted" className="text-sm text-gray-600 cursor-pointer">
           Souhlasím s{' '}
@@ -456,6 +493,7 @@ export const RegisterPage = () => {
           </Link>
         </label>
       </div>
+      <FieldError message={fieldErrors.terms_accepted} />
 
       <Button
         type="button"

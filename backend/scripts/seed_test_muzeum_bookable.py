@@ -28,6 +28,8 @@ GOOD_AVAILABLE_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday"]
 async def main():
     db_url = asyncpg_url(require_test_database_url("seed_test_muzeum_bookable.py"))
 
+    import asyncpg
+
     conn = await asyncpg.connect(db_url, statement_cache_size=0)
 
     progs = await conn.fetch(

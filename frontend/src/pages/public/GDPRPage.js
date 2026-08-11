@@ -31,12 +31,14 @@ export const GDPRPage = () => {
               <div>
                 <h2 className="text-xl font-semibold text-slate-900 mb-3">1. Správce osobních údajů</h2>
                 <p className="text-gray-600 mb-4">
-                  Správcem osobních údajů je provozovatel služby Budeživo.cz. Každá kulturní instituce, 
-                  která službu využívá, je samostatným správcem údajů svých návštěvníků a škol.
+                  U údajů zadaných při rezervaci je správcem osobních údajů obvykle kulturní instituce,
+                  která program pořádá. Budeživo.cz pro instituci vystupuje jako technický poskytovatel
+                  rezervační platformy. U údajů souvisejících s provozem účtu, bezpečností služby,
+                  podporou a obchodní komunikací může být samostatným správcem provozovatel Budeživo.cz.
                 </p>
                 <div className="bg-gray-50 rounded-lg p-4">
                   <p className="text-sm text-gray-600">
-                    <strong>Kontakt na správce:</strong><br />
+                    <strong>Kontakt pro žádosti týkající se osobních údajů:</strong><br />
                     E-mail: gdpr@budezivo.cz<br />
                     Datová schránka: e2u63pp
                   </p>
@@ -266,13 +268,16 @@ export const GDPRPage = () => {
               <div>
                 <h2 className="text-xl font-semibold text-slate-900 mb-3">7. Kontakt a podání stížnosti</h2>
                 <p className="text-gray-600 mb-4">
-                  Pro uplatnění svých práv nebo dotazy ohledně zpracování osobních údajů nás kontaktujte:
+                  Pro uplatnění svých práv nebo dotazy ohledně zpracování osobních údajů nás kontaktujte.
+                  Žádosti vyřizujeme bez zbytečného odkladu, zpravidla nejpozději do jednoho měsíce
+                  od obdržení žádosti. Pokud se žádost týká konkrétní instituce, pomůžeme ji předat
+                  příslušnému správci údajů.
                 </p>
                 
                 <div className="bg-slate-50 rounded-lg p-4 mb-4">
                   <p className="text-sm text-gray-600">
                     <strong>E-mail:</strong> gdpr@budezivo.cz<br />
-                    <strong>Písemně:</strong> Budeživo.cz, [Adresa], [PSČ] [Město]
+                    <strong>Datová schránka:</strong> e2u63pp
                   </p>
                 </div>
 
@@ -284,7 +289,7 @@ export const GDPRPage = () => {
                   <p className="text-sm text-gray-600 mt-2">
                     <strong>Úřad pro ochranu osobních údajů</strong><br />
                     Pplk. Sochora 27, 170 00 Praha 7<br />
-                    Web: <a href="https://www.uoou.cz" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">www.uoou.cz</a><br />
+                    Web: <a href="https://uoou.gov.cz" className="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">uoou.gov.cz</a><br />
                     E-mail: posta@uoou.cz
                   </p>
                 </div>
@@ -432,7 +437,7 @@ export const GDPRPage = () => {
           {/* Aktualizace */}
           <Card className="p-6 md:p-8 bg-gray-50" data-testid="gdpr-updates">
             <p className="text-sm text-gray-600 text-center">
-              Tyto zásady ochrany osobních údajů jsou platné od <strong>18. července 2026</strong>.<br />
+              Tyto zásady ochrany osobních údajů jsou platné od <strong>11. srpna 2026</strong>.<br />
               O případných změnách vás budeme informovat na této stránce.
             </p>
           </Card>

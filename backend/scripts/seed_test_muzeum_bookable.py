@@ -14,12 +14,12 @@ Run:  python /app/backend/scripts/seed_test_muzeum_bookable.py
 import asyncio
 from datetime import date, timedelta
 
-import asyncpg
-
 try:
     from scripts.safety import asyncpg_url, require_test_database_url
 except ModuleNotFoundError:
     from safety import asyncpg_url, require_test_database_url
+
+import asyncpg
 
 INSTITUTION_ID = "669e71b2-a8e7-4eb0-ac13-8b8c4f3107a5"
 

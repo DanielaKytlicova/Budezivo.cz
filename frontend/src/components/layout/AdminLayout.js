@@ -111,7 +111,7 @@ export const AdminLayout = ({ children }) => {
       },
 
       // ── Lower zone (flat) ──
-      { path: '/admin/lecturer-profile', icon: GraduationCap, label: 'Lektorský profil', testId: 'nav-lecturer-profile', roles: ['admin', 'spravce', 'edukator', 'lektor', 'pokladni', 'produkcni', 'staff', 'viewer'] },
+      { path: '/admin/lecturer-profile', icon: GraduationCap, label: 'Lektorský profil', testId: 'nav-lecturer-profile', roles: ['admin', 'spravce', 'edukator', 'lektor', 'produkcni', 'staff', 'viewer'] },
       { path: '/admin/statistics', icon: BarChart3, label: 'Statistiky', testId: 'nav-statistics', roles: ['admin', 'spravce', 'edukator', 'staff'] },
       { path: '/admin/settings', icon: Settings, label: 'Nastavení', testId: 'nav-settings', roles: ['admin', 'spravce'] },
     ];

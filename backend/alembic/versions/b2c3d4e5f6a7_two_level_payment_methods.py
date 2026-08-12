@@ -30,14 +30,14 @@ def upgrade() -> None:
     # 1) Institution-level allowed methods
     op.execute("""
         ALTER TABLE institution_payment_settings
-            ADD COLUMN IF NOT EXISTS allowed_methods JSONB
+            ADD COLUMN IF NOT EXISTS allowed_methods JSON
     """)
     op.execute("""
         UPDATE institution_payment_settings
         SET allowed_methods = CASE
-            WHEN payment_mode = 'both' THEN '["qr", "gateway"]'::jsonb
-            WHEN payment_mode = 'gateway' THEN '["gateway"]'::jsonb
-            ELSE '["qr"]'::jsonb
+            WHEN payment_mode = 'both' THEN '["qr", "gateway"]'::json
+            WHEN payment_mode = 'gateway' THEN '["gateway"]'::json
+            ELSE '["qr"]'::json
         END
         WHERE allowed_methods IS NULL
     """)
@@ -45,11 +45,11 @@ def upgrade() -> None:
     # 2) Event-level allowed methods
     op.execute("""
         ALTER TABLE events
-            ADD COLUMN IF NOT EXISTS allowed_payment_methods JSONB
+            ADD COLUMN IF NOT EXISTS allowed_payment_methods JSON
     """)
     op.execute("""
         UPDATE events e
-        SET allowed_payment_methods = COALESCE(ps.allowed_methods, '["qr"]'::jsonb)
+        SET allowed_payment_methods = COALESCE(ps.allowed_methods, '["qr"]'::json)
         FROM institution_payment_settings ps
         WHERE ps.institution_id = e.institution_id
           AND COALESCE(e.price, 0) > 0

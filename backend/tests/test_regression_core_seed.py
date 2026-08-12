@@ -32,6 +32,7 @@ class RegressionCoreSeedTests(unittest.TestCase):
         self.assertEqual(regression_core_seed.BACKEND_ROOT.name, "backend")
 
     @unittest.skipIf(importlib.util.find_spec("bcrypt") is None, "bcrypt is installed in backend runtime, not always in system python")
+    @unittest.skipIf(importlib.util.find_spec("bcrypt") is None, "bcrypt is installed in backend runtime, not always in system python")
     def test_seed_password_hash_does_not_import_jwt_config(self):
         hashed = regression_core_seed.hash_seed_password("RegressionOnly-123")
         self.assertTrue(hashed.startswith("$2"))

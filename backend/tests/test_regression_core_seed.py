@@ -1,3 +1,4 @@
+import importlib.util
 import unittest
 
 from scripts import regression_core_seed
@@ -29,6 +30,13 @@ class RegressionCoreSeedTests(unittest.TestCase):
     def test_backend_root_is_added_to_import_path(self):
         self.assertIn(str(regression_core_seed.BACKEND_ROOT), regression_core_seed.sys.path)
         self.assertEqual(regression_core_seed.BACKEND_ROOT.name, "backend")
+
+    @unittest.skipIf(importlib.util.find_spec("bcrypt") is None, "bcrypt is installed in backend runtime, not always in system python")
+    @unittest.skipIf(importlib.util.find_spec("bcrypt") is None, "bcrypt is installed in backend runtime, not always in system python")
+    def test_seed_password_hash_does_not_import_jwt_config(self):
+        hashed = regression_core_seed.hash_seed_password("RegressionOnly-123")
+        self.assertTrue(hashed.startswith("$2"))
+        self.assertNotIn("RegressionOnly-123", hashed)
 
 
 if __name__ == "__main__":

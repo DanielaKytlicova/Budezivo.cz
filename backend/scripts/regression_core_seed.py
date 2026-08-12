@@ -126,8 +126,14 @@ async def cleanup(conn) -> None:
     await conn.execute("DELETE FROM users WHERE email = ANY($1::text[])", [ADMIN_EMAIL, CASHIER_EMAIL])
 
 
+def hash_seed_password(password: str) -> str:
+    import bcrypt
+
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
 async def seed(conn, admin_password: str) -> Dict[str, object]:
-    from core.security import hash_password
+    password_hash = hash_seed_password(admin_password)
 
     now = datetime.now(timezone.utc)
     tomorrow = (now + timedelta(days=1)).date().isoformat()
@@ -183,7 +189,7 @@ async def seed(conn, admin_password: str) -> Dict[str, object]:
                 user_id,
                 IDS["institution"],
                 email,
-                hash_password(admin_password),
+                password_hash,
                 name,
                 role,
                 now,

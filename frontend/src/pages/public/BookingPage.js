@@ -10,6 +10,7 @@ import { Textarea } from '../../components/ui/textarea';
 import { Card } from '../../components/ui/card';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { ChevronLeft, ChevronRight, CheckCircle, SlidersHorizontal, X, Download, Bell, ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -59,6 +60,7 @@ export const BookingPage = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [createdReservationId, setCreatedReservationId] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
   
@@ -341,18 +343,55 @@ export const BookingPage = () => {
     setStep(4);
   };
 
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const updateBookingField = (field, value) => {
+    clearFieldError(field);
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const validateBookingForm = () => {
+    const errors = {};
+    const minCapacity = selectedProgram?.min_capacity || 5;
+    const maxCapacity = selectedProgram?.max_capacity || 30;
+
+    if (!formData.school_name?.trim()) errors.school_name = 'Vyplňte název školy nebo organizace.';
+    if (!formData.age_or_class?.trim()) errors.age_or_class = 'Vyplňte věk nebo třídu skupiny.';
+    if (!Number.isFinite(Number(formData.num_students)) || Number(formData.num_students) < minCapacity || Number(formData.num_students) > maxCapacity) {
+      errors.num_students = `Počet studentů musí být mezi ${minCapacity} a ${maxCapacity}.`;
+    }
+    if (!Number.isFinite(Number(formData.num_teachers)) || Number(formData.num_teachers) < 1) {
+      errors.num_teachers = 'Vyplňte alespoň jednoho doprovázejícího pedagoga.';
+    }
+    if (!formData.contact_name?.trim()) errors.contact_name = 'Vyplňte jméno zodpovědné osoby.';
+    const email = formData.contact_email?.trim() || '';
+    if (!email) {
+      errors.contact_email = 'Vyplňte e-mailovou adresu.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.contact_email = 'Zadejte platnou e-mailovou adresu.';
+    }
+    if (!formData.contact_phone?.trim()) errors.contact_phone = 'Vyplňte telefonní číslo.';
+    if (!formData.gdpr_consent) errors.gdpr_consent = 'Potvrďte souhlas se zpracováním osobních údajů.';
+    if (!formData.terms_accepted) errors.terms_accepted = 'Potvrďte souhlas s podmínkami rezervace.';
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!formData.gdpr_consent) {
-      toast.error('Musíte souhlasit se zpracováním osobních údajů');
-      return;
-    }
-    
-    if (!formData.terms_accepted) {
-      toast.error('Musíte souhlasit s podmínkami rezervace');
-      return;
-    }
+    if (!validateBookingForm()) return;
 
     setSubmitting(true);
 
@@ -976,19 +1015,20 @@ export const BookingPage = () => {
                     <Label className="text-[#2B3E50]">Škola / Název organizace *</Label>
                     <Input
                       value={formData.school_name}
-                      onChange={(e) => setFormData({ ...formData, school_name: e.target.value })}
+                      onChange={(e) => updateBookingField('school_name', e.target.value)}
                       placeholder="Základní škola Komenského"
                       required
-                      className="mt-2 h-12 rounded-lg border-gray-300"
+                      className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.school_name ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-school-name"
                     />
+                    <FieldError message={fieldErrors.school_name} />
                   </div>
 
                   <div>
                     <Label className="text-[#2B3E50]">Typ skupiny *</Label>
                     <Select
                       value={formData.group_type}
-                      onValueChange={(value) => setFormData({ ...formData, group_type: value })}
+                      onValueChange={(value) => updateBookingField('group_type', value)}
                     >
                       <SelectTrigger className="mt-2 h-12 rounded-lg" data-testid="booking-group-type">
                         <SelectValue />
@@ -1005,12 +1045,13 @@ export const BookingPage = () => {
                     <Label className="text-[#2B3E50]">Věk / Třída *</Label>
                     <Input
                       value={formData.age_or_class}
-                      onChange={(e) => setFormData({ ...formData, age_or_class: e.target.value })}
+                      onChange={(e) => updateBookingField('age_or_class', e.target.value)}
                       placeholder="3-4 roky"
                       required
-                      className="mt-2 h-12 rounded-lg border-gray-300"
+                      className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.age_or_class ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-age-class"
                     />
+                    <FieldError message={fieldErrors.age_or_class} />
                   </div>
 
                   <div>
@@ -1018,16 +1059,17 @@ export const BookingPage = () => {
                     <Input
                       type="number"
                       value={formData.num_students}
-                      onChange={(e) => setFormData({ ...formData, num_students: parseInt(e.target.value) })}
+                      onChange={(e) => updateBookingField('num_students', parseInt(e.target.value))}
                       required
                       min={selectedProgram?.min_capacity || 5}
                       max={selectedProgram?.max_capacity || 30}
-                      className="mt-2 h-12 rounded-lg border-gray-300"
+                      className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.num_students ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-num-students"
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Min. {selectedProgram?.min_capacity || 5}, Max {selectedProgram?.max_capacity || 30} osob.
                     </p>
+                    <FieldError message={fieldErrors.num_students} />
                   </div>
 
                   <div>
@@ -1035,23 +1077,24 @@ export const BookingPage = () => {
                     <Input
                       type="number"
                       value={formData.num_teachers}
-                      onChange={(e) => setFormData({ ...formData, num_teachers: parseInt(e.target.value) || 1 })}
+                      onChange={(e) => updateBookingField('num_teachers', parseInt(e.target.value) || 1)}
                       required
                       min={1}
                       max={10}
-                      className="mt-2 h-12 rounded-lg border-gray-300"
+                      className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.num_teachers ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-num-teachers"
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Minimálně 1 doprovázející pedagog.
                     </p>
+                    <FieldError message={fieldErrors.num_teachers} />
                   </div>
 
                   <div>
                     <Label className="text-[#2B3E50]">Speciální požadavky</Label>
                     <Textarea
                       value={formData.special_requirements}
-                      onChange={(e) => setFormData({ ...formData, special_requirements: e.target.value })}
+                      onChange={(e) => updateBookingField('special_requirements', e.target.value)}
                       placeholder="Zde můžete napsat poznámku pro lektora, pokud máte speciální požadavky, rádi Vám vyjdeme vstříc."
                       className="mt-2 rounded-lg border-gray-300"
                       rows={3}
@@ -1070,12 +1113,13 @@ export const BookingPage = () => {
                     <Label className="text-[#2B3E50]">Jméno zodpovědné osoby *</Label>
                     <Input
                       value={formData.contact_name}
-                      onChange={(e) => setFormData({ ...formData, contact_name: e.target.value })}
+                      onChange={(e) => updateBookingField('contact_name', e.target.value)}
                       placeholder="Jméno Příjmení"
                       required
-                      className="mt-2 h-12 rounded-lg border-gray-300"
+                      className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.contact_name ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-contact-name"
                     />
+                    <FieldError message={fieldErrors.contact_name} />
                   </div>
 
                   <div>
@@ -1083,13 +1127,14 @@ export const BookingPage = () => {
                     <Input
                       type="email"
                       value={formData.contact_email}
-                      onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
+                      onChange={(e) => updateBookingField('contact_email', e.target.value)}
                       onBlur={(e) => tryPrefillFromEmail(e.target.value)}
                       placeholder="zakladni@skola.cz"
                       required
-                      className="mt-2 h-12 rounded-lg border-gray-300"
+                      className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.contact_email ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-contact-email"
                     />
+                    <FieldError message={fieldErrors.contact_email} />
                     <p className="mt-1.5 text-xs text-gray-500" data-testid="booking-prefill-hint">
                       Pokud už jste u nás jednou rezervovali, údaje vám předvyplníme.
                     </p>
@@ -1100,20 +1145,22 @@ export const BookingPage = () => {
                     <Input
                       type="tel"
                       value={formData.contact_phone}
-                      onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
+                      onChange={(e) => updateBookingField('contact_phone', e.target.value)}
                       placeholder="+ 420 722 960 890"
                       required
-                      className="mt-2 h-12 rounded-lg border-gray-300"
+                      className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.contact_phone ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-contact-phone"
                     />
+                    <FieldError message={fieldErrors.contact_phone} />
                   </div>
 
                   <div className="flex items-start space-x-2 pt-2">
                     <Checkbox
                       id="gdpr"
                       checked={formData.gdpr_consent}
-                      onCheckedChange={(checked) => setFormData({ ...formData, gdpr_consent: checked })}
+                      onCheckedChange={(checked) => updateBookingField('gdpr_consent', checked)}
                       data-testid="booking-gdpr"
+                      className={fieldErrors.gdpr_consent ? FIELD_ERROR_CLASS : ''}
                     />
                     <label htmlFor="gdpr" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
                       Souhlasím se zpracováním osobních údajů v souladu s{' '}
@@ -1129,12 +1176,13 @@ export const BookingPage = () => {
                       .
                     </label>
                   </div>
+                  <FieldError message={fieldErrors.gdpr_consent} />
 
                   <div className="flex items-start space-x-2 pt-2">
                     <Checkbox
                       id="marketing"
                       checked={formData.marketing_consent}
-                      onCheckedChange={(checked) => setFormData({ ...formData, marketing_consent: checked })}
+                      onCheckedChange={(checked) => updateBookingField('marketing_consent', checked)}
                       data-testid="booking-marketing-consent"
                     />
                     <label htmlFor="marketing" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
@@ -1148,8 +1196,9 @@ export const BookingPage = () => {
                     <Checkbox
                       id="terms"
                       checked={formData.terms_accepted}
-                      onCheckedChange={(checked) => setFormData({ ...formData, terms_accepted: checked })}
+                      onCheckedChange={(checked) => updateBookingField('terms_accepted', checked)}
                       data-testid="booking-terms"
+                      className={fieldErrors.terms_accepted ? FIELD_ERROR_CLASS : ''}
                     />
                     <label htmlFor="terms" className="text-sm text-gray-700 leading-relaxed cursor-pointer">
                       Souhlasím s{' '}
@@ -1185,6 +1234,7 @@ export const BookingPage = () => {
                       . Beru na vědomí, že Budeživo.cz je pouze technickým zprostředkovatelem rezervace.
                     </label>
                   </div>
+                  <FieldError message={fieldErrors.terms_accepted} />
                 </div>
               </div>
 

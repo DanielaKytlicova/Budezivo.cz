@@ -230,10 +230,10 @@ def upgrade() -> None:
     )
     op.create_index('idx_payments_institution', 'payments', ['institution_id'], unique=False)
     op.create_index('idx_payments_session', 'payments', ['session_id'], unique=False)
-    op.drop_table('Programs')
-    op.drop_table('Institucion')
-    op.drop_table('Users')
-    op.drop_table('Reservation')
+    op.execute('DROP TABLE IF EXISTS "Programs"')
+    op.execute('DROP TABLE IF EXISTS "Institucion"')
+    op.execute('DROP TABLE IF EXISTS "Users"')
+    op.execute('DROP TABLE IF EXISTS "Reservation"')
     # ### end Alembic commands ###
 
 

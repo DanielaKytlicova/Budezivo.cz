@@ -19,13 +19,45 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _table_exists(bind, table_name: str) -> bool:
+    return bool(bind.execute(sa.text("SELECT to_regclass(:table_name)"), {"table_name": table_name}).scalar())
+
+
+def _create_event_tables_if_missing(bind) -> None:
+    """Create event tables for clean DB runs before contacts reference them."""
+    from database.models import Base
+
+    table_names = [
+        "feature_flags",
+        "events",
+        "event_dates",
+        "event_applications",
+        "institution_payment_settings",
+        "event_payments",
+    ]
+    tables = [
+        Base.metadata.tables[name]
+        for name in table_names
+        if name in Base.metadata.tables and not _table_exists(bind, name)
+    ]
+    if tables:
+        Base.metadata.create_all(bind=bind, tables=tables)
+
+
 def upgrade() -> None:
+    bind = op.get_bind()
+    _create_event_tables_if_missing(bind)
+
     # 1) Add marketing_consent column to existing intake tables so the new
     #    public opt-in checkbox has somewhere to land.
-    op.add_column('reservations',
-        sa.Column('marketing_consent', sa.Boolean(), nullable=False, server_default=sa.text('false')))
-    op.add_column('event_applications',
-        sa.Column('marketing_consent', sa.Boolean(), nullable=False, server_default=sa.text('false')))
+    op.execute("""
+        ALTER TABLE reservations
+            ADD COLUMN IF NOT EXISTS marketing_consent BOOLEAN NOT NULL DEFAULT FALSE
+    """)
+    op.execute("""
+        ALTER TABLE event_applications
+            ADD COLUMN IF NOT EXISTS marketing_consent BOOLEAN NOT NULL DEFAULT FALSE
+    """)
 
     # 2) New `contacts` table.
     op.create_table(

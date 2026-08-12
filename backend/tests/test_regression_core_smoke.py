@@ -22,5 +22,10 @@ class RegressionCoreSmokeTests(unittest.TestCase):
         self.assertNotIn("password", rendered.lower())
 
 
+    def test_uuid_values_are_normalized_for_comparison(self):
+        self.assertEqual(str(regression_core_smoke.IDS["school"]), regression_core_smoke.IDS["school"])
+
+
+
 if __name__ == "__main__":
     unittest.main()

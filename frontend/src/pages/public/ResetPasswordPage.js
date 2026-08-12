@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card } from '../../components/ui/card';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
@@ -18,6 +19,7 @@ export const ResetPasswordPage = () => {
   const [error, setError] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   
   const [formData, setFormData] = useState({
     password: '',
@@ -44,16 +46,35 @@ export const ResetPasswordPage = () => {
   const passwordValidation = validatePassword(formData.password);
   const passwordsMatch = formData.password === formData.confirmPassword && formData.confirmPassword !== '';
 
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const updateField = (field, value) => {
+    clearFieldError(field);
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errors = {};
     
     if (!passwordValidation.isValid) {
-      toast.error('Heslo nesplňuje požadavky');
-      return;
+      errors.password = 'Heslo nesplňuje požadavky.';
     }
     
     if (!passwordsMatch) {
-      toast.error('Hesla se neshodují');
+      errors.confirmPassword = 'Hesla se neshodují.';
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
 
@@ -164,9 +185,9 @@ export const ResetPasswordPage = () => {
                   type={showPassword ? 'text' : 'password'}
                   data-testid="new-password-input"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) => updateField('password', e.target.value)}
                   required
-                  className="pr-10"
+                  className={`pr-10 ${fieldErrors.password ? FIELD_ERROR_CLASS : ''}`}
                 />
                 <button
                   type="button"
@@ -176,6 +197,7 @@ export const ResetPasswordPage = () => {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              <FieldError message={fieldErrors.password} />
               
               <div className="mt-3 space-y-1">
                 <PasswordRequirement met={passwordValidation.minLength} text="Minimálně 8 znaků" />
@@ -193,9 +215,9 @@ export const ResetPasswordPage = () => {
                   type={showConfirmPassword ? 'text' : 'password'}
                   data-testid="confirm-password-input"
                   value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  onChange={(e) => updateField('confirmPassword', e.target.value)}
                   required
-                  className="pr-10"
+                  className={`pr-10 ${fieldErrors.confirmPassword ? FIELD_ERROR_CLASS : ''}`}
                 />
                 <button
                   type="button"
@@ -205,6 +227,7 @@ export const ResetPasswordPage = () => {
                   {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              <FieldError message={fieldErrors.confirmPassword} />
               {formData.confirmPassword && (
                 <p className={`mt-2 text-sm ${passwordsMatch ? 'text-green-600' : 'text-red-600'}`}>
                   {passwordsMatch ? '✓ Hesla se shodují' : '✗ Hesla se neshodují'}

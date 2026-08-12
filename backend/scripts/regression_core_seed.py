@@ -15,8 +15,14 @@ import argparse
 import asyncio
 import json
 import secrets
+import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Dict, Iterable
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 try:
     from scripts.safety import asyncpg_url, require_test_database_url

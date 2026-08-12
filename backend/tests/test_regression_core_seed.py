@@ -26,6 +26,10 @@ class RegressionCoreSeedTests(unittest.TestCase):
         self.assertTrue(regression_core_seed.CASHIER_EMAIL.endswith("@example.test"))
         self.assertTrue(regression_core_seed.SCHOOL_EMAIL.endswith("@example.test"))
 
+    def test_backend_root_is_added_to_import_path(self):
+        self.assertIn(str(regression_core_seed.BACKEND_ROOT), regression_core_seed.sys.path)
+        self.assertEqual(regression_core_seed.BACKEND_ROOT.name, "backend")
+
 
 if __name__ == "__main__":
     unittest.main()

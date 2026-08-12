@@ -151,7 +151,7 @@ async def collect_report() -> Dict[str, object]:
             "users_present": users.get(ADMIN_EMAIL) == "admin" and users.get(CASHIER_EMAIL) == "pokladni",
             "program_present": bool(program and program["status"] == "active" and program["is_published"] is True),
             "school_and_contact_present": bool(school_contact),
-            "reservation_linked": bool(reservation and reservation["school_id"] == IDS["school"] and reservation["status"] == "confirmed"),
+            "reservation_linked": bool(reservation and str(reservation["school_id"]) == IDS["school"] and reservation["status"] == "confirmed"),
             "event_and_date_valid": event_date_valid,
             "mailing_draft_linked": bool(
                 mailing

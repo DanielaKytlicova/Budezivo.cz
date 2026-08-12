@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Checkbox } from '../../components/ui/checkbox';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { toast } from 'sonner';
 import { Mail, Lock, Eye, EyeOff, Building2, Calendar, ThumbsUp } from 'lucide-react';
 import axios from 'axios';
@@ -17,6 +18,7 @@ export const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [stats, setStats] = useState({ show_stats: false, institutions: 0, reservations: 0, satisfaction: 0 });
   const [formData, setFormData] = useState({
     email: '',
@@ -36,8 +38,40 @@ export const LoginPage = () => {
     }
   };
 
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const updateField = (field, value) => {
+    clearFieldError(field);
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    const email = formData.email.trim();
+    if (!email) {
+      errors.email = 'Vyplňte e-mailovou adresu.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'Zadejte platnou e-mailovou adresu.';
+    }
+    if (!formData.password) errors.password = 'Vyplňte heslo.';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateForm()) return;
     setLoading(true);
 
     try {
@@ -93,12 +127,13 @@ export const LoginPage = () => {
                     type="email"
                     data-testid="login-email-input"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => updateField('email', e.target.value)}
                     placeholder="vas.email@muzeum.cz"
                     required
-                    className="pl-10 h-12 rounded-lg border-gray-300 bg-white"
+                    className={`pl-10 h-12 rounded-lg border-gray-300 bg-white ${fieldErrors.email ? FIELD_ERROR_CLASS : ''}`}
                   />
                 </div>
+                <FieldError message={fieldErrors.email} />
               </div>
 
               <div>
@@ -110,10 +145,10 @@ export const LoginPage = () => {
                     type={showPassword ? "text" : "password"}
                     data-testid="login-password-input"
                     value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    onChange={(e) => updateField('password', e.target.value)}
                     placeholder="••••••••"
                     required
-                    className="pl-10 pr-10 h-12 rounded-lg border-gray-300 bg-white"
+                    className={`pl-10 pr-10 h-12 rounded-lg border-gray-300 bg-white ${fieldErrors.password ? FIELD_ERROR_CLASS : ''}`}
                   />
                   <button
                     type="button"
@@ -125,6 +160,7 @@ export const LoginPage = () => {
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
+                <FieldError message={fieldErrors.password} />
               </div>
 
               <div className="flex items-center justify-between">

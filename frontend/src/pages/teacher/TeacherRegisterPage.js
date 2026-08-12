@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Button } from '../../components/ui/button';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Loader2, GraduationCap } from 'lucide-react';
 import { useTeacherAuth } from '../../context/TeacherAuthContext';
 import { toast } from 'sonner';
@@ -22,13 +23,44 @@ export const TeacherRegisterPage = () => {
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
-  const onChange = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const onChange = (k) => (e) => {
+    clearFieldError(k);
+    setForm(p => ({ ...p, [k]: e.target.value }));
+  };
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    if (!agree) { setErr('Musíte odsouhlasit obchodní podmínky a GDPR.'); return; }
-    if (form.password.length < 8) { setErr('Heslo musí mít alespoň 8 znaků.'); return; }
+    const errors = {};
+    if (!form.name.trim()) errors.name = 'Vyplňte jméno a příjmení.';
+    const emailValue = form.email.trim();
+    if (!emailValue) {
+      errors.email = 'Vyplňte e-mail.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+      errors.email = 'Zadejte platnou e-mailovou adresu.';
+    }
+    if (!form.password) {
+      errors.password = 'Vyplňte heslo.';
+    } else if (form.password.length < 8) {
+      errors.password = 'Heslo musí mít alespoň 8 znaků.';
+    }
+    if (!agree) errors.agree = 'Potvrďte obchodní podmínky a zpracování osobních údajů.';
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setErr('');
+      return;
+    }
     setSubmitting(true);
     setErr('');
     const r = await register({
@@ -65,15 +97,18 @@ export const TeacherRegisterPage = () => {
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
               <Label htmlFor="r-name">Jméno a příjmení *</Label>
-              <Input id="r-name" required value={form.name} onChange={onChange('name')} data-testid="teacher-register-name" />
+              <Input id="r-name" required value={form.name} onChange={onChange('name')} data-testid="teacher-register-name" className={fieldErrors.name ? FIELD_ERROR_CLASS : ''} />
+              <FieldError message={fieldErrors.name} />
             </div>
             <div>
               <Label htmlFor="r-email">E-mail *</Label>
-              <Input id="r-email" type="email" required value={form.email} onChange={onChange('email')} data-testid="teacher-register-email" />
+              <Input id="r-email" type="email" required value={form.email} onChange={onChange('email')} data-testid="teacher-register-email" className={fieldErrors.email ? FIELD_ERROR_CLASS : ''} />
+              <FieldError message={fieldErrors.email} />
             </div>
             <div>
               <Label htmlFor="r-password">Heslo (min. 8 znaků) *</Label>
-              <Input id="r-password" type="password" required minLength={8} value={form.password} onChange={onChange('password')} data-testid="teacher-register-password" />
+              <Input id="r-password" type="password" required minLength={8} value={form.password} onChange={onChange('password')} data-testid="teacher-register-password" className={fieldErrors.password ? FIELD_ERROR_CLASS : ''} />
+              <FieldError message={fieldErrors.password} />
             </div>
             <div>
               <Label htmlFor="r-school">Škola (volitelné — slouží pro předvyplnění formulářů)</Label>
@@ -88,9 +123,9 @@ export const TeacherRegisterPage = () => {
               <input
                 type="checkbox"
                 checked={agree}
-                onChange={e => setAgree(e.target.checked)}
+                onChange={e => { clearFieldError('agree'); setAgree(e.target.checked); }}
                 required
-                className="rounded mt-0.5 w-4 h-4 shrink-0"
+                className={`rounded mt-0.5 w-4 h-4 shrink-0 ${fieldErrors.agree ? FIELD_ERROR_CLASS : ''}`}
                 data-testid="teacher-register-terms"
               />
               <span className="text-sm text-gray-700 leading-relaxed">
@@ -100,6 +135,7 @@ export const TeacherRegisterPage = () => {
                 <a href="/gdpr" target="_blank" rel="noopener noreferrer" className="text-[#4A6FA5] hover:underline">zpracováním osobních údajů</a>.
               </span>
             </label>
+            <FieldError message={fieldErrors.agree} />
 
             {err && (
               <p className="text-sm text-red-600" data-testid="teacher-register-error">{err}</p>

@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card } from '../../components/ui/card';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
@@ -15,9 +16,27 @@ export const ForgotPasswordPage = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [emailError, setEmailError] = useState('');
+
+  const validateEmail = () => {
+    const value = email.trim();
+    if (!value) {
+      setEmailError('Vyplňte e-mailovou adresu.');
+      toast.error('Zkontrolujte zvýrazněné pole.');
+      return false;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      setEmailError('Zadejte platnou e-mailovou adresu.');
+      toast.error('Zkontrolujte zvýrazněné pole.');
+      return false;
+    }
+    setEmailError('');
+    return true;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateEmail()) return;
     setLoading(true);
 
     try {
@@ -64,10 +83,11 @@ export const ForgotPasswordPage = () => {
                   type="email"
                   data-testid="forgot-password-email-input"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(''); }}
                   required
-                  className="mt-2"
+                  className={`mt-2 ${emailError ? FIELD_ERROR_CLASS : ''}`}
                 />
+                <FieldError message={emailError} />
               </div>
 
               <Button

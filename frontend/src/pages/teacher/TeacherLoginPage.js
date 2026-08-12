@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Button } from '../../components/ui/button';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Loader2, GraduationCap } from 'lucide-react';
 import { useTeacherAuth } from '../../context/TeacherAuthContext';
 import { toast } from 'sonner';
@@ -17,11 +18,34 @@ export const TeacherLoginPage = () => {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const redirectTo = location.state?.from || '/ucitel/ucet';
 
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
+    const errors = {};
+    const emailValue = email.trim();
+    if (!emailValue) {
+      errors.email = 'Vyplňte e-mail.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+      errors.email = 'Zadejte platnou e-mailovou adresu.';
+    }
+    if (!password) errors.password = 'Vyplňte heslo.';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setErr('');
+      return;
+    }
     setSubmitting(true);
     setErr('');
     const r = await login(email.trim().toLowerCase(), password);
@@ -56,10 +80,12 @@ export const TeacherLoginPage = () => {
                 id="t-email"
                 type="email"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={e => { clearFieldError('email'); setEmail(e.target.value); }}
                 required
                 data-testid="teacher-login-email"
+                className={fieldErrors.email ? FIELD_ERROR_CLASS : ''}
               />
+              <FieldError message={fieldErrors.email} />
             </div>
             <div>
               <Label htmlFor="t-password">Heslo</Label>
@@ -67,10 +93,12 @@ export const TeacherLoginPage = () => {
                 id="t-password"
                 type="password"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={e => { clearFieldError('password'); setPassword(e.target.value); }}
                 required
                 data-testid="teacher-login-password"
+                className={fieldErrors.password ? FIELD_ERROR_CLASS : ''}
               />
+              <FieldError message={fieldErrors.password} />
             </div>
             {err && (
               <p className="text-sm text-red-600" data-testid="teacher-login-error">{err}</p>

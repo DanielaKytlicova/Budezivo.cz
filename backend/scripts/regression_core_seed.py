@@ -132,6 +132,41 @@ def hash_seed_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
+async def table_columns(conn, table_name: str) -> set[str]:
+    rows = await conn.fetch(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = $1
+        """,
+        table_name,
+    )
+    return {row["column_name"] for row in rows}
+
+
+async def insert_row(conn, table_name: str, values: Dict[str, object], casts: Dict[str, str] | None = None) -> None:
+    existing_columns = await table_columns(conn, table_name)
+    filtered = {column: value for column, value in values.items() if column in existing_columns}
+    if not filtered:
+        raise RuntimeError(f"No matching columns available for {table_name}")
+
+    casts = casts or {}
+    columns = list(filtered)
+    placeholders = [
+        f"${index}{casts.get(column, '')}"
+        for index, column in enumerate(columns, start=1)
+    ]
+    query = (
+        f'INSERT INTO "{table_name}" ('
+        + ", ".join(f'"{column}"' for column in columns)
+        + ") VALUES ("
+        + ", ".join(placeholders)
+        + ")"
+    )
+    await conn.execute(query, *[filtered[column] for column in columns])
+
+
 async def seed(conn, admin_password: str) -> Dict[str, object]:
     password_hash = hash_seed_password(admin_password)
 
@@ -146,283 +181,348 @@ async def seed(conn, admin_password: str) -> Dict[str, object]:
     tx = conn.transaction()
     await tx.start()
     try:
-        await conn.execute(
-            """
-            INSERT INTO institutions (
-                id, name, type, country, city, email, plan, plan_status,
-                programs_limit, bookings_monthly_limit, default_available_days,
-                default_time_blocks, notification_settings, locale_settings,
-                gdpr_settings, pro_settings, onboarding_completed, created_at, updated_at
-            )
-            VALUES (
-                $1::uuid, 'Regression Test Institution', 'museum', 'CZ', 'Test City',
-                'regression-institution@example.test', 'pro', 'active', 25, 500,
-                $2::text[], $3::json, $4::json, $5::json, $6::json, $7::json,
-                true, $8, $8
-            )
-            """,
-            IDS["institution"],
-            ["monday", "tuesday", "wednesday", "thursday", "friday"],
-            json.dumps([{"start": "09:00", "end": "10:30"}]),
-            json.dumps({"customer": {}, "admin": {"new_reservation": True, "recipient_user_ids": []}}),
-            json.dumps({"language": "cs", "timezone": "Europe/Prague", "date_format": "dd.mm.yyyy", "time_format": "24h"}),
-            json.dumps({"data_retention": "never", "anonymize": False}),
-            json.dumps({}),
-            now,
+        await insert_row(
+            conn,
+            "institutions",
+            {
+                "id": IDS["institution"],
+                "name": "Regression Test Institution",
+                "type": "museum",
+                "country": "CZ",
+                "city": "Test City",
+                "email": "regression-institution@example.test",
+                "plan": "pro",
+                "plan_status": "active",
+                "programs_limit": 25,
+                "bookings_monthly_limit": 500,
+                "default_available_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+                "default_time_blocks": json.dumps([{"start": "09:00", "end": "10:30"}]),
+                "notification_settings": json.dumps({"customer": {}, "admin": {"new_reservation": True, "recipient_user_ids": []}}),
+                "locale_settings": json.dumps({"language": "cs", "timezone": "Europe/Prague", "date_format": "dd.mm.yyyy", "time_format": "24h"}),
+                "gdpr_settings": json.dumps({"data_retention": "never", "anonymize": False}),
+                "pro_settings": json.dumps({}),
+                "onboarding_completed": True,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": "::uuid",
+                "default_available_days": "::text[]",
+                "default_time_blocks": "::json",
+                "notification_settings": "::json",
+                "locale_settings": "::json",
+                "gdpr_settings": "::json",
+                "pro_settings": "::json",
+            },
         )
 
         for user_id, email, role, name in (
             (IDS["admin"], ADMIN_EMAIL, "admin", "Regression Admin"),
             (IDS["cashier"], CASHIER_EMAIL, "pokladni", "Regression Cashier"),
         ):
-            await conn.execute(
-                """
-                INSERT INTO users (
-                    id, institution_id, email, password_hash, name, role, lecturer_mode,
-                    status, gdpr_consent, terms_accepted, created_at, updated_at
-                )
-                VALUES (
-                    $1::uuid, $2::uuid, $3, $4, $5, $6, 'main',
-                    'active', true, true, $7, $7
-                )
-                """,
-                user_id,
-                IDS["institution"],
-                email,
-                password_hash,
-                name,
-                role,
-                now,
+            await insert_row(
+                conn,
+                "users",
+                {
+                    "id": user_id,
+                    "institution_id": IDS["institution"],
+                    "email": email,
+                    "password_hash": password_hash,
+                    "name": name,
+                    "role": role,
+                    "lecturer_mode": "main",
+                    "status": "active",
+                    "gdpr_consent": True,
+                    "terms_accepted": True,
+                    "created_at": now,
+                    "updated_at": now,
+                },
+                {"id": "::uuid", "institution_id": "::uuid"},
             )
 
-        await conn.execute(
-            """
-            INSERT INTO institution_payment_settings (
-                id, institution_id, payment_mode, allowed_methods, provider,
-                account_number, bank_code, account_name, created_at, updated_at
-            )
-            VALUES (
-                $1::uuid, $2::uuid, 'qr', $3::json, NULL,
-                '123456789', '0100', 'Regression Test Institution', $4, $4
-            )
-            """,
-            IDS["payment_settings"],
-            IDS["institution"],
-            json.dumps(["qr", "cash"]),
-            now,
+        await insert_row(
+            conn,
+            "institution_payment_settings",
+            {
+                "id": IDS["payment_settings"],
+                "institution_id": IDS["institution"],
+                "payment_mode": "qr",
+                "allowed_methods": json.dumps(["qr", "cash"]),
+                "provider": None,
+                "account_number": "123456789",
+                "bank_code": "0100",
+                "account_name": "Regression Test Institution",
+                "created_at": now,
+                "updated_at": now,
+            },
+            {"id": "::uuid", "institution_id": "::uuid", "allowed_methods": "::json"},
         )
 
-        await conn.execute(
-            """
-            INSERT INTO programs (
-                id, institution_id, name_cs, description_cs, duration, age_group,
-                min_capacity, max_capacity, required_lecturers, target_group,
-                target_groups, price, status, is_published, requires_approval,
-                send_email_notification, available_days, time_blocks, start_date,
-                end_date, min_days_before_booking, max_days_before_booking,
-                preparation_time, cleanup_time, collision_resources,
-                collision_lecturer_ids, blocked_program_ids, created_by,
-                feedback_enabled, feedback_questions, created_at, updated_at
-            )
-            VALUES (
-                $1::uuid, $2::uuid, 'Regression Program', 'Program for isolated regression testing.',
-                90, 'zs1_7_12', 5, 30, 1, 'schools', $3::json, 0,
-                'active', true, false, true, $4::text[], $5::json, NULL,
-                $6, 1, 180, 0, 0, $7::json, $7::json, $7::json,
-                $8::uuid, true, $7::json, $9, $9
-            )
-            """,
-            IDS["program"],
-            IDS["institution"],
-            json.dumps(["zs1_7_12"]),
-            ["monday", "tuesday", "wednesday", "thursday", "friday"],
-            json.dumps(["09:00-10:30", "10:45-12:15"]),
-            now + timedelta(days=365),
-            json.dumps([]),
-            IDS["admin"],
-            now,
+        await insert_row(
+            conn,
+            "programs",
+            {
+                "id": IDS["program"],
+                "institution_id": IDS["institution"],
+                "name_cs": "Regression Program",
+                "description_cs": "Program for isolated regression testing.",
+                "duration": 90,
+                "age_group": "zs1_7_12",
+                "min_capacity": 5,
+                "max_capacity": 30,
+                "required_lecturers": 1,
+                "target_group": "schools",
+                "target_groups": json.dumps(["zs1_7_12"]),
+                "price": 0,
+                "status": "active",
+                "is_published": True,
+                "requires_approval": False,
+                "send_email_notification": True,
+                "available_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+                "time_blocks": json.dumps(["09:00-10:30", "10:45-12:15"]),
+                "start_date": None,
+                "end_date": now + timedelta(days=365),
+                "min_days_before_booking": 1,
+                "max_days_before_booking": 180,
+                "preparation_time": 0,
+                "cleanup_time": 0,
+                "collision_resources": json.dumps([]),
+                "collision_lecturer_ids": json.dumps([]),
+                "blocked_program_ids": json.dumps([]),
+                "created_by": IDS["admin"],
+                "feedback_enabled": True,
+                "feedback_questions": json.dumps([]),
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": "::uuid",
+                "institution_id": "::uuid",
+                "target_groups": "::json",
+                "available_days": "::text[]",
+                "time_blocks": "::json",
+                "collision_resources": "::json",
+                "collision_lecturer_ids": "::json",
+                "blocked_program_ids": "::json",
+                "created_by": "::uuid",
+                "feedback_questions": "::json",
+            },
         )
 
-        await conn.execute(
-            """
-            INSERT INTO schools (
-                id, institution_id, name, address, city, contact_person, email,
-                phone, booking_count, tags, source, notes, created_at, updated_at
-            )
-            VALUES (
-                $1::uuid, $2::uuid, 'Regression School', 'Test Street 1',
-                'Test City', 'Test Teacher', $3, '+420000000000', 1,
-                $4::json, 'manual', 'Seeded by regression_core_seed.py', $5, $5
-            )
-            """,
-            IDS["school"],
-            IDS["institution"],
-            SCHOOL_EMAIL,
-            json.dumps(["regression"]),
-            now,
+        await insert_row(
+            conn,
+            "schools",
+            {
+                "id": IDS["school"],
+                "institution_id": IDS["institution"],
+                "name": "Regression School",
+                "address": "Test Street 1",
+                "city": "Test City",
+                "contact_person": "Test Teacher",
+                "email": SCHOOL_EMAIL,
+                "phone": "+420000000000",
+                "booking_count": 1,
+                "tags": json.dumps(["regression"]),
+                "source": "manual",
+                "notes": "Seeded by regression_core_seed.py",
+                "created_at": now,
+                "updated_at": now,
+            },
+            {"id": "::uuid", "institution_id": "::uuid", "tags": "::json"},
         )
-        await conn.execute(
-            """
-            INSERT INTO school_contacts (
-                id, school_id, institution_id, email, name, phone, status,
-                email_validated, deliverability_status, is_primary, notes,
-                created_at, updated_at
-            )
-            VALUES (
-                $1::uuid, $2::uuid, $3::uuid, $4, 'Test Teacher',
-                '+420000000000', 'active', true, 'unknown', true,
-                'Seeded by regression_core_seed.py', $5, $5
-            )
-            """,
-            IDS["school_contact"],
-            IDS["school"],
-            IDS["institution"],
-            SCHOOL_EMAIL,
-            now,
+        await insert_row(
+            conn,
+            "school_contacts",
+            {
+                "id": IDS["school_contact"],
+                "school_id": IDS["school"],
+                "institution_id": IDS["institution"],
+                "email": SCHOOL_EMAIL,
+                "name": "Test Teacher",
+                "phone": "+420000000000",
+                "status": "active",
+                "email_validated": True,
+                "deliverability_status": "unknown",
+                "is_primary": True,
+                "notes": "Seeded by regression_core_seed.py",
+                "created_at": now,
+                "updated_at": now,
+            },
+            {"id": "::uuid", "school_id": "::uuid", "institution_id": "::uuid"},
         )
-        await conn.execute(
-            """
-            INSERT INTO contacts (
-                id, institution_id, first_name, last_name, email, phone, type,
-                primary_source, school_name, school_type, marketing_consent,
-                marketing_consent_at, deliverability_status, note,
-                created_at, updated_at, last_activity_at
-            )
-            VALUES (
-                $1::uuid, $2::uuid, 'Test', 'Teacher', $3, '+420000000000',
-                'pedagog', 'seed', 'Regression School', 'ZS', true, $4,
-                'unknown', 'Seeded by regression_core_seed.py', $4, $4, $4
-            )
-            """,
-            IDS["contact"],
-            IDS["institution"],
-            SCHOOL_EMAIL,
-            now,
+        await insert_row(
+            conn,
+            "contacts",
+            {
+                "id": IDS["contact"],
+                "institution_id": IDS["institution"],
+                "first_name": "Test",
+                "last_name": "Teacher",
+                "email": SCHOOL_EMAIL,
+                "phone": "+420000000000",
+                "type": "pedagog",
+                "primary_source": "seed",
+                "school_name": "Regression School",
+                "school_type": "ZS",
+                "marketing_consent": True,
+                "marketing_consent_at": now,
+                "deliverability_status": "unknown",
+                "note": "Seeded by regression_core_seed.py",
+                "created_at": now,
+                "updated_at": now,
+                "last_activity_at": now,
+            },
+            {"id": "::uuid", "institution_id": "::uuid"},
         )
-        await conn.execute(
-            """
-            INSERT INTO reservations (
-                id, institution_id, program_id, date, time_block, school_name,
-                school_id, group_type, age_or_class, num_students, num_teachers,
-                contact_name, contact_email, contact_phone, status, gdpr_consent,
-                gdpr_consent_date, terms_accepted, terms_accepted_at,
-                terms_accepted_text_version, marketing_consent, created_at, updated_at
-            )
-            VALUES (
-                $1::uuid, $2::uuid, $3::uuid, $4, '09:00-10:30',
-                'Regression School', $5::uuid, 'zs1_7_12', '3.A', 20, 2,
-                'Test Teacher', $6, '+420000000000', 'confirmed', true,
-                $7, true, $7, 'v1', true, $7, $7
-            )
-            """,
-            IDS["reservation"],
-            IDS["institution"],
-            IDS["program"],
-            tomorrow,
-            IDS["school"],
-            SCHOOL_EMAIL,
-            now,
-        )
-
-        await conn.execute(
-            """
-            INSERT INTO events (
-                id, institution_id, name, type, description, capacity, price,
-                currency, is_active, is_archived, form_fields,
-                registration_deadline, allowed_payment_methods, created_at, updated_at
-            )
-            VALUES (
-                $1::uuid, $2::uuid, 'Regression Event', 'event',
-                'Event for isolated regression testing.', 30, 0, 'CZK',
-                true, false, $3::json, $4, NULL, $5, $5
-            )
-            """,
-            IDS["event"],
-            IDS["institution"],
-            json.dumps([{"id": "name", "type": "text", "label": "Name", "required": True, "order": 1}]),
-            deadline,
-            now,
-        )
-        await conn.execute(
-            """
-            INSERT INTO event_dates (
-                id, event_id, start_datetime, end_datetime,
-                capacity_override, registration_deadline_override, created_at
-            )
-            VALUES ($1::uuid, $2::uuid, $3, $4, 25, $5, $6)
-            """,
-            IDS["event_date"],
-            IDS["event"],
-            event_start,
-            event_end,
-            deadline,
-            now,
+        await insert_row(
+            conn,
+            "reservations",
+            {
+                "id": IDS["reservation"],
+                "institution_id": IDS["institution"],
+                "program_id": IDS["program"],
+                "date": tomorrow,
+                "time_block": "09:00-10:30",
+                "school_name": "Regression School",
+                "school_id": IDS["school"],
+                "group_type": "zs1_7_12",
+                "age_or_class": "3.A",
+                "num_students": 20,
+                "num_teachers": 2,
+                "contact_name": "Test Teacher",
+                "contact_email": SCHOOL_EMAIL,
+                "contact_phone": "+420000000000",
+                "status": "confirmed",
+                "gdpr_consent": True,
+                "gdpr_consent_date": now,
+                "terms_accepted": True,
+                "terms_accepted_at": now,
+                "terms_accepted_text_version": "v1",
+                "marketing_consent": True,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {"id": "::uuid", "institution_id": "::uuid", "program_id": "::uuid", "school_id": "::uuid"},
         )
 
-        await conn.execute(
-            """
-            INSERT INTO mailing_campaigns (
-                id, institution_id, created_by, name, type, status,
-                recipient_mode, subject, greeting, intro_text, closing_text,
-                signature, content_snapshot, selection_snapshot, programs_snapshot,
-                total_recipients, sent_count, failed_count, skipped_count,
-                created_at, updated_at
-            )
-            VALUES (
-                $1::uuid, $2::uuid, $3::uuid, 'Regression Mailing Draft',
-                'seasonal', 'draft', 'manual', 'Regression Campaign',
-                'Dobry den,', 'Test intro', 'Test closing', 'Regression team',
-                $4::json, $5::json, $6::json, 1, 0, 0, 0, $7, $7
-            )
-            """,
-            IDS["mailing_campaign"],
-            IDS["institution"],
-            IDS["admin"],
-            json.dumps({}),
-            json.dumps({"mode": "manual"}),
-            json.dumps([{"id": IDS["program"], "name_cs": "Regression Program"}]),
-            now,
+        await insert_row(
+            conn,
+            "events",
+            {
+                "id": IDS["event"],
+                "institution_id": IDS["institution"],
+                "name": "Regression Event",
+                "type": "event",
+                "description": "Event for isolated regression testing.",
+                "capacity": 30,
+                "price": 0,
+                "currency": "CZK",
+                "is_active": True,
+                "is_archived": False,
+                "form_fields": json.dumps([{"id": "name", "type": "text", "label": "Name", "required": True, "order": 1}]),
+                "registration_deadline": deadline,
+                "allowed_payment_methods": None,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {"id": "::uuid", "institution_id": "::uuid", "form_fields": "::json", "allowed_payment_methods": "::json"},
         )
-        await conn.execute(
-            """
-            INSERT INTO mailing_campaign_programs (id, campaign_id, program_id, display_order)
-            VALUES ($1::uuid, $2::uuid, $3::uuid, 1)
-            """,
-            IDS["mailing_campaign_program"],
-            IDS["mailing_campaign"],
-            IDS["program"],
+        await insert_row(
+            conn,
+            "event_dates",
+            {
+                "id": IDS["event_date"],
+                "event_id": IDS["event"],
+                "start_datetime": event_start,
+                "end_datetime": event_end,
+                "capacity_override": 25,
+                "registration_deadline_override": deadline,
+                "created_at": now,
+            },
+            {"id": "::uuid", "event_id": "::uuid"},
         )
-        await conn.execute(
-            """
-            INSERT INTO mailing_campaign_recipients (
-                id, campaign_id, school_id, contact_id, email, school_name,
-                contact_name, status, matching_reason, delivery_status, created_at
-            )
-            VALUES (
-                $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5,
-                'Regression School', 'Test Teacher', 'pending',
-                $6::json, 'unknown', $7
-            )
-            """,
-            IDS["mailing_recipient"],
-            IDS["mailing_campaign"],
-            IDS["school"],
-            IDS["school_contact"],
-            SCHOOL_EMAIL,
-            json.dumps({"selection_mode": "manual", "manual_override": True}),
-            now,
+
+        await insert_row(
+            conn,
+            "mailing_campaigns",
+            {
+                "id": IDS["mailing_campaign"],
+                "institution_id": IDS["institution"],
+                "created_by": IDS["admin"],
+                "name": "Regression Mailing Draft",
+                "type": "seasonal",
+                "status": "draft",
+                "recipient_mode": "manual",
+                "subject": "Regression Campaign",
+                "greeting": "Dobry den,",
+                "intro_text": "Test intro",
+                "closing_text": "Test closing",
+                "signature": "Regression team",
+                "content_snapshot": json.dumps({}),
+                "selection_snapshot": json.dumps({"mode": "manual"}),
+                "programs_snapshot": json.dumps([{"id": IDS["program"], "name_cs": "Regression Program"}]),
+                "total_recipients": 1,
+                "sent_count": 0,
+                "failed_count": 0,
+                "skipped_count": 0,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": "::uuid",
+                "institution_id": "::uuid",
+                "created_by": "::uuid",
+                "content_snapshot": "::json",
+                "selection_snapshot": "::json",
+                "programs_snapshot": "::json",
+            },
         )
-        await conn.execute(
-            """
-            INSERT INTO mailing_recipient_programs (
-                id, recipient_id, program_id, program_name, program_target_groups
-            )
-            VALUES ($1::uuid, $2::uuid, $3::uuid, 'Regression Program', $4::json)
-            """,
-            IDS["mailing_recipient_program"],
-            IDS["mailing_recipient"],
-            IDS["program"],
-            json.dumps(["zs1_7_12"]),
+        await insert_row(
+            conn,
+            "mailing_campaign_programs",
+            {
+                "id": IDS["mailing_campaign_program"],
+                "campaign_id": IDS["mailing_campaign"],
+                "program_id": IDS["program"],
+                "display_order": 1,
+            },
+            {"id": "::uuid", "campaign_id": "::uuid", "program_id": "::uuid"},
+        )
+        await insert_row(
+            conn,
+            "mailing_campaign_recipients",
+            {
+                "id": IDS["mailing_recipient"],
+                "campaign_id": IDS["mailing_campaign"],
+                "school_id": IDS["school"],
+                "contact_id": IDS["school_contact"],
+                "email": SCHOOL_EMAIL,
+                "school_name": "Regression School",
+                "contact_name": "Test Teacher",
+                "status": "pending",
+                "matching_reason": json.dumps({"selection_mode": "manual", "manual_override": True}),
+                "delivery_status": "unknown",
+                "created_at": now,
+            },
+            {
+                "id": "::uuid",
+                "campaign_id": "::uuid",
+                "school_id": "::uuid",
+                "contact_id": "::uuid",
+                "matching_reason": "::json",
+            },
+        )
+        await insert_row(
+            conn,
+            "mailing_recipient_programs",
+            {
+                "id": IDS["mailing_recipient_program"],
+                "recipient_id": IDS["mailing_recipient"],
+                "program_id": IDS["program"],
+                "program_name": "Regression Program",
+                "program_target_groups": json.dumps(["zs1_7_12"]),
+            },
+            {"id": "::uuid", "recipient_id": "::uuid", "program_id": "::uuid", "program_target_groups": "::json"},
         )
 
         counts = await table_counts(conn)
@@ -451,7 +551,6 @@ async def seed(conn, admin_password: str) -> Dict[str, object]:
         "booking_path": f"/booking/{IDS['institution']}",
         "seeded_counts": counts,
     }
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)

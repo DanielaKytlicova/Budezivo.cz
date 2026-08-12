@@ -348,6 +348,7 @@ async def seed_second_institution(conn) -> None:
                 "num_teachers": 2,
                 "contact_name": "Other Test Teacher",
                 "contact_email": SECOND_SCHOOL_EMAIL,
+                "contact_phone": "+420000000001",
                 "status": "confirmed",
                 "gdpr_consent": True,
                 "gdpr_consent_date": now,

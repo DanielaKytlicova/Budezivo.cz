@@ -27,6 +27,10 @@ class RegressionRoleIsolationSmokeTests(unittest.TestCase):
         self.assertTrue(regression_role_isolation_smoke.SECOND_CASHIER_EMAIL.endswith("@example.test"))
         self.assertTrue(regression_role_isolation_smoke.SECOND_SCHOOL_EMAIL.endswith("@example.test"))
 
+    def test_second_seed_reservation_includes_required_phone(self):
+        source = Path(regression_role_isolation_smoke.__file__).read_text(encoding="utf-8")
+        self.assertIn('"contact_phone": "+420000000001"', source)
+
     def test_role_matrix_static_parser_covers_expected_sets(self):
         self.assertTrue(regression_role_isolation_smoke.role_matrix_static_ok())
 

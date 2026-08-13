@@ -11,19 +11,11 @@ import os
 import binascii
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from svix.webhooks import Webhook, WebhookVerificationError
 
-from database.models import (
-    Contact,
-    MailingCampaign,
-    MailingCampaignRecipient,
-    ResendWebhookEvent,
-    SchoolContact,
-)
 from database.supabase import get_db
-from services.resend_delivery import PERMANENT_SUPPRESSION, delivery_update_from_payload
+from services.resend_delivery import apply_delivery_update, delivery_update_from_payload
 
 
 router = APIRouter(prefix="/resend", tags=["Resend"])

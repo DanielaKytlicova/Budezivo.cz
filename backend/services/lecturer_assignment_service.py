@@ -16,6 +16,7 @@ from services.collision_service import (
     check_lecturer_available_for_block,
     check_availability_blocks,
     time_blocks_overlap,
+    reservation_lecturer_ids,
 )
 
 logger = logging.getLogger(__name__)
@@ -96,10 +97,11 @@ async def _has_same_lecturer_collision(
             Reservation.institution_id == institution_id,
             Reservation.date == date,
             Reservation.status != "cancelled",
-            Reservation.assigned_lecturer_id == lecturer_id,
         ))
     )
     for other in r.scalars().all():
+        if str(lecturer_id) not in reservation_lecturer_ids(other):
+            continue
         # Need other program duration
         op = await db.execute(select(Program.duration).where(Program.id == other.program_id))
         other_duration = op.scalar_one_or_none() or 60

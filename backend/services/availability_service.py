@@ -20,6 +20,7 @@ from database.models import (
 )
 from services.collision_service import (
     parse_time_block, time_blocks_overlap,
+    reservation_lecturer_ids, program_collision_lecturer_ids,
     check_lecturer_available_for_block,
     check_any_lecturer_available_for_block,
 )
@@ -170,8 +171,9 @@ async def _check_collision_layer(
 
             # Lecturer collision
             if "lecturer" in collision_resources:
-                effective_lecturer = assigned_lecturer_id
-                if effective_lecturer and res.assigned_lecturer_id and str(res.assigned_lecturer_id) == effective_lecturer:
+                effective_lecturers = program_collision_lecturer_ids(program)
+                occupied_lecturers = reservation_lecturer_ids(res)
+                if effective_lecturers and occupied_lecturers.intersection(effective_lecturers):
                     other_name = other_program.name_cs if other_program else "Jiný program"
                     return {"status": STATUS_BLOCKED_LECTURER, "reason": f"Kolize lektora: přiřazen k '{other_name}'"}
 

@@ -53,6 +53,30 @@ def time_blocks_overlap(block_a: str, duration_a: int, block_b: str, duration_b:
     return start_a < end_b and start_b < end_a
 
 
+def reservation_lecturer_ids(reservation) -> set[str]:
+    """Return every lecturer assigned to a reservation, including multi-lecturer lists."""
+    ids: set[str] = set()
+    if getattr(reservation, "assigned_lecturer_id", None):
+        ids.add(str(reservation.assigned_lecturer_id))
+    for lecturer_id in (getattr(reservation, "assigned_lecturer_ids", None) or []):
+        if lecturer_id:
+            ids.add(str(lecturer_id))
+    return ids
+
+
+def program_collision_lecturer_ids(program, lecturer_id: Optional[str] = None) -> set[str]:
+    """Return lecturers whose overlap should block a program booking."""
+    ids: set[str] = set()
+    if lecturer_id:
+        ids.add(str(lecturer_id))
+    if getattr(program, "assigned_lecturer_id", None):
+        ids.add(str(program.assigned_lecturer_id))
+    for candidate_id in (getattr(program, "collision_lecturer_ids", None) or []):
+        if candidate_id:
+            ids.add(str(candidate_id))
+    return ids
+
+
 def _advisory_lock_key(institution_id: str, date: str) -> int:
     """Generate a deterministic int64 advisory lock key from institution+date."""
     raw = f"{institution_id}:{date}"
@@ -182,16 +206,15 @@ async def check_booking_collision(
 
         # ── Check LECTURER collision ──
         if "lecturer" in collision_resources:
-            # Use lecturer_id from the new booking OR the program's default lecturer
-            effective_lecturer_id = lecturer_id or (str(program.assigned_lecturer_id) if program.assigned_lecturer_id else None)
-            if effective_lecturer_id and res.assigned_lecturer_id:
-                if str(res.assigned_lecturer_id) == effective_lecturer_id:
-                    other_name = other_program.name_cs if other_program else "Neznámý program"
-                    lecturer_name = res.assigned_lecturer_name or "Lektor"
-                    return (
-                        f"Kolize lektora: {lecturer_name} je již přiřazen/a k programu '{other_name}' "
-                        f"dne {date} v čase {res.time_block}."
-                    )
+            effective_lecturer_ids = program_collision_lecturer_ids(program, lecturer_id)
+            occupied_lecturer_ids = reservation_lecturer_ids(res)
+            if effective_lecturer_ids and occupied_lecturer_ids.intersection(effective_lecturer_ids):
+                other_name = other_program.name_cs if other_program else "Neznámý program"
+                lecturer_name = res.assigned_lecturer_name or "Lektor"
+                return (
+                    f"Kolize lektora: {lecturer_name} je již přiřazen/a k programu '{other_name}' "
+                    f"dne {date} v čase {res.time_block}."
+                )
 
         # ── Check ROOM collision ──
         if "room" in collision_resources and program_room_id:
@@ -318,17 +341,20 @@ async def check_lecturer_collision_for_assignment(
     program = prog_result.scalar_one_or_none()
     booking_duration = program.duration if program else 60
 
-    # Find all other non-cancelled reservations on the same date with this lecturer
+    # Find all other non-cancelled reservations on the same date.
+    # Multi-lecturer reservations may contain the lecturer only in assigned_lecturer_ids.
     result = await db.execute(
         select(Reservation).where(and_(
             Reservation.institution_id == inst_uuid,
             Reservation.date == booking.date,
             Reservation.status != 'cancelled',
-            Reservation.assigned_lecturer_id == lect_uuid,
             Reservation.id != book_uuid,  # Exclude the booking we're assigning to
         ))
     )
-    other_bookings = result.scalars().all()
+    other_bookings = [
+        other for other in result.scalars().all()
+        if str(lect_uuid) in reservation_lecturer_ids(other)
+    ]
 
     for other in other_bookings:
         # Get other program's duration

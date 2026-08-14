@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { RichTextEditor } from '../../components/ui/rich-text-editor';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { 
   Mail, 
   Eye, 
@@ -47,6 +48,7 @@ export const ProgramMailingTab = ({ programId, programName }) => {
   const [body, setBody] = useState('');
   const [preview, setPreview] = useState({ subject: '', body: '' });
   const [testEmail, setTestEmail] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   
   const [hasChanges, setHasChanges] = useState(false);
 
@@ -71,6 +73,7 @@ export const ProgramMailingTab = ({ programId, programName }) => {
       }
       
       setEmailConfigured(response.data.email_service_configured);
+      setFieldErrors({});
       setHasChanges(false);
     } catch (error) {
       console.error('Failed to fetch template:', error);
@@ -104,13 +107,19 @@ export const ProgramMailingTab = ({ programId, programName }) => {
 <strong>{{institution_name}}</strong></p>`;
   };
 
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
   const handleSubjectChange = (value) => {
     setSubject(value);
+    clearFieldError('subject');
     setHasChanges(true);
   };
 
   const handleBodyChange = (value) => {
     setBody(value);
+    clearFieldError('body');
     setHasChanges(true);
   };
 
@@ -120,9 +129,20 @@ export const ProgramMailingTab = ({ programId, programName }) => {
     toast.success(`Proměnná ${tag} zkopírována do schránky`);
   };
 
+  const validateTemplateFields = () => {
+    const errors = {};
+    if (!subject.trim()) errors.subject = 'Vyplňte předmět e-mailu.';
+    if (!body.trim()) errors.body = 'Vyplňte obsah e-mailu.';
+    setFieldErrors(prev => ({ ...prev, subject: undefined, body: undefined, ...errors }));
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return false;
+    }
+    return true;
+  };
+
   const handleSave = async () => {
-    if (!subject.trim() || !body.trim()) {
-      toast.error('Vyplňte předmět a tělo e-mailu');
+    if (!validateTemplateFields()) {
       return;
     }
 
@@ -143,6 +163,10 @@ export const ProgramMailingTab = ({ programId, programName }) => {
   };
 
   const handlePreview = async () => {
+    if (!validateTemplateFields()) {
+      return;
+    }
+
     try {
       const response = await axios.post(`${API}/programs/${programId}/email-template/preview`, {
         subject,
@@ -156,8 +180,19 @@ export const ProgramMailingTab = ({ programId, programName }) => {
   };
 
   const handleSendTest = async () => {
-    if (!testEmail) {
-      toast.error('Zadejte e-mailovou adresu');
+    const errors = {};
+    if (!testEmail.trim()) {
+      errors.testEmail = 'Vyplňte e-mailovou adresu.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testEmail.trim())) {
+      errors.testEmail = 'Zadejte platný e-mail.';
+    }
+
+    if (!subject.trim()) errors.subject = 'Vyplňte předmět e-mailu.';
+    if (!body.trim()) errors.body = 'Vyplňte obsah e-mailu.';
+
+    setFieldErrors(prev => ({ ...prev, subject: undefined, body: undefined, testEmail: undefined, ...errors }));
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
 
@@ -223,9 +258,11 @@ export const ProgramMailingTab = ({ programId, programName }) => {
           value={subject}
           onChange={(e) => handleSubjectChange(e.target.value)}
           placeholder="Potvrzení rezervace - {{program_name}}"
-          className="font-mono text-sm"
+          className={`font-mono text-sm ${fieldErrors.subject ? FIELD_ERROR_CLASS : ''}`}
+          aria-invalid={Boolean(fieldErrors.subject)}
           data-testid="email-subject-input"
         />
+        <FieldError message={fieldErrors.subject} />
         <p className="text-xs text-gray-500">
           Můžete použít proměnné jako <code className="bg-gray-100 px-1 rounded">{'{{program_name}}'}</code>
         </p>
@@ -234,12 +271,15 @@ export const ProgramMailingTab = ({ programId, programName }) => {
       {/* Body Editor */}
       <Card className="p-4 md:p-6 space-y-4">
         <h3 className="font-semibold text-slate-900">Obsah e-mailu</h3>
-        <RichTextEditor
-          content={body}
-          onChange={handleBodyChange}
-          placeholder="Napište obsah e-mailu..."
-          data-testid="email-body-editor"
-        />
+        <div className={fieldErrors.body ? 'rounded-md border border-red-500 ring-1 ring-red-500' : ''}>
+          <RichTextEditor
+            content={body}
+            onChange={handleBodyChange}
+            placeholder="Napište obsah e-mailu..."
+            data-testid="email-body-editor"
+          />
+        </div>
+        <FieldError message={fieldErrors.body} />
       </Card>
 
       {/* Variables Helper */}
@@ -307,9 +347,10 @@ export const ProgramMailingTab = ({ programId, programName }) => {
           <Input
             type="email"
             value={testEmail}
-            onChange={(e) => setTestEmail(e.target.value)}
+            onChange={(e) => { setTestEmail(e.target.value); clearFieldError('testEmail'); }}
             placeholder="vas@email.cz"
-            className="flex-1"
+            className={`flex-1 ${fieldErrors.testEmail ? FIELD_ERROR_CLASS : ''}`}
+            aria-invalid={Boolean(fieldErrors.testEmail)}
             data-testid="test-email-input"
           />
           <Button
@@ -326,6 +367,7 @@ export const ProgramMailingTab = ({ programId, programName }) => {
             Odeslat test
           </Button>
         </div>
+        <FieldError message={fieldErrors.testEmail} />
         {!emailConfigured && (
           <p className="text-xs text-amber-600">
             Testovací e-mail nelze odeslat - služba není nakonfigurována

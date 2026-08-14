@@ -55,7 +55,6 @@ export const SchoolsPage = () => {
   const [importProgress, setImportProgress] = useState(0);
   const [importResult, setImportResult] = useState(null);
   const [updateExisting, setUpdateExisting] = useState(false);
-  const [importFieldErrors, setImportFieldErrors] = useState({});
   const fileInputRef = useRef(null);
 
   // Tag edit modal
@@ -70,7 +69,6 @@ export const SchoolsPage = () => {
   const [contactForm, setContactForm] = useState({ email: '', name: '', phone: '', is_primary: false });
   const [savingContact, setSavingContact] = useState(false);
   const [contactFieldErrors, setContactFieldErrors] = useState({});
-  const [campaignFieldErrors, setCampaignFieldErrors] = useState({});
 
   // Expanded schools (to show all contacts)
   const [expandedSchools, setExpandedSchools] = useState(new Set());
@@ -338,15 +336,13 @@ export const SchoolsPage = () => {
       }
 
       setImportFile(file);
-      setImportFieldErrors(prev => ({ ...prev, file: undefined }));
       setImportResult(null);
     }
   };
 
   const handleImport = async () => {
     if (!importFile) {
-      setImportFieldErrors({ file: 'Vyberte soubor.' });
-      toast.error('Zkontrolujte zvýrazněná pole.');
+      toast.error('Vyberte soubor');
       return;
     }
 
@@ -420,7 +416,6 @@ export const SchoolsPage = () => {
     setImportResult(null);
     setImportProgress(0);
     setUpdateExisting(false);
-    setImportFieldErrors({});
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -582,12 +577,7 @@ export const SchoolsPage = () => {
     );
   });
 
-  const clearCampaignSelectionError = () => {
-    setCampaignFieldErrors(prev => ({ ...prev, selection: undefined }));
-  };
-
   const toggleSchoolSelection = (schoolId) => {
-    clearCampaignSelectionError();
     setSelectedSchools(prev =>
       prev.includes(schoolId)
         ? prev.filter(id => id !== schoolId)
@@ -604,7 +594,6 @@ export const SchoolsPage = () => {
   // Per-contact selection (partial). A school with a partial selection is
   // rendered as indeterminate and is NOT in selectedSchools.
   const toggleContactSelection = (schoolId, contactId) => {
-    clearCampaignSelectionError();
     setSelectedSchools(prev => prev.filter(id => id !== schoolId));
     setContactSelection(prev => {
       const cur = prev[schoolId] || [];
@@ -635,11 +624,9 @@ export const SchoolsPage = () => {
   const openCampaignSummary = async () => {
     const selections = buildCampaignSelections();
     if (selections.length === 0) {
-      setCampaignFieldErrors({ selection: 'Vyberte alespoň jednu školu nebo kontakt.' });
-      toast.error('Zkontrolujte zvýrazněná pole.');
+      toast.error('Vyberte alespoň jednu školu nebo kontakt');
       return;
     }
-    setCampaignFieldErrors({});
     try {
       const res = await axios.post(`${API}/mailings/from-schools/preview`, { selections });
       setCampaignSummary({ stats: res.data.stats, selections });
@@ -666,7 +653,6 @@ export const SchoolsPage = () => {
   };
 
   const selectAllSchools = () => {
-    clearCampaignSelectionError();
     if (selectedSchools.length === filteredSchools.length) {
       setSelectedSchools([]);
     } else {
@@ -778,6 +764,7 @@ export const SchoolsPage = () => {
                 {schoolView === 'active' && canCampaign && (
                   <Button
                     onClick={openCampaignSummary}
+                    disabled={campaignSelectionCount === 0}
                     className="bg-slate-800 text-white"
                     data-testid="create-campaign-from-schools-btn"
                   >
@@ -968,8 +955,7 @@ export const SchoolsPage = () => {
         </Card>
 
         {isPro && filteredSchools.length > 0 && (
-          <div className={`p-3 bg-slate-50 rounded-lg ${campaignFieldErrors.selection ? 'border border-red-500 ring-1 ring-red-500' : ''}`}>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg">
             <Checkbox
               checked={selectedSchools.length === filteredSchools.length && filteredSchools.length > 0}
               onCheckedChange={selectAllSchools}
@@ -985,8 +971,6 @@ export const SchoolsPage = () => {
                 Vybráno: {selectedSchools.length} z {filteredSchools.length}
               </span>
             )}
-          </div>
-          <FieldError message={campaignFieldErrors.selection} />
           </div>
         )}
 
@@ -1549,11 +1533,9 @@ export const SchoolsPage = () => {
                 {/* File Upload Area */}
                 <div
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                    importFieldErrors.file
-                      ? 'border-red-500 ring-1 ring-red-500'
-                      : importFile
-                        ? 'border-green-300 bg-green-50'
-                        : 'border-gray-300 hover:border-gray-400'
+                    importFile
+                      ? 'border-green-300 bg-green-50'
+                      : 'border-gray-300 hover:border-gray-400'
                   }`}
                 >
                   <input
@@ -1577,7 +1559,6 @@ export const SchoolsPage = () => {
                       <button
                         onClick={() => {
                           setImportFile(null);
-                          setImportFieldErrors({});
                           if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
                         className="p-1 hover:bg-gray-100 rounded"
@@ -1602,7 +1583,6 @@ export const SchoolsPage = () => {
                     </div>
                   )}
                 </div>
-                <FieldError message={importFieldErrors.file} />
 
                 {/* Options */}
                 <div className="flex items-center gap-2">
@@ -1638,7 +1618,7 @@ export const SchoolsPage = () => {
                   </Button>
                   <Button
                     onClick={handleImport}
-                    disabled={importing}
+                    disabled={!importFile || importing}
                     className="flex-1 bg-[#2B3E50] text-white hover:bg-[#1e2d3a]"
                     data-testid="start-import-btn"
                   >

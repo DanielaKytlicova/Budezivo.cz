@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card } from '../../components/ui/card';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { BookingHeader } from '../../components/layout/BookingHeader';
 import { toast } from 'sonner';
 import { resolveAssetUrl } from '../../config/api';
@@ -26,6 +27,7 @@ export default function PublicEventsPage() {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [formValues, setFormValues] = useState({});
+  const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -75,6 +77,12 @@ export default function PublicEventsPage() {
     try {
       const res = await axios.get(`${API_URL}/api/events/public/${institutionId}/${eventId}`);
       setSelectedEvent(res.data);
+      setFormValues({});
+      setFieldErrors({});
+      setSelectedMethod(null);
+      setGdprConsent(false);
+      setMarketingConsent(false);
+      setTermsConsent(false);
       // Auto-select date if only one available
       const availableDates = (res.data.dates || []).filter(
         d => d.is_registration_open !== false && !d.is_full
@@ -86,25 +94,40 @@ export default function PublicEventsPage() {
     } catch { toast.error('Nepodařilo se načíst detail události'); }
   };
 
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
+  const setFormFieldValue = (fieldId, value) => {
+    setFormValues(prev => ({ ...prev, [fieldId]: value }));
+    clearFieldError(`field:${fieldId}`);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!gdprConsent || !termsConsent) {
-      toast.error('Pro odeslání přihlášky musíte odsouhlasit obchodní podmínky a zpracování osobních údajů.');
+    const methods = selectedEvent.payment_methods || [];
+    const isFree = selectedEvent.is_free || (selectedEvent.price || 0) <= 0;
+    let chosen = selectedMethod;
+    if (!isFree && !chosen && methods.length === 1) chosen = methods[0];
+
+    const errors = {};
+    (selectedEvent.form_fields || []).forEach((field) => {
+      if (!field.required) return;
+      const value = formValues[field.id];
+      const missing = field.type === 'checkbox' ? !value : !String(value || '').trim();
+      if (missing) errors[`field:${field.id}`] = 'Vyplňte toto pole.';
+    });
+    if (!isFree && methods.length > 1 && !chosen) errors.paymentMethod = 'Vyberte způsob platby.';
+    if (!gdprConsent) errors.gdprConsent = 'Potvrďte souhlas se zpracováním osobních údajů.';
+    if (!termsConsent) errors.termsConsent = 'Potvrďte souhlas s obchodními podmínkami.';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
+
     setSubmitting(true);
     try {
-      const methods = selectedEvent.payment_methods || [];
-      const isFree = selectedEvent.is_free || (selectedEvent.price || 0) <= 0;
-      let chosen = selectedMethod;
-      if (!isFree) {
-        if (!chosen && methods.length === 1) chosen = methods[0];
-        if (methods.length > 1 && !chosen) {
-          toast.error('Vyberte prosím způsob platby.');
-          setSubmitting(false);
-          return;
-        }
-      }
       const emailField = selectedEvent.form_fields?.find(f => f.type === 'email');
       const nameField = selectedEvent.form_fields?.find(f => f.label?.toLowerCase().includes('jméno') || f.label?.toLowerCase().includes('name'));
       const res = await axios.post(`${API_URL}/api/events/public/${institutionId}/apply`, {
@@ -171,6 +194,8 @@ export default function PublicEventsPage() {
 
   // Render a single form field on the public side
   const renderFormField = (field) => {
+    const errorKey = `field:${field.id}`;
+    const errorMessage = fieldErrors[errorKey];
     if (field.type === 'checkbox') {
       return (
         <div key={field.id} className="py-1">
@@ -178,15 +203,16 @@ export default function PublicEventsPage() {
             <input
               type="checkbox"
               checked={!!formValues[field.id]}
-              onChange={e => setFormValues(p => ({ ...p, [field.id]: e.target.checked }))}
-              className="rounded mt-0.5 w-4 h-4 shrink-0"
-              required={field.required}
+              onChange={e => setFormFieldValue(field.id, e.target.checked)}
+              className={`rounded mt-0.5 w-4 h-4 shrink-0 ${errorMessage ? FIELD_ERROR_CLASS : ''}`}
+              aria-invalid={Boolean(errorMessage)}
               data-testid={`field-${field.id}`}
             />
             <span className="text-sm text-gray-700">
               {field.label} {field.required && <span className="text-red-500">*</span>}
             </span>
           </label>
+          <FieldError message={errorMessage} />
         </div>
       );
     }
@@ -197,23 +223,24 @@ export default function PublicEventsPage() {
           {field.label} {field.required && <span className="text-red-500">*</span>}
         </Label>
         {field.type === 'text' && (
-          <Input value={formValues[field.id] || ''} onChange={e => setFormValues(p => ({ ...p, [field.id]: e.target.value }))} required={field.required} className="mt-1" data-testid={`field-${field.id}`} />
+          <Input value={formValues[field.id] || ''} onChange={e => setFormFieldValue(field.id, e.target.value)} className={`mt-1 ${errorMessage ? FIELD_ERROR_CLASS : ''}`} aria-invalid={Boolean(errorMessage)} data-testid={`field-${field.id}`} />
         )}
         {field.type === 'email' && (
-          <Input type="email" value={formValues[field.id] || ''} onChange={e => setFormValues(p => ({ ...p, [field.id]: e.target.value }))} required={field.required} className="mt-1" data-testid={`field-${field.id}`} />
+          <Input type="email" value={formValues[field.id] || ''} onChange={e => setFormFieldValue(field.id, e.target.value)} className={`mt-1 ${errorMessage ? FIELD_ERROR_CLASS : ''}`} aria-invalid={Boolean(errorMessage)} data-testid={`field-${field.id}`} />
         )}
         {field.type === 'number' && (
-          <Input type="tel" value={formValues[field.id] || ''} onChange={e => setFormValues(p => ({ ...p, [field.id]: e.target.value }))} required={field.required} className="mt-1" data-testid={`field-${field.id}`} />
+          <Input type="tel" value={formValues[field.id] || ''} onChange={e => setFormFieldValue(field.id, e.target.value)} className={`mt-1 ${errorMessage ? FIELD_ERROR_CLASS : ''}`} aria-invalid={Boolean(errorMessage)} data-testid={`field-${field.id}`} />
         )}
         {field.type === 'date' && (
-          <Input type="date" value={formValues[field.id] || ''} onChange={e => setFormValues(p => ({ ...p, [field.id]: e.target.value }))} required={field.required} className="mt-1" data-testid={`field-${field.id}`} />
+          <Input type="date" value={formValues[field.id] || ''} onChange={e => setFormFieldValue(field.id, e.target.value)} className={`mt-1 ${errorMessage ? FIELD_ERROR_CLASS : ''}`} aria-invalid={Boolean(errorMessage)} data-testid={`field-${field.id}`} />
         )}
         {field.type === 'select' && (
-          <select value={formValues[field.id] || ''} onChange={e => setFormValues(p => ({ ...p, [field.id]: e.target.value }))} required={field.required} className="mt-1 w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white" data-testid={`field-${field.id}`}>
+          <select value={formValues[field.id] || ''} onChange={e => setFormFieldValue(field.id, e.target.value)} className={`mt-1 w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white ${errorMessage ? FIELD_ERROR_CLASS : ''}`} aria-invalid={Boolean(errorMessage)} data-testid={`field-${field.id}`}>
             <option value="">Vyberte...</option>
             {(field.options || []).map((opt, i) => <option key={i} value={opt}>{opt}</option>)}
           </select>
         )}
+        <FieldError message={errorMessage} />
       </div>
     );
   };
@@ -398,7 +425,7 @@ export default function PublicEventsPage() {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} noValidate className="space-y-4">
                 {(selectedEvent.form_fields || []).sort((a, b) => (a.order || 0) - (b.order || 0)).map(renderFormField)}
 
                 {/* Výběr způsobu platby — jen placené akce */}
@@ -412,13 +439,14 @@ export default function PublicEventsPage() {
                     ) : (
                       <div className="space-y-2">
                         {(selectedEvent.payment_methods || []).map(m => (
-                          <label key={m} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${selectedMethod === m ? 'border-[#5a7aae] bg-[#5a7aae]/5' : 'border-gray-200 hover:border-gray-300'}`} data-testid={`payment-method-${m}`}>
-                            <input type="radio" name="payment_method" checked={selectedMethod === m} onChange={() => setSelectedMethod(m)} className="w-4 h-4" data-testid={`payment-method-${m}-radio`} />
+                          <label key={m} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${selectedMethod === m ? 'border-[#5a7aae] bg-[#5a7aae]/5' : fieldErrors.paymentMethod ? FIELD_ERROR_CLASS : 'border-gray-200 hover:border-gray-300'}`} data-testid={`payment-method-${m}`}>
+                            <input type="radio" name="payment_method" checked={selectedMethod === m} onChange={() => { setSelectedMethod(m); clearFieldError('paymentMethod'); }} className="w-4 h-4" data-testid={`payment-method-${m}-radio`} />
                             <span className="text-sm text-gray-800">{PAYMENT_METHOD_LABELS[m] || m}</span>
                           </label>
                         ))}
                       </div>
                     )}
+                    <FieldError message={fieldErrors.paymentMethod} />
                   </div>
                 )}
 
@@ -428,9 +456,9 @@ export default function PublicEventsPage() {
                     <input
                       type="checkbox"
                       checked={gdprConsent}
-                      onChange={e => setGdprConsent(e.target.checked)}
-                      required
-                      className="rounded mt-0.5 w-4 h-4 shrink-0"
+                      onChange={e => { setGdprConsent(e.target.checked); clearFieldError('gdprConsent'); }}
+                      className={`rounded mt-0.5 w-4 h-4 shrink-0 ${fieldErrors.gdprConsent ? FIELD_ERROR_CLASS : ''}`}
+                      aria-invalid={Boolean(fieldErrors.gdprConsent)}
                       data-testid="event-gdpr-consent"
                     />
                     <span className="text-sm text-gray-700 leading-relaxed">
@@ -440,6 +468,7 @@ export default function PublicEventsPage() {
                       </a>. <span className="text-red-500">*</span>
                     </span>
                   </label>
+                  <FieldError message={fieldErrors.gdprConsent} />
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input
                       type="checkbox"
@@ -458,9 +487,9 @@ export default function PublicEventsPage() {
                     <input
                       type="checkbox"
                       checked={termsConsent}
-                      onChange={e => setTermsConsent(e.target.checked)}
-                      required
-                      className="rounded mt-0.5 w-4 h-4 shrink-0"
+                      onChange={e => { setTermsConsent(e.target.checked); clearFieldError('termsConsent'); }}
+                      className={`rounded mt-0.5 w-4 h-4 shrink-0 ${fieldErrors.termsConsent ? FIELD_ERROR_CLASS : ''}`}
+                      aria-invalid={Boolean(fieldErrors.termsConsent)}
                       data-testid="event-terms-consent"
                     />
                     <span className="text-sm text-gray-700 leading-relaxed">
@@ -471,11 +500,12 @@ export default function PublicEventsPage() {
                       Tímto závazně objednávám výše uvedenou službu. <span className="text-red-500">*</span>
                     </span>
                   </label>
+                  <FieldError message={fieldErrors.termsConsent} />
                 </div>
 
                 <Button
                   type="submit"
-                  disabled={submitting || !gdprConsent || !termsConsent}
+                  disabled={submitting}
                   className="w-full bg-[#5a7aae] hover:bg-[#4a6a9e] disabled:bg-gray-300 h-12 mt-6"
                   data-testid="submit-application-btn"
                 >

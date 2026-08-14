@@ -9,6 +9,8 @@ import { CheckCircle, AlertCircle, Loader2, Eye, EyeOff, Users } from 'lucide-re
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
+import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -49,6 +51,7 @@ export default function AcceptInvitePage() {
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
   
   useEffect(() => {
     const verifyToken = async () => {
@@ -73,20 +76,24 @@ export default function AcceptInvitePage() {
     verifyToken();
   }, [token]);
   
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validate passwords
-    if (password.length < 8) {
-      setError('Heslo musí mít alespoň 8 znaků');
+
+    const errors = {};
+    if (password.length < 8) errors.password = 'Heslo musí mít alespoň 8 znaků.';
+    if (!confirmPassword) errors.confirmPassword = 'Zopakujte heslo.';
+    else if (password !== confirmPassword) errors.confirmPassword = 'Hesla se neshodují.';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setError(null);
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
-    
-    if (password !== confirmPassword) {
-      setError('Hesla se neshodují');
-      return;
-    }
-    
+
     setSubmitting(true);
     setError(null);
     
@@ -193,7 +200,7 @@ export default function AcceptInvitePage() {
             </div>
             
             {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4" data-testid="accept-invite-form">
+            <form onSubmit={handleSubmit} noValidate className="space-y-4" data-testid="accept-invite-form">
               {/* Name */}
               <div>
                 <Label htmlFor="name">Jméno a příjmení</Label>
@@ -216,10 +223,10 @@ export default function AcceptInvitePage() {
                     id="password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => { setPassword(e.target.value); clearFieldError('password'); }}
                     placeholder="Minimálně 8 znaků"
-                    required
-                    className="pr-10"
+                    className={`pr-10 ${fieldErrors.password ? FIELD_ERROR_CLASS : ''}`}
+                    aria-invalid={Boolean(fieldErrors.password)}
                     data-testid="password-input"
                   />
                   <button
@@ -230,8 +237,9 @@ export default function AcceptInvitePage() {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                <FieldError message={fieldErrors.password} />
               </div>
-              
+
               {/* Confirm Password */}
               <div>
                 <Label htmlFor="confirmPassword">Potvrzení hesla *</Label>
@@ -240,10 +248,10 @@ export default function AcceptInvitePage() {
                     id="confirmPassword"
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e) => { setConfirmPassword(e.target.value); clearFieldError('confirmPassword'); }}
                     placeholder="Zopakujte heslo"
-                    required
-                    className="pr-10"
+                    className={`pr-10 ${fieldErrors.confirmPassword ? FIELD_ERROR_CLASS : ''}`}
+                    aria-invalid={Boolean(fieldErrors.confirmPassword)}
                     data-testid="confirm-password-input"
                   />
                   <button
@@ -254,8 +262,9 @@ export default function AcceptInvitePage() {
                     {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                <FieldError message={fieldErrors.confirmPassword} />
               </div>
-              
+
               {/* Error Message */}
               {error && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
@@ -266,7 +275,7 @@ export default function AcceptInvitePage() {
               {/* Submit Button */}
               <Button
                 type="submit"
-                disabled={submitting || !password || !confirmPassword}
+                disabled={submitting}
                 className="w-full bg-[#2B3E50] hover:bg-[#1e2d3a] h-11"
                 data-testid="accept-invite-button"
               >

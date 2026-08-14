@@ -6,6 +6,7 @@ import { AuthContext } from '../../context/AuthContext';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
@@ -26,6 +27,7 @@ export const MyProfilePage = ({ embedded = false }) => {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [name, setName] = useState('');
   const [preferredAges, setPreferredAges] = useState([]);
@@ -87,6 +89,13 @@ export const MyProfilePage = ({ embedded = false }) => {
   const handleSave = async (e) => {
     e?.preventDefault();
     if (!user?.id) return;
+    const errors = {};
+    if (!name.trim()) errors.name = 'Vyplňte jméno.';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return;
+    }
     setSaving(true);
     try {
       await axios.patch(`${API}/team/${user.id}/lecturer-profile`, {
@@ -141,10 +150,12 @@ export const MyProfilePage = ({ embedded = false }) => {
               id="profile-name"
               data-testid="profile-name-input"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => { setName(e.target.value); setFieldErrors(prev => ({ ...prev, name: undefined })); }}
               placeholder="Vaše jméno"
               maxLength={120}
+              className={fieldErrors.name ? FIELD_ERROR_CLASS : ''}
             />
+            <FieldError message={fieldErrors.name} />
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm text-gray-600">
             <div>

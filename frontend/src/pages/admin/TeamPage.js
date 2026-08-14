@@ -4,6 +4,7 @@ import { AdminLayout } from '../../components/layout/AdminLayout';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Label } from '../../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Textarea } from '../../components/ui/textarea';
@@ -94,6 +95,7 @@ export const TeamPage = () => {
   
   // Form states
   const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: 'edukator' });
+  const [inviteFieldErrors, setInviteFieldErrors] = useState({});
   const [editForm, setEditForm] = useState({ name: '', role: '' });
   const [sending, setSending] = useState(false);
 
@@ -183,18 +185,22 @@ export const TeamPage = () => {
 
   const handleSendInvitation = async (e) => {
     e.preventDefault();
-    
-    if (!inviteForm.email) {
-      toast.error('Zadejte email');
+
+    const errors = {};
+    if (!inviteForm.email.trim()) errors.email = 'Vyplňte e-mail.';
+    setInviteFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
-    
+
     setSending(true);
     try {
       await axios.post(`${API}/invitations/send`, inviteForm);
       toast.success(`Pozvánka byla odeslána na ${inviteForm.email}`);
       setShowInviteDialog(false);
       setInviteForm({ name: '', email: '', role: 'edukator' });
+      setInviteFieldErrors({});
       fetchPendingInvitations();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Nepodařilo se odeslat pozvánku');
@@ -525,7 +531,7 @@ export const TeamPage = () => {
             </DialogTitle>
           </DialogHeader>
           
-          <form onSubmit={handleSendInvitation} className="space-y-6" data-testid="invite-form">
+          <form onSubmit={handleSendInvitation} noValidate className="space-y-6" data-testid="invite-form">
             <div className="space-y-4">
               <div>
                 <Label htmlFor="invite-name">Jméno a příjmení</Label>
@@ -545,12 +551,13 @@ export const TeamPage = () => {
                   id="invite-email"
                   type="email"
                   value={inviteForm.email}
-                  onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                  onChange={(e) => { setInviteForm({ ...inviteForm, email: e.target.value }); setInviteFieldErrors(prev => ({ ...prev, email: undefined })); }}
                   placeholder="jana.novakova@instituce.cz"
                   required
-                  className="mt-1"
+                  className={`mt-1 ${inviteFieldErrors.email ? FIELD_ERROR_CLASS : ''}`}
                   data-testid="invite-email-input"
                 />
+                <FieldError message={inviteFieldErrors.email} />
               </div>
             </div>
 

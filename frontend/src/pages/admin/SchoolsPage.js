@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { API } from '../../config/api';
 import { Input } from '../../components/ui/input';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Badge } from '../../components/ui/badge';
 import { AuthContext } from '../../context/AuthContext';
 
@@ -67,6 +68,7 @@ export const SchoolsPage = () => {
   const [contactSchool, setContactSchool] = useState(null);
   const [contactForm, setContactForm] = useState({ email: '', name: '', phone: '', is_primary: false });
   const [savingContact, setSavingContact] = useState(false);
+  const [contactFieldErrors, setContactFieldErrors] = useState({});
   
   // Expanded schools (to show all contacts)
   const [expandedSchools, setExpandedSchools] = useState(new Set());
@@ -455,15 +457,26 @@ export const SchoolsPage = () => {
   const handleAddContact = (school) => {
     setContactSchool(school);
     setContactForm({ email: '', name: '', phone: '', is_primary: false });
+    setContactFieldErrors({});
     setShowContactModal(true);
   };
 
+  const setContactField = (field, value) => {
+    setContactForm(prev => ({ ...prev, [field]: value }));
+    setContactFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
   const handleSaveContact = async () => {
-    if (!contactSchool || !contactForm.email) {
-      toast.error('Vyplňte email');
+    if (!contactSchool) return;
+
+    const errors = {};
+    if (!contactForm.email.trim()) errors.email = 'Vyplňte e-mail.';
+    setContactFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
-    
+
     setSavingContact(true);
     try {
       await axios.post(`${API}/schools/${contactSchool.id}/contacts`, contactForm);
@@ -1844,9 +1857,12 @@ export const SchoolsPage = () => {
                 type="email"
                 placeholder="email@skola.cz"
                 value={contactForm.email}
-                onChange={(e) => setContactForm({...contactForm, email: e.target.value})}
+                onChange={(e) => setContactField('email', e.target.value)}
+                className={contactFieldErrors.email ? FIELD_ERROR_CLASS : ''}
+                aria-invalid={Boolean(contactFieldErrors.email)}
                 data-testid="contact-email-input"
               />
+              <FieldError message={contactFieldErrors.email} />
             </div>
             
             <div>
@@ -1856,7 +1872,7 @@ export const SchoolsPage = () => {
               <Input
                 placeholder="Např. Jan Novák, Pedagog"
                 value={contactForm.name}
-                onChange={(e) => setContactForm({...contactForm, name: e.target.value})}
+                onChange={(e) => setContactField('name', e.target.value)}
               />
             </div>
             
@@ -1867,7 +1883,7 @@ export const SchoolsPage = () => {
               <Input
                 placeholder="+420 123 456 789"
                 value={contactForm.phone}
-                onChange={(e) => setContactForm({...contactForm, phone: e.target.value})}
+                onChange={(e) => setContactField('phone', e.target.value)}
               />
             </div>
             
@@ -1875,7 +1891,7 @@ export const SchoolsPage = () => {
               <Checkbox
                 id="is-primary"
                 checked={contactForm.is_primary}
-                onCheckedChange={(checked) => setContactForm({...contactForm, is_primary: checked})}
+                onCheckedChange={(checked) => setContactField('is_primary', checked)}
               />
               <label htmlFor="is-primary" className="text-sm text-gray-700 cursor-pointer">
                 Označit jako hlavní kontakt
@@ -1892,7 +1908,7 @@ export const SchoolsPage = () => {
               </Button>
               <Button
                 onClick={handleSaveContact}
-                disabled={savingContact || !contactForm.email}
+                disabled={savingContact}
                 className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
                 data-testid="save-contact-btn"
               >

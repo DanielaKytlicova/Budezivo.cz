@@ -4,6 +4,7 @@ import { AdminLayout } from '../../components/layout/AdminLayout';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Switch } from '../../components/ui/switch';
@@ -238,6 +239,7 @@ export const SettingsPage = () => {
     primary_color: '#123456',
     secondary_color: '#123456',
   });
+  const [institutionFieldErrors, setInstitutionFieldErrors] = useState({});
 
   // Notification settings (normalized nested structure)
   const [notifications, setNotifications] = useState(null); // null = not loaded yet
@@ -288,6 +290,7 @@ export const SettingsPage = () => {
   const [pwdCurrent, setPwdCurrent] = useState('');
   const [pwdNew, setPwdNew] = useState('');
   const [pwdConfirm, setPwdConfirm] = useState('');
+  const [passwordFieldErrors, setPasswordFieldErrors] = useState({});
   const [changingPwd, setChangingPwd] = useState(false);
   // VOP state
   const [vopData, setVopData] = useState(null);
@@ -317,15 +320,61 @@ export const SettingsPage = () => {
     payment_mode: 'qr', account_number: '', bank_code: '', account_name: '', iban: '',
     provider: null, gateway_api_key: '', gateway_secret: '',
   });
+  const [paymentFieldErrors, setPaymentFieldErrors] = useState({});
   const [eventsEnabled, setEventsEnabled] = useState(false);
   const [disableConfirm, setDisableConfirm] = useState(null);
 
   const togglePaymentMethod = (m) => {
+    clearPaymentFieldError('methods');
+    if (m === 'qr') clearPaymentFieldError('account_number');
     setPaymentSettings(p => {
       const cur = p.allowed_methods || [];
       return { ...p, allowed_methods: cur.includes(m) ? cur.filter(x => x !== m) : [...cur, m] };
     });
   };
+
+  const clearInstitutionFieldError = (field) => {
+    setInstitutionFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
+  const setInstitutionField = (field, value) => {
+    clearInstitutionFieldError(field);
+    setInstitutionData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const validateInstitutionSettings = () => {
+    const errors = {};
+    if (!institutionData.name.trim()) errors.name = 'Vyplňte název instituce.';
+    if (institutionData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(institutionData.email)) {
+      errors.email = 'Zadejte platný e-mail.';
+    }
+    setInstitutionFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return false;
+    }
+    return true;
+  };
+
+  const clearPaymentFieldError = (field) => {
+    setPaymentFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
+  const validatePaymentSettings = () => {
+    const errors = {};
+    const allowed = paymentSettings.allowed_methods || [];
+    if (allowed.length === 0) errors.methods = 'Vyberte alespoň jeden způsob platby.';
+    if (allowed.includes('qr') && !(paymentSettings.account_number || '').trim()) {
+      errors.account_number = 'Vyplňte číslo účtu pro QR platbu.';
+    }
+    setPaymentFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return false;
+    }
+    return true;
+  };
+
 
   useEffect(() => {
     if (activeSection === 'institution') {
@@ -377,6 +426,7 @@ export const SettingsPage = () => {
   };
 
   const savePaymentSettings = async (confirmDisable = false) => {
+    if (!confirmDisable && !validatePaymentSettings()) return;
     try {
       const payload = {
         ...paymentSettings,
@@ -476,6 +526,7 @@ export const SettingsPage = () => {
   };
 
   const handleSaveInstitution = async () => {
+    if (!validateInstitutionSettings()) return;
     setLoading(true);
     try {
       await axios.put(`${API}/institution/settings`, institutionData);
@@ -766,11 +817,13 @@ export const SettingsPage = () => {
           <Label className="text-gray-600 text-sm">Název instituce</Label>
           <Input
             value={institutionData.name}
-            onChange={(e) => setInstitutionData({ ...institutionData, name: e.target.value })}
+            onChange={(e) => setInstitutionField('name', e.target.value)}
             placeholder="Oblastní galerie"
-            className="mt-1"
+            className={`mt-1 ${institutionFieldErrors.name ? FIELD_ERROR_CLASS : ''}`}
+            aria-invalid={Boolean(institutionFieldErrors.name)}
             data-testid="institution-name"
           />
+          <FieldError message={institutionFieldErrors.name} />
         </div>
 
         <div>
@@ -878,11 +931,13 @@ export const SettingsPage = () => {
           <Input
             type="email"
             value={institutionData.email}
-            onChange={(e) => setInstitutionData({ ...institutionData, email: e.target.value })}
+            onChange={(e) => setInstitutionField('email', e.target.value)}
             placeholder="galerie@mesto.cz"
-            className="mt-1"
+            className={`mt-1 ${institutionFieldErrors.email ? FIELD_ERROR_CLASS : ''}`}
+            aria-invalid={Boolean(institutionFieldErrors.email)}
             data-testid="institution-email"
           />
+          <FieldError message={institutionFieldErrors.email} />
         </div>
 
         <div>
@@ -1820,16 +1875,19 @@ export const SettingsPage = () => {
 
   const handleChangePassword = async (e) => {
     e?.preventDefault();
-    if (!pwdCurrent || !pwdNew || !pwdConfirm) {
-      toast.error('Vyplňte všechna pole');
-      return;
+    const errors = {};
+    if (!pwdCurrent) errors.current = 'Vyplňte současné heslo.';
+    if (!pwdNew) errors.new = 'Vyplňte nové heslo.';
+    if (!pwdConfirm) errors.confirm = 'Potvrďte nové heslo.';
+    if (pwdNew && (pwdNew.length < 8 || !/[A-Z]/.test(pwdNew) || !/[a-z]/.test(pwdNew) || !/[0-9]/.test(pwdNew))) {
+      errors.new = 'Heslo musí mít alespoň 8 znaků, velké i malé písmeno a číslici.';
     }
-    if (pwdNew !== pwdConfirm) {
-      toast.error('Nové heslo a jeho potvrzení se neshodují');
-      return;
+    if (pwdNew && pwdConfirm && pwdNew !== pwdConfirm) {
+      errors.confirm = 'Nové heslo a jeho potvrzení se neshodují.';
     }
-    if (pwdNew.length < 8 || !/[A-Z]/.test(pwdNew) || !/[a-z]/.test(pwdNew) || !/[0-9]/.test(pwdNew)) {
-      toast.error('Heslo musí mít alespoň 8 znaků, velké i malé písmeno a číslici');
+    setPasswordFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
     setChangingPwd(true);
@@ -1842,6 +1900,7 @@ export const SettingsPage = () => {
       setPwdCurrent('');
       setPwdNew('');
       setPwdConfirm('');
+      setPasswordFieldErrors({});
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Změna hesla selhala');
     } finally {
@@ -1862,7 +1921,7 @@ export const SettingsPage = () => {
       </div>
 
       <Card className="p-5 space-y-4">
-        <form onSubmit={handleChangePassword} className="space-y-3 max-w-md">
+        <form onSubmit={handleChangePassword} noValidate className="space-y-3 max-w-md">
           <div>
             <Label htmlFor="pwd-current">Současné heslo</Label>
             <Input
@@ -1871,9 +1930,12 @@ export const SettingsPage = () => {
               autoComplete="current-password"
               data-testid="password-current-input"
               value={pwdCurrent}
-              onChange={(e) => setPwdCurrent(e.target.value)}
+              onChange={(e) => { setPasswordFieldErrors(prev => ({ ...prev, current: undefined })); setPwdCurrent(e.target.value); }}
               placeholder="••••••••"
+              className={passwordFieldErrors.current ? FIELD_ERROR_CLASS : ''}
+              aria-invalid={Boolean(passwordFieldErrors.current)}
             />
+            <FieldError message={passwordFieldErrors.current} />
           </div>
           <div>
             <Label htmlFor="pwd-new">Nové heslo</Label>
@@ -1883,9 +1945,12 @@ export const SettingsPage = () => {
               autoComplete="new-password"
               data-testid="password-new-input"
               value={pwdNew}
-              onChange={(e) => setPwdNew(e.target.value)}
+              onChange={(e) => { setPasswordFieldErrors(prev => ({ ...prev, new: undefined })); setPwdNew(e.target.value); }}
               placeholder="••••••••"
+              className={passwordFieldErrors.new ? FIELD_ERROR_CLASS : ''}
+              aria-invalid={Boolean(passwordFieldErrors.new)}
             />
+            <FieldError message={passwordFieldErrors.new} />
             <p className="text-xs text-gray-500 mt-1">Min. 8 znaků, velké i malé písmeno a číslice.</p>
           </div>
           <div>
@@ -1896,9 +1961,12 @@ export const SettingsPage = () => {
               autoComplete="new-password"
               data-testid="password-confirm-input"
               value={pwdConfirm}
-              onChange={(e) => setPwdConfirm(e.target.value)}
+              onChange={(e) => { setPasswordFieldErrors(prev => ({ ...prev, confirm: undefined })); setPwdConfirm(e.target.value); }}
               placeholder="••••••••"
+              className={passwordFieldErrors.confirm ? FIELD_ERROR_CLASS : ''}
+              aria-invalid={Boolean(passwordFieldErrors.confirm)}
             />
+            <FieldError message={passwordFieldErrors.confirm} />
           </div>
           <Button
             type="submit"
@@ -1949,11 +2017,13 @@ export const SettingsPage = () => {
                 <Label className="text-gray-500 text-sm">Číslo účtu</Label>
                 <Input
                   value={paymentSettings.account_number || ''}
-                  onChange={e => setPaymentSettings(p => ({ ...p, account_number: e.target.value }))}
+                  onChange={e => { clearPaymentFieldError('account_number'); setPaymentSettings(p => ({ ...p, account_number: e.target.value })); }}
                   placeholder="1234567890"
-                  className="mt-1"
+                  className={`mt-1 ${paymentFieldErrors.account_number ? FIELD_ERROR_CLASS : ''}`}
+                  aria-invalid={Boolean(paymentFieldErrors.account_number)}
                   data-testid="settings-payment-account"
                 />
+                <FieldError message={paymentFieldErrors.account_number} />
               </div>
               <div>
                 <Label className="text-gray-500 text-sm">Kód banky</Label>
@@ -1994,6 +2064,7 @@ export const SettingsPage = () => {
             <h3 className="font-semibold text-slate-900">Povolené způsoby platby</h3>
             <p className="text-sm text-gray-500">Vyberte, které způsoby platby vaše instituce technicky podporuje. Tuto nabídku pak lze u jednotlivých akcí dále zúžit.</p>
 
+            <div className={paymentFieldErrors.methods ? 'rounded-lg border border-red-500 ring-1 ring-red-500 p-1 space-y-2' : 'space-y-2'}>
             <label className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50" data-testid="method-qr">
               <input type="checkbox" className="mt-1 w-4 h-4" checked={(paymentSettings.allowed_methods || []).includes('qr')} onChange={() => togglePaymentMethod('qr')} data-testid="method-qr-checkbox" />
               <div>
@@ -2020,6 +2091,9 @@ export const SettingsPage = () => {
                 <p className="text-xs text-gray-500">Nevyžaduje bankovní účet ani platební bránu. Platbu později ručně potvrdí oprávněná osoba.</p>
               </div>
             </label>
+
+            </div>
+            <FieldError message={paymentFieldErrors.methods} />
 
             {(paymentSettings.allowed_methods || []).includes('gateway') && (
               <Card className="p-4 bg-blue-50 border-blue-200 space-y-3">

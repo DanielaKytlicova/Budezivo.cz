@@ -2,10 +2,11 @@ import React from 'react';
 import { Card } from '../ui/card';
 import { Input } from '../ui/input';
 import { Switch } from '../ui/switch';
+import { FieldError, FIELD_ERROR_CLASS } from '../ui/field-error';
 import { Plus, Trash2, Star, MessageSquare, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
-export const ProgramFeedbackTab = ({ formData, setFormData, isPro }) => {
+export const ProgramFeedbackTab = ({ formData, setFormData, isPro, fieldErrors = {}, clearFieldError = () => {} }) => {
   const questionTypes = [
     { value: 'text', label: 'Textová odpověď' },
     { value: 'scale', label: 'Škála 1-5' },
@@ -26,13 +27,16 @@ export const ProgramFeedbackTab = ({ formData, setFormData, isPro }) => {
     }));
   };
 
-  const updateQuestion = (id, field, value) => {
+  const updateQuestion = (id, field, value, index) => {
     setFormData(prev => ({
       ...prev,
       feedback_questions: prev.feedback_questions.map(q =>
         q.id === id ? { ...q, [field]: value } : q
       )
     }));
+    if (field === 'question' && index !== undefined) {
+      clearFieldError(`feedback_questions.${index}.question`);
+    }
   };
 
   const removeQuestion = (id) => {
@@ -104,38 +108,45 @@ export const ProgramFeedbackTab = ({ formData, setFormData, isPro }) => {
             </div>
           ) : (
             <div className="space-y-3">
-              {formData.feedback_questions.map((q, index) => (
-                <div key={q.id} className="flex gap-3 items-start p-3 bg-gray-50 rounded-lg" data-testid={`feedback-question-${index}`}>
-                  <span className="text-xs text-gray-400 mt-2 font-mono w-5 shrink-0">{index + 1}.</span>
-                  <div className="flex-1 space-y-2">
-                    <Input
-                      value={q.question}
-                      onChange={(e) => updateQuestion(q.id, 'question', e.target.value)}
-                      placeholder="Zadejte otázku..."
-                      className="text-sm"
-                      data-testid={`feedback-question-input-${index}`}
-                    />
-                    <select
-                      value={q.type}
-                      onChange={(e) => updateQuestion(q.id, 'type', e.target.value)}
-                      className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white w-full md:w-auto"
-                      data-testid={`feedback-question-type-${index}`}
+              {formData.feedback_questions.map((q, index) => {
+                const questionError = fieldErrors[`feedback_questions.${index}.question`];
+                return (
+                  <div key={q.id} className="flex gap-3 items-start p-3 bg-gray-50 rounded-lg" data-testid={`feedback-question-${index}`}>
+                    <span className="text-xs text-gray-400 mt-2 font-mono w-5 shrink-0">{index + 1}.</span>
+                    <div className="flex-1 space-y-2">
+                      <div>
+                        <Input
+                          value={q.question}
+                          onChange={(e) => updateQuestion(q.id, 'question', e.target.value, index)}
+                          placeholder="Zadejte otázku..."
+                          className={`text-sm ${questionError ? FIELD_ERROR_CLASS : ''}`}
+                          aria-invalid={Boolean(questionError)}
+                          data-testid={`feedback-question-input-${index}`}
+                        />
+                        <FieldError message={questionError} />
+                      </div>
+                      <select
+                        value={q.type}
+                        onChange={(e) => updateQuestion(q.id, 'type', e.target.value)}
+                        className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-white w-full md:w-auto"
+                        data-testid={`feedback-question-type-${index}`}
+                      >
+                        {questionTypes.map(t => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeQuestion(q.id)}
+                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded shrink-0"
+                      data-testid={`feedback-question-remove-${index}`}
                     >
-                      {questionTypes.map(t => (
-                        <option key={t.value} value={t.value}>{t.label}</option>
-                      ))}
-                    </select>
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => removeQuestion(q.id)}
-                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded shrink-0"
-                    data-testid={`feedback-question-remove-${index}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
 
               {formData.feedback_questions.length < 5 && (
                 <button

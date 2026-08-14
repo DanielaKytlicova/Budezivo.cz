@@ -5,6 +5,7 @@ import { Header } from '../../components/layout/Header';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Label } from '../../components/ui/label';
 import {
   Heart, BookOpen, User, LogOut, Loader2, Calendar,
@@ -238,9 +239,17 @@ const ProfileTab = ({ teacher, onUpdate }) => {
   const [school, setSchool] = useState(teacher.school_name || '');
   const [phone, setPhone] = useState(teacher.phone || '');
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const onSave = async (e) => {
     e.preventDefault();
+    const errors = {};
+    if (!name.trim()) errors.name = 'Vyplňte jméno a příjmení.';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return;
+    }
     setSaving(true);
     const r = await onUpdate({ name, school_name: school, phone });
     setSaving(false);
@@ -259,7 +268,8 @@ const ProfileTab = ({ teacher, onUpdate }) => {
         </div>
         <div>
           <Label htmlFor="p-name">Jméno a příjmení</Label>
-          <Input id="p-name" value={name} onChange={e => setName(e.target.value)} required data-testid="teacher-profile-name" />
+          <Input id="p-name" value={name} onChange={e => { setName(e.target.value); setFieldErrors(prev => ({ ...prev, name: undefined })); }} required data-testid="teacher-profile-name" className={fieldErrors.name ? FIELD_ERROR_CLASS : ''} />
+          <FieldError message={fieldErrors.name} />
         </div>
         <div>
           <Label htmlFor="p-school">Škola</Label>

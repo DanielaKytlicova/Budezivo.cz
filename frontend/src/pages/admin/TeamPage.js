@@ -553,7 +553,6 @@ export const TeamPage = () => {
                   value={inviteForm.email}
                   onChange={(e) => { setInviteForm({ ...inviteForm, email: e.target.value }); setInviteFieldErrors(prev => ({ ...prev, email: undefined })); }}
                   placeholder="jana.novakova@instituce.cz"
-                  required
                   className={`mt-1 ${inviteFieldErrors.email ? FIELD_ERROR_CLASS : ''}`}
                   data-testid="invite-email-input"
                 />
@@ -608,7 +607,7 @@ export const TeamPage = () => {
               </Button>
               <Button 
                 type="submit" 
-                disabled={sending || !inviteForm.email}
+                disabled={sending}
                 className="flex-1 bg-[#2B3E50] text-white hover:bg-[#1e2d3a]"
                 data-testid="send-invite-button"
               >

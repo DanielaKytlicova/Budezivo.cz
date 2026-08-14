@@ -4,6 +4,7 @@ import { AdminLayout } from '../../components/layout/AdminLayout';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Badge } from '../../components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import {
@@ -586,11 +587,20 @@ function AddContactDialog({ onClose, onSave }) {
     type: 'pedagog', school_name: '', marketing_consent: false, note: '',
   });
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  const setContactField = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    setFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.email.trim()) {
-      toast.error('E-mail je povinný');
+    const errors = {};
+    if (!form.email.trim()) errors.email = 'Vyplňte e-mail.';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
     setSaving(true);
@@ -609,23 +619,34 @@ function AddContactDialog({ onClose, onSave }) {
               <X className="w-4 h-4" />
             </button>
           </div>
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form onSubmit={handleSubmit} noValidate className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              <Input placeholder="Jméno" value={form.first_name} onChange={e => setForm({ ...form, first_name: e.target.value })} data-testid="add-first-name" />
-              <Input placeholder="Příjmení" value={form.last_name} onChange={e => setForm({ ...form, last_name: e.target.value })} data-testid="add-last-name" />
+              <Input placeholder="Jméno" value={form.first_name} onChange={e => setContactField('first_name', e.target.value)} data-testid="add-first-name" />
+              <Input placeholder="Příjmení" value={form.last_name} onChange={e => setContactField('last_name', e.target.value)} data-testid="add-last-name" />
             </div>
-            <Input type="email" placeholder="E-mail *" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required data-testid="add-email" />
-            <Input placeholder="Telefon" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} data-testid="add-phone" />
-            <Input placeholder="Škola (volitelné)" value={form.school_name} onChange={e => setForm({ ...form, school_name: e.target.value })} data-testid="add-school" />
-            <Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}>
+            <div>
+              <Input
+                type="email"
+                placeholder="E-mail *"
+                value={form.email}
+                onChange={e => setContactField('email', e.target.value)}
+                className={fieldErrors.email ? FIELD_ERROR_CLASS : ''}
+                aria-invalid={Boolean(fieldErrors.email)}
+                data-testid="add-email"
+              />
+              <FieldError message={fieldErrors.email} />
+            </div>
+            <Input placeholder="Telefon" value={form.phone} onChange={e => setContactField('phone', e.target.value)} data-testid="add-phone" />
+            <Input placeholder="Škola (volitelné)" value={form.school_name} onChange={e => setContactField('school_name', e.target.value)} data-testid="add-school" />
+            <Select value={form.type} onValueChange={v => setContactField('type', v)}>
               <SelectTrigger data-testid="add-type"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {CONTACT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
               </SelectContent>
             </Select>
-            <textarea placeholder="Poznámka" value={form.note} onChange={e => setForm({ ...form, note: e.target.value })} className="w-full p-2 border rounded text-sm min-h-[60px]" data-testid="add-note" />
+            <textarea placeholder="Poznámka" value={form.note} onChange={e => setContactField('note', e.target.value)} className="w-full p-2 border rounded text-sm min-h-[60px]" data-testid="add-note" />
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={form.marketing_consent} onChange={e => setForm({ ...form, marketing_consent: e.target.checked })} data-testid="add-consent" />
+              <input type="checkbox" checked={form.marketing_consent} onChange={e => setContactField('marketing_consent', e.target.checked)} data-testid="add-consent" />
               Marketingový souhlas (kontakt může být zařazen do propagačních kampaní)
             </label>
             <div className="flex justify-end gap-2 pt-2">

@@ -9,6 +9,8 @@ import { Star, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Textarea } from '../../components/ui/textarea';
 import { Label } from '../../components/ui/label';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
+import { toast } from 'sonner';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -83,6 +85,7 @@ export default function FeedbackPage() {
   
   const [formData, setFormData] = useState(null);
   const [answers, setAnswers] = useState({});
+  const [fieldErrors, setFieldErrors] = useState({});
   const [overallRating, setOverallRating] = useState(0);
   const [wouldRecommend, setWouldRecommend] = useState(null);
   const [additionalComments, setAdditionalComments] = useState('');
@@ -105,17 +108,41 @@ export default function FeedbackPage() {
     }
   }, [token]);
   
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
   const handleAnswerChange = (questionId, value) => {
     setAnswers(prev => ({
       ...prev,
       [questionId]: value
     }));
+    clearFieldError(`question:${questionId}`);
   };
-  
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errors = {};
+    if (overallRating === 0) errors.overallRating = 'Vyberte celkové hodnocení.';
+    if (wouldRecommend === null) errors.wouldRecommend = 'Vyberte ano nebo ne.';
+    (formData.questions || []).forEach((question) => {
+      if (!question.is_required) return;
+      const value = answers[question.id];
+      const missing = question.question_type === 'yesno'
+        ? value === undefined || value === null
+        : question.question_type === 'text'
+          ? !String(value || '').trim()
+          : !value;
+      if (missing) errors[`question:${question.id}`] = 'Vyplňte tuto odpověď.';
+    });
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return;
+    }
+
     setSubmitting(true);
-    
+
     try {
       await axios.post(`${API_URL}/api/feedback/public/${token}`, {
         answers,
@@ -217,63 +244,77 @@ export default function FeedbackPage() {
         </div>
         
         {/* Form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-b-xl shadow-lg p-6">
+        <form onSubmit={handleSubmit} noValidate className="bg-white rounded-b-xl shadow-lg p-6">
           {/* Overall Rating */}
           <div className="mb-8">
             <Label className="text-base font-medium text-gray-900 mb-3 block">
               Jak hodnotíte program celkově? *
             </Label>
-            <div className="flex items-center gap-4">
-              <StarRating value={overallRating} onChange={setOverallRating} />
+            <div className={`inline-flex items-center gap-4 rounded-lg p-2 ${fieldErrors.overallRating ? FIELD_ERROR_CLASS : ''}`}>
+              <StarRating value={overallRating} onChange={(value) => { setOverallRating(value); clearFieldError('overallRating'); }} />
               {overallRating > 0 && (
                 <span className="text-lg font-medium text-gray-700">
                   {overallRating}/5
                 </span>
               )}
             </div>
+            <FieldError message={fieldErrors.overallRating} />
           </div>
-          
+
           {/* Would Recommend */}
           <div className="mb-8">
             <Label className="text-base font-medium text-gray-900 mb-3 block">
               Doporučili byste program dalším školám? *
             </Label>
-            <YesNoButtons value={wouldRecommend} onChange={setWouldRecommend} />
+            <div className={`inline-block rounded-lg p-2 ${fieldErrors.wouldRecommend ? FIELD_ERROR_CLASS : ''}`}>
+              <YesNoButtons value={wouldRecommend} onChange={(value) => { setWouldRecommend(value); clearFieldError('wouldRecommend'); }} />
+            </div>
+            <FieldError message={fieldErrors.wouldRecommend} />
           </div>
           
           {/* Dynamic Questions */}
-          {formData.questions && formData.questions.map((question) => (
-            <div key={question.id} className="mb-8">
-              <Label className="text-base font-medium text-gray-900 mb-3 block">
-                {question.question_text}
-                {question.is_required && ' *'}
-              </Label>
-              
-              {(question.question_type === 'rating' || question.question_type === 'scale') && (
-                <StarRating
-                  value={answers[question.id] || 0}
-                  onChange={(val) => handleAnswerChange(question.id, val)}
-                  size="md"
-                />
-              )}
-              
-              {question.question_type === 'yesno' && (
-                <YesNoButtons
-                  value={answers[question.id]}
-                  onChange={(val) => handleAnswerChange(question.id, val)}
-                />
-              )}
-              
-              {question.question_type === 'text' && (
-                <Textarea
-                  value={answers[question.id] || ''}
-                  onChange={(e) => handleAnswerChange(question.id, e.target.value)}
-                  placeholder="Vaše odpověď..."
-                  rows={3}
-                />
-              )}
-            </div>
-          ))}
+          {formData.questions && formData.questions.map((question) => {
+            const errorMessage = fieldErrors[`question:${question.id}`];
+            return (
+              <div key={question.id} className="mb-8">
+                <Label className="text-base font-medium text-gray-900 mb-3 block">
+                  {question.question_text}
+                  {question.is_required && ' *'}
+                </Label>
+
+                {(question.question_type === 'rating' || question.question_type === 'scale') && (
+                  <div className={`inline-block rounded-lg p-2 ${errorMessage ? FIELD_ERROR_CLASS : ''}`}>
+                    <StarRating
+                      value={answers[question.id] || 0}
+                      onChange={(val) => handleAnswerChange(question.id, val)}
+                      size="md"
+                    />
+                  </div>
+                )}
+
+                {question.question_type === 'yesno' && (
+                  <div className={`inline-block rounded-lg p-2 ${errorMessage ? FIELD_ERROR_CLASS : ''}`}>
+                    <YesNoButtons
+                      value={answers[question.id]}
+                      onChange={(val) => handleAnswerChange(question.id, val)}
+                    />
+                  </div>
+                )}
+
+                {question.question_type === 'text' && (
+                  <Textarea
+                    value={answers[question.id] || ''}
+                    onChange={(e) => handleAnswerChange(question.id, e.target.value)}
+                    placeholder="Vaše odpověď..."
+                    rows={3}
+                    className={errorMessage ? FIELD_ERROR_CLASS : ''}
+                    aria-invalid={Boolean(errorMessage)}
+                  />
+                )}
+                <FieldError message={errorMessage} />
+              </div>
+            );
+          })}
           
           {/* Additional Comments */}
           <div className="mb-8">
@@ -299,7 +340,7 @@ export default function FeedbackPage() {
           {/* Submit Button */}
           <Button
             type="submit"
-            disabled={submitting || overallRating === 0 || wouldRecommend === null}
+            disabled={submitting}
             className="w-full bg-[#5a7aae] hover:bg-[#4a6a9e] h-12 text-base"
             data-testid="submit-feedback"
           >

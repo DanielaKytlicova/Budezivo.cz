@@ -9,6 +9,7 @@ import { Check, X, Mail, RefreshCw, Table2, Copy, Eye, Calendar, Bell, Settings,
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { toast } from 'sonner';
@@ -84,14 +85,34 @@ export const HomePage = () => {
     email: '',
     availability: '',
   });
+  const [demoFieldErrors, setDemoFieldErrors] = useState({});
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
     axios.get(`${API}/public/stats`).then(r => setStats(r.data)).catch(() => setStats(null));
   }, []);
 
+  const clearDemoFieldError = (field) => {
+    setDemoFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
+  const validateDemoForm = () => {
+    const errors = {};
+    if (!demoFormData.name.trim()) errors.name = 'Vyplňte jméno.';
+    if (!demoFormData.institution.trim()) errors.institution = 'Vyplňte název instituce.';
+    if (!demoFormData.email.trim()) errors.email = 'Vyplňte e-mail.';
+    if (!demoFormData.availability.trim()) errors.availability = 'Vyplňte, kdy máte obecně čas.';
+    setDemoFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return false;
+    }
+    return true;
+  };
+
   const handleDemoSubmit = async (e) => {
     e.preventDefault();
+    if (!validateDemoForm()) return;
     setSubmitting(true);
     
     try {
@@ -102,6 +123,7 @@ export const HomePage = () => {
       toast.success('Děkujeme! Brzy vás budeme kontaktovat.');
       setShowDemoDialog(false);
       setDemoFormData({ name: '', institution: '', email: '', availability: '' });
+      setDemoFieldErrors({});
     } catch (error) {
       console.error('Contact form error:', error);
       toast.error('Nepodařilo se odeslat. Zkuste to prosím znovu.');
@@ -231,17 +253,18 @@ export const HomePage = () => {
                   <DialogHeader>
                     <DialogTitle>Domluvit online ukázku</DialogTitle>
                   </DialogHeader>
-                  <form onSubmit={handleDemoSubmit} className="space-y-4" data-testid="demo-request-form">
+                  <form onSubmit={handleDemoSubmit} noValidate className="space-y-4" data-testid="demo-request-form">
                     <div>
                       <Label htmlFor="demo_name">Jméno</Label>
                       <Input
                         id="demo_name"
                         data-testid="demo-name-input"
                         value={demoFormData.name}
-                        onChange={(e) => setDemoFormData({ ...demoFormData, name: e.target.value })}
+                        onChange={(e) => { setDemoFormData({ ...demoFormData, name: e.target.value }); clearDemoFieldError('name'); }}
                         required
-                        className="mt-2"
+                        className={`mt-2 ${demoFieldErrors.name ? FIELD_ERROR_CLASS : ''}`}
                       />
+                      <FieldError message={demoFieldErrors.name} />
                     </div>
                     <div>
                       <Label htmlFor="demo_institution">Název instituce</Label>
@@ -249,10 +272,11 @@ export const HomePage = () => {
                         id="demo_institution"
                         data-testid="demo-institution-input"
                         value={demoFormData.institution}
-                        onChange={(e) => setDemoFormData({ ...demoFormData, institution: e.target.value })}
+                        onChange={(e) => { setDemoFormData({ ...demoFormData, institution: e.target.value }); clearDemoFieldError('institution'); }}
                         required
-                        className="mt-2"
+                        className={`mt-2 ${demoFieldErrors.institution ? FIELD_ERROR_CLASS : ''}`}
                       />
+                      <FieldError message={demoFieldErrors.institution} />
                     </div>
                     <div>
                       <Label htmlFor="demo_email">E-mail</Label>
@@ -261,10 +285,11 @@ export const HomePage = () => {
                         type="email"
                         data-testid="demo-email-input"
                         value={demoFormData.email}
-                        onChange={(e) => setDemoFormData({ ...demoFormData, email: e.target.value })}
+                        onChange={(e) => { setDemoFormData({ ...demoFormData, email: e.target.value }); clearDemoFieldError('email'); }}
                         required
-                        className="mt-2"
+                        className={`mt-2 ${demoFieldErrors.email ? FIELD_ERROR_CLASS : ''}`}
                       />
+                      <FieldError message={demoFieldErrors.email} />
                     </div>
                     <div>
                       <Label htmlFor="demo_availability">Kdy máte obecně čas?</Label>
@@ -272,11 +297,12 @@ export const HomePage = () => {
                         id="demo_availability"
                         data-testid="demo-availability-input"
                         value={demoFormData.availability}
-                        onChange={(e) => setDemoFormData({ ...demoFormData, availability: e.target.value })}
+                        onChange={(e) => { setDemoFormData({ ...demoFormData, availability: e.target.value }); clearDemoFieldError('availability'); }}
                         required
-                        className="mt-2"
+                        className={`mt-2 ${demoFieldErrors.availability ? FIELD_ERROR_CLASS : ''}`}
                         placeholder="Např: Středy 9:00-12:00, Pátky 10:00-14:00"
                       />
+                      <FieldError message={demoFieldErrors.availability} />
                     </div>
                     <Button
                       type="submit"

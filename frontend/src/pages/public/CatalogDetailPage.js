@@ -234,7 +234,7 @@ export default function CatalogDetailPage() {
               Pošleme váš dotaz přímo pořadateli programu „{p.name}". Nezávazně.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleInquiry} className="space-y-3">
+          <form onSubmit={handleInquiry} noValidate className="space-y-3">
             <div>
               <Label htmlFor="inq-name">Vaše jméno *</Label>
               <Input id="inq-name" value={form.name} onChange={e => { setForm({ ...form, name: e.target.value }); setFieldErrors(prev => ({ ...prev, name: undefined })); }} required data-testid="inquiry-name" className={fieldErrors.name ? FIELD_ERROR_CLASS : ''} />

@@ -137,7 +137,7 @@ export const ContactPage = () => {
             <Card className="p-6 md:p-8">
               <h2 className="text-2xl font-bold text-slate-900 mb-6">Napište nám</h2>
               
-              <form onSubmit={handleSubmit} className="space-y-6" data-testid="contact-form">
+              <form onSubmit={handleSubmit} noValidate className="space-y-6" data-testid="contact-form">
                 <div className="grid md:grid-cols-2 gap-6">
                   <div>
                     <Label htmlFor="name">Jméno a příjmení</Label>

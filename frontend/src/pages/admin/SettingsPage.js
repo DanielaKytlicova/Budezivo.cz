@@ -345,9 +345,6 @@ export const SettingsPage = () => {
   const validateInstitutionSettings = () => {
     const errors = {};
     if (!institutionData.name.trim()) errors.name = 'Vyplňte název instituce.';
-    if (institutionData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(institutionData.email)) {
-      errors.email = 'Zadejte platný e-mail.';
-    }
     setInstitutionFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       toast.error('Zkontrolujte zvýrazněná pole.');
@@ -931,13 +928,11 @@ export const SettingsPage = () => {
           <Input
             type="email"
             value={institutionData.email}
-            onChange={(e) => setInstitutionField('email', e.target.value)}
+            onChange={(e) => setInstitutionData({ ...institutionData, email: e.target.value })}
             placeholder="galerie@mesto.cz"
-            className={`mt-1 ${institutionFieldErrors.email ? FIELD_ERROR_CLASS : ''}`}
-            aria-invalid={Boolean(institutionFieldErrors.email)}
+            className="mt-1"
             data-testid="institution-email"
           />
-          <FieldError message={institutionFieldErrors.email} />
         </div>
 
         <div>

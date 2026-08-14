@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Progress } from '../../components/ui/progress';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { 
-  Download, Send, Mail, Phone, User, Building, CheckCircle, 
+import {
+  Download, Send, Mail, Phone, User, Building, CheckCircle,
   Upload, FileSpreadsheet, AlertTriangle, X, Loader2, FileText,
   Tag, Filter, Search, Plus, ChevronDown, ChevronUp, Users,
   AlertCircle, Check, Trash2, Edit2, Archive, RotateCcw
@@ -38,7 +38,7 @@ export const SchoolsPage = () => {
   const [showPropagationModal, setShowPropagationModal] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState('');
   const [sending, setSending] = useState(false);
-  
+
   // Filters
   const [sourceFilter, setSourceFilter] = useState('all');
   const [tagFilter, setTagFilter] = useState('all');
@@ -47,7 +47,7 @@ export const SchoolsPage = () => {
   const [showArchivedContacts, setShowArchivedContacts] = useState(false);
   const [availableTags, setAvailableTags] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Import modal state
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState(null);
@@ -55,24 +55,26 @@ export const SchoolsPage = () => {
   const [importProgress, setImportProgress] = useState(0);
   const [importResult, setImportResult] = useState(null);
   const [updateExisting, setUpdateExisting] = useState(false);
+  const [importFieldErrors, setImportFieldErrors] = useState({});
   const fileInputRef = useRef(null);
-  
+
   // Tag edit modal
   const [showTagModal, setShowTagModal] = useState(false);
   const [editingSchool, setEditingSchool] = useState(null);
   const [editingTags, setEditingTags] = useState([]);
   const [newTag, setNewTag] = useState('');
-  
+
   // Contact modal
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactSchool, setContactSchool] = useState(null);
   const [contactForm, setContactForm] = useState({ email: '', name: '', phone: '', is_primary: false });
   const [savingContact, setSavingContact] = useState(false);
   const [contactFieldErrors, setContactFieldErrors] = useState({});
-  
+  const [campaignFieldErrors, setCampaignFieldErrors] = useState({});
+
   // Expanded schools (to show all contacts)
   const [expandedSchools, setExpandedSchools] = useState(new Set());
-  
+
   // Predefined tags
   const PREDEFINED_TAGS = ['MŠ', 'ZŠ', 'SŠ', 'VOŠ', 'VŠ', 'Gymnázium', 'ZUŠ', 'DDM', 'Jiné'];
 
@@ -238,7 +240,7 @@ export const SchoolsPage = () => {
       if (showArchivedContacts || schoolView === 'archived') {
         params.append('include_archived_contacts', 'true');
       }
-      
+
       const [schoolsRes, proRes, programsRes] = await Promise.all([
         axios.get(`${API}/schools${params.toString() ? '?' + params.toString() : ''}`),
         axios.get(`${API}/settings/pro`),
@@ -321,42 +323,44 @@ export const SchoolsPage = () => {
         'application/csv'
       ];
       const validExtensions = ['.xlsx', '.xls', '.csv'];
-      
-      const isValidType = validTypes.includes(file.type) || 
+
+      const isValidType = validTypes.includes(file.type) ||
         validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
-      
+
       if (!isValidType) {
         toast.error('Nepodporovaný formát. Použijte .xlsx, .xls nebo .csv');
         return;
       }
-      
+
       if (file.size > 10 * 1024 * 1024) {
         toast.error('Soubor je příliš velký (max 10 MB)');
         return;
       }
-      
+
       setImportFile(file);
+      setImportFieldErrors(prev => ({ ...prev, file: undefined }));
       setImportResult(null);
     }
   };
 
   const handleImport = async () => {
     if (!importFile) {
-      toast.error('Vyberte soubor');
+      setImportFieldErrors({ file: 'Vyberte soubor.' });
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
-    
+
     setImporting(true);
     setImportProgress(10);
-    
+
     try {
       const formData = new FormData();
       formData.append('file', importFile);
-      
+
       setImportProgress(30);
-      
+
       const response = await axios.post(
-        `${API}/schools/import?update_existing=${updateExisting}`, 
+        `${API}/schools/import?update_existing=${updateExisting}`,
         formData,
         {
           headers: { 'Content-Type': 'multipart/form-data' },
@@ -366,17 +370,17 @@ export const SchoolsPage = () => {
           }
         }
       );
-      
+
       setImportProgress(100);
       setImportResult(response.data);
-      
+
       if (response.data.new_schools > 0 || response.data.new_contacts > 0) {
         toast.success(`Úspěšně: ${response.data.new_schools} nových škol, ${response.data.new_contacts} nových kontaktů`);
         fetchData();
       } else if (response.data.duplicates > 0) {
         toast.info(`Všechny kontakty již existují (${response.data.duplicates} duplicit)`);
       }
-      
+
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Chyba při importu');
       setImportResult({
@@ -397,7 +401,7 @@ export const SchoolsPage = () => {
 
   const handleDownloadErrors = () => {
     if (!importResult?.error_details?.length) return;
-    
+
     const errors = importResult.error_details;
     const csv = "Řádek;Chyba\n" + errors.map(e => `${e.row};${e.error}`).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -416,6 +420,7 @@ export const SchoolsPage = () => {
     setImportResult(null);
     setImportProgress(0);
     setUpdateExisting(false);
+    setImportFieldErrors({});
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -441,7 +446,7 @@ export const SchoolsPage = () => {
 
   const handleSaveTags = async () => {
     if (!editingSchool) return;
-    
+
     try {
       await axios.put(`${API}/schools/${editingSchool.id}/tags`, editingTags);
       toast.success('Tagy uloženy');
@@ -577,7 +582,12 @@ export const SchoolsPage = () => {
     );
   });
 
+  const clearCampaignSelectionError = () => {
+    setCampaignFieldErrors(prev => ({ ...prev, selection: undefined }));
+  };
+
   const toggleSchoolSelection = (schoolId) => {
+    clearCampaignSelectionError();
     setSelectedSchools(prev =>
       prev.includes(schoolId)
         ? prev.filter(id => id !== schoolId)
@@ -594,6 +604,7 @@ export const SchoolsPage = () => {
   // Per-contact selection (partial). A school with a partial selection is
   // rendered as indeterminate and is NOT in selectedSchools.
   const toggleContactSelection = (schoolId, contactId) => {
+    clearCampaignSelectionError();
     setSelectedSchools(prev => prev.filter(id => id !== schoolId));
     setContactSelection(prev => {
       const cur = prev[schoolId] || [];
@@ -624,9 +635,11 @@ export const SchoolsPage = () => {
   const openCampaignSummary = async () => {
     const selections = buildCampaignSelections();
     if (selections.length === 0) {
-      toast.error('Vyberte alespoň jednu školu nebo kontakt');
+      setCampaignFieldErrors({ selection: 'Vyberte alespoň jednu školu nebo kontakt.' });
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
+    setCampaignFieldErrors({});
     try {
       const res = await axios.post(`${API}/mailings/from-schools/preview`, { selections });
       setCampaignSummary({ stats: res.data.stats, selections });
@@ -653,6 +666,7 @@ export const SchoolsPage = () => {
   };
 
   const selectAllSchools = () => {
+    clearCampaignSelectionError();
     if (selectedSchools.length === filteredSchools.length) {
       setSelectedSchools([]);
     } else {
@@ -700,10 +714,10 @@ export const SchoolsPage = () => {
   };
 
   // Count total active contacts
-  const totalActiveContacts = schools.reduce((sum, s) => 
+  const totalActiveContacts = schools.reduce((sum, s) =>
     sum + (s.contacts?.filter(c => c.status === 'active').length || 0), 0
   );
-  const totalInvalidContacts = schools.reduce((sum, s) => 
+  const totalInvalidContacts = schools.reduce((sum, s) =>
     sum + (s.invalid_contacts_count || 0), 0
   );
 
@@ -720,7 +734,7 @@ export const SchoolsPage = () => {
               )}
             </p>
           </div>
-          
+
           <div className="flex flex-wrap gap-2">
             {schoolView === 'active' && (
               <>
@@ -764,7 +778,6 @@ export const SchoolsPage = () => {
                 {schoolView === 'active' && canCampaign && (
                   <Button
                     onClick={openCampaignSummary}
-                    disabled={campaignSelectionCount === 0}
                     className="bg-slate-800 text-white"
                     data-testid="create-campaign-from-schools-btn"
                   >
@@ -864,7 +877,7 @@ export const SchoolsPage = () => {
                 data-testid="search-schools-input"
               />
             </div>
-            
+
             {/* Source Filter */}
             <Select value={sourceFilter} onValueChange={setSourceFilter}>
               <SelectTrigger className="w-full sm:w-[180px]" data-testid="source-filter">
@@ -878,7 +891,7 @@ export const SchoolsPage = () => {
                 <SelectItem value="organic">Ručně přidané</SelectItem>
               </SelectContent>
             </Select>
-            
+
             {/* Tag Filter */}
             <Select value={tagFilter} onValueChange={setTagFilter}>
               <SelectTrigger className="w-full sm:w-[180px]" data-testid="tag-filter">
@@ -895,7 +908,7 @@ export const SchoolsPage = () => {
                 ))}
               </SelectContent>
             </Select>
-            
+
             {/* Invalid contacts filter */}
             <div className="flex items-center gap-2">
               <Checkbox
@@ -922,7 +935,7 @@ export const SchoolsPage = () => {
                 </label>
               </div>
             )}
-            
+
             {/* Reset filters */}
             {(sourceFilter !== 'all' || tagFilter !== 'all' || searchQuery || invalidFilter || showArchivedContacts) && (
               <Button
@@ -942,7 +955,7 @@ export const SchoolsPage = () => {
               </Button>
             )}
           </div>
-          
+
           {/* Results count */}
           <div className="mt-3 text-sm text-gray-500">
             Nalezeno: {filteredSchools.length} škol
@@ -955,15 +968,16 @@ export const SchoolsPage = () => {
         </Card>
 
         {isPro && filteredSchools.length > 0 && (
-          <div className="flex items-center gap-4 p-3 bg-slate-50 rounded-lg">
+          <div className={`p-3 bg-slate-50 rounded-lg ${campaignFieldErrors.selection ? 'border border-red-500 ring-1 ring-red-500' : ''}`}>
+          <div className="flex items-center gap-4">
             <Checkbox
               checked={selectedSchools.length === filteredSchools.length && filteredSchools.length > 0}
               onCheckedChange={selectAllSchools}
               data-testid="select-all-schools"
             />
             <span className="text-sm text-slate-600">
-              {selectedSchools.length === filteredSchools.length 
-                ? 'Odznačit vše' 
+              {selectedSchools.length === filteredSchools.length
+                ? 'Odznačit vše'
                 : 'Vybrat všechny školy'}
             </span>
             {selectedSchools.length > 0 && (
@@ -971,6 +985,8 @@ export const SchoolsPage = () => {
                 Vybráno: {selectedSchools.length} z {filteredSchools.length}
               </span>
             )}
+          </div>
+          <FieldError message={campaignFieldErrors.selection} />
           </div>
         )}
 
@@ -997,8 +1013,8 @@ export const SchoolsPage = () => {
             ) : (
               <>
                 <p className="text-gray-500">Žádné školy nevyhovují filtru</p>
-                <Button 
-                  variant="link" 
+                <Button
+                  variant="link"
                   onClick={() => { setSourceFilter('all'); setTagFilter('all'); setSearchQuery(''); setInvalidFilter(false); }}
                   className="mt-2"
                 >
@@ -1010,11 +1026,11 @@ export const SchoolsPage = () => {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {filteredSchools.map((school) => (
-              <Card 
-                key={school.id} 
+              <Card
+                key={school.id}
                 className={`p-5 transition-all ${
-                  selectedSchools.includes(school.id) 
-                    ? 'ring-2 ring-slate-800 bg-slate-50' 
+                  selectedSchools.includes(school.id)
+                    ? 'ring-2 ring-slate-800 bg-slate-50'
                     : ''
                 } ${school.invalid_contacts_count > 0 ? 'border-red-200' : ''}`}
                 data-testid={`school-card-${school.id}`}
@@ -1057,7 +1073,7 @@ export const SchoolsPage = () => {
                         )}
                       </div>
                     </div>
-                    
+
                     {/* Tags */}
                     <div className="flex flex-wrap gap-1 mb-3">
                       {school.tags && school.tags.length > 0 ? (
@@ -1080,7 +1096,7 @@ export const SchoolsPage = () => {
                         </button>
                       )}
                     </div>
-                    
+
                     {/* Contacts Section */}
                     <div className="border-t pt-3 mt-2">
                       <div className="flex items-center justify-between mb-2">
@@ -1108,14 +1124,14 @@ export const SchoolsPage = () => {
                           </Button>
                         )}
                       </div>
-                      
+
                       {/* Contact list */}
                       <div className="space-y-2">
                         {(school.contacts || [])
                           .slice(0, expandedSchools.has(school.id) ? undefined : 2)
                           .map((contact, idx) => (
-                          <div 
-                            key={contact.id || idx} 
+                          <div
+                            key={contact.id || idx}
                             className={`flex items-center justify-between p-2 rounded-lg text-sm ${
                               contact.status === 'invalid'
                                 ? 'bg-red-50'
@@ -1157,7 +1173,7 @@ export const SchoolsPage = () => {
                                 )}
                               </div>
                             </div>
-                            
+
                             {contact.id && (
                               <div className="flex items-center gap-1 shrink-0 ml-2">
                                 {contact.status?.startsWith('archived') ? (
@@ -1198,7 +1214,7 @@ export const SchoolsPage = () => {
                             )}
                           </div>
                         ))}
-                        
+
                         {!expandedSchools.has(school.id) && (school.contacts?.length || 0) > 2 && (
                           <button
                             onClick={() => toggleExpanded(school.id)}
@@ -1209,14 +1225,14 @@ export const SchoolsPage = () => {
                         )}
                       </div>
                     </div>
-                    
+
                     {/* Footer stats */}
                     <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between text-sm">
                       <span className="text-gray-500">
                         Rezervací: <span className="font-semibold text-green-600">{school.booking_count || 0}</span>
                       </span>
                       {school.contacts?.some(c => c.phone) && (
-                        <a 
+                        <a
                           href={`tel:${school.contacts.find(c => c.phone)?.phone}`}
                           className="text-blue-600 hover:underline flex items-center gap-1"
                         >
@@ -1531,11 +1547,13 @@ export const SchoolsPage = () => {
                 </button>
 
                 {/* File Upload Area */}
-                <div 
+                <div
                   className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                    importFile 
-                      ? 'border-green-300 bg-green-50' 
-                      : 'border-gray-300 hover:border-gray-400'
+                    importFieldErrors.file
+                      ? 'border-red-500 ring-1 ring-red-500'
+                      : importFile
+                        ? 'border-green-300 bg-green-50'
+                        : 'border-gray-300 hover:border-gray-400'
                   }`}
                 >
                   <input
@@ -1546,7 +1564,7 @@ export const SchoolsPage = () => {
                     className="hidden"
                     data-testid="file-input"
                   />
-                  
+
                   {importFile ? (
                     <div className="flex items-center justify-center gap-3">
                       <FileSpreadsheet className="w-8 h-8 text-green-600" />
@@ -1559,6 +1577,7 @@ export const SchoolsPage = () => {
                       <button
                         onClick={() => {
                           setImportFile(null);
+                          setImportFieldErrors({});
                           if (fileInputRef.current) fileInputRef.current.value = '';
                         }}
                         className="p-1 hover:bg-gray-100 rounded"
@@ -1583,6 +1602,7 @@ export const SchoolsPage = () => {
                     </div>
                   )}
                 </div>
+                <FieldError message={importFieldErrors.file} />
 
                 {/* Options */}
                 <div className="flex items-center gap-2">
@@ -1618,7 +1638,7 @@ export const SchoolsPage = () => {
                   </Button>
                   <Button
                     onClick={handleImport}
-                    disabled={!importFile || importing}
+                    disabled={importing}
                     className="flex-1 bg-[#2B3E50] text-white hover:bg-[#1e2d3a]"
                     data-testid="start-import-btn"
                   >
@@ -1640,10 +1660,10 @@ export const SchoolsPage = () => {
               /* Import Results */
               <div className="space-y-4">
                 <div className={`p-4 rounded-lg ${
-                  importResult.new_schools > 0 || importResult.new_contacts > 0 
-                    ? 'bg-green-50 border border-green-200' 
-                    : importResult.errors > 0 
-                      ? 'bg-red-50 border border-red-200' 
+                  importResult.new_schools > 0 || importResult.new_contacts > 0
+                    ? 'bg-green-50 border border-green-200'
+                    : importResult.errors > 0
+                      ? 'bg-red-50 border border-red-200'
                       : 'bg-yellow-50 border border-yellow-200'
                 }`}>
                   <div className="flex items-center gap-2 mb-2">
@@ -1655,10 +1675,10 @@ export const SchoolsPage = () => {
                       <AlertTriangle className="w-5 h-5 text-yellow-600" />
                     )}
                     <span className="font-semibold">
-                      {importResult.new_schools > 0 || importResult.new_contacts > 0 
-                        ? 'Import dokončen' 
-                        : importResult.errors > 0 
-                          ? 'Import selhal' 
+                      {importResult.new_schools > 0 || importResult.new_contacts > 0
+                        ? 'Import dokončen'
+                        : importResult.errors > 0
+                          ? 'Import selhal'
                           : 'Žádná nová data'}
                     </span>
                   </div>
@@ -1745,8 +1765,8 @@ export const SchoolsPage = () => {
               <div className="flex flex-wrap gap-2 min-h-[40px] p-2 border rounded-lg bg-gray-50">
                 {editingTags.length > 0 ? (
                   editingTags.map((tag, idx) => (
-                    <Badge 
-                      key={idx} 
+                    <Badge
+                      key={idx}
                       className="bg-purple-100 text-purple-700 flex items-center gap-1 pr-1"
                     >
                       {tag}
@@ -1864,7 +1884,7 @@ export const SchoolsPage = () => {
               />
               <FieldError message={contactFieldErrors.email} />
             </div>
-            
+
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">
                 Jméno kontaktu
@@ -1875,7 +1895,7 @@ export const SchoolsPage = () => {
                 onChange={(e) => setContactField('name', e.target.value)}
               />
             </div>
-            
+
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">
                 Telefon
@@ -1886,7 +1906,7 @@ export const SchoolsPage = () => {
                 onChange={(e) => setContactField('phone', e.target.value)}
               />
             </div>
-            
+
             <div className="flex items-center gap-2">
               <Checkbox
                 id="is-primary"

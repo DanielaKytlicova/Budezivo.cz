@@ -6,6 +6,7 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../components/ui/dialog';
@@ -547,6 +548,7 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
   const [sendingTest, setSendingTest] = useState(false);
   const [previewMode, setPreviewMode] = useState('desktop'); // 'desktop' | 'mobile'
   const [showPreview, setShowPreview] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // Step 1: Type & Programs
   const [campaignName, setCampaignName] = useState(editCampaign?.name || (preselectedProgram?.name ? `Nabídka: ${preselectedProgram.name}` : ''));
@@ -584,6 +586,37 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
   const [introText, setIntroText] = useState(editCampaign?.intro_text || '');
   const [closingText, setClosingText] = useState(editCampaign?.closing_text || '');
   const [signature, setSignature] = useState(editCampaign?.signature || '');
+
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
+  const validateStepOne = () => {
+    const errors = {};
+    const manualMode = recipientMode === 'manual';
+    if (!campaignName.trim()) errors.campaignName = 'Vyplňte název kampaně.';
+    if (!manualMode && selectedProgramIds.length === 0) errors.programs = 'Vyberte alespoň jeden program.';
+    setFieldErrors(prev => ({ ...prev, ...errors }));
+    if (Object.keys(errors).length > 0) {
+      setStep(1);
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return false;
+    }
+    return true;
+  };
+
+  const validateEmailContent = () => {
+    const errors = {};
+    if (!subject.trim()) errors.subject = 'Vyplňte předmět e-mailu.';
+    setFieldErrors(prev => ({ ...prev, ...errors }));
+    if (Object.keys(errors).length > 0) {
+      setStep(3);
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return false;
+    }
+    return true;
+  };
+
 
   // Fetch programs
   useEffect(() => {
@@ -639,8 +672,7 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
 
   // Save draft
   const saveDraft = async () => {
-    if (!campaignName.trim()) { toast.error('Zadejte název kampaně'); return; }
-    if (selectedProgramIds.length === 0) { toast.error('Vyberte alespoň jeden program'); return; }
+    if (!validateStepOne() || !validateEmailContent()) return;
     setSaving(true);
     try {
       const payload = {
@@ -666,10 +698,7 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
   const sendCampaign = async () => {
     if (!campaignId) {
       // Create first
-      if (!campaignName.trim() || selectedProgramIds.length === 0) {
-        toast.error('Vyplňte název a vyberte programy');
-        return;
-      }
+      if (!validateStepOne() || !validateEmailContent()) return;
       setSaving(true);
       try {
         const payload = {
@@ -729,7 +758,12 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
   };
 
   const sendTestEmail = async () => {
-    if (!testEmail.trim()) { toast.error('Zadejte e-mail pro test'); return; }
+    if (!testEmail.trim()) {
+      setFieldErrors(prev => ({ ...prev, testEmail: 'Vyplňte e-mail pro test.' }));
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return;
+    }
+    setFieldErrors(prev => ({ ...prev, testEmail: undefined }));
     setSendingTest(true);
     try {
       const id = await persistDraft();
@@ -740,11 +774,18 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
   };
 
   const scheduleCampaign = async () => {
-    if (!scheduledAt) { toast.error('Vyberte datum a čas odeslání'); return; }
+    if (!scheduledAt) {
+      setFieldErrors(prev => ({ ...prev, scheduledAt: 'Vyberte datum a čas odeslání.' }));
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return;
+    }
     const whenLocal = new Date(scheduledAt);
     if (isNaN(whenLocal.getTime()) || whenLocal <= new Date()) {
-      toast.error('Nelze naplánovat do minulosti'); return;
+      setFieldErrors(prev => ({ ...prev, scheduledAt: 'Naplánování musí být v budoucnosti.' }));
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return;
     }
+    setFieldErrors(prev => ({ ...prev, scheduledAt: undefined }));
     setSending(true);
     try {
       const id = await persistDraft();
@@ -813,7 +854,15 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
           <div className="space-y-4">
             <div>
               <Label>Název kampaně *</Label>
-              <Input value={campaignName} onChange={e => setCampaignName(e.target.value)} placeholder="např. Nabídka programů na jaro 2026" data-testid="campaign-name-input" />
+              <Input
+                value={campaignName}
+                onChange={e => { clearFieldError('campaignName'); setCampaignName(e.target.value); }}
+                placeholder="např. Nabídka programů na jaro 2026"
+                className={fieldErrors.campaignName ? FIELD_ERROR_CLASS : ''}
+                aria-invalid={Boolean(fieldErrors.campaignName)}
+                data-testid="campaign-name-input"
+              />
+              <FieldError message={fieldErrors.campaignName} />
             </div>
             <div>
               <Label>Cílení kampaně</Label>
@@ -835,7 +884,7 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
             </div>
             <div>
               <Label>Vyberte programy ({selectedProgramIds.length})</Label>
-              <div className="max-h-[300px] overflow-y-auto border rounded-lg mt-1">
+              <div className={`max-h-[300px] overflow-y-auto border rounded-lg mt-1 ${fieldErrors.programs ? 'border-red-500 ring-1 ring-red-500' : ''}`}>
                 {allPrograms.length === 0 ? (
                   <p className="p-4 text-sm text-slate-500">Žádné aktivní programy</p>
                 ) : allPrograms.map(p => {
@@ -843,6 +892,7 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
                   return (
                     <label key={p.id} className={`flex items-center gap-3 px-4 py-2.5 border-b last:border-0 cursor-pointer hover:bg-slate-50 ${checked ? 'bg-blue-50' : ''}`}>
                       <input type="checkbox" checked={checked} onChange={() => {
+                        clearFieldError('programs');
                         setSelectedProgramIds(prev => checked ? prev.filter(id => id !== p.id) : [...prev, p.id]);
                       }} className="rounded" />
                       <div className="flex-1 min-w-0">
@@ -857,6 +907,7 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
                   );
                 })}
               </div>
+              <FieldError message={fieldErrors.programs} />
             </div>
           </div>
         )}
@@ -991,7 +1042,15 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
             </div>
             <div>
               <Label>Předmět emailu *</Label>
-              <Input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Předmět..." data-testid="email-subject-input" />
+              <Input
+                value={subject}
+                onChange={e => { clearFieldError('subject'); setSubject(e.target.value); }}
+                placeholder="Předmět..."
+                className={fieldErrors.subject ? FIELD_ERROR_CLASS : ''}
+                aria-invalid={Boolean(fieldErrors.subject)}
+                data-testid="email-subject-input"
+              />
+              <FieldError message={fieldErrors.subject} />
             </div>
             <div>
               <Label>Oslovení</Label>
@@ -1084,11 +1143,20 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
             <div className="border rounded-lg p-3 space-y-2">
               <Label className="text-sm">Odeslat testovací e-mail</Label>
               <div className="flex gap-2">
-                <Input type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="vas@email.cz" data-testid="test-email-input" />
+                <Input
+                  type="email"
+                  value={testEmail}
+                  onChange={e => { clearFieldError('testEmail'); setTestEmail(e.target.value); }}
+                  placeholder="vas@email.cz"
+                  className={fieldErrors.testEmail ? FIELD_ERROR_CLASS : ''}
+                  aria-invalid={Boolean(fieldErrors.testEmail)}
+                  data-testid="test-email-input"
+                />
                 <Button type="button" variant="outline" onClick={sendTestEmail} disabled={sendingTest} data-testid="send-test-email-btn">
                   {sendingTest ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Odeslat test'}
                 </Button>
               </div>
+              <FieldError message={fieldErrors.testEmail} />
             </div>
 
             {/* Send mode: now vs schedule */}
@@ -1100,7 +1168,15 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
               </div>
               {sendMode === 'schedule' && (
                 <div className="space-y-1">
-                  <Input type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} data-testid="schedule-datetime-input" />
+                  <Input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={e => { clearFieldError('scheduledAt'); setScheduledAt(e.target.value); }}
+                    className={fieldErrors.scheduledAt ? FIELD_ERROR_CLASS : ''}
+                    aria-invalid={Boolean(fieldErrors.scheduledAt)}
+                    data-testid="schedule-datetime-input"
+                  />
+                  <FieldError message={fieldErrors.scheduledAt} />
                   <p className="text-xs text-slate-500">Čas se ukládá v časové zóně instituce (Europe/Prague).</p>
                 </div>
               )}
@@ -1125,20 +1201,14 @@ const CampaignWizard = ({ editCampaign, preselectedProgram, user, onClose, onCom
             {step < 4 ? (
               <Button onClick={() => {
                 const manualMode = recipientMode === 'manual';
-                if (step === 1 && !campaignName.trim()) {
-                  toast.error('Vyplňte název kampaně');
-                  return;
-                }
-                if (step === 1 && !manualMode && selectedProgramIds.length === 0) {
-                  toast.error('Vyberte programy');
+                if (step === 1 && !validateStepOne()) {
                   return;
                 }
                 if (step === 2 && !manualMode && preview && preview.recipients.length === 0) {
                   toast.error('Žádní příjemci k odeslání');
                   return;
                 }
-                if (step === 3 && !subject.trim()) {
-                  toast.error('Vyplňte předmět emailu');
+                if (step === 3 && !validateEmailContent()) {
                   return;
                 }
                 setStep(step + 1);

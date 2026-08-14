@@ -265,9 +265,18 @@ export const ProgramsPage = () => {
     if (!Number(formData.duration) || Number(formData.duration) <= 0) errors.duration = 'Vyplňte dobu trvání.';
     if (!Number(formData.max_capacity) || Number(formData.max_capacity) <= 0) errors.max_capacity = 'Vyplňte maximální kapacitu.';
 
+    const hasDetailErrors = Object.keys(errors).length > 0;
+    if (formData.feedback_enabled && isPro) {
+      (formData.feedback_questions || []).forEach((question, index) => {
+        if (!String(question.question || '').trim()) {
+          errors[`feedback_questions.${index}.question`] = 'Vyplňte text otázky.';
+        }
+      });
+    }
+
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
-      setActiveTab('detail');
+      setActiveTab(hasDetailErrors ? 'detail' : 'feedback');
       toast.error('Zkontrolujte zvýrazněná pole.');
       return false;
     }
@@ -1479,6 +1488,8 @@ export const ProgramsPage = () => {
             formData={formData}
             setFormData={setFormData}
             isPro={isPro}
+            fieldErrors={fieldErrors}
+            clearFieldError={clearFieldError}
           />
         )}
         {activeTab === 'mailing' && editingProgram && (

@@ -29,6 +29,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import {
   Select,
   SelectContent,
@@ -559,6 +560,7 @@ function QuestionDialog({ open, mode, data, onClose, onSave }) {
     display_order: 0,
     is_active: true
   });
+  const [fieldErrors, setFieldErrors] = useState({});
   
   useEffect(() => {
     if (data && mode === 'edit') {
@@ -578,10 +580,19 @@ function QuestionDialog({ open, mode, data, onClose, onSave }) {
         is_active: true
       });
     }
+    setFieldErrors({});
   }, [data, mode, open]);
   
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+    const errors = {};
+    if (!formData.question_text.trim()) errors.question_text = 'Vyplňte text otázky.';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     onSave(formData);
   };
   
@@ -594,15 +605,17 @@ function QuestionDialog({ open, mode, data, onClose, onSave }) {
           </DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
             <Label>Text otázky *</Label>
             <Textarea
               value={formData.question_text}
-              onChange={(e) => setFormData(prev => ({ ...prev, question_text: e.target.value }))}
+              onChange={(e) => { setFormData(prev => ({ ...prev, question_text: e.target.value })); clearFieldError('question_text'); }}
               placeholder="Např.: Jak hodnotíte srozumitelnost výkladu?"
-              required
+              className={fieldErrors.question_text ? FIELD_ERROR_CLASS : ''}
+              aria-invalid={Boolean(fieldErrors.question_text)}
             />
+            <FieldError message={fieldErrors.question_text} />
           </div>
           
           <div>

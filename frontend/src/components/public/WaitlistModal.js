@@ -164,7 +164,7 @@ export const WaitlistModal = ({ open, onOpenChange, institutionId, programId, pr
           </p>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-2">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4 py-2">
           {prefilledDate && prefilledTime && (
             <div className="rounded-lg border border-[#4A6FA5]/20 bg-[#4A6FA5]/5 p-3" data-testid="wl-prefilled-slot">
               <p className="text-sm text-[#4A6FA5]">
@@ -175,12 +175,12 @@ export const WaitlistModal = ({ open, onOpenChange, institutionId, programId, pr
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-sm">Jméno <span className="text-red-500">*</span></Label>
-              <Input value={form.teacher_name} onChange={e => updateField('teacher_name', e.target.value)} required className={`mt-1 ${fieldErrors.teacher_name ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-teacher-name" />
+              <Input value={form.teacher_name} onChange={e => updateField('teacher_name', e.target.value)} className={`mt-1 ${fieldErrors.teacher_name ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-teacher-name" />
               <FieldError message={fieldErrors.teacher_name} />
             </div>
             <div>
               <Label className="text-sm">Škola <span className="text-red-500">*</span></Label>
-              <Input value={form.school_name} onChange={e => updateField('school_name', e.target.value)} required className={`mt-1 ${fieldErrors.school_name ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-school-name" />
+              <Input value={form.school_name} onChange={e => updateField('school_name', e.target.value)} className={`mt-1 ${fieldErrors.school_name ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-school-name" />
               <FieldError message={fieldErrors.school_name} />
             </div>
           </div>
@@ -188,7 +188,7 @@ export const WaitlistModal = ({ open, onOpenChange, institutionId, programId, pr
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <Label className="text-sm">Email <span className="text-red-500">*</span></Label>
-              <Input type="email" value={form.email} onChange={e => updateField('email', e.target.value)} required className={`mt-1 ${fieldErrors.email ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-email" />
+              <Input type="email" value={form.email} onChange={e => updateField('email', e.target.value)} className={`mt-1 ${fieldErrors.email ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-email" />
               <FieldError message={fieldErrors.email} />
             </div>
             <div>
@@ -199,7 +199,7 @@ export const WaitlistModal = ({ open, onOpenChange, institutionId, programId, pr
 
           <div>
             <Label className="text-sm">Počet žáků <span className="text-red-500">*</span></Label>
-            <Input type="number" min="1" value={form.participant_count} onChange={e => updateField('participant_count', e.target.value)} required className={`mt-1 w-32 ${fieldErrors.participant_count ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-participant-count" />
+            <Input type="number" value={form.participant_count} onChange={e => updateField('participant_count', e.target.value)} className={`mt-1 w-32 ${fieldErrors.participant_count ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-participant-count" />
             <FieldError message={fieldErrors.participant_count} />
           </div>
 
@@ -219,7 +219,7 @@ export const WaitlistModal = ({ open, onOpenChange, institutionId, programId, pr
           {form.request_type === 'specific_date' && (
             <div>
               <Label className="text-sm">Datum <span className="text-red-500">*</span></Label>
-              <Input type="date" value={form.requested_date} onChange={e => updateField('requested_date', e.target.value)} required className={`mt-1 ${fieldErrors.requested_date ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-date" />
+              <Input type="date" value={form.requested_date} onChange={e => updateField('requested_date', e.target.value)} className={`mt-1 ${fieldErrors.requested_date ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-date" />
               <FieldError message={fieldErrors.requested_date} />
             </div>
           )}
@@ -228,12 +228,12 @@ export const WaitlistModal = ({ open, onOpenChange, institutionId, programId, pr
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-sm">Od <span className="text-red-500">*</span></Label>
-                <Input type="date" value={form.range_start_date} onChange={e => updateField('range_start_date', e.target.value)} required className={`mt-1 ${fieldErrors.range_start_date ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-range-start" />
+                <Input type="date" value={form.range_start_date} onChange={e => updateField('range_start_date', e.target.value)} className={`mt-1 ${fieldErrors.range_start_date ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-range-start" />
                 <FieldError message={fieldErrors.range_start_date} />
               </div>
               <div>
                 <Label className="text-sm">Do <span className="text-red-500">*</span></Label>
-                <Input type="date" value={form.range_end_date} onChange={e => updateField('range_end_date', e.target.value)} required className={`mt-1 ${fieldErrors.range_end_date ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-range-end" />
+                <Input type="date" value={form.range_end_date} onChange={e => updateField('range_end_date', e.target.value)} className={`mt-1 ${fieldErrors.range_end_date ? FIELD_ERROR_CLASS : ''}`} data-testid="wl-range-end" />
                 <FieldError message={fieldErrors.range_end_date} />
               </div>
             </div>

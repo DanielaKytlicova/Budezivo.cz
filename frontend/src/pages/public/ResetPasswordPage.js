@@ -176,7 +176,7 @@ export const ResetPasswordPage = () => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6" data-testid="reset-password-form">
+          <form onSubmit={handleSubmit} noValidate className="space-y-6" data-testid="reset-password-form">
             <div>
               <Label htmlFor="password">Nové heslo</Label>
               <div className="relative mt-2">
@@ -186,7 +186,6 @@ export const ResetPasswordPage = () => {
                   data-testid="new-password-input"
                   value={formData.password}
                   onChange={(e) => updateField('password', e.target.value)}
-                  required
                   className={`pr-10 ${fieldErrors.password ? FIELD_ERROR_CLASS : ''}`}
                 />
                 <button
@@ -216,7 +215,6 @@ export const ResetPasswordPage = () => {
                   data-testid="confirm-password-input"
                   value={formData.confirmPassword}
                   onChange={(e) => updateField('confirmPassword', e.target.value)}
-                  required
                   className={`pr-10 ${fieldErrors.confirmPassword ? FIELD_ERROR_CLASS : ''}`}
                 />
                 <button
@@ -239,7 +237,7 @@ export const ResetPasswordPage = () => {
               type="submit"
               data-testid="reset-password-submit"
               className="w-full bg-slate-800 hover:bg-slate-700"
-              disabled={loading || !passwordValidation.isValid || !passwordsMatch}
+              disabled={loading}
             >
               {loading ? 'Ukládám...' : 'Nastavit nové heslo'}
             </Button>

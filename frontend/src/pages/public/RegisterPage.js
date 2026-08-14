@@ -374,7 +374,6 @@ export const RegisterPage = () => {
           value={formData.name}
           onChange={(e) => updateField('name', e.target.value)}
           placeholder="Jan Novák"
-          required
           className={`mt-2 ${fieldErrors.name ? FIELD_ERROR_CLASS : ''}`}
         />
         <FieldError message={fieldErrors.name} />
@@ -388,7 +387,6 @@ export const RegisterPage = () => {
           value={formData.institution_name}
           onChange={(e) => updateField('institution_name', e.target.value)}
           placeholder="Oblastní galerie"
-          required
           className={`mt-2 ${fieldErrors.institution_name ? FIELD_ERROR_CLASS : ''}`}
         />
         <FieldError message={fieldErrors.institution_name} />
@@ -440,7 +438,6 @@ export const RegisterPage = () => {
           value={formData.email}
           onChange={(e) => updateField('email', e.target.value)}
           placeholder="admin@galerie.cz"
-          required
           className={`mt-2 ${fieldErrors.email ? FIELD_ERROR_CLASS : ''}`}
         />
         <FieldError message={fieldErrors.email} />
@@ -455,7 +452,6 @@ export const RegisterPage = () => {
           value={formData.password}
           onChange={(e) => updateField('password', e.target.value)}
           placeholder="Min. 8 znaků, velké+malé+číslo"
-          required
           className={`mt-2 ${fieldErrors.password ? FIELD_ERROR_CLASS : ''}`}
         />
         <FieldError message={fieldErrors.password} />
@@ -1092,7 +1088,7 @@ export const RegisterPage = () => {
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                 data-testid="join-request-submit-btn"
                 onClick={submitJoinRequest}
-                disabled={joinRequestForm.submitting || !formData.email}
+                disabled={joinRequestForm.submitting}
               >
                 {joinRequestForm.submitting ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Odesílám…</>

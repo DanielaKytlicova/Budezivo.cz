@@ -4,6 +4,7 @@ import { AdminLayout } from '../../components/layout/AdminLayout';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -97,6 +98,7 @@ export const ProgramsPage = () => {
   const [editingProgram, setEditingProgram] = useState(null);
   const [activeTab, setActiveTab] = useState('detail');
   const [formData, setFormData] = useState(getDefaultFormData());
+  const [fieldErrors, setFieldErrors] = useState({});
   const [openMenu, setOpenMenu] = useState(null);
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [institutionData, setInstitutionData] = useState(null);
@@ -252,6 +254,26 @@ export const ProgramsPage = () => {
     setShowUrlModal(true);
   };
 
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
+  const validateProgramForm = () => {
+    const errors = {};
+    if (!formData.name_cs.trim()) errors.name_cs = 'Vyplňte název programu.';
+    if (!formData.target_groups || formData.target_groups.length === 0) errors.target_groups = 'Vyberte alespoň jednu cílovou skupinu.';
+    if (!Number(formData.duration) || Number(formData.duration) <= 0) errors.duration = 'Vyplňte dobu trvání.';
+    if (!Number(formData.max_capacity) || Number(formData.max_capacity) <= 0) errors.max_capacity = 'Vyplňte maximální kapacitu.';
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setActiveTab('detail');
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return false;
+    }
+    return true;
+  };
+
   // --- Time Block Validation ---
   const timeToMin = (t) => {
     const [h, m] = t.split(':').map(Number);
@@ -324,6 +346,7 @@ export const ProgramsPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateProgramForm()) return;
     
     // Run validation
     const warnings = validateTimeBlocks();
@@ -419,6 +442,7 @@ export const ProgramsPage = () => {
 
   const resetForm = () => {
     setFormData(getDefaultFormData());
+    setFieldErrors({});
     setEditingProgram(null);
     setActiveTab('detail');
   };
@@ -778,10 +802,12 @@ export const ProgramsPage = () => {
           <Input
             data-testid="program-name-cs"
             value={formData.name_cs}
-            onChange={(e) => setFormData({ ...formData, name_cs: e.target.value })}
+            onChange={(e) => { clearFieldError('name_cs'); setFormData({ ...formData, name_cs: e.target.value }); }}
             placeholder="Seznam se s galerií"
-            className="mt-1"
+            className={`mt-1 ${fieldErrors.name_cs ? FIELD_ERROR_CLASS : ''}`}
+            aria-invalid={Boolean(fieldErrors.name_cs)}
           />
+          <FieldError message={fieldErrors.name_cs} />
         </div>
 
         <div>
@@ -804,7 +830,7 @@ export const ProgramsPage = () => {
             Cílové skupiny
             <FieldTooltip text={PROGRAM_FIELD_HELP.target_groups} testId="help-program-target-groups" />
           </Label>
-          <div className="space-y-2 mt-1">
+          <div className={`space-y-2 mt-1 rounded-md ${fieldErrors.target_groups ? 'border border-red-500 p-2' : ''}`}>
             {TARGET_GROUPS.map(group => (
               <div key={group.value} className="flex items-center space-x-2">
                 <Checkbox
@@ -813,6 +839,7 @@ export const ProgramsPage = () => {
                   onCheckedChange={(checked) => {
                     const currentGroups = formData.target_groups || [];
                     let newGroups;
+                    clearFieldError('target_groups');
                     if (checked) {
                       // If selecting "all", clear others
                       if (group.value === 'all') {
@@ -843,7 +870,9 @@ export const ProgramsPage = () => {
               </div>
             ))}
           </div>
-          {(formData.target_groups || []).length === 0 && (
+          {fieldErrors.target_groups ? (
+            <FieldError message={fieldErrors.target_groups} />
+          ) : (formData.target_groups || []).length === 0 && (
             <p className="text-xs text-amber-600 mt-2">Vyberte alespoň jednu cílovou skupinu</p>
           )}
         </div>
@@ -863,9 +892,11 @@ export const ProgramsPage = () => {
               type="number"
               data-testid="program-duration"
               value={formData.duration}
-              onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) || 60 })}
-              className="mt-1"
+              onChange={(e) => { clearFieldError('duration'); setFormData({ ...formData, duration: parseInt(e.target.value) || 60 }); }}
+              className={`mt-1 ${fieldErrors.duration ? FIELD_ERROR_CLASS : ''}`}
+              aria-invalid={Boolean(fieldErrors.duration)}
             />
+            <FieldError message={fieldErrors.duration} />
           </div>
           <div>
             <Label className="text-gray-500 text-sm">
@@ -876,9 +907,11 @@ export const ProgramsPage = () => {
               type="number"
               data-testid="program-max-capacity"
               value={formData.max_capacity}
-              onChange={(e) => setFormData({ ...formData, max_capacity: parseInt(e.target.value) || 30 })}
-              className="mt-1"
+              onChange={(e) => { clearFieldError('max_capacity'); setFormData({ ...formData, max_capacity: parseInt(e.target.value) || 30 }); }}
+              className={`mt-1 ${fieldErrors.max_capacity ? FIELD_ERROR_CLASS : ''}`}
+              aria-invalid={Boolean(fieldErrors.max_capacity)}
             />
+            <FieldError message={fieldErrors.max_capacity} />
           </div>
         </div>
 

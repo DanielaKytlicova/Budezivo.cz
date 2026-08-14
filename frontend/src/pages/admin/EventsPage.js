@@ -3,6 +3,7 @@ import { AdminLayout } from '../../components/layout/AdminLayout';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { FieldError } from '../../components/ui/field-error';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -82,6 +83,7 @@ export const EventsPage = () => {
   const [showDialog, setShowDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [formData, setFormData] = useState(getDefaultEvent());
+  const [fieldErrors, setFieldErrors] = useState({});
   const [activeTab, setActiveTab] = useState('detail');
   const [eventDates, setEventDates] = useState([]);
   const [newDate, setNewDate] = useState({ start: '', end: '', registrationDeadline: '' });
@@ -138,6 +140,7 @@ export const EventsPage = () => {
 
   const handleCreate = () => {
     setFormData(getDefaultEvent());
+    setFieldErrors({});
     setEditingEvent(null);
     setEventDates([]);
     setVisibleDateDeadlines({});
@@ -172,11 +175,13 @@ export const EventsPage = () => {
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
+      setFieldErrors({ name: 'Vyplňte název události.' });
       setActiveTab('detail');
-      toast.error('Vyplňte název události');
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
 
+    setFieldErrors({});
     setSavingEvent(true);
     try {
       const payload = {
@@ -537,7 +542,15 @@ export const EventsPage = () => {
                 <h3 className="font-semibold text-slate-900">Základní informace</h3>
                 <div>
                   <Label className="text-gray-500 text-sm">Název události</Label>
-                  <Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} placeholder="Příměstský tábor..." className="mt-1" data-testid="event-name-input" />
+                  <Input
+                    value={formData.name}
+                    onChange={e => { setFieldErrors(prev => ({ ...prev, name: undefined })); setFormData(p => ({ ...p, name: e.target.value })); }}
+                    placeholder="Příměstský tábor..."
+                    className={`mt-1 ${fieldErrors.name ? errorInputClass : ''}`}
+                    aria-invalid={Boolean(fieldErrors.name)}
+                    data-testid="event-name-input"
+                  />
+                  <FieldError message={fieldErrors.name} />
                 </div>
                 <div>
                   <Label className="text-gray-500 text-sm">Typ</Label>

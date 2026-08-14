@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
 import { LecturerAvailabilityPage } from './LecturerAvailabilityPage';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 
 const DAY_SHORT = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 7); // 7:00 - 18:00
@@ -94,6 +95,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   // Program block dialog (creates a program-scoped availability exception)
   const [showProgramBlock, setShowProgramBlock] = useState(false);
   const [programBlockForm, setProgramBlockForm] = useState({ date: '', start_time: '', end_time: '', reason: '' });
+  const [programBlockFieldErrors, setProgramBlockFieldErrors] = useState({});
 
   useEffect(() => { fetchPrograms(); }, []);
   useEffect(() => {
@@ -199,9 +201,15 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   // as a personal block. Requires a program to be selected.
   const createProgramBlock = async () => {
     if (!selectedProgram) { toast.error('Nejprve vyberte program pro programovou blokaci'); return; }
-    if (!programBlockForm.date) { toast.error('Vyberte datum blokace'); return; }
+    const errors = {};
+    if (!programBlockForm.date) errors.date = 'Vyberte datum blokace.';
     if (Boolean(programBlockForm.start_time) !== Boolean(programBlockForm.end_time)) {
-      toast.error('Zadejte začátek i konec, nebo nechte obojí prázdné pro celý den');
+      errors.start_time = 'Zadejte začátek i konec, nebo nechte obojí prázdné.';
+      errors.end_time = 'Zadejte začátek i konec, nebo nechte obojí prázdné.';
+    }
+    setProgramBlockFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
     try {
@@ -214,6 +222,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
       });
       toast.success('Programová blokace vytvořena');
       setShowProgramBlock(false);
+      setProgramBlockFieldErrors({});
       setProgramBlockForm({ date: '', start_time: '', end_time: '', reason: '' });
       doFetchWeek(selectedProgram, weekStart);
     } catch (err) { toast.error(err.response?.data?.detail || 'Chyba'); }
@@ -287,6 +296,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
               onClick={() => {
                 if (!selectedProgram) { toast.error('Nejprve vyberte program pro programovou blokaci'); return; }
                 setProgramBlockForm({ date: '', start_time: '', end_time: '', reason: '' });
+                setProgramBlockFieldErrors({});
                 setShowProgramBlock(true);
               }}
               variant="outline"
@@ -429,18 +439,20 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
             <div className="space-y-3 py-2">
               <div>
                 <Label className="text-sm text-gray-500">Datum</Label>
-                <Input type="date" value={programBlockForm.date} onChange={e => setProgramBlockForm(f => ({ ...f, date: e.target.value }))} className="mt-1" data-testid="pblock-date" />
+                <Input type="date" value={programBlockForm.date} onChange={e => { setProgramBlockForm(f => ({ ...f, date: e.target.value })); setProgramBlockFieldErrors(prev => ({ ...prev, date: undefined })); }} className={`mt-1 ${programBlockFieldErrors.date ? FIELD_ERROR_CLASS : ''}`} aria-invalid={Boolean(programBlockFieldErrors.date)} data-testid="pblock-date" />
+                <FieldError message={programBlockFieldErrors.date} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-sm text-gray-500">Od (volitelné)</Label>
-                  <Input type="time" value={programBlockForm.start_time} onChange={e => setProgramBlockForm(f => ({ ...f, start_time: e.target.value }))} className="mt-1" data-testid="pblock-start" />
+                  <Input type="time" value={programBlockForm.start_time} onChange={e => { setProgramBlockForm(f => ({ ...f, start_time: e.target.value })); setProgramBlockFieldErrors(prev => ({ ...prev, start_time: undefined, end_time: undefined })); }} className={`mt-1 ${programBlockFieldErrors.start_time ? FIELD_ERROR_CLASS : ''}`} aria-invalid={Boolean(programBlockFieldErrors.start_time)} data-testid="pblock-start" />
                 </div>
                 <div>
                   <Label className="text-sm text-gray-500">Do (volitelné)</Label>
-                  <Input type="time" value={programBlockForm.end_time} onChange={e => setProgramBlockForm(f => ({ ...f, end_time: e.target.value }))} className="mt-1" data-testid="pblock-end" />
+                  <Input type="time" value={programBlockForm.end_time} onChange={e => { setProgramBlockForm(f => ({ ...f, end_time: e.target.value })); setProgramBlockFieldErrors(prev => ({ ...prev, start_time: undefined, end_time: undefined })); }} className={`mt-1 ${programBlockFieldErrors.end_time ? FIELD_ERROR_CLASS : ''}`} aria-invalid={Boolean(programBlockFieldErrors.end_time)} data-testid="pblock-end" />
                 </div>
               </div>
+              <FieldError message={programBlockFieldErrors.start_time || programBlockFieldErrors.end_time} />
               <p className="text-xs text-gray-400">Nechte čas prázdný pro blokaci celého dne.</p>
               <div>
                 <Label className="text-sm text-gray-500">Důvod (volitelné)</Label>

@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Plus, Trash2, ChevronLeft, ChevronRight, Clock, Ban, Edit2, Info, CalendarDays, CalendarPlus, RefreshCw, Unlink, ExternalLink } from 'lucide-react';
 import axios from 'axios';
 import { ConnectedGuideDialog } from '../../components/calendar/ConnectedGuideDialog';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -92,6 +93,9 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     end_time: '',
     reason: '',
   });
+  const [recurringFieldErrors, setRecurringFieldErrors] = useState({});
+  const [oneOffFieldErrors, setOneOffFieldErrors] = useState({});
+  const [timeOffFieldErrors, setTimeOffFieldErrors] = useState({});
 
   const isAdmin = ['admin', 'spravce'].includes(user?.role);
   const canPersonalCalendar = PERSONAL_CALENDAR_ROLES.includes(user?.role);
@@ -134,12 +138,15 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     if (!autoOpenAction) return;
     if (autoOpenAction === 'recurring') {
       setShowAddRecurring(true);
+      setRecurringFieldErrors({});
       setRecurringForm({ days_of_week: [], start_time: '08:00', end_time: '12:00' });
     } else if (autoOpenAction === 'oneoff') {
       setShowAddOneOff(true);
+      setOneOffFieldErrors({});
       setOneOffForm({ specific_date: '', start_time: '09:00', end_time: '12:00' });
     } else if (autoOpenAction === 'timeoff') {
       setShowAddTimeOff(true);
+      setTimeOffFieldErrors({});
       setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' });
     }
     if (onAutoOpenConsumed) onAutoOpenConsumed();
@@ -400,8 +407,13 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   // CRUD handlers
   const handleAddRecurring = async () => {
+    const errors = {};
     if (recurringForm.days_of_week.length === 0) {
-      toast.error('Vyberte alespoň jeden den.');
+      errors.days_of_week = 'Vyberte alespoň jeden den.';
+    }
+    setRecurringFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
     try {
@@ -409,6 +421,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       await axios.post(`${API}/lecturer-availability/recurring${params}`, recurringForm, { headers });
       toast.success('Pravidelná dostupnost přidána.');
       setShowAddRecurring(false);
+      setRecurringFieldErrors({});
       setRecurringForm({ days_of_week: [], start_time: '08:00', end_time: '12:00' });
       fetchData();
     } catch (err) {
@@ -432,8 +445,13 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   };
 
   const handleAddOneOff = async () => {
+    const errors = {};
     if (!oneOffForm.specific_date) {
-      toast.error('Vyberte datum.');
+      errors.specific_date = 'Vyberte datum.';
+    }
+    setOneOffFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
     try {
@@ -446,6 +464,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       }, { headers });
       toast.success('Příležitostná dostupnost přidána.');
       setShowAddOneOff(false);
+      setOneOffFieldErrors({});
       setOneOffForm({ specific_date: '', start_time: '09:00', end_time: '12:00' });
       fetchData();
     } catch (err) {
@@ -464,8 +483,17 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   };
 
   const handleAddTimeOff = async () => {
+    const errors = {};
     if (!timeOffForm.start_date) {
-      toast.error('Zadejte datum.');
+      errors.start_date = 'Zadejte datum.';
+    }
+    if (Boolean(timeOffForm.start_time) !== Boolean(timeOffForm.end_time)) {
+      errors.start_time = 'Zadejte začátek i konec, nebo nechte obojí prázdné.';
+      errors.end_time = 'Zadejte začátek i konec, nebo nechte obojí prázdné.';
+    }
+    setTimeOffFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
     try {
@@ -480,6 +508,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       await axios.post(`${API}/lecturer-availability/time-off${params}`, payload, { headers });
       toast.success('Blokace přidána.');
       setShowAddTimeOff(false);
+      setTimeOffFieldErrors({});
       setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' });
       fetchData();
     } catch (err) {
@@ -659,7 +688,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
           </div>
           <div className="flex gap-2 flex-wrap">
             <Button
-              onClick={() => { setShowAddRecurring(true); setRecurringForm({ days_of_week: [], start_time: '08:00', end_time: '12:00' }); }}
+              onClick={() => { setShowAddRecurring(true); setRecurringFieldErrors({}); setRecurringForm({ days_of_week: [], start_time: '08:00', end_time: '12:00' }); }}
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
               data-testid="add-recurring-btn"
             >
@@ -667,7 +696,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
               Pravidelný čas
             </Button>
             <Button
-              onClick={() => { setShowAddOneOff(true); setOneOffForm({ specific_date: '', start_time: '09:00', end_time: '12:00' }); }}
+              onClick={() => { setShowAddOneOff(true); setOneOffFieldErrors({}); setOneOffForm({ specific_date: '', start_time: '09:00', end_time: '12:00' }); }}
               variant="outline"
               className="border-amber-300 text-amber-700 hover:bg-amber-50"
               data-testid="add-oneoff-btn"
@@ -676,7 +705,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
               Jednorázový čas
             </Button>
             <Button
-              onClick={() => { setShowAddTimeOff(true); setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' }); }}
+              onClick={() => { setShowAddTimeOff(true); setTimeOffFieldErrors({}); setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' }); }}
               variant="outline"
               className="border-red-300 text-red-600 hover:bg-red-50"
               data-testid="add-timeoff-btn"
@@ -1204,7 +1233,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
           <div className="space-y-4 py-2">
             <div>
               <Label className="text-sm font-medium">Dny v týdnu</Label>
-              <div className="flex flex-wrap gap-2 mt-2">
+              <div className={`flex flex-wrap gap-2 mt-2 rounded-md ${recurringFieldErrors.days_of_week ? 'border border-red-500 ring-1 ring-red-500 p-2' : ''}`}>
                 {DAY_NAMES.map((name, i) => (
                   <label
                     key={i}
@@ -1215,13 +1244,14 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
                   >
                     <Checkbox
                       checked={recurringForm.days_of_week.includes(i)}
-                      onCheckedChange={() => toggleDay(i)}
+                      onCheckedChange={() => { setRecurringFieldErrors(prev => ({ ...prev, days_of_week: undefined })); toggleDay(i); }}
                       className="hidden"
                     />
                     {DAY_SHORT[i]}
                   </label>
                 ))}
               </div>
+              <FieldError message={recurringFieldErrors.days_of_week} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -1321,10 +1351,12 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
               <Input
                 type="date"
                 value={oneOffForm.specific_date}
-                onChange={(e) => setOneOffForm({ ...oneOffForm, specific_date: e.target.value })}
+                onChange={(e) => { setOneOffForm({ ...oneOffForm, specific_date: e.target.value }); setOneOffFieldErrors(prev => ({ ...prev, specific_date: undefined })); }}
                 data-testid="oneoff-date"
-                className="mt-1"
+                className={`mt-1 ${oneOffFieldErrors.specific_date ? FIELD_ERROR_CLASS : ''}`}
+                aria-invalid={Boolean(oneOffFieldErrors.specific_date)}
               />
+              <FieldError message={oneOffFieldErrors.specific_date} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -1372,9 +1404,12 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
                 <Input
                   type="date"
                   value={timeOffForm.start_date}
-                  onChange={e => setTimeOffForm({ ...timeOffForm, start_date: e.target.value })}
+                  onChange={e => { setTimeOffForm({ ...timeOffForm, start_date: e.target.value }); setTimeOffFieldErrors(prev => ({ ...prev, start_date: undefined })); }}
                   data-testid="timeoff-start-date"
+                  className={timeOffFieldErrors.start_date ? FIELD_ERROR_CLASS : ''}
+                  aria-invalid={Boolean(timeOffFieldErrors.start_date)}
                 />
+                <FieldError message={timeOffFieldErrors.start_date} />
               </div>
               <div>
                 <Label className="text-sm">Datum do</Label>
@@ -1392,8 +1427,10 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
                 <Input
                   type="time"
                   value={timeOffForm.start_time}
-                  onChange={e => setTimeOffForm({ ...timeOffForm, start_time: e.target.value })}
+                  onChange={e => { setTimeOffForm({ ...timeOffForm, start_time: e.target.value }); setTimeOffFieldErrors(prev => ({ ...prev, start_time: undefined, end_time: undefined })); }}
                   data-testid="timeoff-start-time"
+                  className={timeOffFieldErrors.start_time ? FIELD_ERROR_CLASS : ''}
+                  aria-invalid={Boolean(timeOffFieldErrors.start_time)}
                 />
               </div>
               <div>
@@ -1401,11 +1438,14 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
                 <Input
                   type="time"
                   value={timeOffForm.end_time}
-                  onChange={e => setTimeOffForm({ ...timeOffForm, end_time: e.target.value })}
+                  onChange={e => { setTimeOffForm({ ...timeOffForm, end_time: e.target.value }); setTimeOffFieldErrors(prev => ({ ...prev, start_time: undefined, end_time: undefined })); }}
                   data-testid="timeoff-end-time"
+                  className={timeOffFieldErrors.end_time ? FIELD_ERROR_CLASS : ''}
+                  aria-invalid={Boolean(timeOffFieldErrors.end_time)}
                 />
               </div>
             </div>
+            <FieldError message={timeOffFieldErrors.start_time || timeOffFieldErrors.end_time} />
             <p className="text-xs text-gray-500">Ponechte čas prázdný pro celodenní blokaci.</p>
             <div>
               <Label className="text-sm">Důvod <span className="text-gray-400">(volitelný)</span></Label>

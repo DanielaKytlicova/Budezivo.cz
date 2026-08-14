@@ -4,6 +4,7 @@ import { Footer } from '../../components/layout/Footer';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
@@ -21,9 +22,28 @@ export const ContactPage = () => {
     subject: 'general',
     message: '',
   });
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  const clearFieldError = (field) => {
+    setFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    if (!formData.name.trim()) errors.name = 'Vyplňte jméno a příjmení.';
+    if (!formData.email.trim()) errors.email = 'Vyplňte e-mail.';
+    if (!formData.message.trim()) errors.message = 'Vyplňte zprávu.';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return false;
+    }
+    return true;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateForm()) return;
     setLoading(true);
 
     try {
@@ -36,6 +56,7 @@ export const ContactPage = () => {
         subject: 'general',
         message: '',
       });
+      setFieldErrors({});
     } catch (error) {
       toast.error('Nepodařilo se odeslat zprávu. Zkuste to prosím znovu.');
     } finally {
@@ -124,11 +145,12 @@ export const ContactPage = () => {
                       id="name"
                       data-testid="contact-name-input"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={(e) => { setFormData({ ...formData, name: e.target.value }); clearFieldError('name'); }}
                       placeholder="Jan Novák"
                       required
-                      className="mt-2"
+                      className={`mt-2 ${fieldErrors.name ? FIELD_ERROR_CLASS : ''}`}
                     />
+                    <FieldError message={fieldErrors.name} />
                   </div>
                   <div>
                     <Label htmlFor="email">E-mail</Label>
@@ -137,11 +159,12 @@ export const ContactPage = () => {
                       type="email"
                       data-testid="contact-email-input"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) => { setFormData({ ...formData, email: e.target.value }); clearFieldError('email'); }}
                       placeholder="jan.novak@muzeum.cz"
                       required
-                      className="mt-2"
+                      className={`mt-2 ${fieldErrors.email ? FIELD_ERROR_CLASS : ''}`}
                     />
+                    <FieldError message={fieldErrors.email} />
                   </div>
                 </div>
 
@@ -183,12 +206,13 @@ export const ContactPage = () => {
                     id="message"
                     data-testid="contact-message-input"
                     value={formData.message}
-                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                    onChange={(e) => { setFormData({ ...formData, message: e.target.value }); clearFieldError('message'); }}
                     placeholder="Napište nám svůj dotaz nebo zprávu..."
                     required
-                    className="mt-2"
+                    className={`mt-2 ${fieldErrors.message ? FIELD_ERROR_CLASS : ''}`}
                     rows={6}
                   />
+                  <FieldError message={fieldErrors.message} />
                 </div>
 
                 <Button

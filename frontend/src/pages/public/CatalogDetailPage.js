@@ -8,6 +8,7 @@ import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Input } from '../../components/ui/input';
+import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { FavoriteButton } from '../../components/catalog/FavoriteButton';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
@@ -27,6 +28,7 @@ export default function CatalogDetailPage() {
   const [form, setForm] = useState({
     name: '', email: '', school: '', message: '',
   });
+  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     setLoading(true);
@@ -38,8 +40,12 @@ export default function CatalogDetailPage() {
 
   const handleInquiry = async (e) => {
     e.preventDefault();
-    if (!form.name || !form.email) {
-      toast.error('Vyplňte prosím jméno a e-mail.');
+    const errors = {};
+    if (!form.name.trim()) errors.name = 'Vyplňte jméno.';
+    if (!form.email.trim()) errors.email = 'Vyplňte e-mail.';
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
       return;
     }
     setSubmitting(true);
@@ -54,6 +60,7 @@ export default function CatalogDetailPage() {
       toast.success('Děkujeme! Brzy vás kontaktujeme.');
       setShowInquiry(false);
       setForm({ name: '', email: '', school: '', message: '' });
+      setFieldErrors({});
     } catch {
       toast.error('Nepodařilo se odeslat poptávku. Zkuste to prosím znovu.');
     } finally {
@@ -230,11 +237,13 @@ export default function CatalogDetailPage() {
           <form onSubmit={handleInquiry} className="space-y-3">
             <div>
               <Label htmlFor="inq-name">Vaše jméno *</Label>
-              <Input id="inq-name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required data-testid="inquiry-name" />
+              <Input id="inq-name" value={form.name} onChange={e => { setForm({ ...form, name: e.target.value }); setFieldErrors(prev => ({ ...prev, name: undefined })); }} required data-testid="inquiry-name" className={fieldErrors.name ? FIELD_ERROR_CLASS : ''} />
+              <FieldError message={fieldErrors.name} />
             </div>
             <div>
               <Label htmlFor="inq-email">E-mail *</Label>
-              <Input id="inq-email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required data-testid="inquiry-email" />
+              <Input id="inq-email" type="email" value={form.email} onChange={e => { setForm({ ...form, email: e.target.value }); setFieldErrors(prev => ({ ...prev, email: undefined })); }} required data-testid="inquiry-email" className={fieldErrors.email ? FIELD_ERROR_CLASS : ''} />
+              <FieldError message={fieldErrors.email} />
             </div>
             <div>
               <Label htmlFor="inq-school">Škola</Label>

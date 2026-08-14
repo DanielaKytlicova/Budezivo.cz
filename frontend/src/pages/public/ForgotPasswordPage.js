@@ -75,7 +75,7 @@ export const ForgotPasswordPage = () => {
               </Link>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-6" data-testid="forgot-password-form">
+            <form onSubmit={handleSubmit} noValidate className="space-y-6" data-testid="forgot-password-form">
               <div>
                 <Label htmlFor="email">{t('auth.forgotPassword.email')}</Label>
                 <Input
@@ -84,7 +84,6 @@ export const ForgotPasswordPage = () => {
                   data-testid="forgot-password-email-input"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); if (emailError) setEmailError(''); }}
-                  required
                   className={`mt-2 ${emailError ? FIELD_ERROR_CLASS : ''}`}
                 />
                 <FieldError message={emailError} />

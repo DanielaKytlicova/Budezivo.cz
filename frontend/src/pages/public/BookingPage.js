@@ -953,7 +953,7 @@ export const BookingPage = () => {
         )}
 
         {step === 4 && (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <div className="space-y-6">
               {/* Shrnutí objednávky / rezervace — povinný přehled před potvrzením */}
               <div
@@ -1017,7 +1017,6 @@ export const BookingPage = () => {
                       value={formData.school_name}
                       onChange={(e) => updateBookingField('school_name', e.target.value)}
                       placeholder="Základní škola Komenského"
-                      required
                       className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.school_name ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-school-name"
                     />
@@ -1047,7 +1046,6 @@ export const BookingPage = () => {
                       value={formData.age_or_class}
                       onChange={(e) => updateBookingField('age_or_class', e.target.value)}
                       placeholder="3-4 roky"
-                      required
                       className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.age_or_class ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-age-class"
                     />
@@ -1060,9 +1058,6 @@ export const BookingPage = () => {
                       type="number"
                       value={formData.num_students}
                       onChange={(e) => updateBookingField('num_students', parseInt(e.target.value))}
-                      required
-                      min={selectedProgram?.min_capacity || 5}
-                      max={selectedProgram?.max_capacity || 30}
                       className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.num_students ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-num-students"
                     />
@@ -1078,9 +1073,6 @@ export const BookingPage = () => {
                       type="number"
                       value={formData.num_teachers}
                       onChange={(e) => updateBookingField('num_teachers', parseInt(e.target.value) || 1)}
-                      required
-                      min={1}
-                      max={10}
                       className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.num_teachers ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-num-teachers"
                     />
@@ -1115,7 +1107,6 @@ export const BookingPage = () => {
                       value={formData.contact_name}
                       onChange={(e) => updateBookingField('contact_name', e.target.value)}
                       placeholder="Jméno Příjmení"
-                      required
                       className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.contact_name ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-contact-name"
                     />
@@ -1130,7 +1121,6 @@ export const BookingPage = () => {
                       onChange={(e) => updateBookingField('contact_email', e.target.value)}
                       onBlur={(e) => tryPrefillFromEmail(e.target.value)}
                       placeholder="zakladni@skola.cz"
-                      required
                       className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.contact_email ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-contact-email"
                     />
@@ -1147,7 +1137,6 @@ export const BookingPage = () => {
                       value={formData.contact_phone}
                       onChange={(e) => updateBookingField('contact_phone', e.target.value)}
                       placeholder="+ 420 722 960 890"
-                      required
                       className={`mt-2 h-12 rounded-lg border-gray-300 ${fieldErrors.contact_phone ? FIELD_ERROR_CLASS : ''}`}
                       data-testid="booking-contact-phone"
                     />

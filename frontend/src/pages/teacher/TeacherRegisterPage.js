@@ -94,20 +94,20 @@ export const TeacherRegisterPage = () => {
             </div>
           </div>
 
-          <form onSubmit={onSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} noValidate className="space-y-4">
             <div>
               <Label htmlFor="r-name">Jméno a příjmení *</Label>
-              <Input id="r-name" required value={form.name} onChange={onChange('name')} data-testid="teacher-register-name" className={fieldErrors.name ? FIELD_ERROR_CLASS : ''} />
+              <Input id="r-name" value={form.name} onChange={onChange('name')} data-testid="teacher-register-name" className={fieldErrors.name ? FIELD_ERROR_CLASS : ''} />
               <FieldError message={fieldErrors.name} />
             </div>
             <div>
               <Label htmlFor="r-email">E-mail *</Label>
-              <Input id="r-email" type="email" required value={form.email} onChange={onChange('email')} data-testid="teacher-register-email" className={fieldErrors.email ? FIELD_ERROR_CLASS : ''} />
+              <Input id="r-email" type="email" value={form.email} onChange={onChange('email')} data-testid="teacher-register-email" className={fieldErrors.email ? FIELD_ERROR_CLASS : ''} />
               <FieldError message={fieldErrors.email} />
             </div>
             <div>
               <Label htmlFor="r-password">Heslo (min. 8 znaků) *</Label>
-              <Input id="r-password" type="password" required minLength={8} value={form.password} onChange={onChange('password')} data-testid="teacher-register-password" className={fieldErrors.password ? FIELD_ERROR_CLASS : ''} />
+              <Input id="r-password" type="password" value={form.password} onChange={onChange('password')} data-testid="teacher-register-password" className={fieldErrors.password ? FIELD_ERROR_CLASS : ''} />
               <FieldError message={fieldErrors.password} />
             </div>
             <div>
@@ -124,7 +124,6 @@ export const TeacherRegisterPage = () => {
                 type="checkbox"
                 checked={agree}
                 onChange={e => { clearFieldError('agree'); setAgree(e.target.checked); }}
-                required
                 className={`rounded mt-0.5 w-4 h-4 shrink-0 ${fieldErrors.agree ? FIELD_ERROR_CLASS : ''}`}
                 data-testid="teacher-register-terms"
               />

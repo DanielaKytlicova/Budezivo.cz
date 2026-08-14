@@ -117,7 +117,7 @@ export const LoginPage = () => {
               <p className="text-gray-600">Zadejte své přihlašovací údaje</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6" data-testid="login-form">
+            <form onSubmit={handleSubmit} noValidate className="space-y-6" data-testid="login-form">
               <div>
                 <Label htmlFor="email" className="text-[#2B3E50]">E-mailová adresa</Label>
                 <div className="relative mt-2">
@@ -129,7 +129,6 @@ export const LoginPage = () => {
                     value={formData.email}
                     onChange={(e) => updateField('email', e.target.value)}
                     placeholder="vas.email@muzeum.cz"
-                    required
                     className={`pl-10 h-12 rounded-lg border-gray-300 bg-white ${fieldErrors.email ? FIELD_ERROR_CLASS : ''}`}
                   />
                 </div>
@@ -147,7 +146,6 @@ export const LoginPage = () => {
                     value={formData.password}
                     onChange={(e) => updateField('password', e.target.value)}
                     placeholder="••••••••"
-                    required
                     className={`pl-10 pr-10 h-12 rounded-lg border-gray-300 bg-white ${fieldErrors.password ? FIELD_ERROR_CLASS : ''}`}
                   />
                   <button

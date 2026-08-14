@@ -96,6 +96,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   const [showProgramBlock, setShowProgramBlock] = useState(false);
   const [programBlockForm, setProgramBlockForm] = useState({ date: '', start_time: '', end_time: '', reason: '' });
   const [programBlockFieldErrors, setProgramBlockFieldErrors] = useState({});
+  const [programSelectorError, setProgramSelectorError] = useState('');
 
   useEffect(() => { fetchPrograms(); }, []);
   useEffect(() => {
@@ -200,7 +201,12 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   // The block always carries the selected program_id; it is never silently saved
   // as a personal block. Requires a program to be selected.
   const createProgramBlock = async () => {
-    if (!selectedProgram) { toast.error('Nejprve vyberte program pro programovou blokaci'); return; }
+    if (!selectedProgram) {
+      setProgramSelectorError('Vyberte program pro programovou blokaci.');
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return;
+    }
+    setProgramSelectorError('');
     const errors = {};
     if (!programBlockForm.date) errors.date = 'Vyberte datum blokace.';
     if (Boolean(programBlockForm.start_time) !== Boolean(programBlockForm.end_time)) {
@@ -294,7 +300,12 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
             </Button>
             <Button
               onClick={() => {
-                if (!selectedProgram) { toast.error('Nejprve vyberte program pro programovou blokaci'); return; }
+                if (!selectedProgram) {
+                  setProgramSelectorError('Vyberte program pro programovou blokaci.');
+                  toast.error('Zkontrolujte zvýrazněná pole.');
+                  return;
+                }
+                setProgramSelectorError('');
                 setProgramBlockForm({ date: '', start_time: '', end_time: '', reason: '' });
                 setProgramBlockFieldErrors({});
                 setShowProgramBlock(true);
@@ -322,12 +333,13 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
             </div>
             <div className="flex items-center gap-2 flex-1">
               <Label className="text-sm font-medium whitespace-nowrap">Program:</Label>
-              <Select value={selectedProgram || 'none'} onValueChange={v => v !== 'none' && setSelectedProgram(v)}>
-                <SelectTrigger className="w-64" data-testid="select-program"><SelectValue /></SelectTrigger>
+              <Select value={selectedProgram || 'none'} onValueChange={v => { if (v !== 'none') { setSelectedProgram(v); setProgramSelectorError(''); } }}>
+                <SelectTrigger className={`w-64 ${programSelectorError ? FIELD_ERROR_CLASS : ''}`} data-testid="select-program" aria-invalid={Boolean(programSelectorError)}><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {programs.map(p => <SelectItem key={p.id} value={p.id}>{p.name_cs}</SelectItem>)}
                 </SelectContent>
               </Select>
+              <FieldError message={programSelectorError} />
             </div>
           </div>
         </Card>

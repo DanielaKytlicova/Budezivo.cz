@@ -87,6 +87,7 @@ export const SchoolsPage = () => {
   const [bulkTags, setBulkTags] = useState([]);
   const [bulkNewTag, setBulkNewTag] = useState('');
   const [bulkTagMode, setBulkTagMode] = useState('add');
+  const [bulkTagFieldError, setBulkTagFieldError] = useState('');
   const [archiveConfirm, setArchiveConfirm] = useState(null);
 
   const role = user?.role;
@@ -135,21 +136,30 @@ export const SchoolsPage = () => {
     setBulkTags([]);
     setBulkNewTag('');
     setBulkTagMode('add');
+    setBulkTagFieldError('');
     setShowBulkTags(true);
   };
 
   const toggleBulkTag = (t) => {
+    setBulkTagFieldError('');
     setBulkTags(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
   };
 
   const addBulkNewTag = () => {
     const t = bulkNewTag.trim();
-    if (t && !bulkTags.includes(t)) setBulkTags(prev => [...prev, t]);
+    if (t && !bulkTags.includes(t)) {
+      setBulkTagFieldError('');
+      setBulkTags(prev => [...prev, t]);
+    }
     setBulkNewTag('');
   };
 
   const runBulkTags = async () => {
-    if (bulkTags.length === 0) { toast.error('Vyberte nebo zadejte alespoň jeden tag'); return; }
+    if (bulkTags.length === 0) {
+      setBulkTagFieldError('Vyberte nebo zadejte alespoň jeden tag.');
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return;
+    }
     setBulkBusy(true);
     try {
       const res = await axios.post(`${API}/schools/bulk/tags`, {
@@ -1461,6 +1471,7 @@ export const SchoolsPage = () => {
             <DialogTitle>Přidat tagy ({selectedSchools.length} škol)</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className={`rounded-lg ${bulkTagFieldError ? 'border border-red-500 ring-1 ring-red-500 p-3' : ''}`}>
             <div className="flex flex-wrap gap-2">
               {[...new Set([...PREDEFINED_TAGS, ...availableTags])].map(tag => (
                 <button
@@ -1474,15 +1485,17 @@ export const SchoolsPage = () => {
                 </button>
               ))}
             </div>
-            <div className="flex gap-2">
-              <Input placeholder="Nový tag" value={bulkNewTag} onChange={e => setBulkNewTag(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBulkNewTag(); } }} data-testid="bulk-new-tag-input" />
+            <div className="flex gap-2 mt-3">
+              <Input placeholder="Nový tag" value={bulkNewTag} onChange={e => { setBulkTagFieldError(''); setBulkNewTag(e.target.value); }} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addBulkNewTag(); } }} data-testid="bulk-new-tag-input" />
               <Button variant="outline" onClick={addBulkNewTag} data-testid="bulk-add-new-tag">Přidat</Button>
             </div>
             {bulkTags.length > 0 && (
-              <div className="flex flex-wrap gap-1" data-testid="bulk-selected-tags">
+              <div className="flex flex-wrap gap-1 mt-3" data-testid="bulk-selected-tags">
                 {bulkTags.map(t => <Badge key={t} variant="secondary">{t}</Badge>)}
               </div>
             )}
+            <FieldError message={bulkTagFieldError} />
+            </div>
             <div className="flex gap-4 text-sm">
               <label className="flex items-center gap-1"><input type="radio" checked={bulkTagMode === 'add'} onChange={() => setBulkTagMode('add')} data-testid="bulk-tag-mode-add" /> Přidat ke stávajícím</label>
               <label className="flex items-center gap-1"><input type="radio" checked={bulkTagMode === 'replace'} onChange={() => setBulkTagMode('replace')} data-testid="bulk-tag-mode-replace" /> Nahradit stávající</label>

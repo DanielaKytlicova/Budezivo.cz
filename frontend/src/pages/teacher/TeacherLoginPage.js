@@ -73,7 +73,7 @@ export const TeacherLoginPage = () => {
             </div>
           </div>
 
-          <form onSubmit={onSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} noValidate className="space-y-4">
             <div>
               <Label htmlFor="t-email">E-mail</Label>
               <Input
@@ -81,7 +81,6 @@ export const TeacherLoginPage = () => {
                 type="email"
                 value={email}
                 onChange={e => { clearFieldError('email'); setEmail(e.target.value); }}
-                required
                 data-testid="teacher-login-email"
                 className={fieldErrors.email ? FIELD_ERROR_CLASS : ''}
               />
@@ -94,7 +93,6 @@ export const TeacherLoginPage = () => {
                 type="password"
                 value={password}
                 onChange={e => { clearFieldError('password'); setPassword(e.target.value); }}
-                required
                 data-testid="teacher-login-password"
                 className={fieldErrors.password ? FIELD_ERROR_CLASS : ''}
               />

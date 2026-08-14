@@ -260,7 +260,7 @@ const ProfileTab = ({ teacher, onUpdate }) => {
   return (
     <Card className="p-6" data-testid="teacher-profile-tab">
       <h2 className="font-semibold text-[#2B3E50] mb-4">Vaše údaje</h2>
-      <form onSubmit={onSave} className="space-y-4 max-w-md">
+      <form onSubmit={onSave} noValidate className="space-y-4 max-w-md">
         <div>
           <Label htmlFor="p-email">E-mail</Label>
           <Input id="p-email" value={teacher.email} disabled />
@@ -268,7 +268,7 @@ const ProfileTab = ({ teacher, onUpdate }) => {
         </div>
         <div>
           <Label htmlFor="p-name">Jméno a příjmení</Label>
-          <Input id="p-name" value={name} onChange={e => { setName(e.target.value); setFieldErrors(prev => ({ ...prev, name: undefined })); }} required data-testid="teacher-profile-name" className={fieldErrors.name ? FIELD_ERROR_CLASS : ''} />
+          <Input id="p-name" value={name} onChange={e => { setName(e.target.value); setFieldErrors(prev => ({ ...prev, name: undefined })); }} data-testid="teacher-profile-name" className={fieldErrors.name ? FIELD_ERROR_CLASS : ''} />
           <FieldError message={fieldErrors.name} />
         </div>
         <div>

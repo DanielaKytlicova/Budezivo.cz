@@ -11,7 +11,7 @@ import { Card } from '../../components/ui/card';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
-import { ChevronLeft, ChevronRight, CheckCircle, SlidersHorizontal, X, Download, Bell, ClipboardCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle, SlidersHorizontal, X, Download, Bell, ClipboardCheck, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { WaitlistModal } from '../../components/public/WaitlistModal';
@@ -56,6 +56,7 @@ export const BookingPage = () => {
   const [programs, setPrograms] = useState([]);
   const [selectedProgram, setSelectedProgram] = useState(null);
   const [calendarData, setCalendarData] = useState(null);
+  const [calendarLoading, setCalendarLoading] = useState(false);
   const [timeBlocks, setTimeBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -191,7 +192,9 @@ export const BookingPage = () => {
     fetchTheme();
     fetchInstitutionInfo();
     fetchPrograms();
-    fetchCalendar(currentYear, currentMonth);
+    if (!preselectedProgramId) {
+      fetchCalendar(currentYear, currentMonth);
+    }
   }, []);
 
   const fetchTheme = async () => {
@@ -251,6 +254,7 @@ export const BookingPage = () => {
   };
 
   const fetchCalendar = async (year, month, programId = null) => {
+    setCalendarLoading(true);
     try {
       let url = `${API}/calendar/${institutionId}/${year}/${month}`;
       if (programId) {
@@ -260,6 +264,8 @@ export const BookingPage = () => {
       setCalendarData(response.data);
     } catch (error) {
       console.error('Error fetching calendar:', error);
+    } finally {
+      setCalendarLoading(false);
     }
   };
 
@@ -410,15 +416,13 @@ export const BookingPage = () => {
   };
 
   const renderCalendar = () => {
-    if (!calendarData) return null;
-
     const monthNames = ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'];
     const dayNames = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
     const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
     const adjustedFirstDay = firstDay === 0 ? 6 : firstDay - 1;
 
     return (
-      <div className="bg-white rounded-lg p-6 border border-gray-200">
+      <div className="bg-white rounded-lg p-6 border border-gray-200 relative">
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => {
@@ -428,7 +432,8 @@ export const BookingPage = () => {
               setCurrentYear(newYear);
               fetchCalendar(newYear, newMonth, formData.program_id);
             }}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            disabled={calendarLoading}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
           >
             <ChevronLeft className="w-5 h-5 text-gray-600" />
           </button>
@@ -441,7 +446,8 @@ export const BookingPage = () => {
               setCurrentYear(newYear);
               fetchCalendar(newYear, newMonth, formData.program_id);
             }}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            disabled={calendarLoading}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
           >
             <ChevronRight className="w-5 h-5 text-gray-600" />
           </button>
@@ -455,7 +461,7 @@ export const BookingPage = () => {
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-2">
+        <div className={`grid grid-cols-7 gap-2 transition-opacity ${calendarLoading ? 'opacity-35 pointer-events-none' : ''}`}>
           {Array(adjustedFirstDay).fill(null).map((_, i) => (
             <div key={`empty-${i}`} className="aspect-square" />
           ))}
@@ -506,6 +512,21 @@ export const BookingPage = () => {
             );
           })}
         </div>
+
+        {calendarLoading && (
+          <div className="absolute inset-x-6 top-24 bottom-24 flex items-center justify-center rounded-lg bg-white/80">
+            <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-[#2B3E50] shadow-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Načítám dostupnost termínů…
+            </div>
+          </div>
+        )}
+
+        {!calendarLoading && !calendarData && (
+          <div className="min-h-[360px] flex items-center justify-center text-sm text-gray-500">
+            Dostupnost se nepodařilo načíst. Zkuste prosím obnovit stránku.
+          </div>
+        )}
 
         <div className="mt-6 p-4 bg-gray-50 rounded-md border border-gray-200">
           <p className="text-sm font-medium mb-2 text-[#2B3E50]">Legenda</p>

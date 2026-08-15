@@ -3,13 +3,17 @@ Availability and calendar routes.
 Uses Supabase (PostgreSQL) for database operations.
 """
 import calendar
+import uuid
+from collections import defaultdict
 from datetime import datetime, date as date_type, timedelta
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
 from database.supabase import get_db
 from database.supabase_repositories import BookingRepositorySupabase, ProgramRepositorySupabase
+from database.models import AvailabilityException, Reservation
 from services.collision_service import (
     get_collision_info_for_availability,
     check_lecturer_available_for_block,
@@ -24,6 +28,73 @@ def get_day_name(date_obj: date_type) -> str:
     """Get day name in English lowercase."""
     days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     return days[date_obj.weekday()]
+
+
+def _calendar_time_to_min(value: str) -> int:
+    hours, minutes = map(int, value.split(':'))
+    return hours * 60 + minutes
+
+
+def _calendar_min_to_time(value: int) -> str:
+    return f"{value // 60:02d}:{value % 60:02d}"
+
+
+def _expand_calendar_time_blocks(time_blocks: list, duration: int) -> list[str]:
+    expanded = []
+    for raw_block in time_blocks:
+        if '-' in raw_block:
+            start_raw, end_raw = raw_block.split('-', 1)
+            window_start = _calendar_time_to_min(start_raw.strip())
+            window_end = _calendar_time_to_min(end_raw.strip())
+            if window_end - window_start > duration + 15:
+                slot_start = window_start
+                while slot_start + duration <= window_end:
+                    expanded.append(
+                        f"{_calendar_min_to_time(slot_start)}-{_calendar_min_to_time(slot_start + duration)}"
+                    )
+                    slot_start += 30
+            else:
+                expanded.append(raw_block)
+        else:
+            start = _calendar_time_to_min(raw_block.strip())
+            expanded.append(f"{_calendar_min_to_time(start)}-{_calendar_min_to_time(start + duration)}")
+    return expanded
+
+
+def _calendar_block_range(block: str, duration: int) -> tuple[int, int] | None:
+    try:
+        if '-' in block:
+            start_raw, end_raw = block.split('-', 1)
+            return _calendar_time_to_min(start_raw.strip()), _calendar_time_to_min(end_raw.strip())
+        start = _calendar_time_to_min(block.strip())
+        return start, start + duration
+    except (AttributeError, ValueError):
+        return None
+
+
+def _calendar_blocks_overlap(slot: str, other: str, duration: int) -> bool:
+    slot_range = _calendar_block_range(slot, duration)
+    other_range = _calendar_block_range(other, duration)
+    if not slot_range or not other_range:
+        return False
+    slot_start, slot_end = slot_range
+    other_start, other_end = other_range
+    return slot_start < other_end and slot_end > other_start
+
+
+def _calendar_exception_blocks_slot(slot: str, duration: int, exceptions: list) -> bool:
+    slot_range = _calendar_block_range(slot, duration)
+    if not slot_range:
+        return False
+    slot_start, slot_end = slot_range
+    for exc in exceptions:
+        if exc.start_time is None and exc.end_time is None:
+            return True
+        exc_start = _calendar_time_to_min(exc.start_time) if exc.start_time else 0
+        exc_end = _calendar_time_to_min(exc.end_time) if exc.end_time else 24 * 60
+        if slot_start < exc_end and slot_end > exc_start:
+            return True
+    return False
 
 
 @router.get("/availability/{institution_id}/{program_id}/{date}")
@@ -244,6 +315,45 @@ async def get_calendar_availability(
     # Remove duplicates from time blocks
     unique_time_blocks = list(set(all_time_blocks))
     total_blocks = len(unique_time_blocks)
+
+    program_month_slots = []
+    program_duration = programs[0].get("duration") or 60 if programs else 60
+    reservations_by_date = defaultdict(list)
+    exceptions_by_date = defaultdict(list)
+
+    if program_id and programs:
+        program_month_slots = _expand_calendar_time_blocks(
+            programs[0].get("time_blocks") or ["09:00-10:30", "10:45-12:15", "13:00-14:30"],
+            program_duration,
+        )
+        month_start = f"{year}-{month:02d}-01"
+        month_end = f"{year}-{month:02d}-{num_days:02d}"
+        inst_uuid = uuid.UUID(institution_id)
+        prog_uuid = uuid.UUID(program_id)
+
+        reservations_result = await db.execute(
+            select(Reservation).where(and_(
+                Reservation.institution_id == inst_uuid,
+                Reservation.program_id == prog_uuid,
+                Reservation.date >= month_start,
+                Reservation.date <= month_end,
+                Reservation.status != 'cancelled',
+            ))
+        )
+        for reservation in reservations_result.scalars().all():
+            reservations_by_date[str(reservation.date)].append(reservation.time_block)
+
+        exceptions_result = await db.execute(
+            select(AvailabilityException).where(and_(
+                AvailabilityException.institution_id == inst_uuid,
+                AvailabilityException.scope_type == 'program',
+                AvailabilityException.scope_id == prog_uuid,
+                AvailabilityException.date >= month_start,
+                AvailabilityException.date <= month_end,
+            ))
+        )
+        for exception in exceptions_result.scalars().all():
+            exceptions_by_date[str(exception.date)].append(exception)
     
     # Get min/max days before booking from first program
     min_days_before = programs[0].get("min_days_before_booking", 1) if programs else 1
@@ -348,11 +458,16 @@ async def get_calendar_availability(
         available_blocks = 0
         if has_availability:
             if program_id:
-                day_availability = await get_program_availability(institution_id, program_id, date_str, db)
+                booked_blocks = reservations_by_date.get(date_str, [])
+                exception_blocks = exceptions_by_date.get(date_str, [])
                 available_blocks = sum(
                     1
-                    for block in day_availability.get("time_blocks", [])
-                    if block.get("status") == "available"
+                    for slot in program_month_slots
+                    if not _calendar_exception_blocks_slot(slot, program_duration, exception_blocks)
+                    and not any(
+                        _calendar_blocks_overlap(slot, booked_block, program_duration)
+                        for booked_block in booked_blocks
+                    )
                 )
             else:
                 available_blocks = total_blocks

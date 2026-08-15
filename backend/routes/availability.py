@@ -345,7 +345,17 @@ async def get_calendar_availability(
                     if not any_lect_avail:
                         has_availability = False
         
-        available_blocks = total_blocks if has_availability else 0
+        available_blocks = 0
+        if has_availability:
+            if program_id:
+                day_availability = await get_program_availability(institution_id, program_id, date_str, db)
+                available_blocks = sum(
+                    1
+                    for block in day_availability.get("time_blocks", [])
+                    if block.get("status") == "available"
+                )
+            else:
+                available_blocks = total_blocks
         
         dates.append({
             "date": date_str,

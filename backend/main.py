@@ -6,7 +6,7 @@ Main entry point that initializes the application and registers all routes.
 """
 import logging
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import Limiter
@@ -59,6 +59,7 @@ from routes.analytics import router as analytics_router
 from routes.contacts import router as contacts_router
 from routes.institution_join import router as institution_join_router
 from routes.marketing import router as marketing_router
+from services.readiness_service import collect_readiness
 from models.schemas import ContactFormData, InstitutionSettings
 
 # Configure logging
@@ -239,6 +240,17 @@ async def health_check():
     return {"status": "ok"}
 
 
+@app.get("/ready")
+async def readiness_check():
+    """
+    Readiness check for monitoring.
+    Verifies required runtime configuration and database connectivity without exposing secrets.
+    """
+    report = await collect_readiness(engine)
+    status_code = 200 if report["ready"] else 503
+    return JSONResponse(content=report, status_code=status_code)
+
+
 @app.get("/")
 async def app_root():
     """Root endpoint redirect info."""
@@ -326,7 +338,7 @@ async def startup_event():
         DEFAULT_FLAGS = [
             (
                 "social_proof",
-                "Sekce Social Proof na landing page (statistiky 8+/21+/173+/98% a \u201eD\u016fv\u011bruj\u00ed n\u00e1m\u201c). Vypnuto = sekce skryta; Zapnuto glob\u00e1ln\u011b = sekce zobrazena v\u0161em n\u00e1v\u0161t\u011bvn\u00edk\u016fm.",
+                "Sekce Social Proof na landing page (statistiky 8+/21+/173+/98% a „Důvěřují nám“). Vypnuto = sekce skryta; Zapnuto globálně = sekce zobrazena všem návštěvníkům.",
             ),
             (
                 "contacts_module",

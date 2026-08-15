@@ -31,9 +31,12 @@ export const PROVIDERS = {
 // into JS Date start/end. Falls back to a 60-minute slot when no end is given.
 export function reservationDateRange(booking, durationMinutes) {
   if (!booking?.date) return null;
+  const dateValue = String(booking.date || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return null;
   const tb = booking.time_block || '';
   const m = String(tb).match(/^(\d{1,2}):(\d{2})(?:\s*-\s*(\d{1,2}):(\d{2}))?$/);
-  const [y, mo, d] = booking.date.split('-').map(Number);
+  const [y, mo, d] = dateValue.split('-').map(Number);
+  if (![y, mo, d].every(Number.isFinite)) return null;
   let sh = 9, sm = 0, eh = 10, em = 0;
   if (m) {
     sh = parseInt(m[1], 10); sm = parseInt(m[2], 10);
@@ -46,6 +49,7 @@ export function reservationDateRange(booking, durationMinutes) {
   }
   const start = new Date(y, (mo || 1) - 1, d, sh, sm, 0);
   const end = new Date(y, (mo || 1) - 1, d, eh, em, 0);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
   return { start, end };
 }
 

@@ -85,7 +85,19 @@ const normalizeIdList = (value) => {
 
 const normalizeBooking = (booking = {}) => ({
   ...booking,
+  id: booking?.id ? String(booking.id) : '',
+  program_id: booking?.program_id ? String(booking.program_id) : '',
+  school_id: booking?.school_id ? String(booking.school_id) : '',
+  assigned_lecturer_id: booking?.assigned_lecturer_id ? String(booking.assigned_lecturer_id) : null,
   assigned_lecturer_ids: normalizeIdList(booking.assigned_lecturer_ids),
+  date: typeof booking?.date === 'string' ? booking.date : '',
+  time_block: typeof booking?.time_block === 'string' ? booking.time_block : '',
+  status: booking?.status || 'pending',
+  program_name: booking?.program_name || 'Program',
+  school_name: booking?.school_name || '',
+  contact_name: booking?.contact_name || '',
+  contact_email: booking?.contact_email || '',
+  contact_phone: booking?.contact_phone || '',
 });
 
 class BookingsPageErrorBoundary extends React.Component {
@@ -176,7 +188,7 @@ const nearestBookingDate = (list, today) => {
   return future[0] || past[0] || null;
 };
 
-const BookingsPage = () => {
+const BookingsPageContent = () => {
   const { t } = useTranslation();
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -291,7 +303,7 @@ const BookingsPage = () => {
   // Computed BEFORE filteredBookings so the "Kolize" virtual filter can use it.
   const collisionIndex = useMemo(() => {
     const byId = new Map(); // booking id → { group: number, peers: [] }
-    const active = bookings.filter(b => b.status !== 'cancelled' && b.status !== 'rejected');
+    const active = bookings.filter(b => b.id && b.date && b.status !== 'cancelled' && b.status !== 'rejected');
     const byDate = new Map();
     active.forEach(b => {
       const list = byDate.get(b.date) || [];
@@ -301,7 +313,16 @@ const BookingsPage = () => {
     byDate.forEach(list => {
       // Union-find over overlapping pairs → connected components = groups.
       const parent = new Map(list.map(b => [b.id, b.id]));
-      const find = (x) => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+      const find = (x) => {
+        if (!parent.has(x)) return x;
+        while (parent.get(x) !== x) {
+          const next = parent.get(parent.get(x));
+          if (!next) break;
+          parent.set(x, next);
+          x = parent.get(x);
+        }
+        return x;
+      };
       const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent.set(ra, rb); };
       for (let i = 0; i < list.length; i++) {
         const a = list[i];
@@ -1148,10 +1169,14 @@ const BookingsPage = () => {
             )}
 
             {/* Visit reminder status (read-only) */}
-            <VisitReminderStatus booking={selectedBooking} reminderEnabled={reminderEnabled} />
+            <BookingsPageErrorBoundary resetKey={`reminder-${selectedBooking.id}`}>
+              <VisitReminderStatus booking={selectedBooking} reminderEnabled={reminderEnabled} />
+            </BookingsPageErrorBoundary>
 
             {/* Add to personal calendar (deep-links + .ics) */}
-            <AddToCalendarMenu booking={selectedBooking} token={localStorage.getItem('token')} />
+            <BookingsPageErrorBoundary resetKey={`calendar-menu-${selectedBooking.id}`}>
+              <AddToCalendarMenu booking={selectedBooking} token={localStorage.getItem('token')} />
+            </BookingsPageErrorBoundary>
 
             {/* Akce */}
             <div className="flex gap-2 pt-4 border-t">
@@ -1442,7 +1467,8 @@ const BookingsPage = () => {
                           const info = collisionIndex.get(booking.id);
                           if (!info) return null;
                           const color = COLLISION_COLORS[(info.group - 1) % COLLISION_COLORS.length];
-                          const peerText = info.peers.map(p => {
+                          const peers = Array.isArray(info?.peers) ? info.peers : [];
+                          const peerText = peers.map(p => {
                             const lec = p.assigned_lecturer_name ? ` · lektor ${p.assigned_lecturer_name}` : ' · bez lektora';
                             return `${p.program_name || 'Program'} (${p.time_block || '—'})${lec}`;
                           }).join('\n');
@@ -1457,7 +1483,7 @@ const BookingsPage = () => {
                             >
                               <AlertTriangle className="w-3 h-3" />
                               Kolize {info.group}
-                              <span className="opacity-80">· {info.peers.length + 1}×</span>
+                              <span className="opacity-80">· {peers.length + 1}×</span>
                             </span>
                           );
                         })()}
@@ -1544,6 +1570,12 @@ const BookingsPage = () => {
     </AdminLayout>
   );
 };
+
+const BookingsPage = () => (
+  <BookingsPageErrorBoundary resetKey="bookings-page-root">
+    <BookingsPageContent />
+  </BookingsPageErrorBoundary>
+);
 
 export { BookingsPage };
 export default BookingsPage;

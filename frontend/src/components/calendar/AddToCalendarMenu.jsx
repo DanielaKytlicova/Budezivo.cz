@@ -10,7 +10,14 @@ import { buildCalendarLinks, downloadReservationIcs } from './calendarUtils';
 
 export const AddToCalendarMenu = ({ booking, token, durationMinutes }) => {
   const [open, setOpen] = useState(false);
-  const links = buildCalendarLinks(booking, { durationMinutes });
+  if (!booking?.id) return null;
+
+  let links = null;
+  try {
+    links = buildCalendarLinks(booking, { durationMinutes });
+  } catch {
+    links = null;
+  }
 
   return (
     <div className="pt-3 border-t" data-testid="add-to-calendar">

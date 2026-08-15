@@ -33,6 +33,26 @@ const STATUS_MAP = {
   cancelled: { label: 'Zrušeno', color: 'bg-slate-100 text-slate-600' },
 };
 
+const DELIVERY_STATUS_MAP = {
+  pending: { label: 'Čeká', color: 'bg-slate-100 text-slate-600', icon: Clock },
+  sent: { label: 'Odesláno', color: 'bg-blue-100 text-blue-700', icon: Send },
+  delivered: { label: 'Doručeno', color: 'bg-green-100 text-green-700', icon: CheckCircle },
+  opened: { label: 'Otevřeno', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
+  clicked: { label: 'Kliknuto', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle },
+  bounced_soft: { label: 'Dočasně nedoručeno', color: 'bg-amber-100 text-amber-700', icon: AlertTriangle },
+  bounced_hard: { label: 'Nedoručeno', color: 'bg-red-100 text-red-700', icon: XCircle },
+  complained: { label: 'Označeno jako spam', color: 'bg-red-100 text-red-700', icon: XCircle },
+  suppressed: { label: 'Blokováno', color: 'bg-red-100 text-red-700', icon: XCircle },
+  failed: { label: 'Selhalo', color: 'bg-red-100 text-red-700', icon: XCircle },
+  unsubscribed: { label: 'Odhlášeno', color: 'bg-slate-100 text-slate-600', icon: XCircle },
+  unknown: { label: 'Neznámé', color: 'bg-slate-100 text-slate-600', icon: Info },
+};
+
+const getDeliveryStatus = (recipient) => {
+  const key = recipient.delivery_status || recipient.status || 'unknown';
+  return DELIVERY_STATUS_MAP[key] || DELIVERY_STATUS_MAP.unknown;
+};
+
 const MODE_LABELS = {
   relevant_only: 'Pouze relevantní školy',
   all: 'Všechny školy',
@@ -458,25 +478,42 @@ const CampaignDetail = ({ campaign, onClose, onRefresh, onEdit, onRepeatCreated 
                   <tr className="border-b text-left text-slate-500">
                     <th className="pb-2">Škola</th>
                     <th className="pb-2">Email</th>
-                    <th className="pb-2">Stav</th>
+                    <th className="pb-2">Doručení</th>
                     <th className="pb-2">Programy</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(c.recipients || []).map(r => (
-                    <tr key={r.id} className="border-b last:border-0">
-                      <td className="py-1.5 font-medium">{r.school_name}</td>
-                      <td className="py-1.5 text-slate-600">{r.email}</td>
-                      <td className="py-1.5">
-                        {r.status === 'sent' && <CheckCircle className="w-4 h-4 text-green-500" />}
-                        {r.status === 'failed' && <XCircle className="w-4 h-4 text-red-500" title={r.failure_reason} />}
-                        {r.status === 'pending' && <Clock className="w-4 h-4 text-slate-400" />}
-                      </td>
-                      <td className="py-1.5 text-xs text-slate-500">
-                        {(r.programs || []).map(p => p.program_name).join(', ')}
-                      </td>
-                    </tr>
-                  ))}
+                  {(c.recipients || []).map(r => {
+                    const deliveryStatus = getDeliveryStatus(r);
+                    const DeliveryIcon = deliveryStatus.icon;
+                    return (
+                      <tr key={r.id} className="border-b last:border-0">
+                        <td className="py-1.5 font-medium">{r.school_name}</td>
+                        <td className="py-1.5 text-slate-600">{r.email}</td>
+                        <td className="py-1.5">
+                          <div className="space-y-1">
+                            <Badge className={`${deliveryStatus.color} inline-flex items-center gap-1`}>
+                              <DeliveryIcon className="w-3 h-3" />
+                              {r.delivery_status_label || deliveryStatus.label}
+                            </Badge>
+                            {r.delivery_event_at && (
+                              <div className="text-[11px] text-slate-400">
+                                {new Date(r.delivery_event_at).toLocaleString('cs-CZ')}
+                              </div>
+                            )}
+                            {r.failure_reason && (
+                              <div className="text-xs text-red-600 max-w-[220px]">
+                                {r.failure_reason}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-1.5 text-xs text-slate-500">
+                          {(r.programs || []).map(p => p.program_name).join(', ')}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

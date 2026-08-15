@@ -16,6 +16,25 @@ STATUS_BY_EVENT = {
 
 PERMANENT_SUPPRESSION = {"bounced_hard", "complained", "suppressed", "unsubscribed"}
 
+DELIVERY_STATUS_LABELS = {
+    "pending": "Čeká na odeslání",
+    "sent": "Odesláno poskytovateli",
+    "delivered": "Doručeno",
+    "opened": "Otevřeno",
+    "clicked": "Kliknuto",
+    "bounced_soft": "Dočasně nedoručeno",
+    "bounced_hard": "Nedoručeno",
+    "complained": "Označeno jako spam",
+    "suppressed": "Blokováno poskytovatelem",
+    "failed": "Selhalo",
+    "unsubscribed": "Odhlášeno",
+    "unknown": "Neznámý stav",
+}
+
+
+def delivery_status_label(status: str | None) -> str:
+    return DELIVERY_STATUS_LABELS.get(status or "unknown", DELIVERY_STATUS_LABELS["unknown"])
+
 
 def parse_datetime(value) -> datetime:
     if not value:

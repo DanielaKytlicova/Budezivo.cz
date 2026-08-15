@@ -28,6 +28,7 @@ from services.plan_service import require_feature
 from services.usage_service import track_usage
 from services.feature_flags import is_feature_enabled
 from services.email_service import EmailService
+from services.resend_delivery import delivery_status_label
 
 
 CONTACTS_FEATURE_KEY = "contacts_module"
@@ -180,6 +181,8 @@ async def get_delivery_health(
             MailingCampaignRecipient.status,
             MailingCampaignRecipient.failure_reason,
             MailingCampaignRecipient.sent_at,
+            MailingCampaignRecipient.delivery_status,
+            MailingCampaignRecipient.delivery_event_at,
             MailingCampaign.name.label("campaign_name"),
         )
         .join(MailingCampaign, MailingCampaignRecipient.campaign_id == MailingCampaign.id)
@@ -203,20 +206,41 @@ async def get_delivery_health(
                 "failed": 0,
                 "last_failure_reason": None,
                 "last_sent_at": None,
+                "last_delivery_status": None,
+                "last_delivery_label": None,
+                "last_delivery_event_at": None,
                 "campaigns": [],
             }
         stats = email_stats[email]
         stats["total_sends"] += 1
-        if row.status == "sent":
+        delivery_status = row.delivery_status or row.status or "unknown"
+        delivery_failed = delivery_status in {
+            "bounced_hard",
+            "failed",
+            "complained",
+            "suppressed",
+            "unsubscribed",
+        } or row.status == "failed"
+        delivery_success = delivery_status in {"delivered", "opened", "clicked"} or (
+            row.status == "sent" and delivery_status in {"sent", "unknown"}
+        )
+        if delivery_success:
             stats["successful"] += 1
             if row.sent_at:
                 stats["last_sent_at"] = row.sent_at.isoformat()
-        elif row.status == "failed":
+        elif delivery_failed:
             stats["failed"] += 1
-            stats["last_failure_reason"] = row.failure_reason
+            stats["last_failure_reason"] = row.failure_reason or delivery_status_label(delivery_status)
+        stats["last_delivery_status"] = delivery_status
+        stats["last_delivery_label"] = delivery_status_label(delivery_status)
+        if row.delivery_event_at:
+            stats["last_delivery_event_at"] = row.delivery_event_at.isoformat()
         stats["campaigns"].append({
             "name": row.campaign_name,
             "status": row.status,
+            "delivery_status": delivery_status,
+            "delivery_status_label": delivery_status_label(delivery_status),
+            "delivery_event_at": row.delivery_event_at.isoformat() if row.delivery_event_at else None,
             "failure_reason": row.failure_reason,
         })
 
@@ -409,13 +433,12 @@ async def get_campaign(
                     "age_group": p.age_group,
                 })
 
-    # Load only columns required by the detail view. Selecting the ORM model
-    # includes newer delivery columns and can break previews/details before the
-    # production DB has finished the Resend migration.
+    # Load explicit detail columns, including delivery events used by the
+    # campaign result UI and proof-of-delivery CSV.
     result = await db.execute(
         text("""
             SELECT id, school_name, contact_name, email, status, sent_at,
-                   failure_reason, matching_reason
+                   failure_reason, matching_reason, delivery_status, delivery_event_at
             FROM mailing_campaign_recipients
             WHERE campaign_id = :campaign_id
             ORDER BY school_name NULLS LAST, email
@@ -451,6 +474,9 @@ async def get_campaign(
             "email": r["email"],
             "status": r["status"],
             "sent_at": r["sent_at"].isoformat() if r["sent_at"] else None,
+            "delivery_status": r["delivery_status"] or r["status"] or "unknown",
+            "delivery_status_label": delivery_status_label(r["delivery_status"] or r["status"]),
+            "delivery_event_at": r["delivery_event_at"].isoformat() if r["delivery_event_at"] else None,
             "failure_reason": r["failure_reason"],
             "matching_reason": _json_value(r["matching_reason"], {}),
             "programs": rp_map.get(str(r["id"]), []),
@@ -1355,7 +1381,7 @@ async def export_recipients_csv(
     recipients = (await db.execute(
         text("""
             SELECT email, contact_name, school_name, status, sent_at,
-                   failure_reason, email_provider_id
+                   failure_reason, email_provider_id, delivery_status, delivery_event_at
             FROM mailing_campaign_recipients
             WHERE campaign_id = :campaign_id
             ORDER BY school_name NULLS LAST, email
@@ -1366,7 +1392,8 @@ async def export_recipients_csv(
     buf = io.StringIO()
     w = csv.writer(buf, delimiter=';')
     w.writerow([
-        'E-mail', 'Jméno', 'Škola', 'Stav', 'Odesláno', 'Důvod chyby', 'ID poskytovatele',
+        'E-mail', 'Jméno', 'Škola', 'Stav odeslání', 'Stav doručení',
+        'Poslední událost doručení', 'Odesláno', 'Důvod chyby', 'ID poskytovatele',
     ])
     for r in recipients:
         w.writerow([
@@ -1374,6 +1401,8 @@ async def export_recipients_csv(
             r["contact_name"] or '',
             r["school_name"] or '',
             r["status"],
+            delivery_status_label(r["delivery_status"] or r["status"]),
+            r["delivery_event_at"].isoformat() if r["delivery_event_at"] else '',
             r["sent_at"].isoformat() if r["sent_at"] else '',
             r["failure_reason"] or '',
             r["email_provider_id"] or '',

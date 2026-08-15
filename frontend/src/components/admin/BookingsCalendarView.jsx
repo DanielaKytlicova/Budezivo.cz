@@ -50,7 +50,10 @@ const CalendarEvent = ({ booking, onSelect, collision, color, className = '', st
   </button>
 );
 
-export const BookingsCalendarView = ({ bookings, colorBookings = bookings, onSelectBooking, collisionIndex, focusDate, focusRequestId }) => {
+export const BookingsCalendarView = ({ bookings = [], colorBookings = bookings, onSelectBooking, collisionIndex = new Map(), focusDate, focusRequestId }) => {
+  const safeBookings = Array.isArray(bookings) ? bookings : [];
+  const safeColorBookings = Array.isArray(colorBookings) ? colorBookings : safeBookings;
+  const safeCollisionIndex = collisionIndex && typeof collisionIndex.has === 'function' ? collisionIndex : new Map();
   const [mode, setMode] = useState(() => {
     try {
       const savedMode = localStorage.getItem('bz_bookings_calendar_mode');
@@ -70,27 +73,27 @@ export const BookingsCalendarView = ({ bookings, colorBookings = bookings, onSel
   }, [focusDate, focusRequestId]);
   const byDate = useMemo(() => {
     const map = new Map();
-    bookings.forEach((booking) => {
+    safeBookings.forEach((booking) => {
       const items = map.get(booking.date) || [];
       items.push(booking);
       map.set(booking.date, items);
     });
     map.forEach((items) => items.sort((a, b) => (a.time_block || '').localeCompare(b.time_block || '')));
     return map;
-  }, [bookings]);
-  const colorMap = useMemo(() => buildProgramCalendarColorMap(colorBookings), [colorBookings]);
+  }, [safeBookings]);
+  const colorMap = useMemo(() => buildProgramCalendarColorMap(safeColorBookings), [safeColorBookings]);
   const colorFor = (booking) => colorMap[programCalendarKey(booking)] || PROGRAM_CALENDAR_COLORS[0];
   const visibleHours = useMemo(() => {
     let firstHour = 8;
     let lastHour = 19;
-    bookings.forEach((booking) => {
+    safeBookings.forEach((booking) => {
       const { start } = parseTimeRange(booking.time_block);
       const startHour = Math.max(0, Math.min(23, Math.floor(start / 60)));
       firstHour = Math.min(firstHour, startHour);
       lastHour = Math.max(lastHour, startHour);
     });
     return Array.from({ length: lastHour - firstHour + 1 }, (_, index) => firstHour + index);
-  }, [bookings]);
+  }, [safeBookings]);
 
   const visibleDays = useMemo(() => {
     if (mode === 'week') {
@@ -170,7 +173,7 @@ export const BookingsCalendarView = ({ bookings, colorBookings = bookings, onSel
                               key={booking.id}
                               booking={booking}
                               onSelect={onSelectBooking}
-                              collision={collisionIndex.has(booking.id)}
+                              collision={safeCollisionIndex.has(booking.id)}
                               color={colorFor(booking)}
                               className="absolute overflow-hidden shadow-sm"
                               style={{
@@ -206,7 +209,7 @@ export const BookingsCalendarView = ({ bookings, colorBookings = bookings, onSel
               </div>
               <div className="space-y-1.5">
                 {dayBookings.map((booking) => (
-                  <CalendarEvent key={booking.id} booking={booking} onSelect={onSelectBooking} collision={collisionIndex.has(booking.id)} color={colorFor(booking)} />
+                  <CalendarEvent key={booking.id} booking={booking} onSelect={onSelectBooking} collision={safeCollisionIndex.has(booking.id)} color={colorFor(booking)} />
                 ))}
               </div>
             </section>

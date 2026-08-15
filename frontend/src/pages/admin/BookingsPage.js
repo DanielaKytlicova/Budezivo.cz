@@ -59,6 +59,69 @@ const PERMISSIONS = {
 };
 
 
+const normalizeIdList = (value) => {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String);
+  if (value === null || value === undefined) return [];
+  if (typeof value !== 'string') return [];
+
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '[]' || trimmed === '{}') return [];
+
+  if (trimmed.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed.filter(Boolean).map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    return trimmed.slice(1, -1).split(',').map((item) => item.trim().replace(/^"|"$/g, '')).filter(Boolean);
+  }
+
+  return [trimmed];
+};
+
+const normalizeBooking = (booking = {}) => ({
+  ...booking,
+  assigned_lecturer_ids: normalizeIdList(booking.assigned_lecturer_ids),
+});
+
+class BookingsPageErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    console.error('Bookings page render error:', error);
+  }
+
+  componentDidUpdate(prevProps) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Card className="p-6 border-red-200 bg-red-50 text-red-800" data-testid="bookings-render-error">
+          <p className="font-semibold">Rezervace se nepodařilo zobrazit.</p>
+          <p className="text-sm mt-1">Zkuste obnovit stránku. Pokud se chyba opakuje, pošlete prosím screenshot.</p>
+        </Card>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+
 // Extract a human-readable error message from either legacy string or structured collision dict
 const extractErrorDetail = (detail, fallback = 'Nastala chyba') => {
   if (!detail) return fallback;
@@ -179,7 +242,7 @@ const BookingsPage = () => {
   const fetchBookings = async () => {
     try {
       const response = await axios.get(`${API}/bookings`);
-      setBookings(Array.isArray(response.data) ? response.data : []);
+      setBookings(Array.isArray(response.data) ? response.data.map(normalizeBooking) : []);
     } catch (error) {
       toast.error(t('common.error'));
       setBookings([]);
@@ -401,7 +464,7 @@ const BookingsPage = () => {
       toast.success('Stav rezervace byl aktualizován');
       fetchBookings();
       if (selectedBooking?.id === id) {
-        setSelectedBooking(prev => ({ ...prev, status }));
+        setSelectedBooking(prev => normalizeBooking({ ...prev, status }));
       }
     } catch (error) {
       toast.error(t('common.error'));
@@ -429,7 +492,7 @@ const BookingsPage = () => {
       await axios.put(`${API}/bookings/${selectedBooking.id}`, payload);
       toast.success('Rezervace byla aktualizována');
       fetchBookings();
-      setSelectedBooking(prev => ({ ...prev, ...payload }));
+      setSelectedBooking(prev => normalizeBooking({ ...prev, ...payload }));
       setEditMode(null);
     } catch (error) {
       const detail = error.response?.data?.detail;
@@ -446,7 +509,7 @@ const BookingsPage = () => {
       toast.success(`Lektor ${response.data.lecturer_name} byl přiřazen`);
       fetchBookings();
       const updatedBooking = await axios.get(`${API}/bookings/${selectedBooking.id}`);
-      setSelectedBooking(updatedBooking.data);
+      setSelectedBooking(normalizeBooking(updatedBooking.data));
     } catch (error) {
       const detail = error.response?.data?.detail;
       toast.error(extractErrorDetail(detail, 'Chyba při přiřazení lektora'));
@@ -468,7 +531,7 @@ const BookingsPage = () => {
       toast.success(names.length > 1 ? `Přiřazeno ${names.length} lektorů: ${names.join(', ')}` : `Lektor ${names[0]} byl přiřazen`);
       fetchBookings();
       const updatedBooking = await axios.get(`${API}/bookings/${selectedBooking.id}`);
-      setSelectedBooking(updatedBooking.data);
+      setSelectedBooking(normalizeBooking(updatedBooking.data));
       setSelectedLecturer('');
       setSelectedLecturers([]);
       setMultiLecturerMode(false);
@@ -485,11 +548,12 @@ const BookingsPage = () => {
       await axios.delete(`${API}/bookings/${selectedBooking.id}/unassign-lecturer`);
       toast.success('Lektor byl odhlášen');
       fetchBookings();
-      setSelectedBooking(prev => ({
+      setSelectedBooking(prev => normalizeBooking({
         ...prev,
         assigned_lecturer_id: null,
         assigned_lecturer_name: null,
-        assigned_lecturer_at: null
+        assigned_lecturer_at: null,
+        assigned_lecturer_ids: []
       }));
     } catch (error) {
       const detail = error.response?.data?.detail;
@@ -498,16 +562,17 @@ const BookingsPage = () => {
   };
 
   const openDetail = (booking) => {
-    setSelectedBooking(booking);
+    const normalizedBooking = normalizeBooking(booking);
+    setSelectedBooking(normalizedBooking);
     setEditData({
-      actual_students: booking.actual_students || '',
-      actual_teachers: booking.actual_teachers || '',
-      notes: booking.notes || '',
-      date: booking.date || '',
-      time_block: booking.time_block || '',
-      contact_email: booking.contact_email || '',
-      contact_phone: booking.contact_phone || '',
-      contact_name: booking.contact_name || '',
+      actual_students: normalizedBooking.actual_students || '',
+      actual_teachers: normalizedBooking.actual_teachers || '',
+      notes: normalizedBooking.notes || '',
+      date: normalizedBooking.date || '',
+      time_block: normalizedBooking.time_block || '',
+      contact_email: normalizedBooking.contact_email || '',
+      contact_phone: normalizedBooking.contact_phone || '',
+      contact_name: normalizedBooking.contact_name || '',
     });
     setEditMode(null);
     setShowDetailModal(true);
@@ -555,6 +620,7 @@ const BookingsPage = () => {
     const canAssign = permissions.canAssignLecturer;
     const isAssignedToMe = selectedBooking.assigned_lecturer_id === user?.id;
     const hasAssignedLecturer = !!selectedBooking.assigned_lecturer_id;
+    const assignedLecturerIds = normalizeIdList(selectedBooking.assigned_lecturer_ids);
 
     return (
       <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
@@ -873,13 +939,13 @@ const BookingsPage = () => {
                     </Button>
                   )}
                 </div>
-                {(selectedBooking.assigned_lecturer_ids || []).length > 1 && (
+                {assignedLecturerIds.length > 1 && (
                   <div className="pt-3 border-t" data-testid="all-assigned-lecturers">
                     <p className="text-xs font-medium text-slate-500 mb-1.5">
-                      Všichni přiřazení lektoři ({(selectedBooking.assigned_lecturer_ids || []).length})
+                      Všichni přiřazení lektoři ({assignedLecturerIds.length})
                     </p>
                     <div className="flex flex-wrap gap-1.5">
-                      {(selectedBooking.assigned_lecturer_ids || []).map(id => {
+                      {assignedLecturerIds.map(id => {
                         const m = teamMembers.find(tm => tm.id === id);
                         return (
                           <span
@@ -1466,7 +1532,9 @@ const BookingsPage = () => {
         )}
       </div>
 
-      {renderDetailModal()}
+      <BookingsPageErrorBoundary resetKey={selectedBooking?.id || 'no-booking'}>
+        {renderDetailModal()}
+      </BookingsPageErrorBoundary>
       <ReservationSyncDialog
         open={showSyncDialog}
         onClose={() => setShowSyncDialog(false)}

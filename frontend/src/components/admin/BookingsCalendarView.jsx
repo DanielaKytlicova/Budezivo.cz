@@ -33,7 +33,7 @@ const parseTimeRange = (value) => {
   return { start, end };
 };
 
-const CalendarEvent = ({ booking, onSelect, collision, color, className = '', style = {} }) => (
+const CalendarEvent = ({ booking = {}, onSelect = () => {}, collision, color = PROGRAM_CALENDAR_COLORS[0], className = '', style = {} }) => (
   <button
     type="button"
     onClick={() => onSelect(booking)}
@@ -74,6 +74,7 @@ export const BookingsCalendarView = ({ bookings = [], colorBookings = bookings, 
   const byDate = useMemo(() => {
     const map = new Map();
     safeBookings.forEach((booking) => {
+      if (!booking.id || !booking.date) return;
       const items = map.get(booking.date) || [];
       items.push(booking);
       map.set(booking.date, items);
@@ -86,7 +87,7 @@ export const BookingsCalendarView = ({ bookings = [], colorBookings = bookings, 
   const visibleHours = useMemo(() => {
     let firstHour = 8;
     let lastHour = 19;
-    safeBookings.forEach((booking) => {
+    safeBookings.filter((booking) => booking?.id).forEach((booking) => {
       const { start } = parseTimeRange(booking.time_block);
       const startHour = Math.max(0, Math.min(23, Math.floor(start / 60)));
       firstHour = Math.min(firstHour, startHour);

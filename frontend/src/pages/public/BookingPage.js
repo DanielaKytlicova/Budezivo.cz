@@ -491,7 +491,7 @@ export const BookingPage = () => {
                 }}
               >
                 <span className="font-medium">{day}</span>
-                {hasAvailability && (
+                {hasAvailability && Number(dateInfo.available_blocks) > 0 && (
                   <div className="flex gap-1 mt-1">
                     {[...Array(Math.min(dateInfo.available_blocks, 3))].map((_, i) => (
                       <div 

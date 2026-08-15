@@ -1,108 +1,182 @@
-import React, { useState, useEffect } from 'react';
-import { useTranslation } from '../../i18n/useTranslation';
-import { Header, BudezivoLogo } from '../../components/layout/Header';
-import { Footer } from '../../components/layout/Footer';
-import { Button } from '../../components/ui/button';
-import { Card } from '../../components/ui/card';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
-import { Check, X, Mail, RefreshCw, Table2, Copy, Eye, Calendar, Bell, Settings, Users, UserCheck, BarChart3, FileText, Clock, TrendingUp, Shield, Zap, Quote, Building2, Palette, BookOpen, Sprout, Music, School as SchoolIcon, ArrowRight, CalendarCheck2, MailCheck, CheckCircle2, CalendarDays, UserPlus, Smile, AlertTriangle, Play } from 'lucide-react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
+import { toast } from 'sonner';
+import {
+  BarChart3,
+  Bell,
+  CalendarCheck2,
+  Check,
+  ChevronDown,
+  Clock,
+  FileText,
+  Mail,
+  MailCheck,
+  MousePointerClick,
+  RefreshCw,
+  Shield,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Label } from '../../components/ui/label';
+import { Header } from '../../components/layout/Header';
 import { Textarea } from '../../components/ui/textarea';
-import { toast } from 'sonner';
-import axios from 'axios';
+import './HomePageRedesign.css';
 
 const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
-// --- Social proof config ---
+const HERO_IMAGE = 'https://budezivo-redesign.kytlicova-vanilie.chatgpt.site/hero-museum.png';
+const FOUNDER_IMAGE = 'https://budezivo-redesign.kytlicova-vanilie.chatgpt.site/daniela-kytlicova.png';
 
-const INSTITUTION_TYPES = [
-  { key: 'museum',           label: 'Muzea',             icon: Building2 },
-  { key: 'gallery',          label: 'Galerie',           icon: Palette },
-  { key: 'library',          label: 'Knihovny',          icon: BookOpen },
-  { key: 'botanical_garden', label: 'Botanické zahrady', icon: Sprout },
-  { key: 'cultural_center',  label: 'Kulturní centra',   icon: Music },
-  { key: 'school',           label: 'Školy',             icon: SchoolIcon },
-];
-
-// Real references will replace these once institutions opt-in.
-const TESTIMONIALS = [
+const flowSteps = [
   {
-    quote: "Budeživo nám ušetřilo hodiny týdně nad e-maily a tabulkami. Učitelky si rezervují programy samy, my jen potvrzujeme. Konec zmatků.",
-    author: "Lektorský tým",
-    role:   "Muzeum středních Čech",
-    initials: "LT",
+    number: '01',
+    icon: CalendarCheck2,
+    title: 'Škola si vybere termín',
+    text: 'Veřejný rezervační odkaz ukáže jen dostupné programy a termíny.',
   },
   {
-    quote: "Konečně jeden nástroj pro rezervace, kolizní kontrolu i reporty. Přechod z Google tabulek trval méně než týden.",
-    author: "Vedoucí vzdělávacího programu",
-    role:   "Galerie v regionu",
-    initials: "VP",
+    number: '02',
+    icon: Shield,
+    title: 'Systém zkontroluje kolize',
+    text: 'Hlídá místnosti, lektory, kapacity i souběhy bez ruční tabulky.',
+  },
+  {
+    number: '03',
+    icon: MailCheck,
+    title: 'Potvrzení odejde automaticky',
+    text: 'Škola dostane jasné instrukce a tým vidí rezervaci v přehledu.',
+  },
+  {
+    number: '04',
+    icon: Bell,
+    title: 'Připomínky běží samy',
+    text: 'E-maily, organizační informace a změny drží jeden konzistentní tón.',
+  },
+  {
+    number: '05',
+    icon: Users,
+    title: 'Tým má jasno, kdo přijde',
+    text: 'Admin, lektor i pokladna vidí jen to, co ke své roli potřebují.',
+  },
+  {
+    number: '06',
+    icon: BarChart3,
+    title: 'Vyhodnocení je připravené',
+    text: 'Statistiky, kontakty a kampaně se dají použít pro další plánování.',
   },
 ];
 
-// Numeric count-up component for trust stats.
-const StatCard = ({ value, suffix = '', label, color }) => {
-  const [display, setDisplay] = useState(0);
-  useEffect(() => {
-    const target = Number(value) || 0;
-    if (target === 0) { setDisplay(0); return; }
-    const duration = 900;
-    const start = performance.now();
-    let raf;
-    const tick = (now) => {
-      const p = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setDisplay(Math.round(target * eased));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [value]);
-  return (
-    <div className="text-center">
-      <div className={`text-4xl md:text-5xl font-bold ${color || 'text-slate-900'} tabular-nums`}>
-        {display.toLocaleString('cs-CZ')}{suffix}
-      </div>
-      <div className="text-xs md:text-sm text-slate-500 mt-1.5 uppercase tracking-wider">
-        {label}
-      </div>
-    </div>
-  );
-};
+const howSteps = [
+  {
+    icon: MousePointerClick,
+    title: 'Publikujete nabídku',
+    text: 'Programy, termíny a pravidla vyplníte jednou. Odkaz vložíte na web nebo pošlete školám.',
+  },
+  {
+    icon: CalendarCheck2,
+    title: 'Školy rezervují samy',
+    text: 'Učitel si vybere program, termín a odešle přihlášku bez registrace.',
+  },
+  {
+    icon: RefreshCw,
+    title: 'Bude živo hlídá provoz',
+    text: 'Systém kontroluje obsazenost, kolize, kontakty, e-maily a stav rezervací.',
+  },
+  {
+    icon: BarChart3,
+    title: 'Vy vidíte výsledek',
+    text: 'Tým má kalendář, seznamy, exporty a přehled, co opravdu proběhlo.',
+  },
+];
 
-export const HomePage = () => {
-  const { t } = useTranslation();
-  const [billingCycle, setBillingCycle] = useState('monthly');
-  const [showDemoDialog, setShowDemoDialog] = useState(false);
+const audienceCards = [
+  {
+    title: 'Muzea a galerie',
+    text: 'Vzdělávací programy, komentované prohlídky, dílny a akce pro školy.',
+    items: ['termíny a kapacity', 'lektoři a místnosti', 'školní kontakty'],
+  },
+  {
+    title: 'Knihovny a kulturní centra',
+    text: 'Opakované programy, čtenářské lekce, workshopy a veřejné akce.',
+    items: ['rezervace bez registrace', 'přehled účasti', 'hromadná propagace'],
+  },
+  {
+    title: 'Botanické zahrady a science centra',
+    text: 'Sezonní provoz, skupiny, tematické bloky a návštěvy s pevnou kapacitou.',
+    items: ['kolizní pravidla', 'kalendář týmu', 'exporty pro vedení'],
+  },
+];
+
+const benefits = [
+  { icon: Clock, title: 'Méně rutiny', text: 'Méně ručního potvrzování a opisování mezi e-maily, tabulkami a kalendářem.' },
+  { icon: Shield, title: 'Méně chyb', text: 'Kapacity, kolize a povinná pole hlídá systém, ne paměť jednoho člověka.' },
+  { icon: Mail, title: 'Lepší komunikace', text: 'Školy dostávají jasné potvrzení, připomínky a odkazy na správný termín.' },
+  { icon: FileText, title: 'Přehled pro vedení', text: 'Data pro vyhodnocení návštěvnosti, vytížení a další plánování máte po ruce.' },
+];
+
+const pricing = [
+  {
+    name: 'Start',
+    price: '0 Kč',
+    note: 'pro vyzkoušení',
+    items: ['veřejný rezervační odkaz', 'základní programy', 'ruční správa rezervací'],
+  },
+  {
+    name: 'Pro',
+    price: 'od 690 Kč',
+    note: 'měsíčně za instituci',
+    featured: true,
+    items: ['kolize a kapacity', 'propagace školám', 'role týmu', 'statistiky a exporty'],
+  },
+  {
+    name: 'Individuálně',
+    price: 'na míru',
+    note: 'pro větší organizace',
+    items: ['více institucí', 'specifické procesy', 'pilotní nastavení s podporou'],
+  },
+];
+
+const faqItems = [
+  {
+    question: 'Nahradí Bude živo náš web?',
+    answer: 'Ne. Bude živo doplní váš web o rezervační a provozní část. Veřejný odkaz vložíte na své stránky nebo ho pošlete školám.',
+  },
+  {
+    question: 'Musí se učitelé registrovat?',
+    answer: 'Ne. Veřejná rezervace je navržená tak, aby škola mohla vybrat termín a odeslat přihlášku bez vytváření účtu.',
+  },
+  {
+    question: 'Co když máme vlastní pravidla pro kapacity a lektory?',
+    answer: 'Právě proto systém počítá s kapacitami, místnostmi, lektory, uzávěrkami přihlášek a kolizními pravidly.',
+  },
+  {
+    question: 'Dá se začít postupně?',
+    answer: 'Ano. Pro pilot stačí nastavit několik programů, ověřit veřejný odkaz a postupně doplnit mailing, exporty a další provozní detaily.',
+  },
+];
+
+const DemoDialog = ({ children }) => {
+  const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [demoFormData, setDemoFormData] = useState({
-    name: '',
-    institution: '',
-    email: '',
-    availability: '',
-  });
-  const [demoFieldErrors, setDemoFieldErrors] = useState({});
-  const [stats, setStats] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [form, setForm] = useState({ name: '', institution: '', email: '', availability: '' });
 
-  useEffect(() => {
-    axios.get(`${API}/public/stats`).then(r => setStats(r.data)).catch(() => setStats(null));
-  }, []);
-
-  const clearDemoFieldError = (field) => {
-    setDemoFieldErrors(prev => ({ ...prev, [field]: undefined }));
+  const setField = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
-  const validateDemoForm = () => {
+  const validate = () => {
     const errors = {};
-    if (!demoFormData.name.trim()) errors.name = 'Vyplňte jméno.';
-    if (!demoFormData.institution.trim()) errors.institution = 'Vyplňte název instituce.';
-    if (!demoFormData.email.trim()) errors.email = 'Vyplňte e-mail.';
-    if (!demoFormData.availability.trim()) errors.availability = 'Vyplňte, kdy máte obecně čas.';
-    setDemoFieldErrors(errors);
+    if (!form.name.trim()) errors.name = 'Vyplňte jméno.';
+    if (!form.institution.trim()) errors.institution = 'Vyplňte název instituce.';
+    if (!form.email.trim()) errors.email = 'Vyplňte e-mail.';
+    if (!form.availability.trim()) errors.availability = 'Vyplňte, kdy máte obecně čas.';
+    setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       toast.error('Zkontrolujte zvýrazněná pole.');
       return false;
@@ -110,20 +184,20 @@ export const HomePage = () => {
     return true;
   };
 
-  const handleDemoSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateDemoForm()) return;
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (!validate()) return;
     setSubmitting(true);
-    
+
     try {
       await axios.post(`${API}/public/contact`, {
-        ...demoFormData,
-        source: 'Demo formulář - Homepage'
+        ...form,
+        source: 'Demo formulář - Homepage redesign',
       });
       toast.success('Děkujeme! Brzy vás budeme kontaktovat.');
-      setShowDemoDialog(false);
-      setDemoFormData({ name: '', institution: '', email: '', availability: '' });
-      setDemoFieldErrors({});
+      setOpen(false);
+      setForm({ name: '', institution: '', email: '', availability: '' });
+      setFieldErrors({});
     } catch (error) {
       console.error('Contact form error:', error);
       toast.error('Nepodařilo se odeslat. Zkuste to prosím znovu.');
@@ -132,978 +206,310 @@ export const HomePage = () => {
     }
   };
 
-  const pricingTiers = ['free', 'start', 'pro', 'pro_plus'];
-
-  // Pain points data
-  // Pain → Solution comparison (before/after with Budeživo)
-  const painComparison = [
-    {
-      bad:  { icon: Mail,          text: 'Desítky e-mailů pro potvrzení jedné rezervace' },
-      good: { icon: MailCheck,     text: 'Automatické potvrzení obratem, žádný e-mail' },
-    },
-    {
-      bad:  { icon: RefreshCw,     text: 'Ruční potvrzování každé rezervace zvlášť' },
-      good: { icon: CheckCircle2,  text: 'Pravidla nastavíte jednou, systém pracuje sám' },
-    },
-    {
-      bad:  { icon: Table2,        text: 'Nepřehledné Excel tabulky, které jsou vždy zastaralé' },
-      good: { icon: CalendarDays,  text: 'Přehledný kalendář vždy aktuální v reálném čase' },
-    },
-    {
-      bad:  { icon: Copy,          text: 'Duplicitní objednávky a kolize termínů' },
-      good: { icon: Shield,        text: 'Systém hlídá obsazenost, duplicity jsou nemožné' },
-    },
-    {
-      bad:  { icon: Clock,         text: 'Školy čekají na odpověď, volají a píšou znovu' },
-      good: { icon: UserPlus,      text: 'Škola rezervuje sama bez registrace, za 2 minuty' },
-    },
-  ];
-
-  // Benefits data
-  const employeeBenefits = [
-    { icon: Clock,       title: 'Méně rutinní administrativy', description: 'Rezervace a potvrzení probíhají bez vašeho zásahu' },
-    { icon: UserCheck,   title: 'Úspora hodin týdně',          description: 'Průměrně 3 hodiny administrativy méně každý týden' },
-    { icon: CheckCircle2,title: 'Méně chyb a nedorozumění',    description: 'Pravidla hlídá systém, ne člověk' },
-    { icon: Smile,       title: 'Klidnější pracovní den',      description: 'Žádné urgentní e-maily, žádné telefonáty' },
-  ];
-
-  const managementBenefits = [
-    { icon: BarChart3,   title: 'Statistiky a přehledy',          description: 'Kolik skupin, odkud, kdy — exportovatelné reporty' },
-    { icon: FileText,    title: 'Podklady pro zřizovatele',       description: 'Reporty připravené pro výroční zprávy a dotace' },
-    { icon: TrendingUp,  title: 'Lepší plánování kapacit',        description: 'Vidíte vytíženost dopředu a můžete reagovat' },
-    { icon: Shield,      title: 'Transparentní evidence rezervací', description: 'Každá rezervace dohledatelná, nic se neztratí' },
-  ];
-
-  // How it works steps (4-step timeline)
-  const howItWorks = [
-    {
-      step: 1,
-      icon: CalendarDays,
-      title: 'Nastavíte instituci',
-      description: 'Prostory, kapacity a provozní dobu za 15 minut',
-    },
-    {
-      step: 2,
-      icon: UserCheck,
-      title: 'Škola si vybere',
-      description: 'Jednoduchý formulář, výběr termínu bez registrace',
-    },
-    {
-      step: 3,
-      icon: CheckCircle2,
-      title: 'Potvrzení automaticky',
-      description: 'Obě strany obdrží e-mail, termín se zapíše do kalendáře',
-    },
-    {
-      step: 4,
-      icon: BarChart3,
-      title: 'Přehled po ruce',
-      description: 'Kalendář a statistiky kdykoli, odkudkoli',
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-[#F8F9FA]">
-      <Header />
-
-      {/* Hero Section — dark navy with museum photo fading from right */}
-      <section className="relative bg-[#2B3E50] text-white py-20 md:py-28 overflow-hidden">
-        {/* Photo backdrop on the right, fading to dark on the left */}
-        <div className="absolute inset-0 z-0" aria-hidden="true">
-          <img
-            src="https://customer-assets.emergentagent.com/job_bdc8108c-9554-4444-8179-a7723f12fc54/artifacts/tju1uhiz_ChatGPT%20Image%2025.%204.%202026%2011_48_59.png"
-            alt=""
-            className="absolute inset-y-0 right-0 h-full w-full md:w-[85%] object-cover object-right"
-          />
-          {/* Left-to-right gradient mask: full dark on left → transparent on right (stronger on mobile so text stays legible) */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#2B3E50] from-30% via-[#2B3E50]/85 via-55% to-transparent md:from-15% md:via-50%" />
-          {/* Bottom-up vertical fade for mobile readability */}
-          <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-[#2B3E50] to-transparent md:hidden" />
-          {/* Subtle warm glow on the right (gold) for atmosphere */}
-          <div className="absolute inset-y-0 right-0 w-1/3 bg-gradient-to-l from-[#C4AB86]/10 to-transparent" />
-        </div>
-
-        <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-8">
-          <div className="max-w-2xl">
-            {/* Eyebrow with gold accent — keeps brand palette visible on dark */}
-            <p className="text-xs font-semibold tracking-[0.25em] uppercase text-[#C4AB86] mb-4 inline-flex items-center gap-2" data-testid="hero-eyebrow">
-              <span className="w-6 h-px bg-[#C4AB86]" />
-              Bude živo · pro kulturní instituce
-            </p>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
-              Méně administrativy.<br />
-              Více prostoru pro <span className="text-[#C4AB86]">kreativitu</span>.
-            </h1>
-            <p className="text-base text-white/85 leading-relaxed mb-8">
-              Bude živo je online rezervační systém pro muzea, galerie, knihovny a další kulturní a vzdělávací instituce. Pomáhá spravovat rezervace programů, termíny, dostupnost lektorů a místností na jednom místě.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link to="/register" data-testid="hero-cta-trial">
-                <Button size="lg" className="bg-[#C4AB86] text-white hover:bg-[#b39975] h-12 px-8 rounded-lg shadow-lg shadow-[#C4AB86]/20">
-                  Vyzkoušet zdarma
-                </Button>
-              </Link>
-              <Dialog open={showDemoDialog} onOpenChange={setShowDemoDialog}>
-                <DialogTrigger asChild>
-                  <Button size="lg" variant="outline" className="h-12 px-8 rounded-lg border-2 border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white" data-testid="hero-cta-demo">
-                    Domluvit online ukázku
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Domluvit online ukázku</DialogTitle>
-                  </DialogHeader>
-                  <form onSubmit={handleDemoSubmit} noValidate className="space-y-4" data-testid="demo-request-form">
-                    <div>
-                      <Label htmlFor="demo_name">Jméno</Label>
-                      <Input
-                        id="demo_name"
-                        data-testid="demo-name-input"
-                        value={demoFormData.name}
-                        onChange={(e) => { setDemoFormData({ ...demoFormData, name: e.target.value }); clearDemoFieldError('name'); }}
-                        required
-                        className={`mt-2 ${demoFieldErrors.name ? FIELD_ERROR_CLASS : ''}`}
-                      />
-                      <FieldError message={demoFieldErrors.name} />
-                    </div>
-                    <div>
-                      <Label htmlFor="demo_institution">Název instituce</Label>
-                      <Input
-                        id="demo_institution"
-                        data-testid="demo-institution-input"
-                        value={demoFormData.institution}
-                        onChange={(e) => { setDemoFormData({ ...demoFormData, institution: e.target.value }); clearDemoFieldError('institution'); }}
-                        required
-                        className={`mt-2 ${demoFieldErrors.institution ? FIELD_ERROR_CLASS : ''}`}
-                      />
-                      <FieldError message={demoFieldErrors.institution} />
-                    </div>
-                    <div>
-                      <Label htmlFor="demo_email">E-mail</Label>
-                      <Input
-                        id="demo_email"
-                        type="email"
-                        data-testid="demo-email-input"
-                        value={demoFormData.email}
-                        onChange={(e) => { setDemoFormData({ ...demoFormData, email: e.target.value }); clearDemoFieldError('email'); }}
-                        required
-                        className={`mt-2 ${demoFieldErrors.email ? FIELD_ERROR_CLASS : ''}`}
-                      />
-                      <FieldError message={demoFieldErrors.email} />
-                    </div>
-                    <div>
-                      <Label htmlFor="demo_availability">Kdy máte obecně čas?</Label>
-                      <Textarea
-                        id="demo_availability"
-                        data-testid="demo-availability-input"
-                        value={demoFormData.availability}
-                        onChange={(e) => { setDemoFormData({ ...demoFormData, availability: e.target.value }); clearDemoFieldError('availability'); }}
-                        required
-                        className={`mt-2 ${demoFieldErrors.availability ? FIELD_ERROR_CLASS : ''}`}
-                        placeholder="Např: Středy 9:00-12:00, Pátky 10:00-14:00"
-                      />
-                      <FieldError message={demoFieldErrors.availability} />
-                    </div>
-                    <Button
-                      type="submit"
-                      disabled={submitting}
-                      data-testid="demo-submit-button"
-                      className="w-full bg-[#C4AB86] text-white hover:bg-[#b39975] disabled:opacity-50"
-                    >
-                      {submitting ? 'Odesílám...' : 'Odeslat žádost'}
-                    </Button>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            </div>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent className="bz-demo-dialog">
+        <DialogHeader>
+          <DialogTitle>Domluvit online ukázku</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} noValidate className="bz-demo-form">
+          <div>
+            <Label htmlFor="demo-name">Jméno</Label>
+            <Input id="demo-name" value={form.name} onChange={(event) => setField('name', event.target.value)} className={fieldErrors.name ? FIELD_ERROR_CLASS : ''} aria-invalid={Boolean(fieldErrors.name)} />
+            <FieldError message={fieldErrors.name} />
           </div>
-        </div>
-      </section>
-
-      {/* Social Proof Section — only rendered once we have meaningful real data
-          (gated by backend `show_stats`, currently ≥5 non-deleted institutions).
-          Testimonials block is kept disabled until real opt-in references land. */}
-      {stats?.show_stats && (
-      <section className="py-16 bg-white border-b border-slate-100" id="social-proof" data-testid="social-proof-section">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          {/* Stats bar */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 mb-12" data-testid="trust-stats">
-              <StatCard
-                value={stats.institutions}
-                suffix="+"
-                label="kulturních institucí"
-                color="text-[#4A6FA5]"
-              />
-              <StatCard
-                value={stats.programs + stats.events}
-                suffix="+"
-                label="programů a akcí"
-                color="text-[#4A6FA5]"
-              />
-              <StatCard
-                value={stats.reservations}
-                suffix="+"
-                label="zpracovaných rezervací"
-                color="text-[#4A6FA5]"
-              />
-              <StatCard
-                value={stats.satisfaction}
-                suffix="%"
-                label="úspěšnost doručení"
-                color="text-[#C4AB86]"
-              />
-            </div>
-
-          {/* Institution types */}
-          <div className="text-center mb-10">
-            <p className="text-sm font-semibold tracking-wider uppercase text-slate-500 mb-5">
-              Důvěřují nám
-            </p>
-            <div className="flex flex-wrap justify-center gap-3 md:gap-4">
-              {INSTITUTION_TYPES.map((t) => {
-                const count = stats?.institution_types?.[t.key] || 0;
-                return (
-                  <div
-                    key={t.key}
-                    className="group flex items-center gap-2 px-4 py-3 rounded-xl border border-slate-200 bg-white hover:border-[#4A6FA5] hover:shadow-sm transition-all"
-                    data-testid={`type-chip-${t.key}`}
-                  >
-                    <t.icon className="w-4 h-4 text-slate-500 group-hover:text-[#4A6FA5]" />
-                    <span className="text-sm font-medium text-slate-700">{t.label}</span>
-                    {count > 0 && (
-                      <span className="text-xs font-mono text-slate-400 ml-1">{count}</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+          <div>
+            <Label htmlFor="demo-institution">Název instituce</Label>
+            <Input id="demo-institution" value={form.institution} onChange={(event) => setField('institution', event.target.value)} className={fieldErrors.institution ? FIELD_ERROR_CLASS : ''} aria-invalid={Boolean(fieldErrors.institution)} />
+            <FieldError message={fieldErrors.institution} />
           </div>
-
-          {/*
-            Testimonials are intentionally disabled until we have real, written
-            consent from customer institutions. Placeholder TESTIMONIALS array
-            is kept in this file — once references are collected, set the flag
-            SHOW_TESTIMONIALS below (or better: drive it from a CMS field).
-          */}
-          {false && TESTIMONIALS.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-12 max-w-5xl mx-auto">
-              {TESTIMONIALS.map((t, i) => (
-                <Card
-                  key={i}
-                  className="p-6 md:p-8 border border-slate-200 bg-gradient-to-br from-white to-slate-50 relative"
-                  data-testid={`testimonial-${i}`}
-                >
-                  <Quote className="w-8 h-8 text-[#C4AB86] opacity-40 absolute top-5 right-5" />
-                  <p className="text-base md:text-lg text-slate-700 leading-relaxed mb-5 italic">
-                    „{t.quote}"
-                  </p>
-                  <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
-                    <div className="w-10 h-10 rounded-full bg-[#4A6FA5]/10 flex items-center justify-center text-[#4A6FA5] font-semibold">
-                      {t.initials}
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold text-slate-800">{t.author}</div>
-                      <div className="text-xs text-slate-500">{t.role}</div>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-      )}
-
-      {/* Pain Points Section - "Znáte tuto realitu?" */}
-      <section className="py-20 bg-[#F8F9FA]" id="problemy">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-14">
-            Znáte tuto realitu?
-          </h2>
-
-          {/* Column headers */}
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_40px_1fr] gap-4 md:gap-6 max-w-5xl mx-auto mb-6 px-1">
-            <div className="flex items-center gap-2 text-sm font-semibold tracking-wider uppercase text-[#D94A4A]">
-              <span className="w-2 h-2 rounded-full bg-[#D94A4A]"></span>
-              Bez systému
-            </div>
-            <div></div>
-            <div className="flex items-center gap-2 text-sm font-semibold tracking-wider uppercase text-[#4A6FA5]">
-              <span className="w-2 h-2 rounded-full bg-[#4A6FA5]"></span>
-              S Budeživo
-            </div>
+          <div>
+            <Label htmlFor="demo-email">E-mail</Label>
+            <Input id="demo-email" type="email" value={form.email} onChange={(event) => setField('email', event.target.value)} className={fieldErrors.email ? FIELD_ERROR_CLASS : ''} aria-invalid={Boolean(fieldErrors.email)} />
+            <FieldError message={fieldErrors.email} />
           </div>
-
-          {/* Comparison rows */}
-          <div className="space-y-4 max-w-5xl mx-auto">
-            {painComparison.map((row, idx) => {
-              const BadIcon = row.bad.icon;
-              const GoodIcon = row.good.icon;
-              return (
-                <div
-                  key={idx}
-                  className="grid grid-cols-1 md:grid-cols-[1fr_40px_1fr] items-center gap-4 md:gap-6"
-                  data-testid={`pain-comparison-row-${idx}`}
-                >
-                  {/* Bad card */}
-                  <div className="flex items-center gap-4 bg-[#FCECEB] border border-[#F5D5D2] rounded-2xl p-5 hover:shadow-sm transition-shadow">
-                    <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <BadIcon className="w-5 h-5 text-[#D94A4A]" strokeWidth={2} />
-                    </div>
-                    <p className="text-[#2B3E50] font-medium leading-snug">{row.bad.text}</p>
-                  </div>
-
-                  {/* Arrow */}
-                  <div className="hidden md:flex items-center justify-center">
-                    <ArrowRight className="w-5 h-5 text-[#B8C4D6]" strokeWidth={2} />
-                  </div>
-
-                  {/* Good card */}
-                  <div className="flex items-center gap-4 bg-[#EEF2F9] border border-[#D9E1F0] rounded-2xl p-5 hover:shadow-sm transition-shadow">
-                    <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm">
-                      <GoodIcon className="w-5 h-5 text-[#4A6FA5]" strokeWidth={2} />
-                    </div>
-                    <p className="text-[#2B3E50] font-medium leading-snug">{row.good.text}</p>
-                  </div>
-                </div>
-              );
-            })}
+          <div>
+            <Label htmlFor="demo-availability">Kdy se vám hodí ukázka?</Label>
+            <Textarea id="demo-availability" rows={4} value={form.availability} onChange={(event) => setField('availability', event.target.value)} className={fieldErrors.availability ? FIELD_ERROR_CLASS : ''} aria-invalid={Boolean(fieldErrors.availability)} />
+            <FieldError message={fieldErrors.availability} />
           </div>
-        </div>
-      </section>
-
-      {/* How It Works Section - "Jak to funguje?" 4-step timeline (DARK) */}
-      <section className="py-20 bg-[#243446] relative overflow-hidden" id="jak-to-funguje">
-        {/* subtle backdrop */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 opacity-[0.05] pointer-events-none"
-          style={{
-            backgroundImage: 'radial-gradient(circle at 20% 30%, #C4AB86 0px, transparent 50%), radial-gradient(circle at 80% 70%, #4A6FA5 0px, transparent 50%)',
-          }}
-        />
-        <div className="relative max-w-7xl mx-auto px-6 md:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold text-white text-center mb-16">
-            Jak to funguje?
-          </h2>
-
-          <div className="relative max-w-5xl mx-auto">
-            {/* Horizontal connecting line (desktop only) */}
-            <div
-              className="hidden md:block absolute top-10 left-[12.5%] right-[12.5%] h-px bg-white/15"
-              aria-hidden="true"
-            ></div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-6 relative">
-              {howItWorks.map((item, idx) => {
-                const Icon = item.icon;
-                return (
-                  <div
-                    key={idx}
-                    className="flex flex-col items-center text-center"
-                    data-testid={`how-it-works-${idx}`}
-                  >
-                    {/* Circle with icon + step badge */}
-                    <div className="relative mb-6">
-                      <div className="w-20 h-20 bg-[#4A6FA5] rounded-full flex items-center justify-center shadow-lg shadow-[#4A6FA5]/30 ring-1 ring-white/10">
-                        <Icon className="w-8 h-8 text-white" strokeWidth={2} />
-                      </div>
-                      <div className="absolute -top-1 -right-1 w-7 h-7 bg-[#C4AB86] rounded-full flex items-center justify-center shadow-sm ring-4 ring-[#243446]">
-                        <span className="text-xs font-bold text-white">{item.step}</span>
-                      </div>
-                    </div>
-
-                    <h3 className="text-lg font-semibold text-white mb-3">{item.title}</h3>
-                    <p className="text-sm text-white/65 leading-relaxed max-w-[220px]">{item.description}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section — "Vše na jednom místě." with dashboard preview (LIGHT) */}
-      <section className="py-20 md:py-24 bg-[#EEF2F9] relative overflow-hidden" id="funkce">
-        {/* subtle grid backdrop with brand light blue */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 opacity-[0.06] pointer-events-none"
-          style={{
-            backgroundImage: 'linear-gradient(#4A6FA5 1px, transparent 1px), linear-gradient(90deg, #4A6FA5 1px, transparent 1px)',
-            backgroundSize: '64px 64px',
-          }}
-        />
-        <div className="relative max-w-7xl mx-auto px-6 md:px-8">
-          <p className="text-xs font-semibold tracking-[0.25em] uppercase text-[#C4AB86] mb-3 text-center">
-            <span className="inline-flex items-center gap-2">
-              <span className="w-6 h-px bg-[#C4AB86]" />
-              Pohled administrátora
-              <span className="w-6 h-px bg-[#C4AB86]" />
-            </span>
-          </p>
-          <h2 className="text-3xl md:text-5xl font-bold text-[#2B3E50] text-center mb-4">
-            Vše na jednom místě.
-          </h2>
-          <p className="text-base md:text-lg text-slate-600 text-center mb-12 md:mb-16 max-w-2xl mx-auto">
-            Rezervační systém navržený speciálně pro kulturní instituce
-          </p>
-
-          <DashboardPreview />
-
-          {/* Feature pills below */}
-          <div className="mt-12 md:mt-14 flex flex-wrap justify-center gap-3" data-testid="feature-pills">
-            {[
-              { icon: Bell,       label: 'Automatická potvrzení' },
-              { icon: UserCheck,  label: 'Bez registrace pro školy' },
-              { icon: BarChart3,  label: 'Statistiky pro vedení' },
-              { icon: Settings,   label: 'Správa kapacit' },
-              { icon: Zap,        label: 'Online platby' },
-              { icon: Users,      label: 'Týmové role' },
-            ].map((f, i) => {
-              const Icon = f.icon;
-              return (
-                <div
-                  key={i}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-white border border-[#D9E1F0] shadow-sm hover:shadow-md hover:border-[#4A6FA5]/40 transition"
-                  data-testid={`feature-pill-${i}`}
-                >
-                  <Icon className="w-4 h-4 text-[#4A6FA5]" strokeWidth={2} />
-                  <span className="text-sm font-medium text-[#2B3E50]">{f.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Benefits Section - Split layout: Úleva pro zaměstnance / Přínos pro vedení */}
-      <section className="bg-white">
-        <div className="grid grid-cols-1 md:grid-cols-2">
-          {/* Employee Benefits (light side) */}
-          <div className="py-20 px-6 md:px-12 lg:px-20 bg-white">
-            <div className="max-w-xl md:ml-auto md:pr-8">
-              <p className="text-xs font-semibold tracking-[0.2em] uppercase text-[#C4AB86] mb-3">Pro zaměstnance</p>
-              <h3 className="text-3xl md:text-4xl font-bold text-[#2B3E50] mb-10">Úleva pro zaměstnance</h3>
-
-              <div className="divide-y divide-gray-100">
-                {employeeBenefits.map((benefit, idx) => {
-                  const Icon = benefit.icon;
-                  return (
-                    <div
-                      key={idx}
-                      className="flex items-start gap-4 py-5"
-                      data-testid={`employee-benefit-${idx}`}
-                    >
-                      <div className="w-10 h-10 bg-[#F1F3F8] rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Icon className="w-5 h-5 text-[#4A6FA5]" strokeWidth={2} />
-                      </div>
-                      <div>
-                        <h4 className="text-base font-semibold text-[#2B3E50] mb-1">{benefit.title}</h4>
-                        <p className="text-sm text-gray-500 leading-relaxed">{benefit.description}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Management Benefits (dark side) */}
-          <div className="py-20 px-6 md:px-12 lg:px-20 bg-[#2B3E50]">
-            <div className="max-w-xl md:mr-auto md:pl-8">
-              <p className="text-xs font-semibold tracking-[0.2em] uppercase text-[#C4AB86] mb-3">Pro vedení</p>
-              <h3 className="text-3xl md:text-4xl font-bold text-white mb-10">Přínos pro vedení</h3>
-
-              <div className="divide-y divide-white/10">
-                {managementBenefits.map((benefit, idx) => {
-                  const Icon = benefit.icon;
-                  return (
-                    <div
-                      key={idx}
-                      className="flex items-start gap-4 py-5"
-                      data-testid={`management-benefit-${idx}`}
-                    >
-                      <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Icon className="w-5 h-5 text-[#C4AB86]" strokeWidth={2} />
-                      </div>
-                      <div>
-                        <h4 className="text-base font-semibold text-white mb-1">{benefit.title}</h4>
-                        <p className="text-sm text-white/60 leading-relaxed">{benefit.description}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Demo / CTA Section — dark navy with primary CTAs + customer-view demo card */}
-      <section className="py-20 md:py-24 bg-[#2B3E50] relative overflow-hidden">
-        {/* subtle gradient accent */}
-        <div
-          aria-hidden="true"
-          className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[700px] rounded-full opacity-[0.18] pointer-events-none"
-          style={{ background: 'radial-gradient(circle, #C4AB86 0%, transparent 60%)' }}
-        />
-        <div className="relative max-w-5xl mx-auto px-6 md:px-8">
-          {/* Headline */}
-          <div className="text-center mb-12">
-            <p className="text-xs font-semibold tracking-[0.25em] uppercase text-[#C4AB86] mb-4" data-testid="cta-eyebrow">
-              Připraveni začít?
-            </p>
-            <h2 className="text-3xl md:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
-              Nastavení za 15 minut.
-            </h2>
-            <p className="text-base md:text-lg text-white/70 max-w-xl mx-auto">
-              Přidejte svou instituci, nastavte prostory a začněte přijímat rezervace ještě dnes.
-            </p>
-          </div>
-
-          {/* Primary CTAs */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-16" data-testid="cta-buttons">
-            <Link to="/register" data-testid="cta-register">
-              <Button size="lg" className="h-12 px-8 bg-[#C4AB86] hover:bg-[#b39975] text-white rounded-lg font-semibold">
-                Zaregistrovat instituci
-              </Button>
-            </Link>
-            <a href="#contact" data-testid="cta-online-demo">
-              <Button size="lg" variant="outline" className="h-12 px-8 bg-transparent border-white/30 text-white hover:bg-white/10 hover:text-white rounded-lg font-semibold">
-                Domluvit online ukázku
-              </Button>
-            </a>
-          </div>
-
-          {/* Divider with caption */}
-          <div className="flex items-center gap-4 mb-8">
-            <div className="flex-1 h-px bg-white/10" />
-            <p className="text-xs text-white/60 inline-flex items-center gap-2">
-              <Eye className="w-3.5 h-3.5 text-[#C4AB86]" />
-              Podívejte se, jak to uvidí váš zákazník
-            </p>
-            <div className="flex-1 h-px bg-white/10" />
-          </div>
-
-          {/* Customer-view demo card (glass) */}
-          <div
-            className="rounded-2xl bg-white/[0.04] border border-white/10 backdrop-blur-sm p-6 md:p-8"
-            data-testid="customer-view-card"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-center gap-6">
-              {/* Left: text + checks */}
-              <div>
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-[#C4AB86]/10 border border-[#C4AB86]/30 flex items-center justify-center flex-shrink-0">
-                    <UserCheck className="w-5 h-5 text-[#C4AB86]" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold tracking-[0.2em] uppercase text-[#C4AB86]">Pohled vašeho zákazníka</p>
-                    <h3 className="text-lg md:text-xl font-bold text-white">Jak jednoduché to bude pro učitele?</h3>
-                  </div>
-                </div>
-                <p className="text-sm text-white/70 leading-relaxed mb-4 max-w-xl">
-                  Vyzkoušejte si celý proces rezervace na vlastní kůži — přesně tak, jak ho uvidí učitel. Bez registrace, za 2 minuty.
-                </p>
-                <ul className="space-y-2">
-                  {[
-                    'Žádná registrace ani přihlášení',
-                    'Výběr programu, termínu a odeslání',
-                    'Ukázkové potvrzení e-mailem',
-                  ].map((item, i) => (
-                    <li key={i} className="flex items-center gap-2.5 text-sm text-white/85">
-                      <Check className="w-4 h-4 text-[#C4AB86] flex-shrink-0" strokeWidth={2.5} />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Right: action */}
-              <div className="flex flex-col items-stretch md:items-end gap-2">
-                <Link to="/booking/demo" target="_blank" rel="noreferrer" data-testid="try-booking-demo">
-                  <Button size="lg" className="h-12 px-6 w-full md:w-auto bg-[#C4AB86] hover:bg-[#b39975] text-white rounded-lg font-semibold shadow-lg shadow-[#C4AB86]/20">
-                    <Play className="w-4 h-4 mr-2" /> Spustit ukázku rezervace
-                  </Button>
-                </Link>
-                <p className="text-[11px] text-white/50 text-center md:text-right">Otevře se v novém okně · Pouze demo data</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-20 bg-[#F8F9FA]">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-4">
-            Jednoduché a transparentní tarify
-          </h2>
-
-          <div className="flex justify-center mb-12">
-            <div className="inline-flex rounded-full bg-white border border-gray-200 p-1">
-              <button
-                data-testid="billing-monthly"
-                className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
-                  billingCycle === 'monthly' ? 'bg-[#4A6FA5] text-white' : 'text-gray-700'
-                }`}
-                onClick={() => setBillingCycle('monthly')}
-              >
-                Měsíčně
-              </button>
-              <button
-                data-testid="billing-yearly"
-                className={`px-6 py-2 rounded-full text-sm font-medium transition-all ${
-                  billingCycle === 'yearly' ? 'bg-[#4A6FA5] text-white' : 'text-gray-700'
-                }`}
-                onClick={() => setBillingCycle('yearly')}
-              >
-                Ročně <span className="text-xs">(ušetříte 20%)</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {pricingTiers.map((tier) => {
-              const isPro = tier === 'pro';
-
-              const prices = {
-                free: { monthly: 0, yearly: 0 },
-                start: { monthly: 490, yearly: 4900 },
-                pro: { monthly: 990, yearly: 9900 },
-                pro_plus: { monthly: 1990, yearly: 19900 }
-              };
-
-              const accentColors = {
-                free: '#64748B',
-                start: '#3B82F6',
-                pro: '#F59E0B',
-                pro_plus: '#8B5CF6',
-              };
-
-              const price = prices[tier][billingCycle];
-              const tierFeatures = t(`pricing.${tier}.features`);
-              const tierLimitations = t(`pricing.${tier}.limitations`);
-              const tierHighlight = t(`pricing.${tier}.highlight`);
-              const tierInherits = t(`pricing.${tier}.inherits`);
-
-              return (
-                <Card
-                  key={tier}
-                  data-testid={`pricing-tier-${tier}`}
-                  className={`p-6 bg-white rounded-2xl relative border flex flex-col ${
-                    isPro ? 'border-amber-400 border-2 shadow-lg' : 'border-gray-200'
-                  }`}
-                >
-                  {isPro && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-amber-400 text-slate-900 text-xs font-semibold px-4 py-1 rounded-full whitespace-nowrap">
-                        Doporučeno
-                      </span>
-                    </div>
-                  )}
-                  <h3 className="text-xl font-bold text-[#2B3E50] mb-2">{t(`pricing.${tier}.name`)}</h3>
-                  <div className="mb-5">
-                    {tier === 'free' ? (
-                      <>
-                        <span className="text-3xl font-bold text-[#2B3E50]">0 Kč</span>
-                        <span className="text-gray-500 text-sm block mt-1">navždy</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-3xl font-bold text-[#2B3E50]">{price.toLocaleString('cs-CZ')} Kč</span>
-                        <span className="text-gray-500 text-sm block mt-1">
-                          {billingCycle === 'monthly' ? '/ měsíčně' : '/ ročně'}
-                        </span>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Features */}
-                  <ul className="space-y-2.5 mb-4 flex-1">
-                    {tierInherits && typeof tierInherits === 'string' && !tierInherits.includes('pricing.') && (
-                      <li className="text-xs font-semibold text-slate-500 uppercase tracking-wide pb-1">{tierInherits}</li>
-                    )}
-                    {Array.isArray(tierFeatures) && tierFeatures.map((feature, idx) => (
-                      <li key={idx} className="flex items-start">
-                        <Check className="w-4 h-4 mr-2 flex-shrink-0 mt-0.5" style={{ color: accentColors[tier] || '#4A6FA5' }} />
-                        <span className="text-sm text-gray-700">{feature}</span>
-                      </li>
-                    ))}
-                    {/* Limitations with X icon */}
-                    {Array.isArray(tierLimitations) && tierLimitations.map((limitation, idx) => (
-                      <li key={`lim-${idx}`} className="flex items-start">
-                        <X className="w-4 h-4 text-red-400 mr-2 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm text-gray-400">{limitation}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {/* Highlight */}
-                  {tierHighlight && typeof tierHighlight === 'string' && (
-                    <p className="text-xs text-gray-500 italic mb-4 border-t border-gray-100 pt-3">
-                      {tierHighlight}
-                    </p>
-                  )}
-
-                  <Link to="/register" data-testid={`pricing-cta-${tier}`} className="mt-auto">
-                    <Button
-                      className={`w-full rounded-lg ${
-                        isPro
-                          ? 'bg-amber-400 text-slate-900 hover:bg-amber-500'
-                          : 'border-2 border-[#4A6FA5] text-[#4A6FA5] bg-white hover:bg-[#4A6FA5]/5'
-                      }`}
-                      variant={isPro ? 'default' : 'outline'}
-                    >
-                      {t(`pricing.${tier}.cta`)}
-                    </Button>
-                  </Link>
-                </Card>
-              );
-            })}
-          </div>
-
-          <div className="flex justify-center gap-4 mt-8">
-            <Link to="/register">
-              <Button className="bg-[#C4AB86] text-white hover:bg-[#b39975] rounded-lg px-8 h-12">
-                Začít zdarma
-              </Button>
-            </Link>
-            <Dialog open={showDemoDialog} onOpenChange={setShowDemoDialog}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="border-2 border-[#4A6FA5] text-[#4A6FA5] rounded-lg px-8 h-12">
-                  Nezávazná konzultace
-                </Button>
-              </DialogTrigger>
-            </Dialog>
-          </div>
-        </div>
-      </section>
-
-      {/* Calendar integrations — public OAuth disclosure */}
-      <section className="bg-[#243446] text-white py-16 md:py-20" aria-labelledby="calendar-integration-title">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-[136px_1fr] gap-8 md:gap-10 items-start">
-            <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-white/5 flex items-center justify-center">
-              <CalendarCheck2 className="w-9 h-9 md:w-10 md:h-10 text-[#C4AB86]" aria-hidden="true" />
-            </div>
-
-            <div className="max-w-5xl">
-              <p className="text-xs md:text-sm font-semibold tracking-[0.25em] uppercase text-[#C4AB86] mb-4">
-                Propojení
-              </p>
-              <h2 id="calendar-integration-title" className="text-3xl md:text-4xl font-bold text-white mb-6">
-                Kalendáře, které už používáte
-              </h2>
-              <p className="text-base md:text-lg text-white/75 leading-relaxed max-w-4xl">
-                Pro snazší plánování lze Bude živo propojit s Google Kalendářem nebo Outlookem, které už používáte. Rezervace a obsazené termíny se mohou automaticky synchronizovat, takže nemusíte spravovat další samostatný kalendář a systém může včas upozornit na možné časové kolize.
-              </p>
-              <p className="text-sm md:text-base text-white/55 mt-5">
-                Propojení aktivujete přímo ve svém účtu a můžete ho kdykoli zase zrušit.
-              </p>
-
-              <div className="mt-8 pt-7 border-t border-white/10 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-                <span className="text-sm text-white/50">Funguje s</span>
-                <div className="flex flex-wrap gap-3">
-                  <div className="inline-flex items-center gap-2.5 rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white/90">
-                    <CalendarDays className="w-4 h-4" aria-hidden="true" />
-                    <span>Google Kalendář</span>
-                  </div>
-                  <div className="inline-flex items-center gap-2.5 rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white/90">
-                    <Mail className="w-4 h-4" aria-hidden="true" />
-                    <span>Outlook</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section id="faq" className="py-20 bg-white">
-        <div className="max-w-3xl mx-auto px-6 md:px-8">
-          <h2 className="text-3xl md:text-4xl font-bold text-[#2B3E50] text-center mb-12">
-            {t('faq.title')}
-          </h2>
-          <Accordion type="single" collapsible className="w-full">
-            {['q1', 'q2', 'q3', 'q4'].map((q, idx) => (
-              <AccordionItem key={idx} value={`item-${idx}`}>
-                <AccordionTrigger className="text-left font-semibold text-[#2B3E50]">
-                  {t(`faq.${q}`)}
-                </AccordionTrigger>
-                <AccordionContent className="text-gray-600 leading-relaxed">
-                  {t(`faq.a${idx + 1}`)}
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </div>
-      </section>
-
-      <Footer />
-    </div>
+          <button type="submit" className="bz-primary-button bz-full-button" disabled={submitting}>
+            {submitting ? 'Odesílám...' : 'Odeslat poptávku'}
+          </button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 };
 
-// ────────────────────────────────────────────────────────────────────────
-// DashboardPreview — stylized illustration of the admin dashboard for
-// the "Vše na jednom místě" section. No real data, purely visual.
-// ────────────────────────────────────────────────────────────────────────
-const DashboardPreview = () => {
-  const sidebarItems = [
-    { label: 'Přehled',      active: true },
-    { label: 'Programy' },
-    { label: 'Rezervace' },
-    { label: 'Události' },
-    { label: 'Školy' },
-    { label: 'Mailingy' },
-    { label: 'Zpětná vazba' },
-    { label: 'Dostupnost' },
-    { label: 'Statistiky' },
-    { label: 'Tým' },
-    { label: 'Můj profil' },
-    { label: 'Nastavení' },
-  ];
-
-  const stats = [
-    { label: 'Dnešní rezervace',    value: '3',     icon: Calendar,  bg: 'bg-[#EEF2F9]', tint: 'text-[#4A6FA5]' },
-    { label: 'Nadcházející skupiny',value: '8',     icon: Users,     bg: 'bg-[#FFF6E0]', tint: 'text-[#C4AB86]' },
-    { label: 'Vytížení kapacity',   value: '74%',   icon: BarChart3, bg: 'bg-[#E8F5E9]', tint: 'text-[#84A98C]' },
-    { label: 'Limit rezervací',     value: '24/50', icon: Clock,     bg: 'bg-[#FCECEB]', tint: 'text-[#D94A4A]' },
-  ];
-
-  // Calendar mock: rows = time slots, cols = weekdays
-  const days = ['PO 28', 'ÚT 29', 'ST 30', 'ČT 1', 'PÁ 2', 'SO 3', 'NE 4'];
-  const todayCol = 2; // Wed
-  const slots = ['8:00', '9:00', '10:00', '11:00', '13:00'];
-  // Bookings at [rowIdx][colIdx] => { title, sub, tone: 'primary'|'deep'|null }
-  const bookings = {
-    '1-0': { title: 'ZŠ Palacká',       sub: '9:00 · 25 žáků',   tone: 'primary' },
-    '1-1': { title: 'Gymnázium Praha',  sub: '9:00 · 30 žáků',   tone: 'primary' },
-    '1-2': { title: 'ZŠ Botanická',     sub: '9:30 · 22 žáků',   tone: 'primary' },
-    '1-4': { title: 'ZŠ Mendlova',      sub: '9:00 · 28 žáků',   tone: 'primary' },
-    '2-1': { title: 'Gymnázium Praha',  sub: '10:00 pokračování', tone: 'deep' },
-    '2-3': { title: 'VOŠ Brno',         sub: '10:00 · 18 žáků',  tone: 'primary' },
-    '3-0': { title: 'ZŠ Náměstí',       sub: '11:00 · 24 žáků',  tone: 'primary' },
-    '3-2': { title: 'ZŠ Líšeň',         sub: '11:30 · 20 žáků',  tone: 'primary' },
-    '3-4': { title: 'ZŠ Mendlova',      sub: '11:00 pokračování', tone: 'deep' },
-    '4-1': { title: 'SPŠ Technická',    sub: '13:00 · 16 žáků',  tone: 'primary' },
-    '4-3': { title: 'ZŠ Kohoutovice',   sub: '13:30 · 26 žáků',  tone: 'primary' },
-  };
-
-  return (
-    <div
-      className="relative mx-auto max-w-5xl rounded-2xl bg-white shadow-2xl shadow-black/40 ring-1 ring-black/5 overflow-hidden"
-      data-testid="dashboard-preview"
-    >
-      <div className="grid grid-cols-1 md:grid-cols-[200px_1fr]">
-        {/* Sidebar */}
-        <aside className="bg-white border-r border-slate-100 p-4 hidden md:block">
-          <div className="mb-6 px-2">
-            <BudezivoLogo showText={true} />
-          </div>
-          <nav className="space-y-0.5">
-            {sidebarItems.map((it, i) => (
-              <div
-                key={i}
-                className={`px-3 py-2 rounded-lg text-sm transition ${
-                  it.active ? 'bg-[#2B3E50] text-white font-semibold' : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {it.label}
-              </div>
-            ))}
-          </nav>
-        </aside>
-
-        {/* Main */}
-        <div className="p-5 md:p-6 bg-[#FAFBFC]">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h3 className="text-lg md:text-xl font-bold text-[#2B3E50]">Vítejte zpět</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Muzeum města Brna</p>
-            </div>
-            <div className="relative w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center">
-              <Bell className="w-4 h-4 text-slate-500" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#D94A4A]" />
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            {stats.map((s, i) => {
-              const Icon = s.icon;
-              return (
-                <div key={i} className="p-3 rounded-xl bg-white border border-slate-100 flex items-start justify-between">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-wider text-slate-500">{s.label}</p>
-                    <p className="text-xl md:text-2xl font-bold text-[#2B3E50] mt-1">{s.value}</p>
-                  </div>
-                  <div className={`w-7 h-7 rounded-md ${s.bg} flex items-center justify-center flex-shrink-0`}>
-                    <Icon className={`w-3.5 h-3.5 ${s.tint}`} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Calendar header */}
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold text-[#2B3E50]">Nadcházející rezervace</p>
-            <div className="flex items-center gap-1.5">
-              <button className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white border border-slate-200 text-slate-600">Dnes</button>
-              <span className="text-[11px] text-slate-500">Duben 2026</span>
-              <button className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-[#2B3E50] text-white">Kalendář</button>
-            </div>
-          </div>
-
-          {/* Calendar grid */}
-          <div className="rounded-lg bg-white border border-slate-100 overflow-hidden">
-            <div className="overflow-x-auto">
-              <div className="min-w-[520px]">
-            {/* Days header */}
-            <div className="grid grid-cols-[44px_repeat(7,minmax(0,1fr))] text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-100">
-              <div />
-              {days.map((d, i) => {
-                const [w, n] = d.split(' ');
-                return (
-                  <div key={i} className="px-2 py-2 text-center">
-                    <div>{w}</div>
-                    <div className={`text-sm font-bold mt-0.5 ${i === todayCol ? 'text-white bg-[#4A6FA5] rounded-full w-7 h-7 mx-auto flex items-center justify-center' : 'text-[#2B3E50]'}`}>{n}</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Time rows */}
-            {slots.map((slot, ri) => (
-              <div key={ri} className="grid grid-cols-[44px_repeat(7,minmax(0,1fr))] border-b border-slate-50 last:border-b-0 min-h-[58px]">
-                <div className="text-[10px] text-slate-400 px-2 py-2 border-r border-slate-100">{slot}</div>
-                {days.map((_, ci) => {
-                  const b = bookings[`${ri}-${ci}`];
-                  return (
-                    <div key={ci} className="border-r border-slate-50 last:border-r-0 p-1">
-                      {b && (
-                        <div
-                          className={`rounded-md px-1.5 py-1 ${b.tone === 'deep' ? 'bg-[#C4AB86] text-white' : 'bg-[#FBE099] text-[#5C4A1F]'}`}
-                        >
-                          <p className="text-[10px] font-semibold leading-tight truncate">{b.title}</p>
-                          <p className="text-[9px] opacity-80 leading-tight truncate">{b.sub}</p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-              </div>
-            </div>
-          </div>
+const ProductPreview = () => (
+  <div className="bz-product-preview" aria-label="Ukázka prostředí Bude živo">
+    <div className="bz-preview-sidebar">
+      <span />
+      <span />
+      <span />
+      <span />
+    </div>
+    <div className="bz-preview-main">
+      <div className="bz-preview-topbar">
+        <strong>Rezervace</strong>
+        <div>
+          <span />
+          <span />
+        </div>
+      </div>
+      <div className="bz-preview-grid">
+        <div className="bz-preview-card wide">
+          <p>Programy tento týden</p>
+          <strong>24</strong>
+        </div>
+        <div className="bz-preview-card">
+          <p>Čeká na potvrzení</p>
+          <strong>3</strong>
+        </div>
+        <div className="bz-preview-card green">
+          <p>Bez kolize</p>
+          <strong>OK</strong>
+        </div>
+        <div className="bz-preview-calendar">
+          <span>PO</span><span>ÚT</span><span>ST</span><span>ČT</span><span>PÁ</span>
+          <b className="event one">Seznamte se!</b>
+          <b className="event two">Výtvarná dílna</b>
         </div>
       </div>
     </div>
+  </div>
+);
+
+export const HomePage = () => {
+  return (
+    <>
+      <Header />
+      <main className="homepage-redesign">
+        <section className="bz-hero" style={{ '--bz-hero-image': `url(${HERO_IMAGE})` }}>
+          <div className="bz-hero-media" aria-hidden="true" />
+          <div className="bz-hero-overlay" />
+          <div className="bz-container bz-hero-content">
+            <p className="bz-eyebrow">Rezervační systém pro kulturní instituce</p>
+            <h1>Bude živo pomáhá školám najít termín a vašemu týmu udržet klid v provozu.</h1>
+            <p className="bz-hero-copy">
+              Jeden veřejný odkaz pro rezervace, jeden přehled pro tým a méně ruční administrativy kolem programů, akcí, škol a kampaní.
+            </p>
+            <div className="bz-hero-actions">
+              <DemoDialog>
+                <button type="button" className="bz-primary-button">Domluvit online ukázku</button>
+              </DemoDialog>
+              <a href="/booking/demo" className="bz-secondary-button">Vyzkoušet demo rezervaci</a>
+            </div>
+            <div className="bz-hero-proof" aria-label="Hlavní přínosy">
+              <span><Check size={18} /> Rezervace bez registrace školy</span>
+              <span><Check size={18} /> Kolize, kapacity a role týmu</span>
+              <span><Check size={18} /> Mailing a přehled výsledků</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="bz-preview-section" aria-label="Náhled systému">
+          <div className="bz-container bz-preview-layout">
+            <div>
+              <p className="bz-eyebrow dark">Místo tabulek a e-mailových vláken</p>
+              <h2>Všechno důležité o programu, termínu a škole drží systém pohromadě.</h2>
+            </div>
+            <ProductPreview />
+          </div>
+        </section>
+
+        <section id="jak-to-funguje" className="bz-section">
+          <div className="bz-container">
+            <div className="bz-section-heading">
+              <p className="bz-eyebrow dark">Jak to funguje</p>
+              <h2>Od zveřejnění programu po potvrzenou rezervaci.</h2>
+            </div>
+            <div className="bz-how-grid">
+              {howSteps.map((step, index) => {
+                const Icon = step.icon;
+                return (
+                  <article className="bz-how-card" key={step.title}>
+                    <div className="bz-how-number">{String(index + 1).padStart(2, '0')}</div>
+                    <Icon size={28} />
+                    <h3>{step.title}</h3>
+                    <p>{step.text}</p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section id="funkce" className="bz-section bz-flow-section">
+          <div className="bz-container">
+            <div className="bz-section-heading centered">
+              <p className="bz-eyebrow dark">Co systém umí</p>
+              <h2>Od první rezervace po vyhodnocení</h2>
+              <p>Bude živo ohlídá a vyřídí provozní kroky, které se jinak ztrácí mezi lidmi, tabulkami a e-maily.</p>
+            </div>
+            <div className="bz-flow-grid">
+              {flowSteps.map((step) => {
+                const Icon = step.icon;
+                return (
+                  <article className="bz-flow-step" key={step.number}>
+                    <div className="bz-flow-icon"><Icon size={30} /></div>
+                    <span>{step.number}</span>
+                    <h3>{step.title}</h3>
+                    <p>{step.text}</p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section id="pro-koho" className="bz-section bz-audience-section">
+          <div className="bz-container">
+            <div className="bz-section-heading">
+              <p className="bz-eyebrow dark">Pro koho</p>
+              <h2>Pro týmy, které pracují s programy, školami a kapacitou.</h2>
+            </div>
+            <div className="bz-audience-grid">
+              {audienceCards.map((card) => (
+                <article className="bz-audience-card" key={card.title}>
+                  <h3>{card.title}</h3>
+                  <p>{card.text}</p>
+                  <ul>
+                    {card.items.map((item) => <li key={item}><Check size={17} /> {item}</li>)}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="bz-section bz-benefit-section">
+          <div className="bz-container bz-benefit-layout">
+            <div>
+              <p className="bz-eyebrow dark">Proč teď</p>
+              <h2>Pilot má ověřit reálnou úsporu času, ne jen hezké rozhraní.</h2>
+              <p>
+                Bude živo vzniká z praxe kulturních institucí: školy potřebují rychle rezervovat a tým potřebuje jistotu, že v datech není chaos.
+              </p>
+            </div>
+            <div className="bz-benefit-grid">
+              {benefits.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <article key={item.title}>
+                    <Icon size={24} />
+                    <h3>{item.title}</h3>
+                    <p>{item.text}</p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="bz-founder-section">
+          <div className="bz-container bz-founder-layout">
+            <img src={FOUNDER_IMAGE} alt="Daniela Kytlicová, zakladatelka Bude živo" />
+            <div>
+              <p className="bz-eyebrow dark">Vzniklo z každodenní práce</p>
+              <h2>„Cílem není přidat další nástroj. Cílem je ubrat zbytečné ruční kroky.“</h2>
+              <p>
+                Bude živo stavíme s důrazem na běžný provoz institucí: jasné rezervace, srozumitelné role, bezpečná data a praktické výstupy pro tým i vedení.
+              </p>
+              <p className="bz-founder-name">Daniela Kytlicová</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="pricing" className="bz-section bz-pricing-section">
+          <div className="bz-container">
+            <div className="bz-section-heading centered">
+              <p className="bz-eyebrow dark">Ceník</p>
+              <h2>Začněte jednoduše a rozšiřujte podle provozu.</h2>
+            </div>
+            <div className="bz-pricing-grid">
+              {pricing.map((plan) => (
+                <article className={`bz-price-card ${plan.featured ? 'featured' : ''}`} key={plan.name}>
+                  {plan.featured && <span className="bz-plan-badge">Doporučeno pro pilot</span>}
+                  <h3>{plan.name}</h3>
+                  <strong>{plan.price}</strong>
+                  <p>{plan.note}</p>
+                  <ul>{plan.items.map((item) => <li key={item}><Check size={17} /> {item}</li>)}</ul>
+                </article>
+              ))}
+            </div>
+            <div className="bz-pricing-note">
+              Platby kartou zajišťuje platební brána <a href="https://www.comgate.cz/cz/platebni-brana" target="_blank" rel="noreferrer">Comgate</a>, pokud se instituce rozhodne placené akce v Bude živo používat.
+            </div>
+          </div>
+        </section>
+
+        <section id="faq" className="bz-section bz-faq-section">
+          <div className="bz-container bz-faq-layout">
+            <div>
+              <p className="bz-eyebrow dark">FAQ</p>
+              <h2>Časté otázky před prvním nastavením.</h2>
+              <p>Krátké odpovědi pro instituce, které zvažují pilot nebo první provozní test.</p>
+            </div>
+            <div className="bz-faq-list">
+              {faqItems.map((item) => (
+                <details key={item.question}>
+                  <summary>{item.question}<ChevronDown size={20} /></summary>
+                  <p>{item.answer}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="bz-cta-section">
+          <div className="bz-container bz-cta-box">
+            <Sparkles size={34} />
+            <h2>Připravme první programy tak, aby školy mohly rezervovat bez zbytečného čekání.</h2>
+            <p>Online ukázka projde konkrétní provoz vaší instituce: programy, termíny, role, školy a veřejný odkaz.</p>
+            <div>
+              <DemoDialog>
+                <button type="button" className="bz-primary-button light">Domluvit online ukázku</button>
+              </DemoDialog>
+              <Link to="/register" className="bz-secondary-button light">Vytvořit účet</Link>
+            </div>
+          </div>
+        </section>
+
+        <footer className="bz-footer">
+          <div className="bz-container bz-footer-grid">
+            <div>
+              <div className="bz-footer-brand">Bude živo.cz</div>
+              <p>Rezervační a provozní systém pro kulturní instituce, které pracují se školami, programy a týmem.</p>
+            </div>
+            <div>
+              <h3>Produkt</h3>
+              <a href="#jak-to-funguje">Jak to funguje</a>
+              <a href="#funkce">Co systém umí</a>
+              <a href="#pricing">Ceník</a>
+            </div>
+            <div>
+              <h3>Účet</h3>
+              <Link to="/login">Přihlášení</Link>
+              <Link to="/register">Registrace</Link>
+              <Link to="/kontakt">Kontakt</Link>
+            </div>
+            <div>
+              <h3>Právní informace</h3>
+              <Link to="/obchodni-podminky">Obchodní podmínky</Link>
+              <Link to="/gdpr">Ochrana osobních údajů</Link>
+              <Link to="/reklamace">Reklamace</Link>
+              <Link to="/platebni-podminky">Platební podmínky</Link>
+            </div>
+          </div>
+          <div className="bz-container bz-footer-bottom">
+            <span>© 2026 Bude živo</span>
+            <span>Systém pro rezervace, propagaci a vyhodnocení programů.</span>
+          </div>
+        </footer>
+      </main>
+    </>
   );
 };

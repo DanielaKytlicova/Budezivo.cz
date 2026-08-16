@@ -320,6 +320,44 @@ export const HomePage = () => {
         </div>
       </section>
 
+      <section className="py-12 md:py-16 bg-white border-b border-slate-100" id="o-projektu" data-testid="oauth-purpose-section">
+        <div className="max-w-7xl mx-auto px-6 md:px-8">
+          <div className="grid lg:grid-cols-[1.15fr_0.85fr] gap-8 lg:gap-12 items-start">
+            <div>
+              <p className="text-xs font-semibold tracking-[0.22em] uppercase text-[#C4AB86] mb-3">
+                O aplikaci Budeživo
+              </p>
+              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-4">
+                Rezervační a provozní systém pro kulturní instituce
+              </h2>
+              <p className="text-base text-slate-600 leading-relaxed mb-4">
+                Budeživo.cz pomáhá muzeím, galeriím, knihovnám a dalším kulturním institucím spravovat vzdělávací programy, veřejné akce, školní rezervace, dostupnost termínů, lektory a místnosti v jednom online systému.
+              </p>
+              <p className="text-base text-slate-600 leading-relaxed">
+                Učitelé a návštěvníci si přes veřejný rezervační formulář vyberou program a volný termín. Instituce následně vidí rezervace v administraci, může je potvrdit, upravit, vyhodnotit a posílat související organizační e-maily.
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-[#F8F9FA] p-6" data-testid="oauth-calendar-purpose">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-[#4A6FA5]/10 text-[#4A6FA5] flex items-center justify-center">
+                  <CalendarCheck2 className="w-5 h-5" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900">
+                  Proč se aplikace připojuje ke kalendáři
+                </h3>
+              </div>
+              <p className="text-sm text-slate-600 leading-relaxed mb-4">
+                Pokud instituce dobrovolně propojí Google Kalendář, Budeživo může zobrazovat dostupnost termínů, hlídat kolize rezervací a zapisovat potvrzené rezervace do pracovního kalendáře instituce.
+              </p>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Přístup ke kalendáři slouží pouze pro provoz rezervací dané instituce. Podrobnosti o zpracování údajů jsou uvedené v <Link to="/gdpr" className="font-medium text-[#4A6FA5] hover:underline">zásadách ochrany osobních údajů</Link> a v <Link to="/terms" className="font-medium text-[#4A6FA5] hover:underline">obchodních podmínkách</Link>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Social Proof Section — only rendered once we have meaningful real data
           (gated by backend `show_stats`, currently ≥5 non-deleted institutions).
           Testimonials block is kept disabled until real opt-in references land. */}

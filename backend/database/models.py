@@ -71,7 +71,15 @@ class Institution(Base):
     
     # Settings
     notification_settings = Column(JSON, default=lambda: {
-        "customer": {},
+        "customer": {
+            "reservation_created": True,
+            "reservation_confirmed": True,
+            "reservation_cancelled": True,
+            "visit_reminder": True,
+            "event_registration_received": True,
+            "event_registration_confirmed": True,
+            "event_registration_cancelled": True,
+        },
         "admin": {"new_reservation": True, "recipient_user_ids": []},
     })
     locale_settings = Column(JSON, default={"language": "cs", "timezone": "Europe/Prague", "date_format": "dd.mm.yyyy", "time_format": "24h"})

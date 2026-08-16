@@ -5,14 +5,14 @@ producer makes the same decision as the Settings UI.
 """
 
 CUSTOMER_NOTIF_KEYS = {
-    "reservation_created": False,
-    "reservation_confirmed": False,
-    "reservation_cancelled": False,
-    "visit_reminder": False,
+    "reservation_created": True,
+    "reservation_confirmed": True,
+    "reservation_cancelled": True,
+    "visit_reminder": True,
     # A receipt for a one-off event registration is transactional and mandatory.
     "event_registration_received": True,
-    "event_registration_confirmed": False,
-    "event_registration_cancelled": False,
+    "event_registration_confirmed": True,
+    "event_registration_cancelled": True,
 }
 
 ADMIN_NOTIF_KEYS = {

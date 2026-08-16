@@ -978,13 +978,23 @@ async def export_application_pdf(
     institution_data = await _application_pdf_institution_data(db, inst_uuid)
 
     from services.export_service import generate_pdf_confirmation
-    buffer = generate_pdf_confirmation(
-        _to_dict(application),
-        _to_dict(event) if event else {},
-        _to_dict(event_date) if event_date else None,
-        institution_data,
-        _to_dict(pay_settings) if pay_settings else None,
-    )
+    try:
+        buffer = generate_pdf_confirmation(
+            _to_dict(application),
+            _to_dict(event) if event else {},
+            _to_dict(event_date) if event_date else None,
+            institution_data,
+            _to_dict(pay_settings) if pay_settings else None,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Application PDF generation failed, retrying without optional sections: {type(e).__name__}")
+        buffer = generate_pdf_confirmation(
+            _to_dict(application),
+            _to_dict(event) if event else {},
+            None,
+            {"name": institution_data.get("name", "Instituce")},
+            None,
+        )
 
     filename = f"potvrzeni_{application.applicant_name or 'prihlaska'}_{datetime.now().strftime('%Y%m%d')}.pdf"
     return StreamingResponse(
@@ -1464,13 +1474,23 @@ async def public_application_pdf(
     institution_data = await _application_pdf_institution_data(db, inst_uuid)
 
     from services.export_service import generate_pdf_confirmation
-    buffer = generate_pdf_confirmation(
-        _to_dict(application),
-        _to_dict(event) if event else {},
-        _to_dict(event_date) if event_date else None,
-        institution_data,
-        _to_dict(pay_settings) if pay_settings else None,
-    )
+    try:
+        buffer = generate_pdf_confirmation(
+            _to_dict(application),
+            _to_dict(event) if event else {},
+            _to_dict(event_date) if event_date else None,
+            institution_data,
+            _to_dict(pay_settings) if pay_settings else None,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Application PDF generation failed, retrying without optional sections: {type(e).__name__}")
+        buffer = generate_pdf_confirmation(
+            _to_dict(application),
+            _to_dict(event) if event else {},
+            None,
+            {"name": institution_data.get("name", "Instituce")},
+            None,
+        )
 
     return StreamingResponse(
         buffer,

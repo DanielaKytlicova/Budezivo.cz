@@ -1108,14 +1108,30 @@ export const SettingsPage = () => {
     const disabled = !canEditNotif;
 
     const Row = ({ meta, checked, onChange, testid }) => {
-      const rowDisabled = disabled || meta.mandatory;
+      const mandatory = Boolean(meta.mandatory);
+      const rowDisabled = disabled || mandatory;
       return (
-        <div className={`flex items-start justify-between gap-3 ${rowDisabled ? 'opacity-70' : ''}`}>
+        <div className={`flex items-start justify-between gap-3 ${disabled ? 'opacity-70' : ''}`}>
           <div>
-            <p className="font-medium text-slate-900">{meta.title}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-slate-900">{meta.title}</p>
+              {mandatory && (
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                  Povinné
+                </span>
+              )}
+            </div>
             <p className="text-sm text-gray-500">{meta.desc}</p>
           </div>
-          <Switch checked={meta.mandatory ? true : !!checked} onCheckedChange={onChange} disabled={rowDisabled} data-testid={testid} />
+          <Switch
+            checked={mandatory ? true : !!checked}
+            onCheckedChange={(value) => {
+              if (!mandatory) onChange(value);
+            }}
+            disabled={rowDisabled}
+            className={mandatory ? 'disabled:opacity-100 data-[state=checked]:bg-[#2B3E50]' : ''}
+            data-testid={testid}
+          />
         </div>
       );
     };

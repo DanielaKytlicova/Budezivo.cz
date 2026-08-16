@@ -5,6 +5,7 @@ Handles: Events CRUD, EventDates, Applications, Payments, Feature flags.
 import uuid
 import random
 import hashlib
+import hmac
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List
@@ -67,6 +68,7 @@ from database.models import (
     InstitutionPaymentSettings, FeatureFlag, Institution
 )
 from core.security import get_current_user
+from core.config import JWT_SECRET
 from services.feature_flags import is_feature_enabled
 from services.plan_service import require_feature
 from services.payment_gateways.factory import _detect_mode
@@ -101,6 +103,19 @@ async def require_events_module(db: AsyncSession, institution_id: str):
     enabled = await is_feature_enabled(db, FEATURE_KEY, institution_id)
     if not enabled:
         raise HTTPException(status_code=404, detail="Not found")
+
+
+def _application_pdf_token(institution_id: str, application_id: str) -> str:
+    """Create an HMAC token for public event application PDF downloads."""
+    payload = f"event-application-pdf:{institution_id}:{application_id}".encode("utf-8")
+    return hmac.new(JWT_SECRET.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+
+
+def _application_pdf_token_valid(institution_id: str, application_id: str, token: Optional[str]) -> bool:
+    if not token:
+        return False
+    expected = _application_pdf_token(institution_id, application_id)
+    return hmac.compare_digest(expected, token)
 
 
 # ============ Pydantic Schemas ============
@@ -1376,7 +1391,8 @@ async def submit_application(
         "provider": pay_settings.provider if pay_settings else None,
         "gateway_enabled": chosen_method == "gateway",
     } if pay_settings else {"payment_method": chosen_method}
-    resp["pdf_url"] = f"/api/events/public/{institution_id}/application/{str(application.id)}/pdf"
+    pdf_token = _application_pdf_token(str(inst_uuid), str(application.id))
+    resp["pdf_url"] = f"/api/events/public/{str(inst_uuid)}/application/{str(application.id)}/pdf?token={pdf_token}"
     resp["waitlisted"] = is_waitlisted
 
     return resp
@@ -1386,17 +1402,26 @@ async def submit_application(
 async def public_application_pdf(
     institution_id: str,
     application_id: str,
+    token: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    """Public PDF download for application confirmation (no auth)."""
-    enabled = await is_feature_enabled(db, FEATURE_KEY, institution_id)
+    """Public PDF download for application confirmation.
+
+    The link is intentionally public for the applicant, but it must include a
+    signed token. A bare application UUID is not enough to retrieve personal data.
+    """
+    inst_uuid = _parse_public_uuid(institution_id, "institution_id")
+    app_uuid = _parse_public_uuid(application_id, "application_id")
+    if not _application_pdf_token_valid(str(inst_uuid), str(app_uuid), token):
+        raise HTTPException(status_code=404, detail="Přihláška nenalezena")
+
+    enabled = await is_feature_enabled(db, FEATURE_KEY, str(inst_uuid))
     if not enabled:
         raise HTTPException(status_code=404, detail="Not found")
 
-    inst_uuid = uuid.UUID(institution_id)
     app_result = await db.execute(
         select(EventApplication).where(and_(
-            EventApplication.id == uuid.UUID(application_id),
+            EventApplication.id == app_uuid,
             EventApplication.institution_id == inst_uuid,
         ))
     )

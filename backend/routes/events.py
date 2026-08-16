@@ -65,7 +65,7 @@ async def _resolve_application_status(db, event, event_date_uuid) -> str:
 from database.supabase import get_db
 from database.models import (
     Event, EventDate, EventApplication, EventPayment,
-    InstitutionPaymentSettings, FeatureFlag, Institution
+    InstitutionPaymentSettings, FeatureFlag, Institution, ThemeSetting
 )
 from core.security import get_current_user
 from core.config import JWT_SECRET
@@ -116,6 +116,24 @@ def _application_pdf_token_valid(institution_id: str, application_id: str, token
         return False
     expected = _application_pdf_token(institution_id, application_id)
     return hmac.compare_digest(expected, token)
+
+
+async def _application_pdf_institution_data(db: AsyncSession, inst_uuid: uuid.UUID) -> dict:
+    """Return institution name and logo for application confirmation PDFs."""
+    inst_result = await db.execute(select(Institution).where(Institution.id == inst_uuid))
+    institution = inst_result.scalar_one_or_none()
+
+    theme_result = await db.execute(select(ThemeSetting).where(ThemeSetting.institution_id == inst_uuid))
+    theme = theme_result.scalar_one_or_none()
+
+    logo_url = getattr(institution, "logo_url", None) if institution else None
+    if not logo_url and theme:
+        logo_url = getattr(theme, "logo_url", None)
+
+    return {
+        "name": institution.name if institution else "Instituce",
+        "logo_url": logo_url,
+    }
 
 
 # ============ Pydantic Schemas ============
@@ -957,16 +975,14 @@ async def export_application_pdf(
     )
     pay_settings = pay_result.scalar_one_or_none()
 
-    from database.models import Institution
-    inst_result = await db.execute(select(Institution).where(Institution.id == inst_uuid))
-    institution = inst_result.scalar_one_or_none()
+    institution_data = await _application_pdf_institution_data(db, inst_uuid)
 
     from services.export_service import generate_pdf_confirmation
     buffer = generate_pdf_confirmation(
         _to_dict(application),
         _to_dict(event) if event else {},
         _to_dict(event_date) if event_date else None,
-        {"name": institution.name if institution else "Instituce"},
+        institution_data,
         _to_dict(pay_settings) if pay_settings else None,
     )
 
@@ -1445,16 +1461,14 @@ async def public_application_pdf(
     )
     pay_settings = pay_result.scalar_one_or_none()
 
-    from database.models import Institution
-    inst_result = await db.execute(select(Institution).where(Institution.id == inst_uuid))
-    institution = inst_result.scalar_one_or_none()
+    institution_data = await _application_pdf_institution_data(db, inst_uuid)
 
     from services.export_service import generate_pdf_confirmation
     buffer = generate_pdf_confirmation(
         _to_dict(application),
         _to_dict(event) if event else {},
         _to_dict(event_date) if event_date else None,
-        {"name": institution.name if institution else "Instituce"},
+        institution_data,
         _to_dict(pay_settings) if pay_settings else None,
     )
 

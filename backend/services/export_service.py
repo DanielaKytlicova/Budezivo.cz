@@ -9,6 +9,7 @@ import logging
 from html import escape
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
+from urllib.parse import urlparse
 
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -129,6 +130,23 @@ def _pdf_kv_rows(rows: list, label_style: ParagraphStyle, value_style: Paragraph
     return [[_pdf_cell(label, label_style), _pdf_cell(value, value_style)] for label, value in rows]
 
 
+def _storage_logo_path_from_url(logo_url: Optional[str]) -> Optional[str]:
+    """Extract the object-storage path from a Budezivo logo URL."""
+    if not logo_url:
+        return None
+    value = str(logo_url).strip()
+    if not value:
+        return None
+    if value.startswith("/api/settings/logo/"):
+        return value.replace("/api/settings/logo/", "", 1)
+    if value.startswith("http://") or value.startswith("https://"):
+        parsed = urlparse(value)
+        prefix = "/api/settings/logo/"
+        if parsed.path.startswith(prefix):
+            return parsed.path.replace(prefix, "", 1)
+    return None
+
+
 def _resolve_institution_logo_image(logo_url: Optional[str]) -> Optional[str]:
     """Resolve an uploaded institution logo for ReportLab, without blocking PDF generation."""
     if not logo_url:
@@ -137,8 +155,8 @@ def _resolve_institution_logo_image(logo_url: Optional[str]) -> Optional[str]:
     if not value:
         return None
 
-    if value.startswith("/api/settings/logo/"):
-        storage_path = value.replace("/api/settings/logo/", "", 1)
+    storage_path = _storage_logo_path_from_url(value)
+    if storage_path:
         suffix = "." + storage_path.rsplit(".", 1)[-1].lower() if "." in storage_path else ".png"
         if suffix == ".svg":
             return None

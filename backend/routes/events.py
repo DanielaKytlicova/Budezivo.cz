@@ -1348,6 +1348,7 @@ async def submit_application(
             institution = inst_res.scalar_one_or_none()
             inst_name = institution.name if institution else ""
             reply_to = getattr(institution, "email", None) if institution else None
+            institution_logo_url = getattr(institution, "logo_url", None) if institution else None
 
             date_label = None
             if event_date_uuid:
@@ -1365,6 +1366,8 @@ async def submit_application(
                     "event_name": event.name,
                     "applicant_name": application.applicant_name or "",
                     "institution_name": inst_name,
+                    "institution_logo_url": institution_logo_url,
+                    "prefer_light_logo_header": True,
                     "date_label": date_label,
                     "is_waitlist": is_waitlisted,
                     "status": application.status,

@@ -3,6 +3,7 @@ Email Templates for Budeživo.cz
 React Email compatible HTML templates for transactional emails.
 Supports institution branding (logo + colors) via theme configuration.
 """
+import os
 from typing import Dict, Any, Optional
 
 
@@ -35,13 +36,28 @@ BASE_STYLES = {
 
 # ============ THEME HELPERS ============
 
+def _absolute_logo_url(logo_url: Optional[str]) -> Optional[str]:
+    if not logo_url:
+        return None
+    value = str(logo_url).strip()
+    if not value:
+        return None
+    if value.startswith("http://") or value.startswith("https://"):
+        return value
+    if value.startswith("/api/"):
+        return f"{os.environ.get('BACKEND_URL', 'https://api.budezivo.cz').rstrip('/')}{value}"
+    if value.startswith("/"):
+        return f"{os.environ.get('FRONTEND_URL', 'https://www.budezivo.cz').rstrip('/')}{value}"
+    return value
+
+
 def _build_theme(data: Dict[str, Any]) -> Dict[str, Any]:
     """Extract theme configuration from template data context.
     Checks for theme_* prefixed keys first (from find_by_id_with_theme),
     then falls back to institution_logo_url, then to defaults.
     Theme is ONLY applied if a logo exists.
     """
-    logo = (
+    logo = _absolute_logo_url(
         data.get("theme_logo_url")
         or data.get("institution_logo_url")
         or None
@@ -104,9 +120,11 @@ def _base_template(content: str, data: Optional[Dict[str, Any]] = None, footer_e
     has_branding = bool(theme["logo_url"])
 
     if has_branding:
-        header_bg = theme["secondary_color"]
+        prefer_light_logo_header = bool((data or {}).get("prefer_light_logo_header"))
+        header_bg = "#FFFFFF" if prefer_light_logo_header else theme["secondary_color"]
+        header_border = "border-bottom: 1px solid #E2E8F0;" if prefer_light_logo_header else ""
         header_html = f'''
-            <div style="background-color: {header_bg}; padding: 32px 24px; text-align: center;">
+            <div style="background-color: {header_bg}; padding: 24px; text-align: center; {header_border}">
                 <img src="{theme['logo_url']}" alt="Logo instituce"
                      style="max-height: 72px; max-width: 240px; object-fit: contain;" />
             </div>'''

@@ -22,6 +22,14 @@ class HomepageOAuthPurposeCopyTests(unittest.TestCase):
         self.assertIn('to="/gdpr"', text)
         self.assertIn('to="/terms"', text)
 
+    def test_homepage_places_oauth_explanation_after_calendar_integration(self):
+        text = (ROOT / "frontend/src/pages/public/HomePage.js").read_text()
+        calendar_index = text.index("Kalendáře, které už používáte")
+        purpose_index = text.index('data-testid="oauth-purpose-section"')
+        faq_index = text.index("{t('faq.title')}")
+        self.assertLess(calendar_index, purpose_index)
+        self.assertLess(purpose_index, faq_index)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -23,6 +23,12 @@ class ApplicationPdfLogoSourceTests(unittest.TestCase):
         self.assertIn('prefix = "/api/settings/logo/"', source)
         self.assertIn("storage_path = _storage_logo_path_from_url(value)", source)
 
+    def test_pdf_logo_failure_cannot_break_header_generation(self):
+        source = EXPORT_SERVICE.read_text()
+        self.assertIn("Institution logo lookup failed", source)
+        self.assertIn("logo_path = None", source)
+        self.assertIn("return [name_para, Spacer(1, 2*mm)]", source)
+
 
 if __name__ == "__main__":
     unittest.main()

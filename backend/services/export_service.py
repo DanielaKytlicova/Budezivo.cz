@@ -108,14 +108,22 @@ def _build_field_label_map(form_fields: list) -> dict:
     return {f.get('id', ''): f.get('label', f.get('id', '')) for f in (form_fields or [])}
 
 
-def _format_date(iso: str) -> str:
-    if not iso:
+def _format_date(value: Any) -> str:
+    """Format a date/datetime/string value for PDFs without raising."""
+    if not value:
         return ''
     try:
-        dt = datetime.fromisoformat(iso.replace('Z', '+00:00'))
+        if isinstance(value, datetime):
+            return value.strftime('%d.%m.%Y %H:%M')
+        if hasattr(value, "isoformat") and not isinstance(value, str):
+            return value.isoformat()[:10]
+
+        text = str(value)
+        dt = datetime.fromisoformat(text.replace('Z', '+00:00'))
         return dt.strftime('%d.%m.%Y %H:%M')
     except Exception:
-        return iso[:10] if len(iso) >= 10 else iso
+        text = str(value)
+        return text[:10] if len(text) >= 10 else text
 
 
 def _pdf_cell(value: Any, style: ParagraphStyle) -> Paragraph:

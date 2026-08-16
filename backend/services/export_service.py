@@ -177,9 +177,14 @@ def _resolve_institution_logo_image(logo_url: Optional[str]) -> Optional[str]:
 
 
 def _build_confirmation_header(institution: dict, styles) -> list:
-    inst_name = institution.get('name', 'Instituce')
-    logo_path = _resolve_institution_logo_image(institution.get('logo_url'))
+    inst_name = institution.get('name', 'Instituce') if isinstance(institution, dict) else 'Instituce'
     name_para = Paragraph(escape(inst_name), styles['InstitutionName'])
+
+    try:
+        logo_path = _resolve_institution_logo_image(institution.get('logo_url') if isinstance(institution, dict) else None)
+    except Exception as e:
+        logger.warning(f"Institution logo lookup failed: {e}")
+        logo_path = None
 
     if not logo_path:
         return [name_para, Spacer(1, 2*mm)]

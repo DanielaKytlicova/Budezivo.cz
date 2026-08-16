@@ -6,6 +6,7 @@ import io
 import csv
 import uuid
 import logging
+from html import escape
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
@@ -114,6 +115,71 @@ def _format_date(iso: str) -> str:
         return dt.strftime('%d.%m.%Y %H:%M')
     except Exception:
         return iso[:10] if len(iso) >= 10 else iso
+
+
+def _pdf_cell(value: Any, style: ParagraphStyle) -> Paragraph:
+    """Render a table cell as a wrapping PDF paragraph."""
+    if value is None or value == "":
+        value = "—"
+    html = escape(str(value)).replace("\n", "<br/>")
+    return Paragraph(html, style)
+
+
+def _pdf_kv_rows(rows: list, label_style: ParagraphStyle, value_style: ParagraphStyle) -> list:
+    return [[_pdf_cell(label, label_style), _pdf_cell(value, value_style)] for label, value in rows]
+
+
+def _resolve_institution_logo_image(logo_url: Optional[str]) -> Optional[str]:
+    """Resolve an uploaded institution logo for ReportLab, without blocking PDF generation."""
+    if not logo_url:
+        return None
+    value = str(logo_url).strip()
+    if not value:
+        return None
+
+    if value.startswith("/api/settings/logo/"):
+        storage_path = value.replace("/api/settings/logo/", "", 1)
+        suffix = "." + storage_path.rsplit(".", 1)[-1].lower() if "." in storage_path else ".png"
+        if suffix == ".svg":
+            return None
+        try:
+            import tempfile
+            from services.storage_service import get_object
+
+            data, _content_type = get_object(storage_path)
+            tmp = tempfile.NamedTemporaryFile(prefix="bz_logo_", suffix=suffix, delete=False)
+            tmp.write(data)
+            tmp.close()
+            return tmp.name
+        except Exception as e:
+            logger.warning(f"Could not fetch institution logo {logo_url!r}: {e}")
+            return None
+
+    return _resolve_local_image(value)
+
+
+def _build_confirmation_header(institution: dict, styles) -> list:
+    inst_name = institution.get('name', 'Instituce')
+    logo_path = _resolve_institution_logo_image(institution.get('logo_url'))
+    name_para = Paragraph(escape(inst_name), styles['InstitutionName'])
+
+    if not logo_path:
+        return [name_para, Spacer(1, 2*mm)]
+
+    try:
+        logo = RLImage(logo_path, width=22*mm, height=16*mm, kind='proportional')
+        header = Table([[logo, name_para]], colWidths=[28*mm, 142*mm])
+        header.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 0),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ]))
+        return [header, Spacer(1, 2*mm)]
+    except Exception as e:
+        logger.warning(f"Institution logo render failed: {e}")
+        return [name_para, Spacer(1, 2*mm)]
 
 
 def _get_app_rows(applications: list, field_map: dict) -> tuple:
@@ -328,13 +394,29 @@ def generate_pdf_confirmation(
         alignment=1,
         fontName=base_font,
     ))
+    styles.add(ParagraphStyle(
+        name='PdfLabelCell',
+        parent=styles['BodyText2'],
+        fontName=base_font,
+        textColor=colors.HexColor('#64748B'),
+    ))
+    styles.add(ParagraphStyle(
+        name='PdfValueCell',
+        parent=styles['BodyText2'],
+        fontName=base_font,
+        textColor=colors.HexColor('#1E293B'),
+    ))
+    styles.add(ParagraphStyle(
+        name='PdfValueCellBold',
+        parent=styles['BodyText2'],
+        fontName=bold_font,
+        textColor=colors.HexColor('#1E293B'),
+    ))
     
     elements = []
     
     # ── Header ──
-    inst_name = institution.get('name', 'Instituce')
-    elements.append(Paragraph(inst_name, styles['InstitutionName']))
-    elements.append(Spacer(1, 2*mm))
+    elements.extend(_build_confirmation_header(institution, styles))
     
     # Divider line
     elements.append(Table(
@@ -361,7 +443,7 @@ def generate_pdf_confirmation(
     if event.get('price', 0) > 0:
         event_data.append(['Cena:', f"{event.get('price', 0)} {event.get('currency', 'Kč')}"])
     
-    event_table = Table(event_data, colWidths=[35*mm, 135*mm])
+    event_table = Table(_pdf_kv_rows(event_data, styles['PdfLabelCell'], styles['PdfValueCellBold']), colWidths=[35*mm, 135*mm])
     event_table.setStyle(TableStyle([
         ('FONTSIZE', (0, 0), (-1, -1), 10),
         ('FONTNAME', (0, 0), (0, -1), base_font),
@@ -394,7 +476,7 @@ def generate_pdf_confirmation(
         applicant_rows.append([f"{label}:", str(val)])
     
     if applicant_rows:
-        app_table = Table(applicant_rows, colWidths=[45*mm, 125*mm])
+        app_table = Table(_pdf_kv_rows(applicant_rows, styles['PdfLabelCell'], styles['PdfValueCell']), colWidths=[55*mm, 115*mm])
         app_table.setStyle(TableStyle([
             ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('FONTNAME', (0, 0), (0, -1), base_font),
@@ -427,7 +509,7 @@ def generate_pdf_confirmation(
         pay_rows.append(['Částka:', f"{total} Kč"])
         pay_rows.append(['Variabilní symbol:', vs])
         
-        pay_table = Table(pay_rows, colWidths=[45*mm, 125*mm])
+        pay_table = Table(_pdf_kv_rows(pay_rows, styles['PdfLabelCell'], styles['PdfValueCellBold']), colWidths=[45*mm, 125*mm])
         pay_table.setStyle(TableStyle([
             ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('FONTNAME', (0, 0), (0, -1), base_font),

@@ -43,6 +43,9 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
   const [selectedProgramForUrl, setSelectedProgramForUrl] = useState('');
   const [urlAgeFilters, setUrlAgeFilters] = useState([]);
   const [urlData, setUrlData] = useState(null);
+  const publicPrograms = Array.isArray(programs)
+    ? programs.filter(p => p.status === 'active' && p.is_published)
+    : [];
 
   const generateUrl = (programId, ageFilters = []) => {
     if (!institutionData) return;
@@ -69,7 +72,12 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
         embed_code: `<a href="${url}" target="_blank">Rezervovat program v ${institutionName}</a>`
       });
     } else if (programId) {
-      const program = programs.find(p => p.id === programId);
+      const program = publicPrograms.find(p => p.id === programId);
+      if (!program) {
+        toast.error('Nejdřív program zveřejněte, potom půjde zkopírovat rezervační URL.');
+        setUrlData(null);
+        return;
+      }
       const url = `${baseUrl}${path}`;
       setUrlData({
         url,
@@ -153,7 +161,7 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
                 >
                   Všechny programy
                 </button>
-                {Array.isArray(programs) && programs.filter(p => p.status === 'active').map(program => (
+                {publicPrograms.map(program => (
                   <button
                     key={program.id}
                     type="button"
@@ -168,6 +176,11 @@ export const ProgramUrlModal = ({ open, onOpenChange, programs, institutionData 
                     {program.name_cs}
                   </button>
                 ))}
+                {publicPrograms.length === 0 && (
+                  <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                    Žádný program zatím není zároveň aktivní a zveřejněný.
+                  </div>
+                )}
               </div>
             </div>
 

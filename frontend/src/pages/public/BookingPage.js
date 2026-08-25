@@ -48,11 +48,7 @@ export const BookingPage = () => {
   const [searchParams] = useSearchParams();
   const { t } = useTranslation();
   const { applyTheme } = useContext(ThemeContext);
-  const [step, setStep] = useState(() => {
-    // If program is preselected via URL, start at step 2
-    const programParam = new URLSearchParams(window.location.search).get('program');
-    return programParam ? 2 : 1;
-  });
+  const [step, setStep] = useState(1);
   const [programs, setPrograms] = useState([]);
   const [selectedProgram, setSelectedProgram] = useState(null);
   const [calendarData, setCalendarData] = useState(null);
@@ -243,6 +239,12 @@ export const BookingPage = () => {
           setFormData(prev => ({ ...prev, program_id: preselected.id }));
           setStep(2); // Jump to calendar step
           fetchCalendar(currentYear, currentMonth, preselected.id);
+        } else {
+          setSelectedProgram(null);
+          setFormData(prev => ({ ...prev, program_id: '' }));
+          setStep(1);
+          toast.error('Program z odkazu už není dostupný. Vyberte prosím jiný program.');
+          fetchCalendar(currentYear, currentMonth);
         }
       }
     } catch (error) {
@@ -269,9 +271,16 @@ export const BookingPage = () => {
     }
   };
 
-  const fetchTimeBlocks = async (date) => {
+  const fetchTimeBlocks = async (date, programIdOverride = null) => {
+    const programId = programIdOverride || formData.program_id;
+    if (!programId) {
+      toast.error('Nejprve vyberte program.');
+      setTimeBlocks([]);
+      return;
+    }
+
     try {
-      const response = await axios.get(`${API}/availability/${institutionId}/${formData.program_id}/${date}`);
+      const response = await axios.get(`${API}/availability/${institutionId}/${programId}/${date}`);
       setTimeBlocks(Array.isArray(response.data?.time_blocks) ? response.data.time_blocks : []);
     } catch (error) {
       toast.error('Chyba při načítání volných bloků');
@@ -339,8 +348,15 @@ export const BookingPage = () => {
   };
 
   const handleDateSelect = async (date) => {
-    setFormData({ ...formData, date });
-    await fetchTimeBlocks(date);
+    const programId = selectedProgram?.id || formData.program_id;
+    if (!programId) {
+      toast.error('Nejprve vyberte program.');
+      setStep(1);
+      return;
+    }
+
+    setFormData({ ...formData, date, program_id: programId });
+    await fetchTimeBlocks(date, programId);
     setStep(3);
   };
 

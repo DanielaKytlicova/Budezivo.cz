@@ -30,6 +30,36 @@ def get_day_name(date_obj: date_type) -> str:
     return days[date_obj.weekday()]
 
 
+def _program_validity_date(value) -> Optional[date_type]:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date_type):
+        return value
+    try:
+        return datetime.fromisoformat(str(value).replace('Z', '+00:00')).date()
+    except (ValueError, TypeError):
+        return None
+
+
+def _date_allowed_by_program_booking_window(program: dict, date_obj: date_type, today: date_type) -> bool:
+    min_days_before = program.get("min_days_before_booking", 1)
+    max_days_before = program.get("max_days_before_booking", 90)
+    days_until = (date_obj - today).days
+    if days_until < min_days_before or days_until > max_days_before:
+        return False
+
+    start_date = _program_validity_date(program.get("start_date"))
+    end_date = _program_validity_date(program.get("end_date"))
+    if start_date and date_obj < start_date:
+        return False
+    if end_date and date_obj > end_date:
+        return False
+
+    return True
+
+
 def _calendar_time_to_min(value: str) -> int:
     hours, minutes = map(int, value.split(':'))
     return hours * 60 + minutes
@@ -111,6 +141,8 @@ async def get_program_availability(
     
     if not program:
         return {"date": date, "time_blocks": []}
+    if program.get("status") != "active" or not program.get("is_published"):
+        return {"date": date, "time_blocks": []}
     
     # Get time blocks from program settings or use defaults
     program_time_blocks = program.get("time_blocks") or ["09:00-10:30", "10:45-12:15", "13:00-14:30"]
@@ -122,6 +154,8 @@ async def get_program_availability(
     # Check if the date's day of week is in available days
     try:
         date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+        if not _date_allowed_by_program_booking_window(program, date_obj, date_type.today()):
+            return {"date": date, "time_blocks": []}
         day_name = get_day_name(date_obj)
         if day_name not in available_days:
             return {"date": date, "time_blocks": []}
@@ -286,7 +320,9 @@ async def get_calendar_availability(
     # Get all active programs or specific program
     if program_id:
         program = await program_repo.find_by_id(program_id, institution_id)
-        programs = [program] if program else []
+        programs = [
+            program
+        ] if program and program.get("status") == "active" and program.get("is_published") else []
     else:
         programs = await program_repo.find_by_institution(institution_id)
         programs = [p for p in programs if p.get("status") == "active" and p.get("is_published")]

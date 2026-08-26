@@ -22,17 +22,26 @@ class CollisionMultiLecturerHelperTests(unittest.TestCase):
             },
         )
 
-    def test_program_collision_ids_include_manual_default_and_selected(self):
+    def test_program_collision_ids_use_selected_lecturer_when_present(self):
         program = SimpleNamespace(
             assigned_lecturer_id="11111111-1111-4111-8111-111111111111",
             collision_lecturer_ids=["22222222-2222-4222-8222-222222222222"],
         )
         self.assertEqual(
             program_collision_lecturer_ids(program, lecturer_id="33333333-3333-4333-8333-333333333333"),
+            {"33333333-3333-4333-8333-333333333333"},
+        )
+
+    def test_program_collision_ids_include_default_and_configured_without_selection(self):
+        program = SimpleNamespace(
+            assigned_lecturer_id="11111111-1111-4111-8111-111111111111",
+            collision_lecturer_ids=["22222222-2222-4222-8222-222222222222"],
+        )
+        self.assertEqual(
+            program_collision_lecturer_ids(program),
             {
                 "11111111-1111-4111-8111-111111111111",
                 "22222222-2222-4222-8222-222222222222",
-                "33333333-3333-4333-8333-333333333333",
             },
         )
 

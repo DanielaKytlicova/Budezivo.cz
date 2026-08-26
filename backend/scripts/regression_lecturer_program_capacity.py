@@ -473,6 +473,8 @@ def classify_message(message: Optional[str]) -> str:
         return "availability_exception"
     if "nedostatek lektor" in lowered or "žádný vybraný lektor" in lowered:
         return "qualified_lecturer_unavailable"
+    if "nepodporovaný lektor" in lowered:
+        return "unsupported_lecturer"
     if "paralelní" in lowered:
         return "parallel_blocked"
     if "blokace" in lowered:

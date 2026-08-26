@@ -17,6 +17,15 @@ import { LecturerAvailabilityPage } from './LecturerAvailabilityPage';
 import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 
 const DAY_SHORT = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+const DAY_NAMES = {
+  monday: 'Pondělí',
+  tuesday: 'Úterý',
+  wednesday: 'Středa',
+  thursday: 'Čtvrtek',
+  friday: 'Pátek',
+  saturday: 'Sobota',
+  sunday: 'Neděle',
+};
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 7); // 7:00 - 18:00
 
 function getMonday(d) {
@@ -94,6 +103,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   const [showExceptionDialog, setShowExceptionDialog] = useState(false);
   const [exceptionReason, setExceptionReason] = useState('');
   const [exceptions, setExceptions] = useState([]);
+  const [allProgramExceptions, setAllProgramExceptions] = useState([]);
   // Program block dialog (creates a program-scoped availability exception)
   const [showProgramBlock, setShowProgramBlock] = useState(false);
   const [programBlockForm, setProgramBlockForm] = useState({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '' });
@@ -117,6 +127,35 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
 
   const blockablePrograms = programs.filter(p => p.status === 'active');
   const programNameById = (programId) => programs.find(p => p.id === programId)?.name_cs || 'Program';
+  const selectedProgramData = programs.find(p => p.id === selectedProgram);
+  const todayStr = fmtDate(new Date());
+
+  const groupProgramExceptions = (items) => {
+    const grouped = new Map();
+    (items || [])
+      .filter(e => e.scope_type === 'program')
+      .filter(e => !e.date || e.date >= todayStr)
+      .forEach(e => {
+        const key = `${e.date}|${e.start_time || ''}|${e.end_time || ''}|${e.reason || ''}`;
+        const group = grouped.get(key) || {
+          key,
+          date: e.date,
+          start_time: e.start_time,
+          end_time: e.end_time,
+          reason: e.reason,
+          programIds: [],
+        };
+        if (!group.programIds.includes(e.scope_id)) group.programIds.push(e.scope_id);
+        grouped.set(key, group);
+      });
+    return Array.from(grouped.values()).sort((a, b) => {
+      const dateCompare = String(a.date || '').localeCompare(String(b.date || ''));
+      if (dateCompare !== 0) return dateCompare;
+      return String(a.start_time || '').localeCompare(String(b.start_time || ''));
+    });
+  };
+
+  const activeProgramExceptionGroups = groupProgramExceptions(allProgramExceptions);
 
   const openProgramBlockDialog = () => {
     if (!selectedProgram) {
@@ -160,7 +199,9 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
     try {
       const res = await axios.get(`${API}/availability-unified/exceptions?scope_type=program&scope_id=${prog}`);
       setExceptions(res.data || []);
-    } catch { setExceptions([]); }
+      const allRes = await axios.get(`${API}/availability-unified/exceptions?scope_type=program`);
+      setAllProgramExceptions(allRes.data || []);
+    } catch { setExceptions([]); setAllProgramExceptions([]); }
   };
 
   const prevWeek = () => { const d = new Date(weekStart); d.setDate(d.getDate() - 7); setWeekStart(d); };
@@ -379,6 +420,90 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
               <span className="text-gray-600">{label}</span>
             </div>
           ))}
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2" data-testid="program-availability-summary">
+          <Card className="p-4 md:p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-emerald-600" />
+                <h2 className="font-semibold text-slate-900">Pravidelná dostupnost programu</h2>
+              </div>
+            </div>
+            {!selectedProgramData ? (
+              <p className="text-sm text-gray-400">Vyberte program.</p>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">Dny</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedProgramData.available_days || []).length === 0 ? (
+                      <span className="text-sm text-gray-400">Žádné dny nejsou nastavené.</span>
+                    ) : (
+                      (selectedProgramData.available_days || []).map(day => (
+                        <Badge key={day} className="bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50">
+                          {DAY_NAMES[day] || day}
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">Časy</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedProgramData.time_blocks || []).length === 0 ? (
+                      <span className="text-sm text-gray-400">Žádné časy nejsou nastavené.</span>
+                    ) : (
+                      (selectedProgramData.time_blocks || []).map(block => (
+                        <Badge key={block} variant="secondary">{block}</Badge>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </Card>
+
+          <Card className="p-4 md:p-6 space-y-4" data-testid="program-exception-summary">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Ban className="w-5 h-5 text-red-500" />
+                <h2 className="font-semibold text-slate-900">Programové blokace / výjimky</h2>
+              </div>
+            </div>
+            {activeProgramExceptionGroups.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <Ban className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Žádné aktivní programové blokace.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {activeProgramExceptionGroups.map(group => (
+                  <div key={group.key} className="p-3 bg-red-50 border border-red-200 rounded-lg" data-testid="program-exception-group">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                      <div>
+                        <p className="font-medium text-sm text-slate-900">
+                          {group.date}
+                          {group.start_time && group.end_time ? ` (${group.start_time} – ${group.end_time})` : ' (celý den)'}
+                        </p>
+                        {group.reason && <p className="text-xs text-red-600 mt-0.5">{group.reason}</p>}
+                      </div>
+                      <Badge variant="outline" className="shrink-0 border-red-200 text-red-700">
+                        {group.programIds.length} program{group.programIds.length === 1 ? '' : 'y/ů'}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {group.programIds.map(programId => (
+                        <Badge key={programId} variant="secondary" className="max-w-full">
+                          <span className="truncate max-w-[240px]">{programNameById(programId)}</span>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </div>
 
         {/* Week Calendar */}

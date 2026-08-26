@@ -152,12 +152,12 @@ async def ensure_target_institution(conn) -> tuple[str, Optional[str], bool]:
                 "updated_at": now,
             },
             {
-                "id": "uuid",
-                "default_time_blocks": "json",
-                "notification_settings": "json",
-                "locale_settings": "json",
-                "gdpr_settings": "json",
-                "pro_settings": "json",
+                "id": "::uuid",
+                "default_time_blocks": "::json",
+                "notification_settings": "::json",
+                "locale_settings": "::json",
+                "gdpr_settings": "::json",
+                "pro_settings": "::json",
             },
         )
         await insert_row(
@@ -180,7 +180,7 @@ async def ensure_target_institution(conn) -> tuple[str, Optional[str], bool]:
                 "created_at": now,
                 "updated_at": now,
             },
-            {"id": "uuid", "institution_id": "uuid", "supported_program_ids": "jsonb", "learning_program_ids": "jsonb"},
+            {"id": "::uuid", "institution_id": "::uuid", "supported_program_ids": "::jsonb", "learning_program_ids": "::jsonb"},
         )
         return institution_id, admin_id, True
 
@@ -209,7 +209,7 @@ async def ensure_target_institution(conn) -> tuple[str, Optional[str], bool]:
                 "created_at": now,
                 "updated_at": now,
             },
-            {"id": "uuid", "institution_id": "uuid", "supported_program_ids": "jsonb", "learning_program_ids": "jsonb"},
+            {"id": "::uuid", "institution_id": "::uuid", "supported_program_ids": "::jsonb", "learning_program_ids": "::jsonb"},
         )
     return institution_id, admin_id, False
 
@@ -300,7 +300,7 @@ async def seed_fixtures(conn, institution_id: str, admin_id: Optional[str]) -> N
                 "created_at": now,
                 "updated_at": now,
             },
-            {"id": "uuid", "institution_id": "uuid", "supported_program_ids": "jsonb", "learning_program_ids": "jsonb"},
+            {"id": "::uuid", "institution_id": "::uuid", "supported_program_ids": "::jsonb", "learning_program_ids": "::jsonb"},
         )
 
     for code, name in ROOMS.items():
@@ -316,7 +316,7 @@ async def seed_fixtures(conn, institution_id: str, admin_id: Optional[str]) -> N
                 "created_at": now,
                 "updated_at": now,
             },
-            {"id": "uuid", "institution_id": "uuid"},
+            {"id": "::uuid", "institution_id": "::uuid"},
         )
 
     for code, program in PROGRAMS.items():
@@ -353,16 +353,16 @@ async def seed_fixtures(conn, institution_id: str, admin_id: Optional[str]) -> N
                 "updated_at": now,
             },
             {
-                "id": "uuid",
-                "institution_id": "uuid",
-                "target_groups": "json",
-                "time_blocks": "json",
-                "collision_resources": "json",
-                "collision_lecturer_ids": "json",
-                "blocked_program_ids": "json",
-                "assigned_lecturer_id": "uuid",
-                "room_id": "uuid",
-                "created_by": "uuid",
+                "id": "::uuid",
+                "institution_id": "::uuid",
+                "target_groups": "::json",
+                "time_blocks": "::json",
+                "collision_resources": "::json",
+                "collision_lecturer_ids": "::json",
+                "blocked_program_ids": "::json",
+                "assigned_lecturer_id": "::uuid",
+                "room_id": "::uuid",
+                "created_by": "::uuid",
             },
         )
 
@@ -421,11 +421,11 @@ async def add_reservation(
             "updated_at": now,
         },
         {
-            "id": "uuid",
-            "institution_id": "uuid",
-            "program_id": "uuid",
-            "assigned_lecturer_id": "uuid",
-            "assigned_lecturer_ids": "jsonb",
+            "id": "::uuid",
+            "institution_id": "::uuid",
+            "program_id": "::uuid",
+            "assigned_lecturer_id": "::uuid",
+            "assigned_lecturer_ids": "::jsonb",
         },
     )
     return rid
@@ -447,7 +447,7 @@ async def add_exception(conn, institution_id: str, admin_id: Optional[str]) -> N
             "created_by": admin_id,
             "created_at": datetime.now(timezone.utc),
         },
-        {"id": "uuid", "institution_id": "uuid", "scope_id": "uuid", "created_by": "uuid"},
+        {"id": "::uuid", "institution_id": "::uuid", "scope_id": "::uuid", "created_by": "::uuid"},
     )
 
 

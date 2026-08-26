@@ -44,6 +44,10 @@ def _program_validity_date(value) -> Optional[date_type]:
 
 
 def _date_allowed_by_program_booking_window(program: dict, date_obj: date_type, today: date_type) -> bool:
+    booking_opens_at = _program_validity_date(program.get("booking_opens_at"))
+    if booking_opens_at and today < booking_opens_at:
+        return False
+
     min_days_before = program.get("min_days_before_booking", 1)
     max_days_before = program.get("max_days_before_booking", 90)
     days_until = (date_obj - today).days

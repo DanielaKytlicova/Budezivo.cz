@@ -176,6 +176,7 @@ class Program(Base):
     is_published = Column(Boolean, default=True)
     requires_approval = Column(Boolean, default=False)
     send_email_notification = Column(Boolean, default=True)
+    booking_opens_at = Column(DateTime(timezone=True))
     
     # Schedule Settings
     available_days = Column(ARRAY(Text), default=['monday', 'tuesday', 'wednesday', 'thursday', 'friday'])

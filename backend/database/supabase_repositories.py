@@ -241,6 +241,17 @@ class ProgramRepositorySupabase:
     
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    @staticmethod
+    def _parse_program_datetime(value):
+        if not value:
+            return None
+        if isinstance(value, datetime):
+            return value
+        try:
+            return datetime.fromisoformat(str(value).replace('Z', '+00:00')).replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            return None
     
     async def find_by_id(self, program_id: str, institution_id: str = None) -> Optional[dict]:
         """Find program by ID."""
@@ -306,6 +317,7 @@ class ProgramRepositorySupabase:
                 end_date = datetime.strptime(program_data['end_date'], '%Y-%m-%d').replace(tzinfo=timezone.utc)
             except (ValueError, TypeError):
                 pass
+        booking_opens_at = self._parse_program_datetime(program_data.get('booking_opens_at'))
         
         prog = Program(
             id=uuid.uuid4(),
@@ -327,6 +339,7 @@ class ProgramRepositorySupabase:
             is_published=program_data.get('is_published', True),
             requires_approval=program_data.get('requires_approval', False),
             send_email_notification=program_data.get('send_email_notification', True),
+            booking_opens_at=booking_opens_at,
             available_days=program_data.get('available_days', ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']),
             time_blocks=program_data.get('time_blocks', ["09:00-10:30"]),
             start_date=start_date,
@@ -367,6 +380,8 @@ class ProgramRepositorySupabase:
                     processed_data['end_date'] = None
             else:
                 processed_data['end_date'] = None
+        if 'booking_opens_at' in processed_data:
+            processed_data['booking_opens_at'] = self._parse_program_datetime(processed_data['booking_opens_at'])
         
         # Convert assigned_lecturer_id to UUID
         if 'assigned_lecturer_id' in processed_data:

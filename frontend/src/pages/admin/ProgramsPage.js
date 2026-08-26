@@ -69,6 +69,7 @@ const getDefaultFormData = () => ({
   is_published: true,
   is_in_catalog: false,
   send_email_notification: true,
+  booking_opens_at: '',
   status: 'active',
   available_days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
   time_blocks: ['09:00'],
@@ -484,6 +485,7 @@ export const ProgramsPage = () => {
       target_group: program.target_group || program.age_group || 'schools',
       start_date: formatDateForInput(program.start_date),
       end_date: formatDateForInput(program.end_date),
+      booking_opens_at: formatDateForInput(program.booking_opens_at),
       allow_parallel: program.allow_parallel || false,
       collision_resources: program.collision_resources || [],
       blocked_program_ids: program.blocked_program_ids || [],
@@ -1287,6 +1289,37 @@ export const ProgramsPage = () => {
       <Card className="p-4 md:p-6 space-y-4 bg-blue-50 border-blue-100">
         <h3 className="font-semibold text-slate-900">Parametry rezervace</h3>
         
+        <div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="font-medium text-slate-900">Přidat spuštění rezervací</p>
+              <p className="text-sm text-gray-500">
+                Program bude zveřejněný, ale volné termíny se začnou zobrazovat až od vybraného dne.
+              </p>
+            </div>
+            <Switch
+              data-testid="program-booking-opens-toggle"
+              checked={Boolean(formData.booking_opens_at)}
+              onCheckedChange={(checked) => setFormData({ ...formData, booking_opens_at: checked ? formData.booking_opens_at || new Date().toISOString().slice(0, 10) : '' })}
+            />
+          </div>
+
+          {formData.booking_opens_at && (
+            <div className="mt-3">
+              <Label className="text-gray-500 text-sm">
+                Spuštění rezervací
+              </Label>
+              <Input
+                type="date"
+                value={formData.booking_opens_at}
+                onChange={(e) => setFormData({ ...formData, booking_opens_at: e.target.value })}
+                className="mt-1 bg-white"
+                data-testid="program-booking-opens-at"
+              />
+            </div>
+          )}
+        </div>
+
         <div>
           <Label className="text-gray-500 text-sm">
             Minimální počet dnů před rezervací (dní)

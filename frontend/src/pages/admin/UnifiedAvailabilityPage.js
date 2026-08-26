@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../componen
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Badge } from '../../components/ui/badge';
+import { Switch } from '../../components/ui/switch';
 import { ChevronDown, ChevronLeft, ChevronRight, Ban, CheckCircle, Clock, Users, AlertTriangle, Lock, CalendarDays, Plus, CalendarPlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -96,7 +97,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   const [exceptions, setExceptions] = useState([]);
   // Program block dialog (creates a program-scoped availability exception)
   const [showProgramBlock, setShowProgramBlock] = useState(false);
-  const [programBlockForm, setProgramBlockForm] = useState({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '' });
+  const [programBlockForm, setProgramBlockForm] = useState({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '', recurring: false, repeat_weekdays: [] });
   const [programBlockProgramIds, setProgramBlockProgramIds] = useState([]);
   const [programBlockFieldErrors, setProgramBlockFieldErrors] = useState({});
   const [programSelectorError, setProgramSelectorError] = useState('');
@@ -125,7 +126,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
       return;
     }
     setProgramSelectorError('');
-    setProgramBlockForm({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '' });
+    setProgramBlockForm({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '', recurring: false, repeat_weekdays: [] });
     setProgramBlockProgramIds(blockablePrograms.some(p => p.id === selectedProgram) ? [selectedProgram] : []);
     setProgramBlockFieldErrors({});
     setShowProgramBlock(true);
@@ -138,6 +139,19 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
         : [...prev, programId]
     ));
     setProgramBlockFieldErrors(prev => ({ ...prev, program_ids: undefined }));
+  };
+
+  const toggleProgramBlockWeekday = (weekday) => {
+    setProgramBlockForm(prev => {
+      const current = prev.repeat_weekdays || [];
+      return {
+        ...prev,
+        repeat_weekdays: current.includes(weekday)
+          ? current.filter(day => day !== weekday)
+          : [...current, weekday].sort((a, b) => a - b),
+      };
+    });
+    setProgramBlockFieldErrors(prev => ({ ...prev, repeat_weekdays: undefined }));
   };
 
   const doFetchWeek = async (prog, ws) => {
@@ -246,6 +260,9 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
     if (programBlockProgramIds.length === 0) {
       errors.program_ids = 'Vyberte alespoň jeden aktivní program.';
     }
+    if (programBlockForm.recurring && (!programBlockForm.repeat_weekdays || programBlockForm.repeat_weekdays.length === 0)) {
+      errors.repeat_weekdays = 'Vyberte alespoň jeden den opakování.';
+    }
     setProgramBlockFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       toast.error('Zkontrolujte zvýrazněná pole.');
@@ -258,6 +275,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
         program_ids: programBlockProgramIds,
         date_from: programBlockForm.date_from,
         date_to: programBlockForm.date_to,
+        repeat_weekdays: programBlockForm.recurring ? programBlockForm.repeat_weekdays : null,
         start_time: programBlockForm.start_time || null,
         end_time: programBlockForm.end_time || null,
         reason: programBlockForm.reason || null,
@@ -266,7 +284,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
       setShowProgramBlock(false);
       setProgramBlockFieldErrors({});
       setProgramBlockProgramIds([]);
-      setProgramBlockForm({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '' });
+      setProgramBlockForm({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '', recurring: false, repeat_weekdays: [] });
       doFetchWeek(selectedProgram, weekStart);
     } catch (err) { toast.error(err.response?.data?.detail || 'Chyba'); }
   };
@@ -485,6 +503,48 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
                   <Input type="date" value={programBlockForm.date_to} onChange={e => { setProgramBlockForm(f => ({ ...f, date_to: e.target.value })); setProgramBlockFieldErrors(prev => ({ ...prev, date_to: undefined })); }} className={`mt-1 ${programBlockFieldErrors.date_to ? FIELD_ERROR_CLASS : ''}`} aria-invalid={Boolean(programBlockFieldErrors.date_to)} data-testid="pblock-date-to" />
                   <FieldError message={programBlockFieldErrors.date_to} />
                 </div>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <Label className="text-sm text-slate-700">Opakovat týdně</Label>
+                    <p className="text-xs text-gray-500 mt-0.5">Blokace se vytvoří jen ve vybrané dny v období od-do.</p>
+                  </div>
+                  <Switch
+                    checked={programBlockForm.recurring}
+                    onCheckedChange={(checked) => {
+                      setProgramBlockForm(f => ({ ...f, recurring: checked, repeat_weekdays: checked ? f.repeat_weekdays : [] }));
+                      setProgramBlockFieldErrors(prev => ({ ...prev, repeat_weekdays: undefined }));
+                    }}
+                    data-testid="pblock-recurring-toggle"
+                  />
+                </div>
+                {programBlockForm.recurring && (
+                  <div className="mt-3">
+                    <div className="grid grid-cols-7 gap-1.5" data-testid="pblock-weekdays">
+                      {DAY_SHORT.map((label, index) => {
+                        const selected = (programBlockForm.repeat_weekdays || []).includes(index);
+                        return (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() => toggleProgramBlockWeekday(index)}
+                            className={`h-9 rounded-md border text-xs font-semibold transition-colors ${
+                              selected
+                                ? 'border-slate-800 bg-slate-800 text-white'
+                                : 'border-gray-200 bg-white text-slate-600 hover:border-slate-300'
+                            } ${programBlockFieldErrors.repeat_weekdays ? 'ring-1 ring-red-500' : ''}`}
+                            aria-pressed={selected}
+                            data-testid={`pblock-weekday-${index}`}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <FieldError message={programBlockFieldErrors.repeat_weekdays} />
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

@@ -31,6 +31,7 @@ class ExceptionCreate(BaseModel):
     date_from: Optional[str] = None
     date_to: Optional[str] = None
     program_ids: Optional[List[str]] = None
+    repeat_weekdays: Optional[List[int]] = None  # 0 = Monday, 6 = Sunday
     start_time: Optional[str] = None  # "09:00" or null for all-day
     end_time: Optional[str] = None
     reason: Optional[str] = None
@@ -52,6 +53,22 @@ def _iter_dates(date_from: date_class, date_to: date_class) -> List[str]:
     if days > 366:
         raise HTTPException(status_code=400, detail="Blokaci lze vytvořit maximálně na 366 dní")
     return [(date_from + timedelta(days=i)).isoformat() for i in range(days)]
+
+
+def _filter_dates_by_weekdays(dates: List[str], weekdays: Optional[List[int]]) -> List[str]:
+    if weekdays is None:
+        return dates
+    unique_weekdays = set(weekdays)
+    if not unique_weekdays or any(day < 0 or day > 6 for day in unique_weekdays):
+        raise HTTPException(status_code=400, detail="Vyberte platné dny opakování")
+    filtered = [
+        value
+        for value in dates
+        if datetime.strptime(value, "%Y-%m-%d").date().weekday() in unique_weekdays
+    ]
+    if not filtered:
+        raise HTTPException(status_code=400, detail="Ve zvoleném období není žádný vybraný den opakování")
+    return filtered
 
 
 def _validate_time_range(start_time: Optional[str], end_time: Optional[str]) -> None:
@@ -162,7 +179,7 @@ async def create_exception(
     inst_uuid = uuid.UUID(current_user["institution_id"])
     date_from = _parse_date(data.date_from or data.date, "Datum od")
     date_to = _parse_date(data.date_to or data.date_from or data.date, "Datum do")
-    dates = _iter_dates(date_from, date_to)
+    dates = _filter_dates_by_weekdays(_iter_dates(date_from, date_to), data.repeat_weekdays)
 
     scope_ids = data.program_ids if data.scope_type == 'program' and data.program_ids else None
     if scope_ids is None:

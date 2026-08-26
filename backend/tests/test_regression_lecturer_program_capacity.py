@@ -14,6 +14,11 @@ class RegressionLecturerProgramCapacityTests(unittest.TestCase):
         self.assertIn('configure_sqlalchemy_test_database(SCRIPT_NAME)', SOURCE)
         self.assertIn('SCRIPT_NAME = "regression_lecturer_program_capacity.py"', SOURCE)
 
+    def test_session_factory_is_loaded_after_database_url_configuration(self):
+        self.assertNotIn("from database.supabase import AsyncSessionLocal\nfrom scripts", SOURCE)
+        self.assertIn("def test_session_factory():", SOURCE)
+        self.assertIn("Call configure_sqlalchemy_test_database first", SOURCE)
+
     def test_uses_prefixed_isolated_fixtures(self):
         self.assertIn('PREFIX = "[KOLIZE TEST]"', SOURCE)
         self.assertIn('TARGET_INSTITUTION_NAME = "Galerie U Zlatého kohouta"', SOURCE)

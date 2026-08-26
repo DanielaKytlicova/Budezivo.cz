@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, text
 import uuid
 
-from database.models import Reservation, Program, Room
+from database.models import Reservation, Program, Room, User
 
 logger = logging.getLogger(__name__)
 
@@ -66,15 +66,58 @@ def reservation_lecturer_ids(reservation) -> set[str]:
 
 def program_collision_lecturer_ids(program, lecturer_id: Optional[str] = None) -> set[str]:
     """Return lecturers whose overlap should block a program booking."""
-    ids: set[str] = set()
     if lecturer_id:
-        ids.add(str(lecturer_id))
+        return {str(lecturer_id)}
+
+    return program_qualified_lecturer_ids(program)
+
+
+def program_qualified_lecturer_ids(program) -> set[str]:
+    """Return lecturers configured as qualified candidates for a program."""
+    ids: set[str] = set()
     if getattr(program, "assigned_lecturer_id", None):
         ids.add(str(program.assigned_lecturer_id))
     for candidate_id in (getattr(program, "collision_lecturer_ids", None) or []):
         if candidate_id:
             ids.add(str(candidate_id))
     return ids
+
+
+async def check_selected_lecturer_qualification(
+    db: AsyncSession,
+    program,
+    lecturer_id: Optional[str],
+) -> Optional[str]:
+    """Return an error when a manually selected lecturer cannot lead a program."""
+    if not lecturer_id:
+        return None
+
+    lecturer_id_str = str(lecturer_id)
+    if lecturer_id_str in program_qualified_lecturer_ids(program):
+        return None
+
+    try:
+        lecturer_uuid = uuid.UUID(lecturer_id_str)
+    except (TypeError, ValueError):
+        return "Vybraný lektor není platný."
+
+    result = await db.execute(
+        select(User).where(and_(
+            User.id == lecturer_uuid,
+            User.institution_id == program.institution_id,
+            User.status == "active",
+            User.deleted_at.is_(None),
+        ))
+    )
+    lecturer = result.scalar_one_or_none()
+    if lecturer and str(program.id) in [str(pid) for pid in (lecturer.supported_program_ids or [])]:
+        return None
+
+    lecturer_name = lecturer.name if lecturer else "Vybraný lektor"
+    return (
+        f"Nepodporovaný lektor: {lecturer_name} nemá program '{program.name_cs}' "
+        "uvedený mezi podporovanými programy."
+    )
 
 
 def _advisory_lock_key(institution_id: str, date: str) -> int:
@@ -204,6 +247,12 @@ async def check_booking_collision(
     program = result.scalar_one_or_none()
     if not program:
         return None  # program not found - let the main handler deal with it
+
+    lecturer_qualification_error = await check_selected_lecturer_qualification(
+        db, program, lecturer_id
+    )
+    if lecturer_qualification_error:
+        return lecturer_qualification_error
 
     duration = program.duration or 60
     allow_parallel = program.allow_parallel or False

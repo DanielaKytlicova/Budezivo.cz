@@ -349,6 +349,92 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
     );
   };
 
+  const renderAvailabilitySummary = () => (
+    <div className="space-y-4" data-testid="program-availability-summary">
+      <Card className="p-4 md:p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-emerald-600" />
+            <h2 className="font-semibold text-slate-900">Pravidelná dostupnost programu</h2>
+          </div>
+        </div>
+        {!selectedProgramData ? (
+          <p className="text-sm text-gray-400">Vyberte program.</p>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">Dny</p>
+              <div className="flex flex-wrap gap-2">
+                {(selectedProgramData.available_days || []).length === 0 ? (
+                  <span className="text-sm text-gray-400">Žádné dny nejsou nastavené.</span>
+                ) : (
+                  (selectedProgramData.available_days || []).map(day => (
+                    <Badge key={day} className="bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50">
+                      {DAY_NAMES[day] || day}
+                    </Badge>
+                  ))
+                )}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">Časy</p>
+              <div className="flex flex-wrap gap-2">
+                {(selectedProgramData.time_blocks || []).length === 0 ? (
+                  <span className="text-sm text-gray-400">Žádné časy nejsou nastavené.</span>
+                ) : (
+                  (selectedProgramData.time_blocks || []).map(block => (
+                    <Badge key={block} variant="secondary">{block}</Badge>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-4 md:p-6 space-y-4" data-testid="program-exception-summary">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Ban className="w-5 h-5 text-red-500" />
+            <h2 className="font-semibold text-slate-900">Programové blokace / výjimky</h2>
+          </div>
+        </div>
+        {activeProgramExceptionGroups.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">
+            <Ban className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">Žádné aktivní programové blokace.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {activeProgramExceptionGroups.map(group => (
+              <div key={group.key} className="p-3 bg-red-50 border border-red-200 rounded-lg" data-testid="program-exception-group">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-sm text-slate-900">
+                      {group.date}
+                      {group.start_time && group.end_time ? ` (${group.start_time} – ${group.end_time})` : ' (celý den)'}
+                    </p>
+                    {group.reason && <p className="text-xs text-red-600 mt-0.5">{group.reason}</p>}
+                  </div>
+                  <Badge variant="outline" className="shrink-0 border-red-200 text-red-700">
+                    {group.programIds.length} program{group.programIds.length === 1 ? '' : 'y/ů'}
+                  </Badge>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {group.programIds.map(programId => (
+                    <Badge key={programId} variant="secondary" className="max-w-full">
+                      <span className="truncate max-w-[240px]">{programNameById(programId)}</span>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+
   const content = (
       <div className="space-y-6" data-testid="program-availability-page">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -422,90 +508,6 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
           ))}
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2" data-testid="program-availability-summary">
-          <Card className="p-4 md:p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Clock className="w-5 h-5 text-emerald-600" />
-                <h2 className="font-semibold text-slate-900">Pravidelná dostupnost programu</h2>
-              </div>
-            </div>
-            {!selectedProgramData ? (
-              <p className="text-sm text-gray-400">Vyberte program.</p>
-            ) : (
-              <div className="space-y-3">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">Dny</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(selectedProgramData.available_days || []).length === 0 ? (
-                      <span className="text-sm text-gray-400">Žádné dny nejsou nastavené.</span>
-                    ) : (
-                      (selectedProgramData.available_days || []).map(day => (
-                        <Badge key={day} className="bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50">
-                          {DAY_NAMES[day] || day}
-                        </Badge>
-                      ))
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">Časy</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(selectedProgramData.time_blocks || []).length === 0 ? (
-                      <span className="text-sm text-gray-400">Žádné časy nejsou nastavené.</span>
-                    ) : (
-                      (selectedProgramData.time_blocks || []).map(block => (
-                        <Badge key={block} variant="secondary">{block}</Badge>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </Card>
-
-          <Card className="p-4 md:p-6 space-y-4" data-testid="program-exception-summary">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Ban className="w-5 h-5 text-red-500" />
-                <h2 className="font-semibold text-slate-900">Programové blokace / výjimky</h2>
-              </div>
-            </div>
-            {activeProgramExceptionGroups.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                <Ban className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Žádné aktivní programové blokace.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {activeProgramExceptionGroups.map(group => (
-                  <div key={group.key} className="p-3 bg-red-50 border border-red-200 rounded-lg" data-testid="program-exception-group">
-                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
-                      <div>
-                        <p className="font-medium text-sm text-slate-900">
-                          {group.date}
-                          {group.start_time && group.end_time ? ` (${group.start_time} – ${group.end_time})` : ' (celý den)'}
-                        </p>
-                        {group.reason && <p className="text-xs text-red-600 mt-0.5">{group.reason}</p>}
-                      </div>
-                      <Badge variant="outline" className="shrink-0 border-red-200 text-red-700">
-                        {group.programIds.length} program{group.programIds.length === 1 ? '' : 'y/ů'}
-                      </Badge>
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {group.programIds.map(programId => (
-                        <Badge key={programId} variant="secondary" className="max-w-full">
-                          <span className="truncate max-w-[240px]">{programNameById(programId)}</span>
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
-
         {/* Week Calendar */}
         <Card className="p-0 overflow-hidden" data-testid="program-week-calendar">
           <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
@@ -553,6 +555,8 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
             </div>
           )}
         </Card>
+
+        {renderAvailabilitySummary()}
 
         {/* Exception dialog */}
         <Dialog open={showExceptionDialog} onOpenChange={setShowExceptionDialog}>

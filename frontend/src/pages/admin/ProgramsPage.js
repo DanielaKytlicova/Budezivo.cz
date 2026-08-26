@@ -90,6 +90,31 @@ const getDefaultFormData = () => ({
   required_lecturers: 1,
 });
 
+const toDateTimeLocalInput = (value) => {
+  if (!value) return '';
+  try {
+    const date = new Date(value);
+    if (isNaN(date.getTime())) return '';
+    const offset = date.getTimezoneOffset();
+    return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 16);
+  } catch {
+    return '';
+  }
+};
+
+const nextLocalHourInput = () => {
+  const date = new Date();
+  date.setHours(date.getHours() + 1, 0, 0, 0);
+  return toDateTimeLocalInput(date);
+};
+
+const dateTimeLocalToISOString = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return '';
+  return date.toISOString();
+};
+
 export const ProgramsPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -374,6 +399,7 @@ export const ProgramsPage = () => {
       const submitData = {
         ...formData,
         age_group: formData.target_group,
+        booking_opens_at: dateTimeLocalToISOString(formData.booking_opens_at),
       };
       if (editingProgram) {
         await axios.put(`${API}/programs/${editingProgram.id}`, submitData);
@@ -485,7 +511,7 @@ export const ProgramsPage = () => {
       target_group: program.target_group || program.age_group || 'schools',
       start_date: formatDateForInput(program.start_date),
       end_date: formatDateForInput(program.end_date),
-      booking_opens_at: formatDateForInput(program.booking_opens_at),
+      booking_opens_at: toDateTimeLocalInput(program.booking_opens_at),
       allow_parallel: program.allow_parallel || false,
       collision_resources: program.collision_resources || [],
       blocked_program_ids: program.blocked_program_ids || [],
@@ -1294,13 +1320,13 @@ export const ProgramsPage = () => {
             <div>
               <p className="font-medium text-slate-900">Přidat spuštění rezervací</p>
               <p className="text-sm text-gray-500">
-                Program bude zveřejněný, ale volné termíny se začnou zobrazovat až od vybraného dne.
+                Program bude zveřejněný, ale volné termíny se začnou zobrazovat až od vybraného data a času.
               </p>
             </div>
             <Switch
               data-testid="program-booking-opens-toggle"
               checked={Boolean(formData.booking_opens_at)}
-              onCheckedChange={(checked) => setFormData({ ...formData, booking_opens_at: checked ? formData.booking_opens_at || new Date().toISOString().slice(0, 10) : '' })}
+              onCheckedChange={(checked) => setFormData({ ...formData, booking_opens_at: checked ? formData.booking_opens_at || nextLocalHourInput() : '' })}
             />
           </div>
 
@@ -1310,7 +1336,7 @@ export const ProgramsPage = () => {
                 Spuštění rezervací
               </Label>
               <Input
-                type="date"
+                type="datetime-local"
                 value={formData.booking_opens_at}
                 onChange={(e) => setFormData({ ...formData, booking_opens_at: e.target.value })}
                 className="mt-1 bg-white"

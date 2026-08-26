@@ -5,7 +5,7 @@ Uses Supabase (PostgreSQL) for database operations.
 import calendar
 import uuid
 from collections import defaultdict
-from datetime import datetime, date as date_type, timedelta
+from datetime import datetime, date as date_type, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -43,11 +43,26 @@ def _program_validity_date(value) -> Optional[date_type]:
         return None
 
 
-def _date_allowed_by_program_booking_window(program: dict, date_obj: date_type, today: date_type) -> bool:
-    booking_opens_at = _program_validity_date(program.get("booking_opens_at"))
-    if booking_opens_at and today < booking_opens_at:
+def _program_validity_datetime(value) -> Optional[datetime]:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, date_type):
+        return datetime.combine(value, datetime.min.time(), tzinfo=timezone.utc)
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return None
+
+
+def _date_allowed_by_program_booking_window(program: dict, date_obj: date_type, now: datetime) -> bool:
+    booking_opens_at = _program_validity_datetime(program.get("booking_opens_at"))
+    if booking_opens_at and now < booking_opens_at:
         return False
 
+    today = now.date()
     min_days_before = program.get("min_days_before_booking", 1)
     max_days_before = program.get("max_days_before_booking", 90)
     days_until = (date_obj - today).days
@@ -158,7 +173,7 @@ async def get_program_availability(
     # Check if the date's day of week is in available days
     try:
         date_obj = datetime.strptime(date, "%Y-%m-%d").date()
-        if not _date_allowed_by_program_booking_window(program, date_obj, date_type.today()):
+        if not _date_allowed_by_program_booking_window(program, date_obj, datetime.now(timezone.utc)):
             return {"date": date, "time_blocks": []}
         day_name = get_day_name(date_obj)
         if day_name not in available_days:
@@ -302,6 +317,7 @@ async def get_calendar_availability(
     num_days = calendar.monthrange(year, month)[1]
     dates = []
     today = date_type.today()
+    now = datetime.now(timezone.utc)
     
     # For demo institution, return mock data
     if institution_id == "demo":
@@ -461,6 +477,10 @@ async def get_calendar_availability(
         is_too_soon = (date_obj - today).days < min_days_before
         is_too_far = (date_obj - today).days > max_days_before
         is_available_day = day_name in all_available_days
+        is_before_booking_open = not any(
+            not opens_at or now >= opens_at
+            for opens_at in (_program_validity_datetime(prog.get("booking_opens_at")) for prog in programs)
+        )
         
         # Check validity period
         is_before_start = start_date and date_obj < start_date
@@ -473,7 +493,8 @@ async def get_calendar_availability(
             not is_too_far and 
             is_available_day and
             not is_before_start and
-            not is_after_end
+            not is_after_end and
+            not is_before_booking_open
         )
         
         # Check lecturer availability for this day (when specific program selected)

@@ -28,7 +28,8 @@ class ProgramBookingOpensAtTests(unittest.TestCase):
         programs = (BACKEND / "routes" / "programs.py").read_text(encoding="utf-8")
 
         self.assertIn('program.get("booking_opens_at")', availability)
-        self.assertIn("today < booking_opens_at", availability)
+        self.assertIn("def _program_validity_datetime", availability)
+        self.assertIn("now < booking_opens_at", availability)
         self.assertIn('"booking_opens_at"', programs)
 
     def test_admin_program_form_has_booking_opens_toggle(self):
@@ -38,6 +39,8 @@ class ProgramBookingOpensAtTests(unittest.TestCase):
         self.assertIn("Přidat spuštění rezervací", page)
         self.assertIn("program-booking-opens-toggle", page)
         self.assertIn("program-booking-opens-at", page)
+        self.assertIn('type="datetime-local"', page)
+        self.assertIn("dateTimeLocalToISOString(formData.booking_opens_at)", page)
         self.assertIn("Program bude zveřejněný, ale volné termíny", page)
 
 

@@ -42,6 +42,14 @@ class RegressionLecturerProgramCapacityTests(unittest.TestCase):
         self.assertIn("pick_main_lecturer", SOURCE)
         self.assertIn("supported_program_ids", SOURCE)
 
+    def test_insert_row_casts_include_postgres_prefix(self):
+        self.assertNotIn('"uuid"', SOURCE)
+        self.assertNotIn('"jsonb"', SOURCE)
+        self.assertNotIn('"json"', SOURCE)
+        self.assertIn('"::uuid"', SOURCE)
+        self.assertIn('"::jsonb"', SOURCE)
+        self.assertIn('"::json"', SOURCE)
+
     def test_scenarios_cover_requested_matrix(self):
         for scenario_id in [f"T{number:02d}" for number in range(1, 13)]:
             self.assertIn(f'"{scenario_id}"', SOURCE)

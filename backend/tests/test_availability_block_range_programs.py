@@ -12,7 +12,9 @@ class AvailabilityBlockRangeProgramTests(unittest.TestCase):
         self.assertIn("date_from: Optional[str]", source)
         self.assertIn("date_to: Optional[str]", source)
         self.assertIn("program_ids: Optional[List[str]]", source)
+        self.assertIn("repeat_weekdays: Optional[List[int]]", source)
         self.assertIn("def _iter_dates", source)
+        self.assertIn("def _filter_dates_by_weekdays", source)
         self.assertIn("for scope_uuid in scope_uuids:", source)
         self.assertIn("for exception_date in dates:", source)
 
@@ -22,10 +24,14 @@ class AvailabilityBlockRangeProgramTests(unittest.TestCase):
         self.assertIn("date_from", source)
         self.assertIn("date_to", source)
         self.assertIn("programBlockProgramIds", source)
+        self.assertIn("repeat_weekdays", source)
         self.assertIn("pblock-date-from", source)
         self.assertIn("pblock-date-to", source)
+        self.assertIn("pblock-recurring-toggle", source)
+        self.assertIn("pblock-weekdays", source)
         self.assertIn("pblock-programs-trigger", source)
         self.assertIn("program_ids: programBlockProgramIds", source)
+        self.assertIn("repeat_weekdays: programBlockForm.recurring", source)
 
 
 if __name__ == "__main__":

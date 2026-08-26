@@ -97,7 +97,7 @@ class ScenarioResult:
     diagnostic: Optional[str] = None
 
 
-async def find_target_institution(conn) -> tuple[str, Optional[str]]:
+async def ensure_target_institution(conn) -> tuple[str, Optional[str], bool]:
     row = await conn.fetchrow(
         """
         SELECT i.id::text AS institution_id,
@@ -122,10 +122,96 @@ async def find_target_institution(conn) -> tuple[str, Optional[str]]:
         TARGET_INSTITUTION_NAME,
     )
     if not row:
-        raise RuntimeError(
-            f"Target test institution not found: {TARGET_INSTITUTION_NAME!r} / {TARGET_ADMIN_EMAIL!r}"
+        institution_id = stable_id("institution:galerie-u-zlateho-kohouta")
+        admin_id = stable_id("admin:galerie-u-zlateho-kohouta")
+        now = datetime.now(timezone.utc)
+        await insert_row(
+            conn,
+            "institutions",
+            {
+                "id": institution_id,
+                "name": TARGET_INSTITUTION_NAME,
+                "type": "gallery",
+                "country": "CZ",
+                "city": "Praha",
+                "email": TARGET_ADMIN_EMAIL,
+                "plan": "pro",
+                "plan_status": "active",
+                "plan_activated_by": "regression_test",
+                "plan_activated_at": now,
+                "programs_limit": 100,
+                "bookings_monthly_limit": 1000,
+                "default_available_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+                "default_time_blocks": json.dumps([{"start": "10:00", "end": "11:00"}]),
+                "notification_settings": json.dumps({}),
+                "locale_settings": json.dumps({"language": "cs", "timezone": "Europe/Prague"}),
+                "gdpr_settings": json.dumps({"data_retention": "never", "anonymize": False}),
+                "pro_settings": json.dumps({}),
+                "onboarding_completed": True,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": "uuid",
+                "default_time_blocks": "json",
+                "notification_settings": "json",
+                "locale_settings": "json",
+                "gdpr_settings": "json",
+                "pro_settings": "json",
+            },
         )
-    return row["institution_id"], row["admin_id"]
+        await insert_row(
+            conn,
+            "users",
+            {
+                "id": admin_id,
+                "institution_id": institution_id,
+                "email": TARGET_ADMIN_EMAIL,
+                "password_hash": hash_seed_password(PASSWORD),
+                "name": f"{PREFIX} Admin",
+                "role": "admin",
+                "lecturer_mode": "main",
+                "supported_program_ids": json.dumps([]),
+                "learning_program_ids": json.dumps([]),
+                "status": "active",
+                "gdpr_consent": True,
+                "gdpr_consent_date": now,
+                "terms_accepted": True,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {"id": "uuid", "institution_id": "uuid", "supported_program_ids": "jsonb", "learning_program_ids": "jsonb"},
+        )
+        return institution_id, admin_id, True
+
+    institution_id = row["institution_id"]
+    admin_id = row["admin_id"]
+    if not admin_id:
+        admin_id = stable_id("admin:galerie-u-zlateho-kohouta")
+        now = datetime.now(timezone.utc)
+        await insert_row(
+            conn,
+            "users",
+            {
+                "id": admin_id,
+                "institution_id": institution_id,
+                "email": TARGET_ADMIN_EMAIL,
+                "password_hash": hash_seed_password(PASSWORD),
+                "name": f"{PREFIX} Admin",
+                "role": "admin",
+                "lecturer_mode": "main",
+                "supported_program_ids": json.dumps([]),
+                "learning_program_ids": json.dumps([]),
+                "status": "active",
+                "gdpr_consent": True,
+                "gdpr_consent_date": now,
+                "terms_accepted": True,
+                "created_at": now,
+                "updated_at": now,
+            },
+            {"id": "uuid", "institution_id": "uuid", "supported_program_ids": "jsonb", "learning_program_ids": "jsonb"},
+        )
+    return institution_id, admin_id, False
 
 
 def lecturer_id(code: str) -> str:
@@ -598,7 +684,7 @@ async def collect_report() -> dict:
 
     conn = await asyncpg.connect(asyncpg_url(db_url), statement_cache_size=0)
     try:
-        institution_id, admin_id = await find_target_institution(conn)
+        institution_id, admin_id, created_target_institution = await ensure_target_institution(conn)
         await cleanup(conn)
         await seed_fixtures(conn, institution_id, admin_id)
 
@@ -679,6 +765,7 @@ async def collect_report() -> dict:
                 "id": institution_id,
                 "expected_name": TARGET_INSTITUTION_NAME,
                 "expected_admin_email": TARGET_ADMIN_EMAIL,
+                "created_if_missing": created_target_institution,
             },
             "seed": {
                 "prefix": PREFIX,

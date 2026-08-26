@@ -110,6 +110,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   const [programBlockForm, setProgramBlockForm] = useState({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '', recurring: false, repeat_weekdays: [] });
   const [programBlockProgramIds, setProgramBlockProgramIds] = useState([]);
   const [programBlockFieldErrors, setProgramBlockFieldErrors] = useState({});
+  const [editingProgramBlockGroup, setEditingProgramBlockGroup] = useState(null);
   const [programSelectorError, setProgramSelectorError] = useState('');
 
   useEffect(() => { fetchPrograms(); }, []);
@@ -130,30 +131,82 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   const programNameById = (programId) => programs.find(p => p.id === programId)?.name_cs || 'Program';
   const selectedProgramData = programs.find(p => p.id === selectedProgram);
   const todayStr = fmtDate(new Date());
+  const emptyProgramBlockForm = { date_from: '', date_to: '', start_time: '', end_time: '', reason: '', recurring: false, repeat_weekdays: [] };
+
+  const nextDateStr = (dateStr) => {
+    const date = new Date(`${dateStr}T00:00:00`);
+    date.setDate(date.getDate() + 1);
+    return fmtDate(date);
+  };
+
+  const normalizeProgramIds = (ids = []) => [...new Set(ids.filter(Boolean).map(String))].sort();
+
+  const sameProgramSet = (a = [], b = []) => {
+    const left = normalizeProgramIds(a);
+    const right = normalizeProgramIds(b);
+    return left.length === right.length && left.every((id, index) => id === right[index]);
+  };
 
   const groupProgramExceptions = (items) => {
-    const grouped = new Map();
+    const byDay = new Map();
     (items || [])
       .filter(e => e.scope_type === 'program')
       .filter(e => !e.date || e.date >= todayStr)
       .forEach(e => {
         const key = `${e.date}|${e.start_time || ''}|${e.end_time || ''}|${e.reason || ''}`;
-        const group = grouped.get(key) || {
+        const group = byDay.get(key) || {
           key,
           date: e.date,
+          date_from: e.date,
+          date_to: e.date,
           start_time: e.start_time,
           end_time: e.end_time,
           reason: e.reason,
           programIds: [],
+          exceptionIds: [],
         };
         if (!group.programIds.includes(e.scope_id)) group.programIds.push(e.scope_id);
-        grouped.set(key, group);
+        if (e.id && !group.exceptionIds.includes(e.id)) group.exceptionIds.push(e.id);
+        byDay.set(key, group);
       });
-    return Array.from(grouped.values()).sort((a, b) => {
+
+    const dailyGroups = Array.from(byDay.values()).map(group => ({
+      ...group,
+      programIds: normalizeProgramIds(group.programIds),
+      exceptionIds: [...new Set(group.exceptionIds)],
+    })).sort((a, b) => {
       const dateCompare = String(a.date || '').localeCompare(String(b.date || ''));
       if (dateCompare !== 0) return dateCompare;
-      return String(a.start_time || '').localeCompare(String(b.start_time || ''));
+      const startCompare = String(a.start_time || '').localeCompare(String(b.start_time || ''));
+      if (startCompare !== 0) return startCompare;
+      return normalizeProgramIds(a.programIds).join(',').localeCompare(normalizeProgramIds(b.programIds).join(','));
     });
+
+    const ranges = [];
+    dailyGroups.forEach(group => {
+      const previous = ranges[ranges.length - 1];
+      const canMerge = previous
+        && nextDateStr(previous.date_to) === group.date
+        && String(previous.start_time || '') === String(group.start_time || '')
+        && String(previous.end_time || '') === String(group.end_time || '')
+        && String(previous.reason || '') === String(group.reason || '')
+        && sameProgramSet(previous.programIds, group.programIds);
+
+      if (canMerge) {
+        previous.date_to = group.date;
+        previous.dates.push(group.date);
+        previous.exceptionIds = [...new Set([...previous.exceptionIds, ...group.exceptionIds])];
+        previous.key = `${previous.date_from}|${previous.date_to}|${previous.start_time || ''}|${previous.end_time || ''}|${previous.reason || ''}|${previous.programIds.join(',')}`;
+      } else {
+        ranges.push({
+          ...group,
+          key: `${group.date_from}|${group.date_to}|${group.start_time || ''}|${group.end_time || ''}|${group.reason || ''}|${group.programIds.join(',')}`,
+          dates: [group.date],
+        });
+      }
+    });
+
+    return ranges;
   };
 
   const activeProgramExceptionGroups = groupProgramExceptions(allProgramExceptions);
@@ -165,10 +218,34 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
       return;
     }
     setProgramSelectorError('');
-    setProgramBlockForm({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '', recurring: false, repeat_weekdays: [] });
+    setEditingProgramBlockGroup(null);
+    setProgramBlockForm(emptyProgramBlockForm);
     setProgramBlockProgramIds(blockablePrograms.some(p => p.id === selectedProgram) ? [selectedProgram] : []);
     setProgramBlockFieldErrors({});
     setShowProgramBlock(true);
+  };
+
+  const openProgramBlockEditDialog = (group) => {
+    setProgramSelectorError('');
+    setEditingProgramBlockGroup(group);
+    setProgramBlockForm({
+      date_from: group.date_from,
+      date_to: group.date_to,
+      start_time: group.start_time || '',
+      end_time: group.end_time || '',
+      reason: group.reason || '',
+      recurring: false,
+      repeat_weekdays: [],
+    });
+    setProgramBlockProgramIds(group.programIds || []);
+    setProgramBlockFieldErrors({});
+    setShowProgramBlock(true);
+  };
+
+  const closeProgramBlockDialog = () => {
+    setShowProgramBlock(false);
+    setEditingProgramBlockGroup(null);
+    setProgramBlockFieldErrors({});
   };
 
   const toggleProgramBlockProgram = (programId) => {
@@ -283,7 +360,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   // Program-scoped block created from the program view's "Přidat blokaci" action.
   // The block always carries the selected program_id; it is never silently saved
   // as a personal block. Requires a program to be selected.
-  const createProgramBlock = async () => {
+  const saveProgramBlock = async () => {
     setProgramSelectorError('');
     const errors = {};
     if (!programBlockForm.date_from) errors.date_from = 'Vyberte datum od.';
@@ -310,6 +387,14 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
       return;
     }
     try {
+      if (editingProgramBlockGroup?.exceptionIds?.length) {
+        await Promise.all(
+          editingProgramBlockGroup.exceptionIds.map(exceptionId =>
+            axios.delete(`${API}/availability-unified/exceptions/${exceptionId}`)
+          )
+        );
+      }
+
       await axios.post(`${API}/availability-unified/exceptions`, {
         scope_type: 'program',
         scope_id: programBlockProgramIds[0],
@@ -321,11 +406,10 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
         end_time: programBlockForm.end_time || null,
         reason: programBlockForm.reason || null,
       });
-      toast.success(programBlockProgramIds.length > 1 ? 'Programové blokace vytvořeny' : 'Programová blokace vytvořena');
-      setShowProgramBlock(false);
-      setProgramBlockFieldErrors({});
+      toast.success(editingProgramBlockGroup ? 'Programová blokace aktualizována' : (programBlockProgramIds.length > 1 ? 'Programové blokace vytvořeny' : 'Programová blokace vytvořena'));
+      closeProgramBlockDialog();
       setProgramBlockProgramIds([]);
-      setProgramBlockForm({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '', recurring: false, repeat_weekdays: [] });
+      setProgramBlockForm(emptyProgramBlockForm);
       doFetchWeek(selectedProgram, weekStart);
     } catch (err) { toast.error(err.response?.data?.detail || 'Chyba'); }
   };
@@ -425,14 +509,22 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
         ) : (
           <div className="space-y-2">
             {activeProgramExceptionGroups.map(group => (
-              <div key={group.key} className="p-3 bg-red-50 border border-red-200 rounded-lg" data-testid="program-exception-group">
+              <button
+                key={group.key}
+                type="button"
+                onClick={() => openProgramBlockEditDialog(group)}
+                className="w-full p-3 bg-red-50 border border-red-200 rounded-lg text-left transition-colors hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                data-testid="program-exception-group"
+                aria-label={`Upravit programovou blokaci ${group.date_from}${group.date_to !== group.date_from ? ` až ${group.date_to}` : ''}`}
+              >
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
                   <div>
                     <p className="font-medium text-sm text-slate-900">
-                      {group.date}
+                      {group.date_to !== group.date_from ? `${group.date_from} – ${group.date_to}` : group.date_from}
                       {group.start_time && group.end_time ? ` (${group.start_time} – ${group.end_time})` : ' (celý den)'}
                     </p>
                     {group.reason && <p className="text-xs text-red-600 mt-0.5">{group.reason}</p>}
+                    {group.dates?.length > 1 && <p className="text-xs text-gray-500 mt-0.5">{group.dates.length} dnů v jedné blokaci</p>}
                   </div>
                   <Badge variant="outline" className="shrink-0 border-red-200 text-red-700">
                     {group.programIds.length} program{group.programIds.length === 1 ? '' : 'y/ů'}
@@ -445,7 +537,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
                     </Badge>
                   ))}
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
@@ -612,15 +704,25 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
         </Dialog>
 
         {/* Program block dialog (program-scoped exception) */}
-        <Dialog open={showProgramBlock} onOpenChange={setShowProgramBlock}>
+        <Dialog open={showProgramBlock} onOpenChange={(open) => { if (open) setShowProgramBlock(true); else closeProgramBlockDialog(); }}>
           <DialogContent className="w-[calc(100%-1rem)] sm:w-[calc(100%-2rem)] max-w-md" aria-describedby="pblock-desc">
             <DialogHeader>
-              <DialogTitle>Přidat programovou blokaci</DialogTitle>
+              <DialogTitle>{editingProgramBlockGroup ? 'Upravit programovou blokaci' : 'Přidat programovou blokaci'}</DialogTitle>
               <p id="pblock-desc" className="text-sm text-gray-500 mt-1">
-                Uzavře vybrané aktivní programy ve zvoleném období.
+                {editingProgramBlockGroup ? 'Upraví celou blokaci včetně všech dnů a programů.' : 'Uzavře vybrané aktivní programy ve zvoleném období.'}
               </p>
             </DialogHeader>
             <div className="space-y-3 py-2">
+              {editingProgramBlockGroup?.dates?.length > 1 && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3" data-testid="pblock-edit-days">
+                  <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">Dny v blokaci</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {editingProgramBlockGroup.dates.map(date => (
+                      <Badge key={date} variant="secondary">{date}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-sm text-gray-500">Datum od</Label>
@@ -633,6 +735,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
                   <FieldError message={programBlockFieldErrors.date_to} />
                 </div>
               </div>
+              {!editingProgramBlockGroup && (
               <div className="rounded-lg border border-gray-200 p-3">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -675,6 +778,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
                   </div>
                 )}
               </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-sm text-gray-500">Od (volitelné)</Label>
@@ -748,8 +852,8 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
                 <Input value={programBlockForm.reason} onChange={e => setProgramBlockForm(f => ({ ...f, reason: e.target.value }))} placeholder="Např. výjezd, údržba..." className="mt-1" data-testid="pblock-reason" />
               </div>
               <div className="flex gap-2">
-                <Button onClick={createProgramBlock} className="flex-1 bg-red-600 hover:bg-red-700 text-white" data-testid="confirm-program-block"><Ban className="w-4 h-4 mr-2" /> Vytvořit blokaci</Button>
-                <Button variant="outline" onClick={() => setShowProgramBlock(false)} className="flex-1">Zrušit</Button>
+                <Button onClick={saveProgramBlock} className="flex-1 bg-red-600 hover:bg-red-700 text-white" data-testid="confirm-program-block"><Ban className="w-4 h-4 mr-2" /> {editingProgramBlockGroup ? 'Uložit změny' : 'Vytvořit blokaci'}</Button>
+                <Button variant="outline" onClick={closeProgramBlockDialog} className="flex-1">Zrušit</Button>
               </div>
             </div>
           </DialogContent>

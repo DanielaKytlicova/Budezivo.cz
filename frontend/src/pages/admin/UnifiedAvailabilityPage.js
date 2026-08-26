@@ -164,9 +164,11 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
           reason: e.reason,
           programIds: [],
           exceptionIds: [],
+          exceptions: [],
         };
         if (!group.programIds.includes(e.scope_id)) group.programIds.push(e.scope_id);
         if (e.id && !group.exceptionIds.includes(e.id)) group.exceptionIds.push(e.id);
+        if (e.id) group.exceptions.push({ id: e.id, date: e.date, programId: e.scope_id });
         byDay.set(key, group);
       });
 
@@ -174,6 +176,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
       ...group,
       programIds: normalizeProgramIds(group.programIds),
       exceptionIds: [...new Set(group.exceptionIds)],
+      exceptions: group.exceptions || [],
     })).sort((a, b) => {
       const dateCompare = String(a.date || '').localeCompare(String(b.date || ''));
       if (dateCompare !== 0) return dateCompare;
@@ -196,6 +199,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
         previous.date_to = group.date;
         previous.dates.push(group.date);
         previous.exceptionIds = [...new Set([...previous.exceptionIds, ...group.exceptionIds])];
+        previous.exceptions = [...previous.exceptions, ...group.exceptions];
         previous.key = `${previous.date_from}|${previous.date_to}|${previous.start_time || ''}|${previous.end_time || ''}|${previous.reason || ''}|${previous.programIds.join(',')}`;
       } else {
         ranges.push({
@@ -414,9 +418,24 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
     } catch (err) { toast.error(err.response?.data?.detail || 'Chyba'); }
   };
 
-  const removeException = async () => {    if (!slotDetail) return;
-    const [startTime] = slotDetail.slot.time.split('-');
-    const match = exceptions.find(e => e.date === slotDetail.date && e.start_time === startTime);
+  const findExceptionForSlot = () => {
+    if (!slotDetail) return null;
+    const [startTime, endTime] = slotDetail.slot.time.split('-');
+    const slotStart = timeToMin(startTime);
+    const slotEnd = timeToMin(endTime);
+    return exceptions.find(e => {
+      if (e.date !== slotDetail.date) return false;
+      if (!e.start_time && !e.end_time) return true;
+      if (!e.start_time || !e.end_time) return false;
+      const exceptionStart = timeToMin(e.start_time);
+      const exceptionEnd = timeToMin(e.end_time);
+      return slotStart < exceptionEnd && slotEnd > exceptionStart;
+    });
+  };
+
+  const removeException = async () => {
+    if (!slotDetail) return;
+    const match = findExceptionForSlot();
     if (!match) { toast.error('Výjimka nenalezena'); return; }
     try {
       await axios.delete(`${API}/availability-unified/exceptions/${match.id}`);
@@ -424,6 +443,40 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
       setShowExceptionDialog(false);
       doFetchWeek(selectedProgram, weekStart);
     } catch { toast.error('Chyba'); }
+  };
+
+  const removeProgramBlockExceptionIds = async (exceptionIds, successMessage) => {
+    if (!exceptionIds?.length) {
+      toast.error('Výjimka nenalezena');
+      return;
+    }
+    try {
+      await Promise.all(
+        exceptionIds.map(exceptionId =>
+          axios.delete(`${API}/availability-unified/exceptions/${exceptionId}`)
+        )
+      );
+      toast.success(successMessage);
+      closeProgramBlockDialog();
+      doFetchWeek(selectedProgram, weekStart);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Chyba');
+    }
+  };
+
+  const deleteProgramBlockGroup = async () => {
+    if (!editingProgramBlockGroup) return;
+    if (!window.confirm('Opravdu smazat celou programovou blokaci?')) return;
+    await removeProgramBlockExceptionIds(editingProgramBlockGroup.exceptionIds, 'Programová blokace smazána');
+  };
+
+  const deleteProgramBlockDay = async (date) => {
+    if (!editingProgramBlockGroup) return;
+    if (!window.confirm(`Opravdu smazat blokaci pro den ${date}?`)) return;
+    const exceptionIds = (editingProgramBlockGroup.exceptions || [])
+      .filter(exception => exception.date === date)
+      .map(exception => exception.id);
+    await removeProgramBlockExceptionIds(exceptionIds, 'Den blokace smazán');
   };
 
   const renderCalendarCell = (dayIndex, hour) => {
@@ -718,7 +771,18 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
                   <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">Dny v blokaci</p>
                   <div className="flex flex-wrap gap-1.5">
                     {editingProgramBlockGroup.dates.map(date => (
-                      <Badge key={date} variant="secondary">{date}</Badge>
+                      <Badge key={date} variant="secondary" className="gap-1 pr-1">
+                        <span>{date}</span>
+                        <button
+                          type="button"
+                          onClick={() => deleteProgramBlockDay(date)}
+                          className="rounded hover:bg-slate-200"
+                          aria-label={`Smazat blokaci pro den ${date}`}
+                          data-testid={`pblock-delete-day-${date}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
                     ))}
                   </div>
                 </div>
@@ -855,6 +919,16 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
                 <Button onClick={saveProgramBlock} className="flex-1 bg-red-600 hover:bg-red-700 text-white" data-testid="confirm-program-block"><Ban className="w-4 h-4 mr-2" /> {editingProgramBlockGroup ? 'Uložit změny' : 'Vytvořit blokaci'}</Button>
                 <Button variant="outline" onClick={closeProgramBlockDialog} className="flex-1">Zrušit</Button>
               </div>
+              {editingProgramBlockGroup && (
+                <Button
+                  variant="outline"
+                  onClick={deleteProgramBlockGroup}
+                  className="w-full border-red-200 text-red-700 hover:bg-red-50"
+                  data-testid="delete-program-block-group"
+                >
+                  <X className="w-4 h-4 mr-2" /> Smazat celou blokaci
+                </Button>
+              )}
             </div>
           </DialogContent>
         </Dialog>

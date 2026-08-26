@@ -84,6 +84,86 @@ def _advisory_lock_key(institution_id: str, date: str) -> int:
     return int(h[:15], 16)  # 60-bit int, fits pg_advisory_xact_lock bigint
 
 
+def program_concurrent_limit(program) -> Optional[int]:
+    """Return the same-program concurrent booking limit; None means unlimited."""
+    raw_limit = getattr(program, "max_concurrent_bookings", None)
+    if raw_limit in (None, ""):
+        return None
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        return None
+    return limit if limit > 0 else None
+
+
+def concurrent_capacity_reached(limit: Optional[int], overlapping_count: int) -> bool:
+    """Pure helper for capacity decisions."""
+    return limit is not None and overlapping_count >= limit
+
+
+async def count_overlapping_program_reservations(
+    db: AsyncSession,
+    institution_id: str,
+    program_id: str,
+    date: str,
+    time_block: str,
+    duration: int,
+    exclude_reservation_id: Optional[str] = None,
+) -> int:
+    """Count active same-program reservations overlapping the requested slot."""
+    inst_uuid = uuid.UUID(institution_id)
+    prog_uuid = uuid.UUID(program_id)
+    query = select(Reservation).where(and_(
+        Reservation.institution_id == inst_uuid,
+        Reservation.program_id == prog_uuid,
+        Reservation.date == date,
+        Reservation.status != 'cancelled',
+    ))
+    if exclude_reservation_id:
+        try:
+            query = query.where(Reservation.id != uuid.UUID(exclude_reservation_id))
+        except (TypeError, ValueError):
+            pass
+
+    result = await db.execute(query)
+    overlapping = 0
+    for reservation in result.scalars().all():
+        if time_blocks_overlap(time_block, duration, reservation.time_block, duration):
+            overlapping += 1
+    return overlapping
+
+
+async def check_program_concurrent_capacity(
+    db: AsyncSession,
+    program,
+    institution_id: str,
+    date: str,
+    time_block: str,
+    exclude_reservation_id: Optional[str] = None,
+) -> Optional[str]:
+    """Return an error if same-program concurrent capacity is exhausted."""
+    limit = program_concurrent_limit(program)
+    if limit is None:
+        return None
+
+    duration = program.duration or 60
+    overlapping = await count_overlapping_program_reservations(
+        db,
+        institution_id,
+        str(program.id),
+        date,
+        time_block,
+        duration,
+        exclude_reservation_id=exclude_reservation_id,
+    )
+    if concurrent_capacity_reached(limit, overlapping):
+        return (
+            f"Kapacita souběžných rezervací programu '{program.name_cs}' je pro tento čas vyčerpaná "
+            f"(limit {limit}). Vyberte prosím jiný termín."
+        )
+    return None
+
+
 async def check_booking_collision(
     db: AsyncSession,
     institution_id: str,
@@ -91,6 +171,7 @@ async def check_booking_collision(
     date: str,
     time_block: str,
     lecturer_id: Optional[str] = None,
+    exclude_reservation_id: Optional[str] = None,
 ) -> Optional[str]:
     """
     Check if a booking would collide with existing reservations.
@@ -145,6 +226,17 @@ async def check_booking_collision(
                 f"{available_count}. Rezervaci nelze vytvořit."
             )
 
+    capacity_error = await check_program_concurrent_capacity(
+        db,
+        program,
+        institution_id,
+        date,
+        time_block,
+        exclude_reservation_id=exclude_reservation_id,
+    )
+    if capacity_error:
+        return capacity_error
+
     # ====== CASE 1: Parallel NOT allowed → block all overlapping slots globally ======
     if not allow_parallel:
         result = await db.execute(
@@ -157,6 +249,8 @@ async def check_booking_collision(
         existing = result.scalars().all()
 
         for res in existing:
+            if str(res.program_id) == str(program.id):
+                continue
             other_prog = await db.execute(
                 select(Program).where(Program.id == res.program_id)
             )

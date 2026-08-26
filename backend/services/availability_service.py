@@ -21,6 +21,7 @@ from database.models import (
 from services.collision_service import (
     parse_time_block, time_blocks_overlap,
     reservation_lecturer_ids, program_collision_lecturer_ids,
+    program_concurrent_limit,
     check_lecturer_available_for_block,
     check_any_lecturer_available_for_block,
 )
@@ -128,14 +129,22 @@ async def _check_collision_layer(
     )
     existing_reservations = result.scalars().all()
 
-    # Check own-program bookings first (always blocks regardless of collision settings)
-    for res in existing_reservations:
-        if str(res.program_id) == str(program.id):
-            res_start, res_end = parse_time_block(res.time_block)
-            if res_end is None:
-                res_end = res_start + duration
-            if slot_start < res_end and slot_end > res_start:
-                return {"status": STATUS_BOOKED, "reason": f"Obsazeno rezervací ({res.school_name or ''})"}
+    # Same-program reservations only block when the configured concurrent limit is reached.
+    concurrent_limit = program_concurrent_limit(program)
+    if concurrent_limit is not None:
+        overlapping_same_program = 0
+        for res in existing_reservations:
+            if str(res.program_id) == str(program.id):
+                res_start, res_end = parse_time_block(res.time_block)
+                if res_end is None:
+                    res_end = res_start + duration
+                if slot_start < res_end and slot_end > res_start:
+                    overlapping_same_program += 1
+        if overlapping_same_program >= concurrent_limit:
+            return {
+                "status": STATUS_BLOCKED_PROGRAM,
+                "reason": f"Vyčerpána souběžná kapacita programu (limit {concurrent_limit})",
+            }
 
     # If parallel NOT allowed → any overlapping reservation blocks
     if not allow_parallel:
@@ -143,6 +152,8 @@ async def _check_collision_layer(
             other_prog = await db.execute(select(Program).where(Program.id == res.program_id))
             other_program = other_prog.scalar_one_or_none()
             other_duration = other_program.duration if other_program else 60
+            if str(res.program_id) == str(program.id):
+                continue
             res_start, res_end = parse_time_block(res.time_block)
             if res_end is None:
                 res_end = res_start + other_duration
@@ -153,8 +164,6 @@ async def _check_collision_layer(
     else:
         # Parallel allowed — check specific collision resources
         for res in existing_reservations:
-            if str(res.program_id) == str(program.id):
-                continue  # Already checked above
             other_prog = await db.execute(select(Program).where(Program.id == res.program_id))
             other_program = other_prog.scalar_one_or_none()
             other_duration = other_program.duration if other_program else 60

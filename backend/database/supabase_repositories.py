@@ -349,6 +349,7 @@ class ProgramRepositorySupabase:
             preparation_time=program_data.get('preparation_time', 0),
             cleanup_time=program_data.get('cleanup_time', 0),
             allow_parallel=program_data.get('allow_parallel', False),
+            max_concurrent_bookings=program_data.get('max_concurrent_bookings'),
             collision_resources=program_data.get('collision_resources', []),
             blocked_program_ids=program_data.get('blocked_program_ids', []),
             required_lecturers=program_data.get('required_lecturers', 1) or 1,
@@ -382,6 +383,12 @@ class ProgramRepositorySupabase:
                 processed_data['end_date'] = None
         if 'booking_opens_at' in processed_data:
             processed_data['booking_opens_at'] = self._parse_program_datetime(processed_data['booking_opens_at'])
+        if 'max_concurrent_bookings' in processed_data:
+            try:
+                value = int(processed_data['max_concurrent_bookings']) if processed_data['max_concurrent_bookings'] not in (None, '') else None
+                processed_data['max_concurrent_bookings'] = value if value and value > 0 else None
+            except (TypeError, ValueError):
+                processed_data['max_concurrent_bookings'] = None
         
         # Convert assigned_lecturer_id to UUID
         if 'assigned_lecturer_id' in processed_data:
@@ -583,13 +590,22 @@ class BookingRepositorySupabase:
     
     async def update(self, booking_id: str, institution_id: str, update_data: dict) -> int:
         """Update booking."""
+        processed_data = update_data.copy()
+        if 'program_id' in processed_data:
+            if processed_data['program_id']:
+                try:
+                    processed_data['program_id'] = uuid.UUID(str(processed_data['program_id']))
+                except (ValueError, TypeError):
+                    processed_data.pop('program_id')
+            else:
+                processed_data.pop('program_id')
         result = await self.db.execute(
             update(Reservation)
             .where(and_(
                 Reservation.id == uuid.UUID(booking_id),
                 Reservation.institution_id == uuid.UUID(institution_id)
             ))
-            .values(**update_data)
+            .values(**processed_data)
         )
         await self.db.commit()
         return result.rowcount

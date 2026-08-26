@@ -10,7 +10,7 @@ import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { Badge } from '../../components/ui/badge';
-import { UserCircle, Save, Loader2, GraduationCap, BookOpen, Users2, Info } from 'lucide-react';
+import { UserCircle, Save, Loader2, GraduationCap, BookOpen, Users2, Info, Lock } from 'lucide-react';
 import { API } from '../../config/api';
 
 const AGE_GROUPS = [
@@ -28,11 +28,16 @@ export const MyProfilePage = ({ embedded = false }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [passwordFieldErrors, setPasswordFieldErrors] = useState({});
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const [name, setName] = useState('');
   const [preferredAges, setPreferredAges] = useState([]);
   const [supportedIds, setSupportedIds] = useState([]);
   const [learningIds, setLearningIds] = useState([]);
+  const [pwdCurrent, setPwdCurrent] = useState('');
+  const [pwdNew, setPwdNew] = useState('');
+  const [pwdConfirm, setPwdConfirm] = useState('');
 
   const isAdmin = user?.role === 'admin' || user?.role === 'spravce';
 
@@ -111,6 +116,52 @@ export const MyProfilePage = ({ embedded = false }) => {
       toast.error(error.response?.data?.detail || 'Uložení selhalo');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const clearPasswordFieldError = (field) => {
+    setPasswordFieldErrors(prev => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const handleChangePassword = async (e) => {
+    e?.preventDefault();
+    const errors = {};
+    if (!pwdCurrent) errors.current = 'Vyplňte současné heslo.';
+    if (!pwdNew) errors.new = 'Vyplňte nové heslo.';
+    if (!pwdConfirm) errors.confirm = 'Potvrďte nové heslo.';
+    if (pwdNew && (pwdNew.length < 8 || !/[A-Z]/.test(pwdNew) || !/[a-z]/.test(pwdNew) || !/[0-9]/.test(pwdNew))) {
+      errors.new = 'Heslo musí mít alespoň 8 znaků, velké i malé písmeno a číslici.';
+    }
+    if (pwdNew && pwdConfirm && pwdNew !== pwdConfirm) {
+      errors.confirm = 'Nové heslo a jeho potvrzení se neshodují.';
+    }
+
+    setPasswordFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      await axios.post(`${API}/auth/change-password`, {
+        current_password: pwdCurrent,
+        new_password: pwdNew,
+      }, { withCredentials: true });
+      toast.success('Heslo bylo úspěšně změněno');
+      setPwdCurrent('');
+      setPwdNew('');
+      setPwdConfirm('');
+      setPasswordFieldErrors({});
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Změna hesla selhala');
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -309,6 +360,81 @@ export const MyProfilePage = ({ embedded = false }) => {
             <p className="text-sm text-gray-700 whitespace-pre-wrap">{me.admin_note}</p>
           </Card>
         )}
+
+        {/* Password change */}
+        <Card className="p-5 space-y-4" data-testid="profile-password-section">
+          <div className="flex items-center gap-2">
+            <Lock className="w-5 h-5 text-slate-600" />
+            <div>
+              <h2 className="font-semibold text-slate-900">Změna hesla</h2>
+              <p className="text-sm text-gray-500">Změňte si přihlašovací heslo k účtu.</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleChangePassword} noValidate className="space-y-3 max-w-md">
+            <div>
+              <Label htmlFor="profile-pwd-current">Současné heslo</Label>
+              <Input
+                id="profile-pwd-current"
+                type="password"
+                autoComplete="current-password"
+                data-testid="profile-password-current-input"
+                value={pwdCurrent}
+                onChange={(e) => { clearPasswordFieldError('current'); setPwdCurrent(e.target.value); }}
+                placeholder="••••••••"
+                className={passwordFieldErrors.current ? FIELD_ERROR_CLASS : ''}
+                aria-invalid={Boolean(passwordFieldErrors.current)}
+              />
+              <FieldError message={passwordFieldErrors.current} />
+            </div>
+
+            <div>
+              <Label htmlFor="profile-pwd-new">Nové heslo</Label>
+              <Input
+                id="profile-pwd-new"
+                type="password"
+                autoComplete="new-password"
+                data-testid="profile-password-new-input"
+                value={pwdNew}
+                onChange={(e) => { clearPasswordFieldError('new'); setPwdNew(e.target.value); }}
+                placeholder="••••••••"
+                className={passwordFieldErrors.new ? FIELD_ERROR_CLASS : ''}
+                aria-invalid={Boolean(passwordFieldErrors.new)}
+              />
+              <FieldError message={passwordFieldErrors.new} />
+              <p className="text-xs text-gray-500 mt-1">Min. 8 znaků, velké i malé písmeno a číslice.</p>
+            </div>
+
+            <div>
+              <Label htmlFor="profile-pwd-confirm">Potvrzení nového hesla</Label>
+              <Input
+                id="profile-pwd-confirm"
+                type="password"
+                autoComplete="new-password"
+                data-testid="profile-password-confirm-input"
+                value={pwdConfirm}
+                onChange={(e) => { clearPasswordFieldError('confirm'); setPwdConfirm(e.target.value); }}
+                placeholder="••••••••"
+                className={passwordFieldErrors.confirm ? FIELD_ERROR_CLASS : ''}
+                aria-invalid={Boolean(passwordFieldErrors.confirm)}
+              />
+              <FieldError message={passwordFieldErrors.confirm} />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={changingPassword}
+              className="bg-slate-800 hover:bg-slate-700 text-white"
+              data-testid="profile-change-password-button"
+            >
+              {changingPassword ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Měním heslo…</>
+              ) : (
+                <><Lock className="w-4 h-4 mr-2" /> Změnit heslo</>
+              )}
+            </Button>
+          </form>
+        </Card>
 
         {/* Save button */}
         <div className="flex items-center justify-end gap-3 sticky bottom-4 bg-white/90 backdrop-blur rounded-lg p-3 border border-gray-200 shadow-sm">

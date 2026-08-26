@@ -4,7 +4,8 @@ Provides program/lecturer slot evaluation and exception management.
 """
 import uuid
 import logging
-from typing import Optional
+from datetime import date as date_class, datetime, timedelta
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,11 +26,46 @@ BLOCK_EDIT_ROLES = BLOCK_MANAGE_ROLES | {"edukator", "lektor"}
 
 class ExceptionCreate(BaseModel):
     scope_type: str  # 'program' or 'lecturer'
-    scope_id: str
-    date: str  # "2026-05-15"
+    scope_id: Optional[str] = None
+    date: Optional[str] = None  # "2026-05-15"
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    program_ids: Optional[List[str]] = None
     start_time: Optional[str] = None  # "09:00" or null for all-day
     end_time: Optional[str] = None
     reason: Optional[str] = None
+
+
+def _parse_date(value: Optional[str], field_name: str) -> date_class:
+    if not value:
+        raise HTTPException(status_code=400, detail=f"{field_name} je povinné")
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"{field_name} musí být ve formátu RRRR-MM-DD")
+
+
+def _iter_dates(date_from: date_class, date_to: date_class) -> List[str]:
+    if date_to < date_from:
+        raise HTTPException(status_code=400, detail="Datum do nesmí být před datem od")
+    days = (date_to - date_from).days + 1
+    if days > 366:
+        raise HTTPException(status_code=400, detail="Blokaci lze vytvořit maximálně na 366 dní")
+    return [(date_from + timedelta(days=i)).isoformat() for i in range(days)]
+
+
+def _validate_time_range(start_time: Optional[str], end_time: Optional[str]) -> None:
+    if bool(start_time) != bool(end_time):
+        raise HTTPException(status_code=400, detail="Zadejte začátek i konec, nebo nechte obojí prázdné")
+    if not start_time or not end_time:
+        return
+    try:
+        start = datetime.strptime(start_time, "%H:%M").time()
+        end = datetime.strptime(end_time, "%H:%M").time()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Čas musí být ve formátu HH:MM")
+    if end <= start:
+        raise HTTPException(status_code=400, detail="Čas do musí být později než čas od")
 
 
 # ============ Slot Evaluation ============
@@ -121,42 +157,70 @@ async def create_exception(
     ensure_role(current_user, BLOCK_EDIT_ROLES)
     if data.scope_type not in ('program', 'lecturer'):
         raise HTTPException(status_code=400, detail="scope_type musí být 'program' nebo 'lecturer'")
+    _validate_time_range(data.start_time, data.end_time)
 
     inst_uuid = uuid.UUID(current_user["institution_id"])
+    date_from = _parse_date(data.date_from or data.date, "Datum od")
+    date_to = _parse_date(data.date_to or data.date_from or data.date, "Datum do")
+    dates = _iter_dates(date_from, date_to)
+
+    scope_ids = data.program_ids if data.scope_type == 'program' and data.program_ids else None
+    if scope_ids is None:
+        if not data.scope_id:
+            raise HTTPException(status_code=400, detail="Vyberte program")
+        scope_ids = [data.scope_id]
+
+    scope_ids = list(dict.fromkeys(scope_ids))
+    try:
+        scope_uuids = [uuid.UUID(scope_id) for scope_id in scope_ids]
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Neplatné ID programu")
 
     # Program blocks must reference a program that belongs to this tenant.
     if data.scope_type == 'program':
         prog_res = await db.execute(
             select(Program.id).where(
-                and_(Program.id == uuid.UUID(data.scope_id), Program.institution_id == inst_uuid)
+                and_(Program.id.in_(scope_uuids), Program.institution_id == inst_uuid)
             )
         )
-        if not prog_res.scalar_one_or_none():
+        found_programs = {program_id for program_id in prog_res.scalars().all()}
+        if found_programs != set(scope_uuids):
             raise HTTPException(status_code=404, detail="Program nenalezen")
 
-    exc = AvailabilityException(
-        institution_id=inst_uuid,
-        scope_type=data.scope_type,
-        scope_id=uuid.UUID(data.scope_id),
-        date=data.date,
-        start_time=data.start_time,
-        end_time=data.end_time,
-        reason=data.reason,
-        created_by=uuid.UUID(current_user["user_id"]),
-    )
-    db.add(exc)
+    exceptions = []
+    for scope_uuid in scope_uuids:
+        for exception_date in dates:
+            exc = AvailabilityException(
+                institution_id=inst_uuid,
+                scope_type=data.scope_type,
+                scope_id=scope_uuid,
+                date=exception_date,
+                start_time=data.start_time,
+                end_time=data.end_time,
+                reason=data.reason,
+                created_by=uuid.UUID(current_user["user_id"]),
+            )
+            db.add(exc)
+            exceptions.append(exc)
     await db.commit()
-    await db.refresh(exc)
+    for exc in exceptions:
+        await db.refresh(exc)
 
-    return {
-        "id": str(exc.id),
-        "scope_type": exc.scope_type,
-        "scope_id": str(exc.scope_id),
-        "date": exc.date,
-        "start_time": exc.start_time,
-        "end_time": exc.end_time,
-        "reason": exc.reason,
-    }
+    created = [
+        {
+            "id": str(exc.id),
+            "scope_type": exc.scope_type,
+            "scope_id": str(exc.scope_id),
+            "date": exc.date,
+            "start_time": exc.start_time,
+            "end_time": exc.end_time,
+            "reason": exc.reason,
+        }
+        for exc in exceptions
+    ]
+    if len(created) == 1:
+        return created[0]
+    return {"count": len(created), "exceptions": created}
 
 
 @router.delete("/exceptions/{exception_id}")

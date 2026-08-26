@@ -4,10 +4,12 @@ import { AuthContext } from '../../context/AuthContext';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from '../../components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
-import { ChevronLeft, ChevronRight, Ban, CheckCircle, Clock, Users, AlertTriangle, Lock, CalendarDays, Plus, CalendarPlus } from 'lucide-react';
+import { Badge } from '../../components/ui/badge';
+import { ChevronDown, ChevronLeft, ChevronRight, Ban, CheckCircle, Clock, Users, AlertTriangle, Lock, CalendarDays, Plus, CalendarPlus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
@@ -94,7 +96,8 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   const [exceptions, setExceptions] = useState([]);
   // Program block dialog (creates a program-scoped availability exception)
   const [showProgramBlock, setShowProgramBlock] = useState(false);
-  const [programBlockForm, setProgramBlockForm] = useState({ date: '', start_time: '', end_time: '', reason: '' });
+  const [programBlockForm, setProgramBlockForm] = useState({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '' });
+  const [programBlockProgramIds, setProgramBlockProgramIds] = useState([]);
   const [programBlockFieldErrors, setProgramBlockFieldErrors] = useState({});
   const [programSelectorError, setProgramSelectorError] = useState('');
 
@@ -110,6 +113,31 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
       setPrograms(active);
       if (active.length > 0) setSelectedProgram(active[0].id);
     } catch { /* */ }
+  };
+
+  const blockablePrograms = programs.filter(p => p.status === 'active');
+  const programNameById = (programId) => programs.find(p => p.id === programId)?.name_cs || 'Program';
+
+  const openProgramBlockDialog = () => {
+    if (!selectedProgram) {
+      setProgramSelectorError('Vyberte program pro programovou blokaci.');
+      toast.error('Zkontrolujte zvýrazněná pole.');
+      return;
+    }
+    setProgramSelectorError('');
+    setProgramBlockForm({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '' });
+    setProgramBlockProgramIds(blockablePrograms.some(p => p.id === selectedProgram) ? [selectedProgram] : []);
+    setProgramBlockFieldErrors({});
+    setShowProgramBlock(true);
+  };
+
+  const toggleProgramBlockProgram = (programId) => {
+    setProgramBlockProgramIds(prev => (
+      prev.includes(programId)
+        ? prev.filter(id => id !== programId)
+        : [...prev, programId]
+    ));
+    setProgramBlockFieldErrors(prev => ({ ...prev, program_ids: undefined }));
   };
 
   const doFetchWeek = async (prog, ws) => {
@@ -201,17 +229,22 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   // The block always carries the selected program_id; it is never silently saved
   // as a personal block. Requires a program to be selected.
   const createProgramBlock = async () => {
-    if (!selectedProgram) {
-      setProgramSelectorError('Vyberte program pro programovou blokaci.');
-      toast.error('Zkontrolujte zvýrazněná pole.');
-      return;
-    }
     setProgramSelectorError('');
     const errors = {};
-    if (!programBlockForm.date) errors.date = 'Vyberte datum blokace.';
+    if (!programBlockForm.date_from) errors.date_from = 'Vyberte datum od.';
+    if (!programBlockForm.date_to) errors.date_to = 'Vyberte datum do.';
+    if (programBlockForm.date_from && programBlockForm.date_to && programBlockForm.date_to < programBlockForm.date_from) {
+      errors.date_to = 'Datum do nesmí být před datem od.';
+    }
     if (Boolean(programBlockForm.start_time) !== Boolean(programBlockForm.end_time)) {
       errors.start_time = 'Zadejte začátek i konec, nebo nechte obojí prázdné.';
       errors.end_time = 'Zadejte začátek i konec, nebo nechte obojí prázdné.';
+    }
+    if (programBlockForm.start_time && programBlockForm.end_time && programBlockForm.end_time <= programBlockForm.start_time) {
+      errors.end_time = 'Čas do musí být později než čas od.';
+    }
+    if (programBlockProgramIds.length === 0) {
+      errors.program_ids = 'Vyberte alespoň jeden aktivní program.';
     }
     setProgramBlockFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -220,16 +253,20 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
     }
     try {
       await axios.post(`${API}/availability-unified/exceptions`, {
-        scope_type: 'program', scope_id: selectedProgram,
-        date: programBlockForm.date,
+        scope_type: 'program',
+        scope_id: programBlockProgramIds[0],
+        program_ids: programBlockProgramIds,
+        date_from: programBlockForm.date_from,
+        date_to: programBlockForm.date_to,
         start_time: programBlockForm.start_time || null,
         end_time: programBlockForm.end_time || null,
         reason: programBlockForm.reason || null,
       });
-      toast.success('Programová blokace vytvořena');
+      toast.success(programBlockProgramIds.length > 1 ? 'Programové blokace vytvořeny' : 'Programová blokace vytvořena');
       setShowProgramBlock(false);
       setProgramBlockFieldErrors({});
-      setProgramBlockForm({ date: '', start_time: '', end_time: '', reason: '' });
+      setProgramBlockProgramIds([]);
+      setProgramBlockForm({ date_from: '', date_to: '', start_time: '', end_time: '', reason: '' });
       doFetchWeek(selectedProgram, weekStart);
     } catch (err) { toast.error(err.response?.data?.detail || 'Chyba'); }
   };
@@ -299,17 +336,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
               <CalendarPlus className="w-4 h-4 mr-1" /> Jednorázový čas
             </Button>
             <Button
-              onClick={() => {
-                if (!selectedProgram) {
-                  setProgramSelectorError('Vyberte program pro programovou blokaci.');
-                  toast.error('Zkontrolujte zvýrazněná pole.');
-                  return;
-                }
-                setProgramSelectorError('');
-                setProgramBlockForm({ date: '', start_time: '', end_time: '', reason: '' });
-                setProgramBlockFieldErrors({});
-                setShowProgramBlock(true);
-              }}
+              onClick={openProgramBlockDialog}
               variant="outline"
               size="sm"
               className="border-red-300 text-red-600 hover:bg-red-50"
@@ -443,16 +470,21 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
             <DialogHeader>
               <DialogTitle>Přidat programovou blokaci</DialogTitle>
               <p id="pblock-desc" className="text-sm text-gray-500 mt-1">
-                {selectedProgram
-                  ? `Blokace pro: ${programs.find(p => p.id === selectedProgram)?.name_cs || 'vybraný program'}`
-                  : 'Nejprve vyberte program'}
+                Uzavře vybrané aktivní programy ve zvoleném období.
               </p>
             </DialogHeader>
             <div className="space-y-3 py-2">
-              <div>
-                <Label className="text-sm text-gray-500">Datum</Label>
-                <Input type="date" value={programBlockForm.date} onChange={e => { setProgramBlockForm(f => ({ ...f, date: e.target.value })); setProgramBlockFieldErrors(prev => ({ ...prev, date: undefined })); }} className={`mt-1 ${programBlockFieldErrors.date ? FIELD_ERROR_CLASS : ''}`} aria-invalid={Boolean(programBlockFieldErrors.date)} data-testid="pblock-date" />
-                <FieldError message={programBlockFieldErrors.date} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-sm text-gray-500">Datum od</Label>
+                  <Input type="date" value={programBlockForm.date_from} onChange={e => { setProgramBlockForm(f => ({ ...f, date_from: e.target.value, date_to: f.date_to || e.target.value })); setProgramBlockFieldErrors(prev => ({ ...prev, date_from: undefined, date_to: undefined })); }} className={`mt-1 ${programBlockFieldErrors.date_from ? FIELD_ERROR_CLASS : ''}`} aria-invalid={Boolean(programBlockFieldErrors.date_from)} data-testid="pblock-date-from" />
+                  <FieldError message={programBlockFieldErrors.date_from} />
+                </div>
+                <div>
+                  <Label className="text-sm text-gray-500">Datum do</Label>
+                  <Input type="date" value={programBlockForm.date_to} onChange={e => { setProgramBlockForm(f => ({ ...f, date_to: e.target.value })); setProgramBlockFieldErrors(prev => ({ ...prev, date_to: undefined })); }} className={`mt-1 ${programBlockFieldErrors.date_to ? FIELD_ERROR_CLASS : ''}`} aria-invalid={Boolean(programBlockFieldErrors.date_to)} data-testid="pblock-date-to" />
+                  <FieldError message={programBlockFieldErrors.date_to} />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -466,6 +498,62 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
               </div>
               <FieldError message={programBlockFieldErrors.start_time || programBlockFieldErrors.end_time} />
               <p className="text-xs text-gray-400">Nechte čas prázdný pro blokaci celého dne.</p>
+              <div>
+                <Label className="text-sm text-gray-500">Programy</Label>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className={`mt-1 w-full justify-between ${programBlockFieldErrors.program_ids ? FIELD_ERROR_CLASS : ''}`}
+                      aria-invalid={Boolean(programBlockFieldErrors.program_ids)}
+                      data-testid="pblock-programs-trigger"
+                    >
+                      <span className="truncate">
+                        {programBlockProgramIds.length === 0
+                          ? 'Vyberte aktivní programy'
+                          : `${programBlockProgramIds.length} vybráno`}
+                      </span>
+                      <ChevronDown className="w-4 h-4 ml-2 shrink-0" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-80 max-h-72 overflow-y-auto" align="start">
+                    {blockablePrograms.length === 0 ? (
+                      <div className="px-2 py-1.5 text-sm text-gray-500">Žádný aktivní program</div>
+                    ) : (
+                      blockablePrograms.map(program => (
+                        <DropdownMenuCheckboxItem
+                          key={program.id}
+                          checked={programBlockProgramIds.includes(program.id)}
+                          onCheckedChange={() => toggleProgramBlockProgram(program.id)}
+                          onSelect={e => e.preventDefault()}
+                          data-testid={`pblock-program-${program.id}`}
+                        >
+                          <span className="truncate">{program.name_cs}</span>
+                        </DropdownMenuCheckboxItem>
+                      ))
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {programBlockProgramIds.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {programBlockProgramIds.map(programId => (
+                      <Badge key={programId} variant="secondary" className="max-w-full gap-1 pr-1">
+                        <span className="truncate max-w-[220px]">{programNameById(programId)}</span>
+                        <button
+                          type="button"
+                          onClick={() => toggleProgramBlockProgram(programId)}
+                          className="rounded hover:bg-slate-200"
+                          aria-label={`Odebrat ${programNameById(programId)}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <FieldError message={programBlockFieldErrors.program_ids} />
+              </div>
               <div>
                 <Label className="text-sm text-gray-500">Důvod (volitelné)</Label>
                 <Input value={programBlockForm.reason} onChange={e => setProgramBlockForm(f => ({ ...f, reason: e.target.value }))} placeholder="Např. výjezd, údržba..." className="mt-1" data-testid="pblock-reason" />

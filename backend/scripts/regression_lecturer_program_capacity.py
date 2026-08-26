@@ -24,7 +24,6 @@ if str(BACKEND_ROOT) not in sys.path:
 from sqlalchemy import select
 
 from database.models import Program
-from database.supabase import AsyncSessionLocal
 from scripts.regression_core_seed import hash_seed_password, insert_row
 from scripts.safety import (
     asyncpg_url,
@@ -95,6 +94,15 @@ class ScenarioResult:
     actual_reason: Optional[str] = None
     raw_message: Optional[str] = None
     diagnostic: Optional[str] = None
+
+
+def test_session_factory():
+    """Import the SQLAlchemy session only after DATABASE_URL is configured."""
+    from database.supabase import AsyncSessionLocal
+
+    if AsyncSessionLocal is None:
+        raise RuntimeError("Test database session is not configured. Call configure_sqlalchemy_test_database first.")
+    return AsyncSessionLocal
 
 
 async def ensure_target_institution(conn) -> tuple[str, Optional[str], bool]:
@@ -493,7 +501,7 @@ def diagnostic_for(expected: str, expected_reason: Optional[str], actual: str, a
 
 
 async def booking_check(institution_id: str, program_code: str, lecturer_code: Optional[str], time_block: str = MAIN_TIME, date: str = SCENARIO_DATE) -> tuple[str, str, Optional[str]]:
-    async with AsyncSessionLocal() as db:
+    async with test_session_factory()() as db:
         message = await check_booking_collision(
             db,
             institution_id,
@@ -549,7 +557,7 @@ async def run_pick_scenario(
     await delete_scenario_reservations(conn)
     for reservation_key, setup_program, setup_lecturer, setup_time in setup:
         await add_reservation(conn, reservation_key, institution_id, setup_program, setup_lecturer, setup_time)
-    async with AsyncSessionLocal() as db:
+    async with test_session_factory()() as db:
         row = await db.execute(select(Program).where(Program.id == uuid.UUID(program_id(program_code))))
         program = row.scalar_one()
         pick = await pick_main_lecturer(db, institution_id, program, SCENARIO_DATE, MAIN_TIME)
@@ -580,7 +588,7 @@ async def run_assignment_collision_scenario(conn, institution_id: str) -> Scenar
     await delete_scenario_reservations(conn)
     await add_reservation(conn, "res-50", institution_id, "P01", "L1", MAIN_TIME)
     target_id = await add_reservation(conn, "res-51", institution_id, "P03", "L1", MAIN_TIME)
-    async with AsyncSessionLocal() as db:
+    async with test_session_factory()() as db:
         message = await check_lecturer_collision_for_assignment(
             db,
             lecturer_id("L1"),
@@ -628,7 +636,7 @@ async def run_availability_exception_scenario(conn, institution_id: str, admin_i
         diagnostic_for("blocked", "availability_exception", actual, actual_reason),
     )
 
-    async with AsyncSessionLocal() as db:
+    async with test_session_factory()() as db:
         slots = await evaluate_program_slots(db, institution_id, program_id("P05"), EXCEPTION_DATE)
         await db.rollback()
     target_slot = next((slot for slot in slots if slot.get("time") == MAIN_TIME), None)

@@ -81,6 +81,7 @@ const getDefaultFormData = () => ({
   cleanup_time: 0,
   age_group: 'zs1_7_12',
   allow_parallel: false,
+  max_concurrent_bookings: '',
   collision_resources: [],
   blocked_program_ids: [],
   room_id: null,
@@ -400,6 +401,7 @@ export const ProgramsPage = () => {
         ...formData,
         age_group: formData.target_group,
         booking_opens_at: dateTimeLocalToISOString(formData.booking_opens_at),
+        max_concurrent_bookings: formData.max_concurrent_bookings ? parseInt(formData.max_concurrent_bookings, 10) : null,
       };
       if (editingProgram) {
         await axios.put(`${API}/programs/${editingProgram.id}`, submitData);
@@ -513,6 +515,7 @@ export const ProgramsPage = () => {
       end_date: formatDateForInput(program.end_date),
       booking_opens_at: toDateTimeLocalInput(program.booking_opens_at),
       allow_parallel: program.allow_parallel || false,
+      max_concurrent_bookings: program.max_concurrent_bookings ?? '',
       collision_resources: program.collision_resources || [],
       blocked_program_ids: program.blocked_program_ids || [],
       room_id: program.room_id || null,

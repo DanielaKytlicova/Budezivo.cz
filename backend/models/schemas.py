@@ -95,6 +95,7 @@ class ProgramBase(BaseModel):
     cleanup_time: int = 0
     # Collision & Parallel Settings
     allow_parallel: bool = False
+    max_concurrent_bookings: Optional[int] = None
     collision_resources: List[str] = []
     collision_lecturer_ids: List[str] = []
     blocked_program_ids: List[str] = []
@@ -121,6 +122,16 @@ class ProgramBase(BaseModel):
             return max(1, int(v)) if v is not None else 1
         except (TypeError, ValueError):
             return 1
+
+    @validator('max_concurrent_bookings', pre=True, always=True)
+    def normalize_max_concurrent_bookings(cls, v):
+        if v in (None, ""):
+            return None
+        try:
+            value = int(v)
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
 
     @validator('feedback_questions', pre=True, always=True)
     def default_feedback_questions(cls, v):
@@ -199,6 +210,7 @@ class PublicBooking(BookingBase):
 
 
 class BookingUpdate(BaseModel):
+    program_id: Optional[str] = None
     status: Optional[str] = None
     actual_students: Optional[int] = None
     actual_teachers: Optional[int] = None

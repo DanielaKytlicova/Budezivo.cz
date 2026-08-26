@@ -60,6 +60,7 @@ export const ProgramCollisionTab = ({
   const lecturerMembers = teamMembers.filter(m =>
     lecturerRoles.includes(m.role) && m.status === 'active'
   );
+  const hasConcurrentLimit = formData.max_concurrent_bookings !== '' && formData.max_concurrent_bookings !== null && formData.max_concurrent_bookings !== undefined;
 
   return (
     <div className="space-y-6">
@@ -99,6 +100,57 @@ export const ProgramCollisionTab = ({
             data-testid="collision-allow-parallel-toggle"
           />
         </div>
+      </Card>
+
+      {/* Souběžné rezervace stejného programu */}
+      <Card className="p-4 md:p-6 space-y-4" data-testid="program-concurrent-capacity-card">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h3 className="font-semibold text-slate-900">Souběžné rezervace stejného programu</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              Určuje, kolikrát může stejný program běžet ve stejném čase. Lektor, místnost a další kolize se dál kontrolují samostatně.
+            </p>
+          </div>
+          <ShieldAlert className="w-5 h-5 text-[#4A6FA5] ml-4 shrink-0" />
+        </div>
+
+        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
+          <div>
+            <p className="font-medium text-slate-900 text-sm">
+              {hasConcurrentLimit ? 'Omezit počet souběžných rezervací' : 'Bez omezení'}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {hasConcurrentLimit
+                ? 'Další rezervace stejného programu se nabídnou jen do nastaveného počtu.'
+                : 'Stejný program může mít ve stejný čas libovolný počet rezervací, pokud projde ostatními pravidly.'}
+            </p>
+          </div>
+          <Switch
+            checked={hasConcurrentLimit}
+            onCheckedChange={(checked) => setFormData(prev => ({
+              ...prev,
+              max_concurrent_bookings: checked ? (prev.max_concurrent_bookings || 1) : '',
+            }))}
+            data-testid="program-concurrent-capacity-toggle"
+          />
+        </div>
+
+        {hasConcurrentLimit && (
+          <div className="flex items-center gap-3">
+            <Input
+              type="number"
+              min={1}
+              className="w-28"
+              value={formData.max_concurrent_bookings || 1}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                max_concurrent_bookings: Math.max(1, parseInt(e.target.value || '1', 10) || 1),
+              }))}
+              data-testid="program-concurrent-capacity-input"
+            />
+            <span className="text-sm text-gray-500">rezervace ve stejném čase</span>
+          </div>
+        )}
       </Card>
 
       {/* Počet potřebných lektorů */}

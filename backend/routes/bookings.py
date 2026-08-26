@@ -567,12 +567,15 @@ async def update_booking(
     # Save original date/time before update
     original_date = booking.get("date", "")
     original_time = booking.get("time_block", "")
+    original_program_id = booking.get("program_id", "")
     
     # Role-based field access
     update_fields = {}
     
     # Admin/Správce can update everything
     if user_role in ["admin", "spravce"]:
+        if update_data.program_id is not None:
+            update_fields["program_id"] = update_data.program_id
         if update_data.status is not None:
             update_fields["status"] = update_data.status
         if update_data.actual_students is not None:
@@ -622,6 +625,24 @@ async def update_booking(
     
     if not update_fields:
         return {"message": "No fields to update"}
+
+    schedule_fields = {"program_id", "date", "time_block", "status"}
+    if schedule_fields.intersection(update_fields):
+        target_program_id = update_fields.get("program_id", original_program_id)
+        target_date = update_fields.get("date", original_date)
+        target_time = update_fields.get("time_block", original_time)
+        target_status = update_fields.get("status", booking.get("status"))
+        if target_program_id and target_date and target_time and target_status != "cancelled":
+            collision_error = await check_booking_collision(
+                db,
+                current_user["institution_id"],
+                str(target_program_id),
+                target_date,
+                target_time,
+                exclude_reservation_id=booking_id,
+            )
+            if collision_error:
+                raise HTTPException(status_code=409, detail=classify_collision(collision_error))
     
     await booking_repo.update(booking_id, current_user["institution_id"], update_fields)
     
@@ -633,9 +654,9 @@ async def update_booking(
     
     if date_changed or time_changed:
         # Capture values for background task (avoid using request-scoped db)
-        program_id = booking.get("program_id")
+        program_id = update_fields.get("program_id", booking.get("program_id"))
         institution_id = current_user["institution_id"]
-        updated_booking = {**booking, "date": new_date, "time_block": new_time}
+        updated_booking = {**booking, "program_id": program_id, "date": new_date, "time_block": new_time}
         
         async def send_reschedule_email():
             try:

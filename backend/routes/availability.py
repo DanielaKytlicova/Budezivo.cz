@@ -131,6 +131,27 @@ def _calendar_blocks_overlap(slot: str, other: str, duration: int) -> bool:
     return slot_start < other_end and slot_end > other_start
 
 
+def _program_concurrent_limit_from_dict(program: dict) -> Optional[int]:
+    raw_limit = program.get("max_concurrent_bookings")
+    if raw_limit in (None, ""):
+        return None
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        return None
+    return limit if limit > 0 else None
+
+
+def _slot_capacity_reached(slot: str, booked_blocks: list[str], duration: int, limit: Optional[int]) -> bool:
+    if limit is None:
+        return False
+    overlapping = sum(
+        1 for booked_block in booked_blocks
+        if _calendar_blocks_overlap(slot, booked_block, duration)
+    )
+    return overlapping >= limit
+
+
 def _calendar_exception_blocks_slot(slot: str, duration: int, exceptions: list) -> bool:
     slot_range = _calendar_block_range(slot, duration)
     if not slot_range:
@@ -167,6 +188,7 @@ async def get_program_availability(
     program_time_blocks = program.get("time_blocks") or ["09:00-10:30", "10:45-12:15", "13:00-14:30"]
     available_days = program.get("available_days") or ["monday", "tuesday", "wednesday", "thursday", "friday"]
     program_duration = program.get("duration") or 60
+    max_concurrent_bookings = _program_concurrent_limit_from_dict(program)
     prep_time = program.get("preparation_time") or 0
     cleanup_time = program.get("cleanup_time") or 0
     
@@ -239,8 +261,10 @@ async def get_program_availability(
             start = time_to_min(tb.strip())
             booked_ranges.append((start, start + program_duration))
     
-    def slot_overlaps_booking(slot_str):
-        """Check if a time slot overlaps with any existing booking."""
+    def slot_reaches_capacity(slot_str):
+        """Check if a time slot reaches same-program concurrent capacity."""
+        if max_concurrent_bookings is None:
+            return False
         if '-' in slot_str:
             parts = slot_str.split('-')
             s_start = time_to_min(parts[0].strip())
@@ -248,10 +272,11 @@ async def get_program_availability(
         else:
             s_start = time_to_min(slot_str.strip())
             s_end = s_start + program_duration
+        overlapping = 0
         for b_start, b_end in booked_ranges:
             if s_start < b_end and s_end > b_start:
-                return True
-        return False
+                overlapping += 1
+        return overlapping >= max_concurrent_bookings
     
     # Get program's assigned lecturer and collision settings
     assigned_lecturer_id = program.get("assigned_lecturer_id")
@@ -260,7 +285,7 @@ async def get_program_availability(
     has_lecturer_collision = "lecturer" in collision_resources
     
     for block in time_blocks:
-        if slot_overlaps_booking(block["time"]):
+        if slot_reaches_capacity(block["time"]):
             block["status"] = "booked"
         elif block["status"] == "available":
             # Check cross-program collisions
@@ -374,6 +399,7 @@ async def get_calendar_availability(
 
     program_month_slots = []
     program_duration = programs[0].get("duration") or 60 if programs else 60
+    program_concurrent_limit = _program_concurrent_limit_from_dict(programs[0]) if program_id and programs else None
     reservations_by_date = defaultdict(list)
     exceptions_by_date = defaultdict(list)
 
@@ -525,10 +551,7 @@ async def get_calendar_availability(
                     1
                     for slot in program_month_slots
                     if not _calendar_exception_blocks_slot(slot, program_duration, exception_blocks)
-                    and not any(
-                        _calendar_blocks_overlap(slot, booked_block, program_duration)
-                        for booked_block in booked_blocks
-                    )
+                    and not _slot_capacity_reached(slot, booked_blocks, program_duration, program_concurrent_limit)
                 )
             else:
                 available_blocks = total_blocks

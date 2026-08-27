@@ -17,7 +17,9 @@ class ProgramBookingOpensAtTests(unittest.TestCase):
 
     def test_repository_persists_booking_opens_at(self):
         repo = (BACKEND / "database" / "supabase_repositories.py").read_text(encoding="utf-8")
+        schema = (BACKEND / "models" / "schemas.py").read_text(encoding="utf-8")
 
+        self.assertIn("booking_opens_at: Optional[datetime] = None", schema)
         self.assertIn("def _parse_program_datetime", repo)
         self.assertIn("booking_opens_at = self._parse_program_datetime", repo)
         self.assertIn("booking_opens_at=booking_opens_at", repo)
@@ -31,6 +33,17 @@ class ProgramBookingOpensAtTests(unittest.TestCase):
         self.assertIn("def _program_validity_datetime", availability)
         self.assertIn("now < booking_opens_at", availability)
         self.assertIn('"booking_opens_at"', programs)
+
+    def test_public_booking_create_enforces_booking_opens_at(self):
+        bookings = (BACKEND / "routes" / "bookings.py").read_text(encoding="utf-8")
+        public_create = bookings.split("async def create_public_booking(", 1)[1]
+
+        self.assertIn("booking_opens_message(program)", bookings)
+        self.assertIn("Rezervace tohoto programu se spustí až", (BACKEND / "services" / "program_booking_window.py").read_text(encoding="utf-8"))
+        self.assertLess(
+            public_create.index("booking_opens_message(program)"),
+            public_create.index("check_booking_collision("),
+        )
 
     def test_admin_program_form_has_booking_opens_toggle(self):
         page = (FRONTEND / "src" / "pages" / "admin" / "ProgramsPage.js").read_text(encoding="utf-8")

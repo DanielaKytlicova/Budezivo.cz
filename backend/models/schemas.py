@@ -85,6 +85,7 @@ class ProgramBase(BaseModel):
     is_published: bool = True
     is_in_catalog: bool = False  # Opt-in to public B2B catalog "Programy pro školy"
     send_email_notification: bool = False
+    booking_opens_at: Optional[datetime] = None
     available_days: List[str] = ["monday", "tuesday", "wednesday", "thursday", "friday"]
     time_blocks: List[str] = ["09:00-10:30"]
     start_date: Optional[str] = None

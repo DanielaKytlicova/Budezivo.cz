@@ -42,9 +42,10 @@ Legenda:
 
 ## Pred pilotem jeste rucne projit
 
-- [ ] Supabase pred ostrym pilotem prepnout na Pro plan, ponechat Spend Cap a zapnout/overit zalohy.
-- [ ] Po prechodu na Pro zkontrolovat, ze produkcni projekt zustal stejny a Railway `DATABASE_URL` nebylo omylem zmeneno.
-- [ ] Udelat posledni produkcni smoke test: `/health`, admin login, program, rezervace, akce, mailing, feedback.
+- [x] Supabase pred ostrym pilotem prepnout na Pro plan, ponechat Spend Cap a zapnout/overit zalohy.
+- [x] Po prechodu na Pro zkontrolovat, ze produkcni projekt zustal stejny a Railway `DATABASE_URL` nebylo omylem zmeneno.
+- [x] Udelat posledni read-only produkcni smoke test: `/health`, `/ready`, homepage, pravni stranky a pilotni booking URL.
+- [ ] Rucne projit posledni produkcni UI smoke: admin login, program, rezervace, akce, mailing, feedback.
 - [ ] Vytvorit jednu realnou pilotni rezervaci a jednu testovaci udalost, pak zkontrolovat, ze se daji bezpecne spravovat.
 - [ ] Pred hromadnym oslovenim skol odeslat jednu testovaci kampan na Gmail a jeden dalsi externi mailbox.
 - [ ] Zkontrolovat, ze v Resendu nejsou stare aktivni API klice.

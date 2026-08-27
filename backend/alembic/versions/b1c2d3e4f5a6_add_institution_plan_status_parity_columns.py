@@ -8,7 +8,6 @@ Create Date: 2026-08-27 22:25:00.000000
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
@@ -20,13 +19,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add Institution model columns missing from historical billing migration."""
-    op.add_column(
-        "institutions",
-        sa.Column("plan_status", sa.Text(), nullable=False, server_default="active"),
+    op.execute(
+        "ALTER TABLE institutions "
+        "ADD COLUMN IF NOT EXISTS plan_status TEXT NOT NULL DEFAULT 'active'"
     )
-    op.add_column("institutions", sa.Column("plan_activated_by", sa.Text(), nullable=True))
-    op.add_column("institutions", sa.Column("plan_expires_at", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("institutions", sa.Column("plan_updated_at", sa.DateTime(timezone=True), nullable=True))
+    op.execute("ALTER TABLE institutions ADD COLUMN IF NOT EXISTS plan_activated_by TEXT")
+    op.execute("ALTER TABLE institutions ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMPTZ")
+    op.execute("ALTER TABLE institutions ADD COLUMN IF NOT EXISTS plan_updated_at TIMESTAMPTZ")
 
 
 def downgrade() -> None:

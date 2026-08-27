@@ -12,11 +12,11 @@ class InstitutionPlanStatusParityMigrationTests(unittest.TestCase):
         source = MIGRATION.read_text()
 
         for marker in (
-            '"plan_status"',
-            '"plan_activated_by"',
-            '"plan_expires_at"',
-            '"plan_updated_at"',
-            'server_default="active"',
+            "ADD COLUMN IF NOT EXISTS plan_status",
+            "ADD COLUMN IF NOT EXISTS plan_activated_by",
+            "ADD COLUMN IF NOT EXISTS plan_expires_at",
+            "ADD COLUMN IF NOT EXISTS plan_updated_at",
+            "DEFAULT 'active'",
             'down_revision: Union[str, Sequence[str], None] = "a0b1c2d3e4f5"',
         ):
             self.assertIn(marker, source)

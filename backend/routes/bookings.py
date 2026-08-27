@@ -3,9 +3,11 @@ Booking/Reservation management routes.
 Uses Supabase (PostgreSQL) for database operations.
 """
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -13,6 +15,7 @@ from slowapi.util import get_remote_address
 from models.schemas import BookingCreate, Booking, BookingUpdate, PublicBooking
 from core.security import get_current_user
 from database.supabase import get_db, AsyncSessionLocal
+from database.models import School, SchoolContact
 from database.supabase_repositories import (
     BookingRepositorySupabase, 
     UserRepositorySupabase, 
@@ -292,19 +295,30 @@ async def create_public_booking(
     # Resolve main lecturer (auto-pick; public flow never has admin override)
     resolved = await _resolve_main_lecturer(db, institution_id, booking_data, admin_override=None)
 
-    # Resolve/create the School FIRST so the reservation stores a reliable school_id link.
+    # Prepare the school link without committing. The advisory lock acquired by
+    # check_booking_collision is transaction-scoped, so any commit before
+    # BookingRepositorySupabase.create would release it before the reservation
+    # is safely inserted.
     school = await school_repo.find_by_email(institution_id, booking_data.contact_email)
     if school:
-        await school_repo.increment_booking_count(school["id"])
         school_id = school["id"]
+        await db.execute(
+            update(School)
+            .where(School.id == uuid.UUID(school_id))
+            .values(booking_count=School.booking_count + 1)
+        )
     else:
-        new_school = await school_repo.create({
-            "name": booking_data.school_name,
-            "contact_person": booking_data.contact_name,
-            "email": booking_data.contact_email,
-            "phone": booking_data.contact_phone,
-        }, institution_id)
-        school_id = new_school.get("id") if new_school else None
+        school_id = str(uuid.uuid4())
+        db.add(School(
+            id=uuid.UUID(school_id),
+            institution_id=uuid.UUID(institution_id),
+            name=booking_data.school_name,
+            contact_person=booking_data.contact_name,
+            email=str(booking_data.contact_email),
+            phone=booking_data.contact_phone,
+            source="reservation",
+            booking_count=1,
+        ))
 
     payload = booking_data.model_dump()
     payload.update({
@@ -317,6 +331,23 @@ async def create_public_booking(
     })
 
     booking = await booking_repo.create(payload, institution_id)
+    if not school and booking_data.contact_email and school_id:
+        try:
+            db.add(SchoolContact(
+                id=uuid.uuid4(),
+                school_id=uuid.UUID(school_id),
+                institution_id=uuid.UUID(institution_id),
+                email=str(booking_data.contact_email).lower(),
+                name=booking_data.contact_name or "",
+                phone=booking_data.contact_phone or "",
+                is_primary=True,
+                status="active",
+            ))
+            await db.commit()
+        except Exception as e:  # noqa: BLE001
+            await db.rollback()
+            logger.warning(f"Could not create school contact for booking {booking.get('id')}: {e}")
+
     # Phase 76 — auto-seed contact directory (best-effort, never blocks booking)
     try:
         prog_for_contact = await program_repo.find_by_id(booking_data.program_id, institution_id)

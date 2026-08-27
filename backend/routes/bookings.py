@@ -33,6 +33,7 @@ from services.collision_service import check_booking_collision, check_lecturer_c
 from services.collision_classifier import classify as classify_collision
 from services.lecturer_assignment_service import pick_main_lecturer, SOURCE_MANUAL, SOURCE_UNASSIGNED
 from services.contact_service import seed_contact_from_booking_dict
+from services.program_booking_window import booking_opens_message
 from services.notification_preferences import (
     ADMIN_RECIPIENT_ROLES,
     normalize_notifications,
@@ -268,6 +269,17 @@ async def create_public_booking(
         }
         logger.info(f"Demo booking created for {booking_data.contact_email}")
         return _strip_internal_fields(demo_booking)
+
+    program = await program_repo.find_by_id(booking_data.program_id, institution_id)
+    if not program or program.get("status") != "active" or not program.get("is_published", False):
+        raise HTTPException(
+            status_code=404,
+            detail="Program z odkazu už není dostupný. Vyberte prosím jiný program.",
+        )
+
+    opens_error = booking_opens_message(program)
+    if opens_error:
+        raise HTTPException(status_code=409, detail=opens_error)
     
     # Create booking
     # First check for collisions
@@ -319,7 +331,6 @@ async def create_public_booking(
     public_booking = _strip_internal_fields(booking)
     # Send confirmation emails in background (if program has email enabled)
     try:
-        program = await program_repo.find_by_id(booking_data.program_id, institution_id)
         institution = await institution_repo.find_by_id_with_theme(institution_id)
         
         if program:

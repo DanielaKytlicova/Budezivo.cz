@@ -15,6 +15,7 @@ from .models import (
     Institution, User, Program, Reservation, School, 
     ThemeSetting, Payment, ContactMessage, ProgramEmailTemplate, EmailLog
 )
+from services.program_booking_window import parse_program_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -244,14 +245,7 @@ class ProgramRepositorySupabase:
 
     @staticmethod
     def _parse_program_datetime(value):
-        if not value:
-            return None
-        if isinstance(value, datetime):
-            return value
-        try:
-            return datetime.fromisoformat(str(value).replace('Z', '+00:00')).replace(tzinfo=timezone.utc)
-        except (ValueError, TypeError):
-            return None
+        return parse_program_datetime(value)
     
     async def find_by_id(self, program_id: str, institution_id: str = None) -> Optional[dict]:
         """Find program by ID."""

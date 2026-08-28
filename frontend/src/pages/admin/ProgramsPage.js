@@ -51,6 +51,14 @@ const TARIFFS = [
   { value: 'paid', label: 'Placený' },
 ];
 
+const PROGRAM_REQUIRED_FIELD_ERRORS = {
+  name_cs: 'Vyplňte název programu.',
+  description_cs: 'Vyplňte popis programu.',
+  target_groups: 'Vyberte alespoň jednu cílovou skupinu.',
+  duration: 'Vyplňte dobu trvání.',
+  max_capacity: 'Vyplňte maximální kapacitu.',
+};
+
 const getDefaultFormData = () => ({
   name_cs: '',
   name_en: '',
@@ -140,6 +148,7 @@ export const ProgramsPage = () => {
   const [teamMembers, setTeamMembers] = useState([]);
   const [showTour, setShowTour] = useState(false);
   const [tourInitialIndex, setTourInitialIndex] = useState(0);
+  const [planStatus, setPlanStatus] = useState(null);
 
   useEffect(() => {
     fetchPrograms();
@@ -183,6 +192,7 @@ export const ProgramsPage = () => {
   const fetchPlanStatus = async () => {
     try {
       const response = await axios.get(`${API}/plan/status`);
+      setPlanStatus(response.data || null);
       setIsPro(response.data?.is_pro || false);
     } catch (error) {
       console.error('Failed to fetch plan status');
@@ -287,10 +297,11 @@ export const ProgramsPage = () => {
 
   const validateProgramForm = () => {
     const errors = {};
-    if (!formData.name_cs.trim()) errors.name_cs = 'Vyplňte název programu.';
-    if (!formData.target_groups || formData.target_groups.length === 0) errors.target_groups = 'Vyberte alespoň jednu cílovou skupinu.';
-    if (!Number(formData.duration) || Number(formData.duration) <= 0) errors.duration = 'Vyplňte dobu trvání.';
-    if (!Number(formData.max_capacity) || Number(formData.max_capacity) <= 0) errors.max_capacity = 'Vyplňte maximální kapacitu.';
+    if (!formData.name_cs.trim()) errors.name_cs = PROGRAM_REQUIRED_FIELD_ERRORS.name_cs;
+    if (!formData.description_cs.trim()) errors.description_cs = PROGRAM_REQUIRED_FIELD_ERRORS.description_cs;
+    if (!formData.target_groups || formData.target_groups.length === 0) errors.target_groups = PROGRAM_REQUIRED_FIELD_ERRORS.target_groups;
+    if (!Number(formData.duration) || Number(formData.duration) <= 0) errors.duration = PROGRAM_REQUIRED_FIELD_ERRORS.duration;
+    if (!Number(formData.max_capacity) || Number(formData.max_capacity) <= 0) errors.max_capacity = PROGRAM_REQUIRED_FIELD_ERRORS.max_capacity;
 
     const hasDetailErrors = Object.keys(errors).length > 0;
     if (formData.feedback_enabled && isPro) {
@@ -415,6 +426,32 @@ export const ProgramsPage = () => {
       fetchPrograms();
     } catch (error) {
       const detail = error.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        const apiFieldErrors = {};
+        detail.forEach((item) => {
+          const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : null;
+          if (PROGRAM_REQUIRED_FIELD_ERRORS[field]) {
+            apiFieldErrors[field] = PROGRAM_REQUIRED_FIELD_ERRORS[field];
+          }
+        });
+        if (Object.keys(apiFieldErrors).length > 0) {
+          setFieldErrors(prev => ({ ...prev, ...apiFieldErrors }));
+          setActiveTab('detail');
+          toast.error('Zkontrolujte zvýrazněná pole.');
+          return;
+        }
+      }
+      if (detail && typeof detail === 'object' && detail.field && PROGRAM_REQUIRED_FIELD_ERRORS[detail.field]) {
+        setFieldErrors(prev => ({ ...prev, [detail.field]: PROGRAM_REQUIRED_FIELD_ERRORS[detail.field] }));
+        setActiveTab('detail');
+        toast.error('Zkontrolujte zvýrazněná pole.');
+        return;
+      }
+      const detailMessage = detail?.message_cs || detail?.message || detail?.error;
+      if (typeof detailMessage === 'string') {
+        toast.error(detailMessage);
+        return;
+      }
       toast.error(typeof detail === 'string' ? detail : t('common.error'));
     }
   };
@@ -648,7 +685,10 @@ export const ProgramsPage = () => {
   };
 
   const programsCount = programs.filter(p => p.status !== 'archived').length;
-  const freeLimit = 3;
+  const programLimit = planStatus?.limits?.programs_limit;
+  const hasProgramLimit = Number.isFinite(Number(programLimit)) && Number(programLimit) > 0;
+  const remainingPrograms = hasProgramLimit ? Math.max(0, Number(programLimit) - programsCount) : null;
+  const planLabel = planStatus?.plan_label || 'bezúplatný tarif';
 
   const renderProgramList = () => (
     <div className="space-y-6">
@@ -666,13 +706,18 @@ export const ProgramsPage = () => {
       </div>
 
       {/* Plan limit banner with URL generator */}
+      {hasProgramLimit && (
       <Card className="p-4 bg-gray-50 border-gray-200">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <p className="text-sm text-gray-600">
-              Máte ještě <span className="font-semibold">{Math.max(0, freeLimit - programsCount)}</span> volné místo pro bezúplatný tarif.
+              Máte ještě <span className="font-semibold">{remainingPrograms}</span> volné místo pro tarif {planLabel}.
             </p>
-            <button className="text-sm font-medium text-slate-800 hover:underline">
+            <button
+              type="button"
+              onClick={() => navigate('/admin/plan')}
+              className="text-sm font-medium text-slate-800 hover:underline"
+            >
               Navýšit tarif
             </button>
           </div>
@@ -698,6 +743,7 @@ export const ProgramsPage = () => {
           </div>
         </div>
       </Card>
+      )}
 
       {/* Programs grid */}
       {loading ? (
@@ -859,11 +905,13 @@ export const ProgramsPage = () => {
           <Textarea
             data-testid="program-description-cs"
             value={formData.description_cs}
-            onChange={(e) => setFormData({ ...formData, description_cs: e.target.value })}
+            onChange={(e) => { clearFieldError('description_cs'); setFormData({ ...formData, description_cs: e.target.value }); }}
             placeholder="Doprovodný program provádí malé návštěvníky..."
-            className="mt-1"
+            className={`mt-1 ${fieldErrors.description_cs ? FIELD_ERROR_CLASS : ''}`}
+            aria-invalid={Boolean(fieldErrors.description_cs)}
             rows={3}
           />
+          <FieldError message={fieldErrors.description_cs} />
         </div>
 
         <div>

@@ -343,7 +343,7 @@ class ProgramRepositorySupabase:
             preparation_time=program_data.get('preparation_time', 0),
             cleanup_time=program_data.get('cleanup_time', 0),
             allow_parallel=program_data.get('allow_parallel', False),
-            max_concurrent_bookings=program_data.get('max_concurrent_bookings'),
+            max_concurrent_bookings=program_data.get('max_concurrent_bookings', 1),
             collision_resources=program_data.get('collision_resources', []),
             blocked_program_ids=program_data.get('blocked_program_ids', []),
             required_lecturers=program_data.get('required_lecturers', 1) or 1,

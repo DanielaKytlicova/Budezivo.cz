@@ -96,7 +96,7 @@ class ProgramBase(BaseModel):
     cleanup_time: int = 0
     # Collision & Parallel Settings
     allow_parallel: bool = False
-    max_concurrent_bookings: Optional[int] = None
+    max_concurrent_bookings: Optional[int] = 1
     collision_resources: List[str] = []
     collision_lecturer_ids: List[str] = []
     blocked_program_ids: List[str] = []

@@ -148,6 +148,7 @@ export const ProgramsPage = () => {
   const [teamMembers, setTeamMembers] = useState([]);
   const [showTour, setShowTour] = useState(false);
   const [tourInitialIndex, setTourInitialIndex] = useState(0);
+  const [planStatus, setPlanStatus] = useState(null);
 
   useEffect(() => {
     fetchPrograms();
@@ -191,6 +192,7 @@ export const ProgramsPage = () => {
   const fetchPlanStatus = async () => {
     try {
       const response = await axios.get(`${API}/plan/status`);
+      setPlanStatus(response.data || null);
       setIsPro(response.data?.is_pro || false);
     } catch (error) {
       console.error('Failed to fetch plan status');
@@ -439,6 +441,17 @@ export const ProgramsPage = () => {
           return;
         }
       }
+      if (detail && typeof detail === 'object' && detail.field && PROGRAM_REQUIRED_FIELD_ERRORS[detail.field]) {
+        setFieldErrors(prev => ({ ...prev, [detail.field]: PROGRAM_REQUIRED_FIELD_ERRORS[detail.field] }));
+        setActiveTab('detail');
+        toast.error('Zkontrolujte zvýrazněná pole.');
+        return;
+      }
+      const detailMessage = detail?.message_cs || detail?.message || detail?.error;
+      if (typeof detailMessage === 'string') {
+        toast.error(detailMessage);
+        return;
+      }
       toast.error(typeof detail === 'string' ? detail : t('common.error'));
     }
   };
@@ -672,7 +685,10 @@ export const ProgramsPage = () => {
   };
 
   const programsCount = programs.filter(p => p.status !== 'archived').length;
-  const freeLimit = 3;
+  const programLimit = planStatus?.limits?.programs_limit;
+  const hasProgramLimit = Number.isFinite(Number(programLimit)) && Number(programLimit) > 0;
+  const remainingPrograms = hasProgramLimit ? Math.max(0, Number(programLimit) - programsCount) : null;
+  const planLabel = planStatus?.plan_label || 'bezúplatný tarif';
 
   const renderProgramList = () => (
     <div className="space-y-6">
@@ -690,13 +706,18 @@ export const ProgramsPage = () => {
       </div>
 
       {/* Plan limit banner with URL generator */}
+      {hasProgramLimit && (
       <Card className="p-4 bg-gray-50 border-gray-200">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <p className="text-sm text-gray-600">
-              Máte ještě <span className="font-semibold">{Math.max(0, freeLimit - programsCount)}</span> volné místo pro bezúplatný tarif.
+              Máte ještě <span className="font-semibold">{remainingPrograms}</span> volné místo pro tarif {planLabel}.
             </p>
-            <button className="text-sm font-medium text-slate-800 hover:underline">
+            <button
+              type="button"
+              onClick={() => navigate('/admin/plan')}
+              className="text-sm font-medium text-slate-800 hover:underline"
+            >
               Navýšit tarif
             </button>
           </div>
@@ -722,6 +743,7 @@ export const ProgramsPage = () => {
           </div>
         </div>
       </Card>
+      )}
 
       {/* Programs grid */}
       {loading ? (

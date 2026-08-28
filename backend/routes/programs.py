@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, UploadFile, File
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -29,6 +30,31 @@ logger = logging.getLogger(__name__)
 _pub_limiter = Limiter(key_func=get_remote_address)
 
 
+def _program_save_error_detail(exc: Exception) -> dict:
+    message = str(exc)
+    if "description_cs" in message and ("not-null" in message.lower() or "null value" in message.lower()):
+        return {"field": "description_cs", "message_cs": "Vyplňte popis programu."}
+    if "name_cs" in message and ("not-null" in message.lower() or "null value" in message.lower()):
+        return {"field": "name_cs", "message_cs": "Vyplňte název programu."}
+    if "target_group" in message and ("not-null" in message.lower() or "null value" in message.lower()):
+        return {"field": "target_groups", "message_cs": "Vyberte alespoň jednu cílovou skupinu."}
+    if "UndefinedColumnError" in message or "does not exist" in message:
+        return {
+            "message_cs": (
+                "Program se nepodařilo uložit kvůli neaktuálnímu schématu databáze. "
+                "Počkejte prosím na dokončení nasazení a zkuste to znovu."
+            )
+        }
+    return {"message_cs": "Program se nepodařilo uložit. Zkontrolujte vyplněná pole a zkuste to znovu."}
+
+
+async def _rollback_after_program_save_error(db: AsyncSession) -> None:
+    try:
+        await db.rollback()
+    except Exception as rollback_error:
+        logger.warning("Program save rollback failed: %s", rollback_error)
+
+
 class ArchiveRequest(BaseModel):
     reason: Optional[str] = None
 
@@ -42,17 +68,22 @@ async def create_program(
     """Create new program."""
     ensure_role(current_user, PROGRAM_EDIT_ROLES)
     program_repo = ProgramRepositorySupabase(db)
-    program = await program_repo.create(
-        program_data.model_dump(),
-        current_user["institution_id"]
-    )
-    await log_action(
-        db, institution_id=current_user["institution_id"],
-        user_id=current_user["user_id"], user_email=current_user.get("email", ""),
-        action="create", entity_type="program", entity_id=str(program.get("id", "")),
-        details={"name": program_data.name_cs},
-    )
-    return program
+    try:
+        program = await program_repo.create(
+            program_data.model_dump(),
+            current_user["institution_id"]
+        )
+        await log_action(
+            db, institution_id=current_user["institution_id"],
+            user_id=current_user["user_id"], user_email=current_user.get("email", ""),
+            action="create", entity_type="program", entity_id=str(program.get("id", "")),
+            details={"name": program_data.name_cs},
+        )
+        return program
+    except (IntegrityError, SQLAlchemyError) as exc:
+        await _rollback_after_program_save_error(db)
+        logger.exception("Program create failed")
+        raise HTTPException(status_code=400, detail=_program_save_error_detail(exc))
 
 
 @router.get("", response_model=List[Program])
@@ -324,15 +355,22 @@ async def update_program(
     """Update existing program."""
     ensure_role(current_user, PROGRAM_EDIT_ROLES)
     program_repo = ProgramRepositorySupabase(db)
-    result = await program_repo.update(
-        program_id,
-        current_user["institution_id"],
-        program_data.model_dump()
-    )
-    if result == 0:
-        raise HTTPException(status_code=404, detail="Program not found")
-    
-    return await program_repo.find_by_id(program_id, current_user["institution_id"])
+    try:
+        result = await program_repo.update(
+            program_id,
+            current_user["institution_id"],
+            program_data.model_dump()
+        )
+        if result == 0:
+            raise HTTPException(status_code=404, detail="Program not found")
+
+        return await program_repo.find_by_id(program_id, current_user["institution_id"])
+    except HTTPException:
+        raise
+    except (IntegrityError, SQLAlchemyError) as exc:
+        await _rollback_after_program_save_error(db)
+        logger.exception("Program update failed")
+        raise HTTPException(status_code=400, detail=_program_save_error_detail(exc))
 
 
 @router.post("/{program_id}/archive")

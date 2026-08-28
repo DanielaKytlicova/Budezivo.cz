@@ -14,6 +14,7 @@ import { API } from '../../config/api';
 
 const STATUS_MAP = {
   active: { label: 'Aktivní', bg: 'bg-blue-100 text-blue-700' },
+  matched: { label: 'Uvolněný termín', bg: 'bg-green-100 text-green-700' },
   contacted: { label: 'Kontaktován', bg: 'bg-amber-100 text-amber-700' },
   booked: { label: 'Vyřešeno', bg: 'bg-green-100 text-green-700' },
   cancelled: { label: 'Zrušeno', bg: 'bg-gray-200 text-gray-600' },
@@ -73,6 +74,7 @@ export const WaitlistPage = () => {
   };
 
   const activeCount = entries.filter(e => e.status === 'active').length;
+  const matchedCount = entries.filter(e => e.status === 'matched').length;
 
   return (
     <AdminLayout>
@@ -80,7 +82,9 @@ export const WaitlistPage = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Zájemci o termín</h1>
-            <p className="text-sm text-gray-500 mt-1">{activeCount} aktivních zájemců</p>
+            <p className="text-sm text-gray-500 mt-1">
+              {activeCount} aktivních zájemců{matchedCount > 0 ? ` · ${matchedCount} s uvolněným termínem` : ''}
+            </p>
           </div>
         </div>
 
@@ -185,12 +189,12 @@ export const WaitlistPage = () => {
                         <Button size="sm" variant="outline" onClick={() => openEdit(entry)} data-testid={`edit-waitlist-${entry.id}`}>
                           Změnit status
                         </Button>
-                        {entry.status === 'active' && (
+                        {(entry.status === 'active' || entry.status === 'matched') && (
                           <Button size="sm" variant="outline" className="text-amber-600" onClick={async () => {
                             await axios.patch(`${API}/waitlist/${entry.id}`, { status: 'contacted' });
                             toast.success('Označeno jako kontaktován');
                             fetchEntries();
-                          }}>Kontaktován</Button>
+                          }}>Kontaktovat náhradníka</Button>
                         )}
                       </div>
                     </div>

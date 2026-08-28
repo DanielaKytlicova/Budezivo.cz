@@ -174,7 +174,7 @@ async def list_waitlist(
     if status:
         query = query.where(WaitlistEntry.status == status)
 
-    query = query.order_by(WaitlistEntry.created_at.desc())
+    query = query.order_by(WaitlistEntry.created_at.asc())
     result = await db.execute(query)
     entries = result.scalars().all()
 
@@ -225,7 +225,7 @@ async def update_waitlist_entry(
         raise HTTPException(status_code=404, detail="Záznam nenalezen")
 
     if data.status:
-        if data.status not in ('active', 'contacted', 'booked', 'cancelled', 'expired'):
+        if data.status not in ('active', 'matched', 'contacted', 'booked', 'cancelled', 'expired'):
             raise HTTPException(status_code=400, detail="Neplatný status")
         entry.status = data.status
 

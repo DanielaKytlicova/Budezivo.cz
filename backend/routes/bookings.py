@@ -543,7 +543,7 @@ async def update_booking_status(
                     )
                     template_name = "reservation_cancelled"
                 
-                # Waitlist Phase 2: notify candidates about freed slot
+                # Waitlist Phase 2: mark matching candidates for admin review.
                 try:
                     from services.waitlist_service import on_booking_cancelled
                     await on_booking_cancelled(
@@ -554,7 +554,7 @@ async def update_booking_status(
                         institution_id=current_user["institution_id"],
                     )
                 except Exception as wl_err:
-                    logger.warning(f"Waitlist notify on cancel failed: {wl_err}")
+                    logger.warning(f"Waitlist match on cancel failed: {wl_err}")
             
             # Log email if sent
             if email_result and template_name:
@@ -805,7 +805,7 @@ async def bulk_update_booking_status(
                             )
                             template_name = "reservation_cancelled"
                         
-                        # Waitlist Phase 2: notify candidates about freed slot
+                        # Waitlist Phase 2: mark matching candidates for admin review.
                         try:
                             from services.waitlist_service import on_booking_cancelled
                             await on_booking_cancelled(
@@ -816,7 +816,7 @@ async def bulk_update_booking_status(
                                 institution_id=current_user["institution_id"],
                             )
                         except Exception as wl_err:
-                            logger.warning(f"Waitlist notify on cancel failed: {wl_err}")
+                            logger.warning(f"Waitlist match on cancel failed: {wl_err}")
                     
                     if email_result and template_name:
                         await log_repo.create({

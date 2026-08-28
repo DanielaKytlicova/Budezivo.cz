@@ -81,7 +81,7 @@ const getDefaultFormData = () => ({
   cleanup_time: 0,
   age_group: 'zs1_7_12',
   allow_parallel: false,
-  max_concurrent_bookings: '',
+  max_concurrent_bookings: 1,
   collision_resources: [],
   blocked_program_ids: [],
   room_id: null,

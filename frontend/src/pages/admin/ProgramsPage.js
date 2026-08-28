@@ -57,6 +57,7 @@ const PROGRAM_REQUIRED_FIELD_ERRORS = {
   target_groups: 'Vyberte alespoň jednu cílovou skupinu.',
   duration: 'Vyplňte dobu trvání.',
   max_capacity: 'Vyplňte maximální kapacitu.',
+  booking_opens_at: 'Zadejte platné datum a čas spuštění rezervací.',
 };
 
 const getDefaultFormData = () => ({
@@ -118,9 +119,9 @@ const nextLocalHourInput = () => {
 };
 
 const dateTimeLocalToISOString = (value) => {
-  if (!value) return '';
+  if (!value) return null;
   const date = new Date(value);
-  if (isNaN(date.getTime())) return '';
+  if (isNaN(date.getTime())) return null;
   return date.toISOString();
 };
 

@@ -28,6 +28,15 @@ class ProgramSaveErrorUiAndSchemaGuardTests(unittest.TestCase):
         self.assertIn("setFieldErrors(prev => ({ ...prev, ...apiFieldErrors }))", source)
         self.assertIn("toast.error('Zkontrolujte zvýrazněná pole.')", source)
 
+    def test_empty_booking_opens_at_is_sent_as_null(self):
+        source = PROGRAMS_PAGE.read_text(encoding="utf-8")
+
+        self.assertIn("booking_opens_at: 'Zadejte platné datum a čas spuštění rezervací.'", source)
+        self.assertIn("const dateTimeLocalToISOString = (value) => {\n  if (!value) return null;", source)
+        self.assertIn("const dateTimeLocalToISOString = (value) => {\n  if (!value) return null;\n  const date = new Date(value);\n  if (isNaN(date.getTime())) return null;", source)
+        self.assertIn("booking_opens_at: dateTimeLocalToISOString(formData.booking_opens_at)", source)
+        self.assertNotIn("const dateTimeLocalToISOString = (value) => {\n  if (!value) return '';", source)
+
     def test_plan_banner_uses_real_plan_limit_and_links_to_plan_page(self):
         source = PROGRAMS_PAGE.read_text(encoding="utf-8")
 

@@ -203,10 +203,11 @@ async def resolve_recipients(
 
         # Use school-level email as fallback
         if not school_contacts and school.email:
-            school_contacts = [type('FakeContact', (), {
-                'id': None, 'email': school.email,
-                'name': school.contact_person or school.name,
-            })()]
+            school_contacts = [{
+                "id": None,
+                "email": school.email,
+                "name": school.contact_person or school.name,
+            }]
 
         if not school_contacts:
             no_contacts_count += 1

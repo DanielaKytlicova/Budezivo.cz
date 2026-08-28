@@ -51,6 +51,14 @@ const TARIFFS = [
   { value: 'paid', label: 'Placený' },
 ];
 
+const PROGRAM_REQUIRED_FIELD_ERRORS = {
+  name_cs: 'Vyplňte název programu.',
+  description_cs: 'Vyplňte popis programu.',
+  target_groups: 'Vyberte alespoň jednu cílovou skupinu.',
+  duration: 'Vyplňte dobu trvání.',
+  max_capacity: 'Vyplňte maximální kapacitu.',
+};
+
 const getDefaultFormData = () => ({
   name_cs: '',
   name_en: '',
@@ -287,10 +295,11 @@ export const ProgramsPage = () => {
 
   const validateProgramForm = () => {
     const errors = {};
-    if (!formData.name_cs.trim()) errors.name_cs = 'Vyplňte název programu.';
-    if (!formData.target_groups || formData.target_groups.length === 0) errors.target_groups = 'Vyberte alespoň jednu cílovou skupinu.';
-    if (!Number(formData.duration) || Number(formData.duration) <= 0) errors.duration = 'Vyplňte dobu trvání.';
-    if (!Number(formData.max_capacity) || Number(formData.max_capacity) <= 0) errors.max_capacity = 'Vyplňte maximální kapacitu.';
+    if (!formData.name_cs.trim()) errors.name_cs = PROGRAM_REQUIRED_FIELD_ERRORS.name_cs;
+    if (!formData.description_cs.trim()) errors.description_cs = PROGRAM_REQUIRED_FIELD_ERRORS.description_cs;
+    if (!formData.target_groups || formData.target_groups.length === 0) errors.target_groups = PROGRAM_REQUIRED_FIELD_ERRORS.target_groups;
+    if (!Number(formData.duration) || Number(formData.duration) <= 0) errors.duration = PROGRAM_REQUIRED_FIELD_ERRORS.duration;
+    if (!Number(formData.max_capacity) || Number(formData.max_capacity) <= 0) errors.max_capacity = PROGRAM_REQUIRED_FIELD_ERRORS.max_capacity;
 
     const hasDetailErrors = Object.keys(errors).length > 0;
     if (formData.feedback_enabled && isPro) {
@@ -415,6 +424,21 @@ export const ProgramsPage = () => {
       fetchPrograms();
     } catch (error) {
       const detail = error.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        const apiFieldErrors = {};
+        detail.forEach((item) => {
+          const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : null;
+          if (PROGRAM_REQUIRED_FIELD_ERRORS[field]) {
+            apiFieldErrors[field] = PROGRAM_REQUIRED_FIELD_ERRORS[field];
+          }
+        });
+        if (Object.keys(apiFieldErrors).length > 0) {
+          setFieldErrors(prev => ({ ...prev, ...apiFieldErrors }));
+          setActiveTab('detail');
+          toast.error('Zkontrolujte zvýrazněná pole.');
+          return;
+        }
+      }
       toast.error(typeof detail === 'string' ? detail : t('common.error'));
     }
   };
@@ -859,11 +883,13 @@ export const ProgramsPage = () => {
           <Textarea
             data-testid="program-description-cs"
             value={formData.description_cs}
-            onChange={(e) => setFormData({ ...formData, description_cs: e.target.value })}
+            onChange={(e) => { clearFieldError('description_cs'); setFormData({ ...formData, description_cs: e.target.value }); }}
             placeholder="Doprovodný program provádí malé návštěvníky..."
-            className="mt-1"
+            className={`mt-1 ${fieldErrors.description_cs ? FIELD_ERROR_CLASS : ''}`}
+            aria-invalid={Boolean(fieldErrors.description_cs)}
             rows={3}
           />
+          <FieldError message={fieldErrors.description_cs} />
         </div>
 
         <div>

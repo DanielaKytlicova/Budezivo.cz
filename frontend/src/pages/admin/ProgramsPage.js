@@ -414,7 +414,8 @@ export const ProgramsPage = () => {
       resetForm();
       fetchPrograms();
     } catch (error) {
-      toast.error(t('common.error'));
+      const detail = error.response?.data?.detail;
+      toast.error(typeof detail === 'string' ? detail : t('common.error'));
     }
   };
 

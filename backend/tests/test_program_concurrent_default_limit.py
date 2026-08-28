@@ -37,14 +37,22 @@ class ProgramConcurrentDefaultLimitTests(unittest.TestCase):
         self.assertIn("max_concurrent_bookings: 1", source)
 
     def test_database_default_is_one_for_new_program_rows(self):
-        migration = (
+        default_migration = (
             ROOT
             / "backend/alembic/versions/c2d3e4f5a6b7_default_program_concurrent_limit.py"
+        ).read_text()
+        backfill_migration = (
+            ROOT
+            / "backend/alembic/versions/d3e4f5a6b7c8_backfill_program_concurrent_limit.py"
         ).read_text()
 
         self.assertIn(
             "ALTER TABLE programs ALTER COLUMN max_concurrent_bookings SET DEFAULT 1",
-            migration,
+            default_migration,
+        )
+        self.assertIn(
+            "UPDATE programs SET max_concurrent_bookings = 1 WHERE max_concurrent_bookings IS NULL",
+            backfill_migration,
         )
 
 

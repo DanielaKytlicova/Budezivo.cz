@@ -10,12 +10,17 @@ def read(path: str) -> str:
 
 
 class ProgramConcurrentCapacityTests(unittest.TestCase):
-    def test_schema_model_and_migration_define_nullable_limit(self):
-        self.assertIn("max_concurrent_bookings = Column(Integer)", read("database/models.py"))
-        self.assertIn("max_concurrent_bookings: Optional[int] = None", read("models/schemas.py"))
+    def test_schema_model_and_migration_define_safe_default_limit(self):
+        self.assertIn("max_concurrent_bookings = Column(Integer, default=1)", read("database/models.py"))
+        self.assertIn("max_concurrent_bookings: Optional[int] = 1", read("models/schemas.py"))
         migration = read("alembic/versions/5a6b7c8d9e0f_program_concurrent_capacity.py")
         self.assertIn("ADD COLUMN IF NOT EXISTS max_concurrent_bookings INTEGER", migration)
         self.assertIn('down_revision = "4f5a6b7c8d9e"', migration)
+
+        default_migration = read("alembic/versions/c2d3e4f5a6b7_default_program_concurrent_limit.py")
+        self.assertIn("ALTER TABLE programs ALTER COLUMN max_concurrent_bookings SET DEFAULT 1", default_migration)
+        backfill_migration = read("alembic/versions/d3e4f5a6b7c8_backfill_program_concurrent_limit.py")
+        self.assertIn("UPDATE programs SET max_concurrent_bookings = 1 WHERE max_concurrent_bookings IS NULL", backfill_migration)
 
     def test_booking_collision_enforces_capacity_with_self_exclusion(self):
         source = read("services/collision_service.py")

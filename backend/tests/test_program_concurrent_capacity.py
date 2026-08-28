@@ -21,6 +21,8 @@ class ProgramConcurrentCapacityTests(unittest.TestCase):
         self.assertIn("ALTER TABLE programs ALTER COLUMN max_concurrent_bookings SET DEFAULT 1", default_migration)
         backfill_migration = read("alembic/versions/d3e4f5a6b7c8_backfill_program_concurrent_limit.py")
         self.assertIn("UPDATE programs SET max_concurrent_bookings = 1 WHERE max_concurrent_bookings IS NULL", backfill_migration)
+        nullable_migration = read("alembic/versions/e4f5a6b7c8d9_allow_unlimited_program_concurrent_limit.py")
+        self.assertIn("ALTER TABLE programs ALTER COLUMN max_concurrent_bookings DROP NOT NULL", nullable_migration)
 
     def test_booking_collision_enforces_capacity_with_self_exclusion(self):
         source = read("services/collision_service.py")

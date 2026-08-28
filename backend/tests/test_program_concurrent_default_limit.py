@@ -31,6 +31,18 @@ class ProgramConcurrentDefaultLimitTests(unittest.TestCase):
 
         self.assertIsNone(program.max_concurrent_bookings)
 
+    def test_repository_update_preserves_intentional_unlimited_value(self):
+        source = (ROOT / "backend/database/supabase_repositories.py").read_text()
+
+        self.assertIn(
+            "processed_data['max_concurrent_bookings'] = value if value and value > 0 else None",
+            source,
+        )
+        self.assertIn(
+            "processed_data['max_concurrent_bookings'] not in (None, '') else None",
+            source,
+        )
+
     def test_ui_new_program_default_has_limit_enabled(self):
         source = (ROOT / "frontend/src/pages/admin/ProgramsPage.js").read_text()
 
@@ -45,6 +57,10 @@ class ProgramConcurrentDefaultLimitTests(unittest.TestCase):
             ROOT
             / "backend/alembic/versions/d3e4f5a6b7c8_backfill_program_concurrent_limit.py"
         ).read_text()
+        nullable_migration = (
+            ROOT
+            / "backend/alembic/versions/e4f5a6b7c8d9_allow_unlimited_program_concurrent_limit.py"
+        ).read_text()
 
         self.assertIn(
             "ALTER TABLE programs ALTER COLUMN max_concurrent_bookings SET DEFAULT 1",
@@ -53,6 +69,10 @@ class ProgramConcurrentDefaultLimitTests(unittest.TestCase):
         self.assertIn(
             "UPDATE programs SET max_concurrent_bookings = 1 WHERE max_concurrent_bookings IS NULL",
             backfill_migration,
+        )
+        self.assertIn(
+            "ALTER TABLE programs ALTER COLUMN max_concurrent_bookings DROP NOT NULL",
+            nullable_migration,
         )
 
 

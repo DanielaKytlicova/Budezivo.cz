@@ -142,7 +142,7 @@ export const WaitlistModal = ({ open, onOpenChange, institutionId, programId, pr
             <CheckCircle className="w-14 h-14 text-green-500 mx-auto mb-4" />
             <h2 className="text-lg font-bold text-gray-900 mb-2">Zájem zaregistrován</h2>
             <p id="wl-success" className="text-sm text-gray-600 mb-4">
-              Zařadili jsme vás mezi zájemce o program <strong>{programName}</strong>. Jakmile se uvolní vhodný termín, dáme vám vědět.
+              Zařadili jsme vás mezi zájemce o program <strong>{programName}</strong>. Pokud se uvolní vhodný termín, instituce váš zájem uvidí a sama se rozhodne, koho kontaktuje.
             </p>
             <Button onClick={handleClose} className="bg-slate-800 text-white">Zavřít</Button>
           </div>

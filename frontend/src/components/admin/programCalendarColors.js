@@ -12,18 +12,31 @@ export const PROGRAM_CALENDAR_COLORS = [
 export const programCalendarKey = (reservation) =>
   String(reservation.program_id || reservation.program_name || '—');
 
-// Deterministic across pages and integrations: the colour no longer changes
-// when filters hide another program or a newly-created program is added.
+// Kept for backwards-compatible tests/imports. The color map below avoids using
+// modulo assignment for distinct programs because modulo can make two programs
+// share one visible colour in the same calendar.
 export const programCalendarColorIndex = (key) => {
   let hash = 0;
   for (const char of String(key || '—')) hash = ((hash * 31) + char.charCodeAt(0)) >>> 0;
   return hash % PROGRAM_CALENDAR_COLORS.length;
 };
 
+const generatedProgramColor = (index) => {
+  const hue = Math.round((index * 137.508) % 360);
+  return {
+    bg: `hsl(${hue} 58% 72%)`,
+    border: `hsl(${hue} 45% 42%)`,
+    text: `hsl(${hue} 42% 18%)`,
+  };
+};
+
+export const programCalendarColorForPosition = (index) =>
+  PROGRAM_CALENDAR_COLORS[index] || generatedProgramColor(index - PROGRAM_CALENDAR_COLORS.length);
+
 export const buildProgramCalendarColorMap = (reservations = []) => {
   const keys = Array.from(new Set(reservations.map(programCalendarKey))).sort();
-  return keys.reduce((map, key) => {
-    map[key] = PROGRAM_CALENDAR_COLORS[programCalendarColorIndex(key)];
+  return keys.reduce((map, key, index) => {
+    map[key] = programCalendarColorForPosition(index);
     return map;
   }, {});
 };

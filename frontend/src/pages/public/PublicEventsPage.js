@@ -66,7 +66,9 @@ export default function PublicEventsPage() {
   const fetchEvents = async () => {
     try {
       const res = await axios.get(`${API_URL}/api/events/public/${institutionId}`);
-      setEvents(res.data || []);
+      const loadedEvents = res.data || [];
+      const eventId = new URLSearchParams(window.location.search).get('event');
+      setEvents(eventId ? loadedEvents.filter(ev => ev.id === eventId) : loadedEvents);
     } catch (err) {
       if (err.response?.status === 404) setError('Stránka nenalezena');
       else setError('Nepodařilo se načíst události');

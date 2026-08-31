@@ -83,6 +83,36 @@ const bookingFieldStep = (field) => {
   return null;
 };
 
+const BOOKING_SESSION_STORAGE_PREFIX = 'budezivo_booking_session_';
+const BOOKING_SESSION_HEADER = 'X-Booking-Session-Id';
+
+const createBookingSessionId = () => {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (window.crypto?.getRandomValues) {
+    window.crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 14)}`;
+};
+
+const getBookingSessionId = (institutionId) => {
+  const key = `${BOOKING_SESSION_STORAGE_PREFIX}${institutionId || 'unknown'}`;
+  try {
+    const existing = window.sessionStorage.getItem(key);
+    if (existing) return existing;
+    const next = createBookingSessionId();
+    window.sessionStorage.setItem(key, next);
+    return next;
+  } catch {
+    return createBookingSessionId();
+  }
+};
+
+const trackBookingEvent = (payload) => {
+  axios.post(`${API}/analytics/booking-event`, payload).catch(() => {});
+};
+
 export const BookingPage = () => {
   const { institutionId } = useParams();
   const [searchParams] = useSearchParams();
@@ -112,6 +142,8 @@ export const BookingPage = () => {
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [waitlistDate, setWaitlistDate] = useState(null);
   const [waitlistTime, setWaitlistTime] = useState(null);
+  const bookingSessionIdRef = React.useRef('');
+  const bookingStartedRef = React.useRef(false);
   
   // Data instituce pro header a theme
   const [institutionData, setInstitutionData] = useState({
@@ -154,6 +186,19 @@ export const BookingPage = () => {
   // Teacher auth — if a teacher is logged in we prefill contact fields once.
   const { teacher, isAuthenticated: teacherAuthed } = useTeacherAuth();
   const teacherPrefilledRef = React.useRef(false);
+  useEffect(() => {
+    if (!institutionId || bookingStartedRef.current) return;
+    bookingStartedRef.current = true;
+    const sessionId = getBookingSessionId(institutionId);
+    bookingSessionIdRef.current = sessionId;
+    trackBookingEvent({
+      event_type: 'booking_started',
+      institution_id: institutionId,
+      program_id: preselectedProgramId,
+      session_id: sessionId,
+    });
+  }, [institutionId, preselectedProgramId]);
+
   useEffect(() => {
     if (!teacherAuthed || !teacher || teacherPrefilledRef.current) return;
     teacherPrefilledRef.current = true;
@@ -453,16 +498,44 @@ export const BookingPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateBookingForm()) return;
+    const sessionId = bookingSessionIdRef.current || getBookingSessionId(institutionId);
+    bookingSessionIdRef.current = sessionId;
+    trackBookingEvent({
+      event_type: 'booking_submit_attempted',
+      institution_id: institutionId,
+      program_id: formData.program_id,
+      session_id: sessionId,
+    });
+    if (!validateBookingForm()) {
+      trackBookingEvent({
+        event_type: 'booking_failed',
+        institution_id: institutionId,
+        program_id: formData.program_id,
+        session_id: sessionId,
+        reason: 'validation_error',
+      });
+      return;
+    }
 
     setSubmitting(true);
 
     try {
-      const response = await axios.post(`${API}/bookings/public/${institutionId}`, formData);
+      const response = await axios.post(`${API}/bookings/public/${institutionId}`, formData, {
+        headers: { [BOOKING_SESSION_HEADER]: sessionId },
+      });
       setCreatedReservationId(response.data?.id || null);
       setSuccess(true);
       toast.success('Rezervace byla odeslána');
     } catch (error) {
+      if (!error.response) {
+        trackBookingEvent({
+          event_type: 'booking_failed',
+          institution_id: institutionId,
+          program_id: formData.program_id,
+          session_id: sessionId,
+          reason: 'network_error',
+        });
+      }
       const d = error.response?.data?.detail;
       const apiMessage = bookingApiErrorMessage(d);
       if (d?.field) {

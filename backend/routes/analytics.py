@@ -18,7 +18,7 @@ import logging
 import os
 import re
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database.supabase import get_db
 from database.models import PageView
 from core.security import get_current_user
+from services.booking_analytics import record_booking_event
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +132,15 @@ class PageViewIn(BaseModel):
     referrer: Optional[str] = Field(None, max_length=500)
 
 
+class BookingEventIn(BaseModel):
+    event_type: str = Field(..., max_length=80)
+    institution_id: Optional[str] = Field(None, max_length=80)
+    program_id: Optional[str] = Field(None, max_length=80)
+    session_id: Optional[str] = Field(None, max_length=128)
+    reason: Optional[str] = Field(None, max_length=80)
+    metadata: Optional[dict[str, Any]] = None
+
+
 @router.post("/pageview", status_code=202)
 async def record_pageview(
     body: PageViewIn,
@@ -172,6 +182,33 @@ async def record_pageview(
         await db.rollback()
         return {"recorded": False, "reason": "db_error"}
     return {"recorded": True}
+
+
+@router.post("/booking-event", status_code=202)
+async def record_public_booking_event(
+    body: BookingEventIn,
+    db: AsyncSession = Depends(get_db),
+):
+    """Record a public booking funnel event.
+
+    This endpoint intentionally returns 202 even when the event is discarded.
+    The booking UI must never depend on analytics availability.
+    """
+    try:
+        recorded = await record_booking_event(
+            db,
+            body.event_type,
+            institution_id=body.institution_id,
+            program_id=body.program_id,
+            session_id=body.session_id,
+            reason=body.reason,
+            metadata=body.metadata,
+        )
+        return {"recorded": recorded}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("public booking analytics endpoint failed: %s", exc)
+        await db.rollback()
+        return {"recorded": False, "reason": "db_error"}
 
 
 # ---------- Superadmin stats ----------

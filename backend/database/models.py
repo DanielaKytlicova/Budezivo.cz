@@ -1381,6 +1381,30 @@ class PageView(Base):
     )
 
 
+class BookingAnalyticsEvent(Base):
+    """Minimal, PII-free booking and reservation lifecycle event."""
+    __tablename__ = 'booking_analytics_events'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    event_type = Column(Text, nullable=False)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'))
+    program_id = Column(UUID(as_uuid=True), ForeignKey('programs.id', ondelete='SET NULL'))
+    reservation_id = Column(UUID(as_uuid=True), ForeignKey('reservations.id', ondelete='SET NULL'))
+    session_id = Column(Text)
+    reason = Column(Text)
+    metadata_json = Column(JSON, default={})
+
+    __table_args__ = (
+        Index('idx_booking_analytics_created_at', 'created_at'),
+        Index('idx_booking_analytics_event_type', 'event_type'),
+        Index('idx_booking_analytics_institution', 'institution_id'),
+        Index('idx_booking_analytics_program', 'program_id'),
+        Index('idx_booking_analytics_session', 'session_id'),
+        Index('idx_booking_analytics_reservation', 'reservation_id'),
+    )
+
+
 
 # ──────────────────────────────────────────────────────────────────────────
 #  Contacts (Phase 76 — M1)

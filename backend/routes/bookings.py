@@ -41,6 +41,12 @@ from services.notification_preferences import (
     ADMIN_RECIPIENT_ROLES,
     normalize_notifications,
 )
+from services.booking_analytics import (
+    BOOKING_SESSION_HEADER,
+    classify_booking_blocked,
+    classify_booking_failed,
+    schedule_booking_event,
+)
 from routes.audit import log_action
 
 from pydantic import BaseModel as PydanticBaseModel
@@ -70,6 +76,48 @@ _INTERNAL_BOOKING_FIELDS = {
 def _strip_internal_fields(booking: dict) -> dict:
     """Remove internal metadata from booking for public response."""
     return {k: v for k, v in booking.items() if k not in _INTERNAL_BOOKING_FIELDS}
+
+
+def _booking_session_id(request: Request) -> Optional[str]:
+    return request.headers.get(BOOKING_SESSION_HEADER)
+
+
+def _track_public_booking_event(
+    event_type: str,
+    institution_id: str,
+    booking_data: BookingCreate,
+    request: Request,
+    *,
+    reservation_id: Optional[str] = None,
+    reason: Optional[str] = None,
+    metadata: Optional[dict] = None,
+) -> None:
+    schedule_booking_event(
+        event_type,
+        institution_id=institution_id,
+        program_id=booking_data.program_id,
+        reservation_id=reservation_id,
+        session_id=_booking_session_id(request),
+        reason=reason,
+        metadata=metadata,
+    )
+
+
+def _track_reservation_lifecycle_event(
+    event_type: str,
+    *,
+    institution_id: str,
+    program_id: Optional[str] = None,
+    reservation_id: Optional[str] = None,
+    metadata: Optional[dict] = None,
+) -> None:
+    schedule_booking_event(
+        event_type,
+        institution_id=institution_id,
+        program_id=program_id,
+        reservation_id=reservation_id,
+        metadata=metadata,
+    )
 
 
 _PROGRAM_DAY_CODES = {
@@ -292,6 +340,13 @@ async def create_booking(
         await db.commit()
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Contact auto-seed failed (booking {booking.get('id')}): {e}")
+    _track_reservation_lifecycle_event(
+        "reservation_created",
+        institution_id=current_user["institution_id"],
+        program_id=booking_data.program_id,
+        reservation_id=booking.get("id"),
+        metadata={"source": "admin"},
+    )
     return booking
 
 
@@ -307,6 +362,14 @@ async def create_public_booking(
     """Create public booking without authentication."""
     # Validate terms acceptance
     if not booking_data.terms_accepted:
+        _track_public_booking_event(
+            "booking_failed",
+            institution_id,
+            booking_data,
+            request,
+            reason="validation_error",
+            metadata={"field": "terms_accepted", "status_code": 400},
+        )
         raise HTTPException(
             status_code=400, 
             detail="Pro odeslání rezervace je nutné souhlasit s podmínkami"
@@ -354,6 +417,14 @@ async def create_public_booking(
 
     program = await program_repo.find_by_id(booking_data.program_id, institution_id)
     if not program or program.get("status") != "active" or not program.get("is_published", False):
+        _track_public_booking_event(
+            "booking_blocked",
+            institution_id,
+            booking_data,
+            request,
+            reason="program_unavailable",
+            metadata={"status_code": 404},
+        )
         raise HTTPException(
             status_code=404,
             detail="Program z odkazu už není dostupný. Vyberte prosím jiný program.",
@@ -361,10 +432,26 @@ async def create_public_booking(
 
     opens_error = booking_opens_message(program)
     if opens_error:
+        _track_public_booking_event(
+            "booking_blocked",
+            institution_id,
+            booking_data,
+            request,
+            reason=classify_booking_blocked(opens_error),
+            metadata={"status_code": 409},
+        )
         raise HTTPException(status_code=409, detail=opens_error)
 
     input_error = _public_booking_input_error(program, booking_data)
     if input_error:
+        _track_public_booking_event(
+            "booking_failed",
+            institution_id,
+            booking_data,
+            request,
+            reason=classify_booking_failed(input_error, 400),
+            metadata={"field": input_error.get("field"), "status_code": 400},
+        )
         raise HTTPException(status_code=400, detail=input_error)
     
     # Create booking
@@ -373,10 +460,40 @@ async def create_public_booking(
         db, institution_id, booking_data.program_id, booking_data.date, booking_data.time_block
     )
     if collision_error:
-        raise HTTPException(status_code=409, detail=classify_collision(collision_error))
+        classified = classify_collision(collision_error)
+        _track_public_booking_event(
+            "booking_blocked",
+            institution_id,
+            booking_data,
+            request,
+            reason=classify_booking_blocked(classified),
+            metadata={"status_code": 409, "code": classified.get("code")},
+        )
+        raise HTTPException(status_code=409, detail=classified)
 
     # Resolve main lecturer (auto-pick; public flow never has admin override)
-    resolved = await _resolve_main_lecturer(db, institution_id, booking_data, admin_override=None)
+    try:
+        resolved = await _resolve_main_lecturer(db, institution_id, booking_data, admin_override=None)
+    except HTTPException as exc:
+        if exc.status_code == 409:
+            _track_public_booking_event(
+                "booking_blocked",
+                institution_id,
+                booking_data,
+                request,
+                reason=classify_booking_blocked(exc.detail),
+                metadata={"status_code": exc.status_code},
+            )
+        else:
+            _track_public_booking_event(
+                "booking_failed",
+                institution_id,
+                booking_data,
+                request,
+                reason=classify_booking_failed(exc.detail, exc.status_code),
+                metadata={"status_code": exc.status_code},
+            )
+        raise
 
     # Prepare the school link without committing. The advisory lock acquired by
     # check_booking_collision is transaction-scoped, so any commit before
@@ -414,6 +531,14 @@ async def create_public_booking(
             booking_data.date,
             booking_data.time_block,
         )
+        _track_public_booking_event(
+            "booking_failed",
+            institution_id,
+            booking_data,
+            request,
+            reason="server_error",
+            metadata={"status_code": 500, "error_type": type(e).__name__},
+        )
         raise HTTPException(
             status_code=500,
             detail={
@@ -424,6 +549,21 @@ async def create_public_booking(
                 "error": type(e).__name__,
             },
         ) from e
+    _track_public_booking_event(
+        "booking_completed",
+        institution_id,
+        booking_data,
+        request,
+        reservation_id=booking.get("id"),
+        metadata={"status": booking.get("status", "pending")},
+    )
+    _track_reservation_lifecycle_event(
+        "reservation_created",
+        institution_id=institution_id,
+        program_id=booking_data.program_id,
+        reservation_id=booking.get("id"),
+        metadata={"source": "public"},
+    )
     if not school and booking_data.contact_email:
         try:
             school_id = str(uuid.uuid4())
@@ -693,6 +833,19 @@ async def update_booking_status(
         action=status, entity_type="reservation", entity_id=booking_id,
         details={"old_status": old_status, "new_status": status, "school": booking.get("school_name", "")},
     )
+    lifecycle_event = {
+        "cancelled": "reservation_cancelled",
+        "completed": "reservation_completed",
+        "no_show": "reservation_no_show",
+    }.get(status)
+    if lifecycle_event and old_status != status:
+        _track_reservation_lifecycle_event(
+            lifecycle_event,
+            institution_id=current_user["institution_id"],
+            program_id=booking.get("program_id"),
+            reservation_id=booking_id,
+            metadata={"old_status": old_status, "new_status": status},
+        )
     
     return {"message": "Status updated"}
 
@@ -834,6 +987,18 @@ async def update_booking(
                 logger.error(f"Failed to send reschedule email for booking {booking_id}: {e}")
         
         background_tasks.add_task(send_reschedule_email)
+        _track_reservation_lifecycle_event(
+            "reservation_rescheduled",
+            institution_id=current_user["institution_id"],
+            program_id=str(program_id) if program_id else None,
+            reservation_id=booking_id,
+            metadata={
+                "old_date": original_date,
+                "old_time": original_time,
+                "new_date": new_date,
+                "new_time": new_time,
+            },
+        )
     
     return {"message": "Booking updated", "updated_fields": list(update_fields.keys())}
 
@@ -947,6 +1112,23 @@ async def bulk_update_booking_status(
             logger.error(f"Bulk email send failed: {str(e)}")
     
     background_tasks.add_task(send_bulk_emails)
+    for booking in bookings_before:
+        old_status = booking.get("status")
+        if old_status == request.status:
+            continue
+        lifecycle_event = {
+            "cancelled": "reservation_cancelled",
+            "completed": "reservation_completed",
+            "no_show": "reservation_no_show",
+        }.get(request.status)
+        if lifecycle_event:
+            _track_reservation_lifecycle_event(
+                lifecycle_event,
+                institution_id=current_user["institution_id"],
+                program_id=booking.get("program_id"),
+                reservation_id=booking.get("id"),
+                metadata={"old_status": old_status, "new_status": request.status, "source": "bulk_status"},
+            )
     
     logger.info(f"Bulk status update: {updated_count} bookings -> {request.status}")
     return {

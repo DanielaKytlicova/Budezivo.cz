@@ -4,7 +4,7 @@ Uses Supabase (PostgreSQL) for database operations.
 """
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import date as date_type, datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from sqlalchemy import update
@@ -70,6 +70,85 @@ _INTERNAL_BOOKING_FIELDS = {
 def _strip_internal_fields(booking: dict) -> dict:
     """Remove internal metadata from booking for public response."""
     return {k: v for k, v in booking.items() if k not in _INTERNAL_BOOKING_FIELDS}
+
+
+_PROGRAM_DAY_CODES = {
+    0: "monday",
+    1: "tuesday",
+    2: "wednesday",
+    3: "thursday",
+    4: "friday",
+    5: "saturday",
+    6: "sunday",
+}
+
+
+def _date_from_program_value(value) -> Optional[date_type]:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _time_block_start(value) -> Optional[str]:
+    if not value:
+        return None
+    if isinstance(value, dict):
+        value = value.get("start") or value.get("time") or value.get("label")
+        if not value:
+            return None
+    return str(value).split("-", 1)[0].strip()
+
+
+def _public_booking_input_error(program: dict, booking_data: BookingCreate) -> Optional[dict]:
+    """Validate public booking inputs against the selected program before DB writes."""
+    try:
+        booking_date = datetime.fromisoformat(str(booking_data.date)).date()
+    except (TypeError, ValueError):
+        return {"field": "date", "message_cs": "Vyberte platné datum rezervace."}
+
+    start_date = _date_from_program_value(program.get("start_date"))
+    if start_date and booking_date < start_date:
+        return {"field": "date", "message_cs": "Vybraný termín je před začátkem období programu."}
+
+    end_date = _date_from_program_value(program.get("end_date"))
+    if end_date and booking_date > end_date:
+        return {"field": "date", "message_cs": "Vybraný termín je po skončení období programu."}
+
+    today = datetime.now(timezone.utc).date()
+    min_days = int(program.get("min_days_before_booking") or 0)
+    if min_days and booking_date < today + timedelta(days=min_days):
+        return {"field": "date", "message_cs": f"Termín je možné rezervovat nejdříve {min_days} dní předem."}
+
+    max_days = int(program.get("max_days_before_booking") or 0)
+    if max_days and booking_date > today + timedelta(days=max_days):
+        return {"field": "date", "message_cs": f"Termín je možné rezervovat nejvýše {max_days} dní předem."}
+
+    available_days = program.get("available_days") or []
+    if available_days and _PROGRAM_DAY_CODES[booking_date.weekday()] not in available_days:
+        return {"field": "date", "message_cs": "Program se ve vybraný den nenabízí."}
+
+    requested_start = _time_block_start(booking_data.time_block)
+    configured_starts = {_time_block_start(block) for block in (program.get("time_blocks") or [])}
+    if configured_starts and requested_start not in configured_starts:
+        return {"field": "time_block", "message_cs": "Vybraný čas už není pro tento program dostupný."}
+
+    min_capacity = program.get("min_capacity") or 1
+    max_capacity = program.get("max_capacity") or min_capacity
+    if booking_data.num_students < min_capacity or booking_data.num_students > max_capacity:
+        return {
+            "field": "num_students",
+            "message_cs": f"Počet účastníků musí být mezi {min_capacity} a {max_capacity}.",
+        }
+
+    if booking_data.num_teachers < 1:
+        return {"field": "num_teachers", "message_cs": "Vyplňte alespoň jednoho doprovázejícího pedagoga."}
+
+    return None
 
 
 async def _notification_recipient_emails(
@@ -283,6 +362,10 @@ async def create_public_booking(
     opens_error = booking_opens_message(program)
     if opens_error:
         raise HTTPException(status_code=409, detail=opens_error)
+
+    input_error = _public_booking_input_error(program, booking_data)
+    if input_error:
+        raise HTTPException(status_code=400, detail=input_error)
     
     # Create booking
     # First check for collisions
@@ -330,7 +413,27 @@ async def create_public_booking(
         "school_id": school_id,
     })
 
-    booking = await booking_repo.create(payload, institution_id)
+    try:
+        booking = await booking_repo.create(payload, institution_id)
+    except Exception as e:  # noqa: BLE001
+        await db.rollback()
+        logger.exception(
+            "Public booking create failed for institution=%s program=%s date=%s time=%s",
+            institution_id,
+            booking_data.program_id,
+            booking_data.date,
+            booking_data.time_block,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message_cs": (
+                    "Rezervaci se nepodařilo uložit. Zkuste to prosím znovu, "
+                    "nebo kontaktujte instituci."
+                ),
+                "error": type(e).__name__,
+            },
+        ) from e
     if not school and booking_data.contact_email and school_id:
         try:
             db.add(SchoolContact(

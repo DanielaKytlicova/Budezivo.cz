@@ -342,6 +342,7 @@ async def create_public_booking(
                 phone=booking_data.contact_phone or "",
                 is_primary=True,
                 status="active",
+                deliverability_status="unknown",
             ))
             await db.commit()
         except Exception as e:  # noqa: BLE001

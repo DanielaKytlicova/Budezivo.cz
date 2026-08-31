@@ -49,11 +49,13 @@ def program_booking_window_message(
     program: dict,
     booking_date: date_type,
     now: Optional[datetime] = None,
+    enforce_booking_opens: bool = True,
 ) -> Optional[str]:
     """Return a safe user-facing reason when a date is outside program rules."""
-    opens_error = booking_opens_message(program, now)
-    if opens_error:
-        return opens_error
+    if enforce_booking_opens:
+        opens_error = booking_opens_message(program, now)
+        if opens_error:
+            return opens_error
 
     current = now or datetime.now(timezone.utc)
     if current.tzinfo is None:

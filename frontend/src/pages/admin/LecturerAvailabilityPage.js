@@ -99,6 +99,8 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   const [timeOffForm, setTimeOffForm] = useState({
     start_date: '',
     end_date: '',
+    recurring: false,
+    repeat_weekdays: [],
     start_time: '',
     end_time: '',
     reason: '',
@@ -157,7 +159,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     } else if (autoOpenAction === 'timeoff') {
       setShowAddTimeOff(true);
       setTimeOffFieldErrors({});
-      setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' });
+      setTimeOffForm({ start_date: '', end_date: '', recurring: false, repeat_weekdays: [], start_time: '', end_time: '', reason: '' });
     }
     if (onAutoOpenConsumed) onAutoOpenConsumed();
   }, [autoOpenAction]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -497,9 +499,18 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     if (!timeOffForm.start_date) {
       errors.start_date = 'Zadejte datum.';
     }
+    if (timeOffForm.start_date && timeOffForm.end_date && timeOffForm.end_date < timeOffForm.start_date) {
+      errors.end_date = 'Datum do nesmí být před datem od.';
+    }
     if (Boolean(timeOffForm.start_time) !== Boolean(timeOffForm.end_time)) {
       errors.start_time = 'Zadejte začátek i konec, nebo nechte obojí prázdné.';
       errors.end_time = 'Zadejte začátek i konec, nebo nechte obojí prázdné.';
+    }
+    if (timeOffForm.start_time && timeOffForm.end_time && timeOffForm.end_time <= timeOffForm.start_time) {
+      errors.end_time = 'Čas do musí být později než čas od.';
+    }
+    if (timeOffForm.recurring && (!timeOffForm.repeat_weekdays || timeOffForm.repeat_weekdays.length === 0)) {
+      errors.repeat_weekdays = 'Vyberte alespoň jeden den opakování.';
     }
     setTimeOffFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -511,6 +522,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       const payload = {
         ...timeOffForm,
         end_date: timeOffForm.end_date || timeOffForm.start_date,
+        repeat_weekdays: timeOffForm.recurring ? timeOffForm.repeat_weekdays : null,
         start_time: timeOffForm.start_time || null,
         end_time: timeOffForm.end_time || null,
         reason: timeOffForm.reason || null,
@@ -519,7 +531,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       toast.success('Blokace přidána.');
       setShowAddTimeOff(false);
       setTimeOffFieldErrors({});
-      setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' });
+      setTimeOffForm({ start_date: '', end_date: '', recurring: false, repeat_weekdays: [], start_time: '', end_time: '', reason: '' });
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Chyba při ukládání.');
@@ -560,6 +572,19 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
         ? prev.days_of_week.filter(d => d !== day)
         : [...prev.days_of_week, day].sort()
     }));
+  };
+
+  const toggleTimeOffWeekday = (day) => {
+    setTimeOffForm(prev => {
+      const current = prev.repeat_weekdays || [];
+      return {
+        ...prev,
+        repeat_weekdays: current.includes(day)
+          ? current.filter(d => d !== day)
+          : [...current, day].sort((a, b) => a - b),
+      };
+    });
+    setTimeOffFieldErrors(prev => ({ ...prev, repeat_weekdays: undefined }));
   };
 
   // Calendar rendering
@@ -719,7 +744,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
               Jednorázový čas
             </Button>
             <Button
-              onClick={() => { setShowAddTimeOff(true); setTimeOffFieldErrors({}); setTimeOffForm({ start_date: '', end_date: '', start_time: '', end_time: '', reason: '' }); }}
+              onClick={() => { setShowAddTimeOff(true); setTimeOffFieldErrors({}); setTimeOffForm({ start_date: '', end_date: '', recurring: false, repeat_weekdays: [], start_time: '', end_time: '', reason: '' }); }}
               variant="outline"
               className="border-red-300 text-red-600 hover:bg-red-50"
               data-testid="add-timeoff-btn"
@@ -1430,10 +1455,59 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
                 <Input
                   type="date"
                   value={timeOffForm.end_date}
-                  onChange={e => setTimeOffForm({ ...timeOffForm, end_date: e.target.value })}
+                  onChange={e => { setTimeOffForm({ ...timeOffForm, end_date: e.target.value }); setTimeOffFieldErrors(prev => ({ ...prev, end_date: undefined })); }}
                   placeholder="Stejný den"
+                  className={timeOffFieldErrors.end_date ? FIELD_ERROR_CLASS : ''}
+                  aria-invalid={Boolean(timeOffFieldErrors.end_date)}
+                />
+                <FieldError message={timeOffFieldErrors.end_date} />
+              </div>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <Label className="text-sm text-slate-700">Opakovat ve vybrané dny</Label>
+                  <p className="text-xs text-gray-500 mt-0.5">Vytvoří blokace jen pro vybrané dny v období od-do.</p>
+                </div>
+                <Switch
+                  checked={timeOffForm.recurring}
+                  onCheckedChange={(checked) => {
+                    setTimeOffForm(f => ({
+                      ...f,
+                      recurring: checked,
+                      repeat_weekdays: checked ? f.repeat_weekdays : [],
+                    }));
+                    setTimeOffFieldErrors(prev => ({ ...prev, repeat_weekdays: undefined }));
+                  }}
+                  data-testid="timeoff-recurring-toggle"
                 />
               </div>
+              {timeOffForm.recurring && (
+                <div className="mt-3">
+                  <div className="grid grid-cols-7 gap-1.5" data-testid="timeoff-weekdays">
+                    {DAY_SHORT.map((label, index) => {
+                      const selected = (timeOffForm.repeat_weekdays || []).includes(index);
+                      return (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => toggleTimeOffWeekday(index)}
+                          className={`h-9 rounded-md border text-xs font-semibold transition-colors ${
+                            selected
+                              ? 'border-slate-800 bg-slate-800 text-white'
+                              : 'border-gray-200 bg-white text-slate-600 hover:border-slate-300'
+                          } ${timeOffFieldErrors.repeat_weekdays ? 'ring-1 ring-red-500' : ''}`}
+                          aria-pressed={selected}
+                          data-testid={`timeoff-weekday-${index}`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <FieldError message={timeOffFieldErrors.repeat_weekdays} />
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

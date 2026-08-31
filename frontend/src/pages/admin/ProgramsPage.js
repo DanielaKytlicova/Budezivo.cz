@@ -706,22 +706,28 @@ export const ProgramsPage = () => {
         </Button>
       </div>
 
-      {/* Plan limit banner with URL generator */}
-      {hasProgramLimit && (
+      {/* Program tools banner. URL generator must stay visible for all plans. */}
       <Card className="p-4 bg-gray-50 border-gray-200">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <p className="text-sm text-gray-600">
-              Máte ještě <span className="font-semibold">{remainingPrograms}</span> volné místo pro tarif {planLabel}.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate('/admin/plan')}
-              className="text-sm font-medium text-slate-800 hover:underline"
-            >
-              Navýšit tarif
-            </button>
-          </div>
+          {hasProgramLimit ? (
+            <div>
+              <p className="text-sm text-gray-600">
+                Máte ještě <span className="font-semibold">{remainingPrograms}</span> volné místo pro tarif {planLabel}.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/admin/plan')}
+                className="text-sm font-medium text-slate-800 hover:underline"
+              >
+                Navýšit tarif
+              </button>
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm font-medium text-slate-800">Odkazy pro web a archiv programů</p>
+              <p className="text-sm text-gray-600">Zkopírujte rezervační URL nebo otevřete archiv dokončených programů.</p>
+            </div>
+          )}
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -744,7 +750,6 @@ export const ProgramsPage = () => {
           </div>
         </div>
       </Card>
-      )}
 
       {/* Programs grid */}
       {loading ? (

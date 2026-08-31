@@ -4,6 +4,7 @@ React Email compatible HTML templates for transactional emails.
 Supports institution branding (logo + colors) via theme configuration.
 """
 import os
+import html as html_lib
 from typing import Dict, Any, Optional
 
 
@@ -88,6 +89,20 @@ def _button_style(theme: Dict[str, Any], variant: str = "primary") -> str:
     )
 
 
+def _institution_contact_email(data: Optional[Dict[str, Any]] = None) -> str:
+    """Return institution contact email for transactional footer."""
+    contact_email = (data or {}).get("institution_email")
+    if contact_email:
+        value = str(contact_email).strip()
+        if value:
+            return value
+    return "info@budezivo.cz"
+
+
+def _has_institution_contact_email(data: Optional[Dict[str, Any]] = None) -> bool:
+    return bool(str((data or {}).get("institution_email") or "").strip())
+
+
 # ============ BUDEZIVO SVG LOGO ============
 
 BUDEZIVO_LOGO_SVG = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 265.42 73.09" width="180" height="50">
@@ -118,6 +133,18 @@ def _base_template(content: str, data: Optional[Dict[str, Any]] = None, footer_e
     """
     theme = _build_theme(data or {})
     has_branding = bool(theme["logo_url"])
+    has_institution_contact = _has_institution_contact_email(data)
+    contact_email = _institution_contact_email(data)
+    safe_contact_email = html_lib.escape(contact_email, quote=True)
+    contact_html = (
+        f'<a href="mailto:{safe_contact_email}" style="color: #64748B;">'
+        f'{safe_contact_email}</a>'
+    )
+    footer_contact_text = (
+        f"Pokud máte dotazy, kontaktujte instituci na {contact_html}"
+        if has_institution_contact
+        else f"Pokud máte dotazy, kontaktujte nás na {contact_html}"
+    )
 
     if has_branding:
         prefer_light_logo_header = bool((data or {}).get("prefer_light_logo_header"))
@@ -158,7 +185,7 @@ def _base_template(content: str, data: Optional[Dict[str, Any]] = None, footer_e
                     <div style="{BASE_STYLES['footer']}">
                         <p style="{BASE_STYLES['footer_text']}">
                             Tento email byl odeslán automaticky systémem Budeživo.cz<br>
-                            Pokud máte dotazy, kontaktujte nás na info@budezivo.cz
+                            {footer_contact_text}
                             {footer_extra}
                             {footer_platform}
                         </p>
@@ -171,8 +198,15 @@ def _base_template(content: str, data: Optional[Dict[str, Any]] = None, footer_e
 </html>"""
 
 
-def _plain_text_base(content: str) -> str:
+def _plain_text_base(content: str, data: Optional[Dict[str, Any]] = None) -> str:
     """Create plain text version of email."""
+    has_institution_contact = _has_institution_contact_email(data)
+    contact_email = _institution_contact_email(data)
+    footer_contact_text = (
+        f"Pokud máte dotazy, kontaktujte instituci na {contact_email}"
+        if has_institution_contact
+        else f"Pokud máte dotazy, kontaktujte nás na {contact_email}"
+    )
     return f"""
 Budeživo.cz
 {'=' * 40}
@@ -181,7 +215,7 @@ Budeživo.cz
 
 {'=' * 40}
 Tento email byl odeslán automaticky systémem Budeživo.cz
-Pokud máte dotazy, kontaktujte nás na info@budezivo.cz
+{footer_contact_text}
 """
 
 
@@ -362,7 +396,7 @@ Váš účet byl úspěšně vytvořen. Přihlaste se zde: {data.get('dashboard_
     return {
         "subject": "Vítejte v Budeživo.cz!",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -413,7 +447,7 @@ Pokud jste si účet nezakládali, tento email ignorujte.
     return {
         "subject": "Aktivujte svůj účet - Budeživo.cz",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -466,7 +500,7 @@ Pokud jste o obnovení hesla nežádali, tento email ignorujte.
     return {
         "subject": "Obnovení hesla - Budeživo.cz",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -503,7 +537,7 @@ Pokud jste tuto změnu neprovedli, okamžitě nás kontaktujte na info@budezivo.
     return {
         "subject": "Heslo bylo změněno - Budeživo.cz",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -564,7 +598,7 @@ Kontakt: {data.get('institution_email', '')} / {data.get('institution_phone', ''
     return {
         "subject": f"Rezervace přijata - {data.get('program_name', '')}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -608,7 +642,7 @@ Přejděte do administrace pro potvrzení: {data.get('dashboard_url', 'https://w
     return {
         "subject": f"Nová rezervace - {data.get('school_name', '')} ({data.get('reservation_date', '')})",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -670,7 +704,7 @@ Dostavte se prosím 10 minut před začátkem.
     return {
         "subject": f"Rezervace potvrzena - {data.get('program_name', '')} ({data.get('reservation_date', '')})",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -727,7 +761,7 @@ Pro nalezení alternativního termínu nas kontaktujte nebo navštivte: {data.ge
     return {
         "subject": f"Rezervace odmítnuta - {data.get('program_name', '')}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -770,7 +804,7 @@ Kontakt: {data.get('institution_email', '')}
     return {
         "subject": f"Rezervace aktualizována - {data.get('program_name', '')}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -827,7 +861,7 @@ Pro vytvořeni nové rezervace navštivte: {data.get('booking_url', '#')}
     return {
         "subject": f"Rezervace zrušena - {data.get('program_name', '')}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -894,7 +928,7 @@ Pokud vám nový termín nevyhovuje, kontaktujte nás: {data.get('institution_em
     return {
         "subject": f"Zmena termínu - {data.get('program_name', '')} ({data.get('reservation_date', '')})",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -948,7 +982,7 @@ Dostavte se prosím 10 minut před začátkem.
     return {
         "subject": f"Připomínka: {data.get('program_name', '')} - {data.get('reservation_date', '')}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -991,7 +1025,7 @@ Zítra máte naplánovaný program:
     return {
         "subject": f"Zítra: {data.get('program_name', '')} - {data.get('school_name', '')}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -1045,7 +1079,7 @@ Dotazník zabere pouze 2 minuty a je zcela anonymní.
     return {
         "subject": f"Jak se vám líbil program {data.get('program_name', '')}?",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -1099,7 +1133,7 @@ Toto je poslední připomínka. Děkujeme za váš čas!
     return {
         "subject": f"Připomínka: Vaše zpětná vazba na program {data.get('program_name', '')}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -1149,7 +1183,7 @@ Byla zaregistrována nová instituce:
     return {
         "subject": f"Nová registrace: {data.get('institution_name', '')}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -1212,7 +1246,7 @@ Zdroj: {data.get('source', 'Kontaktní formulář')}
     return {
         "subject": f"Nová poptávka: {data.get('institution', 'Neznámá instituce')}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -1290,7 +1324,7 @@ Pokud jste tuto pozvánku neočekávali, můžete tento email ignorovat.
     return {
         "subject": f"Pozvánka do týmu - {data.get('institution_name', 'Budeživo.cz')}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain)
+        "text": _plain_text_base(plain, data)
     }
 
 
@@ -1426,7 +1460,7 @@ def event_application_confirmation(data: Dict[str, Any]) -> Dict[str, str]:
     return {
         "subject": f"Potvrzení registrace — {event_name}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain),
+        "text": _plain_text_base(plain, data),
     }
 
 
@@ -1519,7 +1553,7 @@ def event_payment_reminder(data: Dict[str, Any]) -> Dict[str, str]:
     return {
         "subject": f"Připomenutí platby — {event_name}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain),
+        "text": _plain_text_base(plain, data),
     }
 
 
@@ -1615,7 +1649,7 @@ def join_request_received(data: Dict[str, Any]) -> Dict[str, str]:
     return {
         "subject": f"Nová žádost o vstup do týmu — {institution_name}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain),
+        "text": _plain_text_base(plain, data),
     }
 
 
@@ -1683,7 +1717,7 @@ def join_request_approved(data: Dict[str, Any]) -> Dict[str, str]:
     return {
         "subject": f"Schváleno — vstup do týmu {institution_name}",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain),
+        "text": _plain_text_base(plain, data),
     }
 
 
@@ -1730,7 +1764,7 @@ def join_request_rejected(data: Dict[str, Any]) -> Dict[str, str]:
     return {
         "subject": f"Žádost o vstup do týmu — neschválena ({institution_name})",
         "html": _base_template(content, data),
-        "text": _plain_text_base(plain),
+        "text": _plain_text_base(plain, data),
     }
 
 def waitlist_confirmation(data: Dict[str, Any]) -> Dict[str, str]:

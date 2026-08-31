@@ -76,6 +76,13 @@ const bookingApiErrorMessage = (detail) => {
   return 'Chyba při odeslání rezervace';
 };
 
+const bookingFieldStep = (field) => {
+  if (field === 'date' || field === 'time_block') return 2;
+  if (['school_name', 'group_type', 'age_or_class', 'num_students', 'num_teachers'].includes(field)) return 3;
+  if (['contact_name', 'contact_email', 'contact_phone', 'gdpr_consent', 'terms_accepted'].includes(field)) return 4;
+  return null;
+};
+
 export const BookingPage = () => {
   const { institutionId } = useParams();
   const [searchParams] = useSearchParams();
@@ -457,7 +464,13 @@ export const BookingPage = () => {
       toast.success('Rezervace byla odeslána');
     } catch (error) {
       const d = error.response?.data?.detail;
-      toast.error(bookingApiErrorMessage(d));
+      const apiMessage = bookingApiErrorMessage(d);
+      if (d?.field) {
+        setFieldErrors(prev => ({ ...prev, [d.field]: apiMessage }));
+        const targetStep = bookingFieldStep(d.field);
+        if (targetStep) setStep(targetStep);
+      }
+      toast.error(apiMessage);
     } finally {
       setSubmitting(false);
     }

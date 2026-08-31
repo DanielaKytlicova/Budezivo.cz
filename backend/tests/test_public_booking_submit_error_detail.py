@@ -24,7 +24,8 @@ class PublicBookingSubmitErrorDetailTests(unittest.TestCase):
         self.assertIn("const bookingApiErrorMessage = (detail) =>", source)
         self.assertIn("Array.isArray(detail)", source)
         self.assertIn("BOOKING_API_FIELD_LABELS", source)
-        self.assertIn("toast.error(bookingApiErrorMessage(d));", source)
+        self.assertIn("const apiMessage = bookingApiErrorMessage(d);", source)
+        self.assertIn("toast.error(apiMessage);", source)
 
 
 if __name__ == "__main__":

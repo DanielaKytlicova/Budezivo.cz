@@ -303,7 +303,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_origins=CORS_ORIGINS,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Booking-Session-Id"],
 )
 
 app.add_middleware(SecurityHeadersMiddleware)

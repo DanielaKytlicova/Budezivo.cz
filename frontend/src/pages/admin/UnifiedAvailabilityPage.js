@@ -40,6 +40,14 @@ function fmtDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function shiftDateStr(dateStr, days) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr || '');
+  if (!match) return dateStr;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  date.setDate(date.getDate() + days);
+  return fmtDate(date);
+}
+
 function timeToMin(t) {
   const [h, m] = t.split(':').map(Number);
   return h * 60 + (m || 0);
@@ -133,11 +141,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   const todayStr = fmtDate(new Date());
   const emptyProgramBlockForm = { date_from: '', date_to: '', start_time: '', end_time: '', reason: '', recurring: false, repeat_weekdays: [] };
 
-  const nextDateStr = (dateStr) => {
-    const date = new Date(`${dateStr}T00:00:00`);
-    date.setDate(date.getDate() + 1);
-    return fmtDate(date);
-  };
+  const nextDateStr = (dateStr) => shiftDateStr(dateStr, 1);
 
   const normalizeProgramIds = (ids = []) => [...new Set(ids.filter(Boolean).map(String))].sort();
 

@@ -434,6 +434,7 @@ class LecturerAvailabilityResponse(BaseModel):
 class LecturerTimeOffCreate(BaseModel):
     start_date: str  # "2026-03-25"
     end_date: str    # "2026-03-25"
+    repeat_weekdays: Optional[List[int]] = None  # 0 = Monday, 6 = Sunday
     start_time: Optional[str] = None  # "08:00" (null = all day)
     end_time: Optional[str] = None    # "16:00"
     reason: Optional[str] = None

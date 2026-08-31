@@ -4,8 +4,8 @@ Handles recurring availability and time-off (blockages).
 """
 import uuid
 import logging
-from typing import List
-from datetime import datetime, timezone
+from typing import List, Optional
+from datetime import date as date_type, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, delete
@@ -39,6 +39,54 @@ def to_dict(obj, exclude: set = None):
             value = value.isoformat()
         result[c.name] = value
     return result
+
+
+def _parse_date(value: str, field_name: str) -> date_type:
+    if not value:
+        raise HTTPException(status_code=400, detail=f"{field_name} je povinné")
+    try:
+        return date_type.fromisoformat(value)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"{field_name} musí být ve formátu RRRR-MM-DD")
+
+
+def _iter_date_range(start_date: date_type, end_date: date_type) -> List[str]:
+    if end_date < start_date:
+        raise HTTPException(status_code=400, detail="Datum do nesmí být před datem od")
+    days = (end_date - start_date).days + 1
+    if days > 366:
+        raise HTTPException(status_code=400, detail="Blokaci lze vytvořit maximálně na 366 dní")
+    return [(start_date + timedelta(days=i)).isoformat() for i in range(days)]
+
+
+def _filter_dates_by_weekdays(dates: List[str], weekdays: Optional[List[int]]) -> List[str]:
+    if weekdays is None:
+        return dates
+    unique_weekdays = set(weekdays)
+    if not unique_weekdays or any(day < 0 or day > 6 for day in unique_weekdays):
+        raise HTTPException(status_code=400, detail="Vyberte platné dny opakování")
+    filtered = [
+        value
+        for value in dates
+        if date_type.fromisoformat(value).weekday() in unique_weekdays
+    ]
+    if not filtered:
+        raise HTTPException(status_code=400, detail="Ve zvoleném období není žádný vybraný den opakování")
+    return filtered
+
+
+def _validate_time_range(start_time: Optional[str], end_time: Optional[str]) -> None:
+    if bool(start_time) != bool(end_time):
+        raise HTTPException(status_code=400, detail="Zadejte začátek i konec, nebo nechte obojí prázdné")
+    if not start_time or not end_time:
+        return
+    try:
+        start = datetime.strptime(start_time, "%H:%M").time()
+        end = datetime.strptime(end_time, "%H:%M").time()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Čas musí být ve formátu HH:MM")
+    if end <= start:
+        raise HTTPException(status_code=400, detail="Čas do musí být později než čas od")
 
 
 # ========================
@@ -201,7 +249,7 @@ async def get_time_off(
     return [to_dict(item) for item in items]
 
 
-@router.post("/time-off", response_model=LecturerTimeOffResponse)
+@router.post("/time-off")
 async def create_time_off(
     data: LecturerTimeOffCreate,
     lecturer_id: str = None,
@@ -215,20 +263,34 @@ async def create_time_off(
     if target_id != current_user["user_id"] and current_user["role"] not in ["admin", "spravce", "produkcni"]:
         raise HTTPException(status_code=403, detail="Nemáte oprávnění.")
 
-    time_off = LecturerTimeOff(
-        id=uuid.uuid4(),
-        lecturer_id=uuid.UUID(target_id),
-        institution_id=uuid.UUID(institution_id),
-        start_date=data.start_date,
-        end_date=data.end_date,
-        start_time=data.start_time,
-        end_time=data.end_time,
-        reason=data.reason,
+    _validate_time_range(data.start_time, data.end_time)
+    start_date = _parse_date(data.start_date, "Datum od")
+    end_date = _parse_date(data.end_date or data.start_date, "Datum do")
+    dates = _filter_dates_by_weekdays(
+        _iter_date_range(start_date, end_date),
+        data.repeat_weekdays,
     )
-    db.add(time_off)
+
+    time_offs = []
+    for block_date in dates:
+        time_off = LecturerTimeOff(
+            id=uuid.uuid4(),
+            lecturer_id=uuid.UUID(target_id),
+            institution_id=uuid.UUID(institution_id),
+            start_date=block_date,
+            end_date=block_date,
+            start_time=data.start_time,
+            end_time=data.end_time,
+            reason=data.reason,
+        )
+        db.add(time_off)
+        time_offs.append(time_off)
     await db.commit()
-    await db.refresh(time_off)
-    return to_dict(time_off)
+    for time_off in time_offs:
+        await db.refresh(time_off)
+    if len(time_offs) == 1:
+        return to_dict(time_offs[0])
+    return {"count": len(time_offs), "time_offs": [to_dict(time_off) for time_off in time_offs]}
 
 
 @router.put("/time-off/{time_off_id}", response_model=LecturerTimeOffResponse)

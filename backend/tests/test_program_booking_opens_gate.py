@@ -84,6 +84,20 @@ class ProgramBookingOpensGateTests(unittest.TestCase):
 
         self.assertEqual(message, "Rezervace tohoto programu se spustí až 01.09.2026 09:00.")
 
+    def test_internal_program_window_can_ignore_booking_open_gate(self):
+        message = program_booking_window_message(
+            {
+                "booking_opens_at": "2026-12-01T07:00:00Z",
+                "start_date": "2026-11-24T00:00:00Z",
+                "end_date": "2026-12-23T23:59:00Z",
+            },
+            date(2026, 11, 24),
+            now=datetime(2026, 8, 31, 19, 0, tzinfo=timezone.utc),
+            enforce_booking_opens=False,
+        )
+
+        self.assertIsNone(message)
+
 
 if __name__ == "__main__":
     unittest.main()

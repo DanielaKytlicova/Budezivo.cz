@@ -277,7 +277,10 @@ async def evaluate_program_slots(
     except ValueError:
         return []
     window_reason = program_booking_window_message(
-        program_dict, date_obj, datetime.now(timezone.utc)
+        program_dict,
+        date_obj,
+        datetime.now(timezone.utc),
+        enforce_booking_opens=False,
     )
     if window_reason:
         return [{"time": "all", "status": STATUS_OUTSIDE_BASE, "reason": window_reason}]

@@ -19,6 +19,7 @@ class UnifiedProgramAvailabilityWindowTests(unittest.TestCase):
             self.availability_source,
         )
         self.assertIn("window_reason = program_booking_window_message(", self.availability_source)
+        self.assertIn("enforce_booking_opens=False", self.availability_source)
         self.assertIn('"status": STATUS_OUTSIDE_BASE', self.availability_source)
 
         guard_index = self.availability_source.index(
@@ -31,6 +32,7 @@ class UnifiedProgramAvailabilityWindowTests(unittest.TestCase):
         self.assertLess(guard_index, expansion_index)
 
     def test_shared_window_covers_public_program_boundaries(self):
+        self.assertIn("enforce_booking_opens: bool = True", self.window_source)
         self.assertIn("booking_opens_message(program, now)", self.window_source)
         self.assertIn("min_days_before_booking", self.window_source)
         self.assertIn("max_days_before_booking", self.window_source)

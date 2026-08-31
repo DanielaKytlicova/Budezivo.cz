@@ -10,6 +10,7 @@ evaluate_slot() returns {status, reason} for any given program+date+time.
 """
 import uuid
 import logging
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
@@ -25,6 +26,7 @@ from services.collision_service import (
     check_lecturer_available_for_block,
     check_any_lecturer_available_for_block,
 )
+from services.program_booking_window import program_booking_window_message
 
 logger = logging.getLogger(__name__)
 
@@ -274,6 +276,11 @@ async def evaluate_program_slots(
         date_obj = dt.strptime(date, "%Y-%m-%d").date()
     except ValueError:
         return []
+    window_reason = program_booking_window_message(
+        program_dict, date_obj, datetime.now(timezone.utc)
+    )
+    if window_reason:
+        return [{"time": "all", "status": STATUS_OUTSIDE_BASE, "reason": window_reason}]
 
     days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     day_name = days[date_obj.weekday()]

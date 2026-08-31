@@ -1,7 +1,11 @@
 import unittest
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from services.program_booking_window import booking_opens_message, parse_program_datetime
+from services.program_booking_window import (
+    booking_opens_message,
+    parse_program_datetime,
+    program_booking_window_message,
+)
 
 
 class ProgramBookingOpensGateTests(unittest.TestCase):
@@ -43,6 +47,42 @@ class ProgramBookingOpensGateTests(unittest.TestCase):
         parsed = parse_program_datetime("2026-09-01T09:00:00+02:00")
 
         self.assertEqual(parsed.isoformat(), "2026-09-01T07:00:00+00:00")
+
+    def test_program_window_blocks_dates_before_program_start(self):
+        message = program_booking_window_message(
+            {"start_date": "2026-09-22T00:00:00Z"},
+            date(2026, 9, 21),
+            now=datetime(2026, 9, 1, 8, 0, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual(message, "Vybraný termín je před začátkem období programu.")
+
+    def test_program_window_allows_program_start_date(self):
+        message = program_booking_window_message(
+            {"start_date": "2026-09-22T00:00:00Z"},
+            date(2026, 9, 22),
+            now=datetime(2026, 9, 1, 8, 0, tzinfo=timezone.utc),
+        )
+
+        self.assertIsNone(message)
+
+    def test_program_window_blocks_dates_after_program_end(self):
+        message = program_booking_window_message(
+            {"end_date": "2026-09-30T23:59:00Z"},
+            date(2026, 10, 1),
+            now=datetime(2026, 9, 1, 8, 0, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual(message, "Vybraný termín je po skončení období programu.")
+
+    def test_program_window_reuses_booking_open_gate(self):
+        message = program_booking_window_message(
+            {"booking_opens_at": "2026-09-01T07:00:00Z"},
+            date(2026, 9, 22),
+            now=datetime(2026, 8, 31, 12, 0, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual(message, "Rezervace tohoto programu se spustí až 01.09.2026 09:00.")
 
 
 if __name__ == "__main__":

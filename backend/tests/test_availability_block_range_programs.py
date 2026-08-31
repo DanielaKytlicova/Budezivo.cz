@@ -33,6 +33,21 @@ class AvailabilityBlockRangeProgramTests(unittest.TestCase):
         self.assertIn("program_ids: programBlockProgramIds", source)
         self.assertIn("repeat_weekdays: programBlockForm.recurring", source)
 
+    def test_backend_date_range_uses_plain_calendar_days(self):
+        source = (ROOT / "routes" / "unified_availability.py").read_text(encoding="utf-8")
+
+        self.assertIn("days = (date_to - date_from).days + 1", source)
+        self.assertIn("return [(date_from + timedelta(days=i)).isoformat() for i in range(days)]", source)
+        self.assertNotIn(".astimezone(", source)
+        self.assertNotIn("toordinal()", source)
+
+    def test_frontend_uses_local_date_arithmetic_for_grouping(self):
+        source = (ROOT.parent / "frontend" / "src" / "pages" / "admin" / "UnifiedAvailabilityPage.js").read_text(encoding="utf-8")
+
+        self.assertIn("function shiftDateStr(dateStr, days)", source)
+        self.assertIn("const nextDateStr = (dateStr) => shiftDateStr(dateStr, 1)", source)
+        self.assertNotIn('new Date(`${dateStr}T00:00:00`)', source)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -38,6 +38,16 @@ function formatDate(d) {
   return `${year}-${month}-${day}`;
 }
 
+function dateOnly(value) {
+  if (!value) return '';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return formatDate(parsed);
+}
+
 function timeToMinutes(t) {
   const [h, m] = t.split(':').map(Number);
   return h * 60 + (m || 0);
@@ -563,18 +573,22 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     const avail = recurring.filter(r => r.day_of_week === dayIndex);
     const dateStr = formatDate(weekDays[dayIndex]);
     // Include one-off blocks for this specific date
-    const dayOneOffs = oneOffs.filter(o => o.specific_date === dateStr);
+    const dayOneOffs = oneOffs.filter(o => dateOnly(o.specific_date) === dateStr);
     const allAvail = [...avail, ...dayOneOffs];
-    const offs = timeOffs.filter(t => t.start_date <= dateStr && t.end_date >= dateStr);
+    const offs = timeOffs.filter(t => {
+      const startDate = dateOnly(t.start_date);
+      const endDate = dateOnly(t.end_date || t.start_date);
+      return startDate <= dateStr && endDate >= dateStr;
+    });
     
     // Outlook blocks for this day
     const dayOutlook = outlookBlocks.filter(b => {
-      const bDate = new Date(b.start_time).toISOString().slice(0, 10);
+      const bDate = dateOnly(b.start_time);
       return bDate === dateStr;
     });
     // Google blocks for this day
     const dayGoogle = googleBlocks.filter(b => {
-      const bDate = new Date(b.start_time).toISOString().slice(0, 10);
+      const bDate = dateOnly(b.start_time);
       return bDate === dateStr;
     });
 

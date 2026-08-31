@@ -43,6 +43,39 @@ const DURATION_FILTER_OPTIONS = [
   { value: 'long', label: 'Dlouhý (120+ min)' },
 ];
 
+const BOOKING_API_FIELD_LABELS = {
+  program_id: 'program',
+  date: 'datum',
+  time_block: 'čas',
+  school_name: 'název školy nebo organizace',
+  group_type: 'typ skupiny',
+  age_or_class: 'věk nebo třídu skupiny',
+  num_students: 'počet studentů',
+  num_teachers: 'počet pedagogů',
+  contact_name: 'jméno zodpovědné osoby',
+  contact_email: 'e-mailovou adresu',
+  contact_phone: 'telefonní číslo',
+  gdpr_consent: 'souhlas se zpracováním osobních údajů',
+  terms_accepted: 'souhlas s podmínkami rezervace',
+};
+
+const bookingApiErrorMessage = (detail) => {
+  if (typeof detail === 'string') return detail;
+  if (!detail) return 'Chyba při odeslání rezervace';
+  if (typeof detail.message_cs === 'string') return detail.message_cs;
+  if (typeof detail.message === 'string') return detail.message;
+  if (typeof detail.error === 'string') return detail.error;
+  if (Array.isArray(detail)) {
+    const first = detail[0];
+    const loc = Array.isArray(first?.loc) ? first.loc : [];
+    const field = loc[loc.length - 1];
+    const label = BOOKING_API_FIELD_LABELS[field] || field;
+    if (label) return `Zkontrolujte pole: ${label}.`;
+    if (typeof first?.msg === 'string') return first.msg;
+  }
+  return 'Chyba při odeslání rezervace';
+};
+
 export const BookingPage = () => {
   const { institutionId } = useParams();
   const [searchParams] = useSearchParams();
@@ -424,8 +457,7 @@ export const BookingPage = () => {
       toast.success('Rezervace byla odeslána');
     } catch (error) {
       const d = error.response?.data?.detail;
-      const msg = typeof d === 'string' ? d : (d?.message_cs || 'Chyba při odeslání rezervace');
-      toast.error(msg);
+      toast.error(bookingApiErrorMessage(d));
     } finally {
       setSubmitting(false);
     }

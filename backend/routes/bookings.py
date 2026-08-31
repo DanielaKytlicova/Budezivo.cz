@@ -15,7 +15,7 @@ from slowapi.util import get_remote_address
 from models.schemas import BookingCreate, Booking, BookingUpdate, PublicBooking
 from core.security import get_current_user
 from database.supabase import get_db, AsyncSessionLocal
-from database.models import School, SchoolContact
+from database.models import Reservation, School, SchoolContact
 from database.supabase_repositories import (
     BookingRepositorySupabase, 
     UserRepositorySupabase, 
@@ -391,17 +391,7 @@ async def create_public_booking(
             .values(booking_count=School.booking_count + 1)
         )
     else:
-        school_id = str(uuid.uuid4())
-        db.add(School(
-            id=uuid.UUID(school_id),
-            institution_id=uuid.UUID(institution_id),
-            name=booking_data.school_name,
-            contact_person=booking_data.contact_name,
-            email=str(booking_data.contact_email),
-            phone=booking_data.contact_phone,
-            source="reservation",
-            booking_count=1,
-        ))
+        school_id = None
 
     payload = booking_data.model_dump()
     payload.update({
@@ -434,8 +424,20 @@ async def create_public_booking(
                 "error": type(e).__name__,
             },
         ) from e
-    if not school and booking_data.contact_email and school_id:
+    if not school and booking_data.contact_email:
         try:
+            school_id = str(uuid.uuid4())
+            db.add(School(
+                id=uuid.UUID(school_id),
+                institution_id=uuid.UUID(institution_id),
+                name=booking_data.school_name,
+                contact_person=booking_data.contact_name,
+                email=str(booking_data.contact_email),
+                phone=booking_data.contact_phone,
+                tags=[],
+                source="reservation",
+                booking_count=1,
+            ))
             db.add(SchoolContact(
                 id=uuid.uuid4(),
                 school_id=uuid.UUID(school_id),
@@ -447,10 +449,16 @@ async def create_public_booking(
                 status="active",
                 deliverability_status="unknown",
             ))
+            await db.execute(
+                update(Reservation)
+                .where(Reservation.id == uuid.UUID(booking["id"]))
+                .values(school_id=uuid.UUID(school_id))
+            )
             await db.commit()
+            booking["school_id"] = school_id
         except Exception as e:  # noqa: BLE001
             await db.rollback()
-            logger.warning(f"Could not create school contact for booking {booking.get('id')}: {e}")
+            logger.warning(f"Could not create school/contact for booking {booking.get('id')}: {e}")
 
     # Phase 76 — auto-seed contact directory (best-effort, never blocks booking)
     try:

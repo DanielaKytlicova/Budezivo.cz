@@ -288,6 +288,8 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
         // Silent immediate import (no extra toast to avoid duplicates).
         await axios.post(`${API}/microsoft-calendar/sync`, {}, { headers });
         fetchOutlookBlocks();
+      } else {
+        setOutlookBlocks([]);
       }
     } catch (err) {
       setOutlookStatus(prev);
@@ -308,6 +310,8 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
       if (value) {
         await axios.post(`${API}/google-calendar/sync`, {}, { headers });
         fetchGoogleBlocks();
+      } else {
+        setGoogleBlocks([]);
       }
     } catch (err) {
       setGoogleStatus(prev);

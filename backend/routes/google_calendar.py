@@ -24,7 +24,7 @@ from urllib.parse import urlencode, urlparse, quote
 import httpx
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import select, and_, delete
+from sqlalchemy import select, and_, delete, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
@@ -299,7 +299,14 @@ async def update_sync_settings(
         ))
     )
     integration = result.scalar_one_or_none()
-    if not integration:
+    if not integration or not integration.is_active:
+        if data.import_enabled is False:
+            await db.execute(delete(AvailabilityBlock).where(and_(
+                AvailabilityBlock.user_id == user_uuid,
+                AvailabilityBlock.source == SOURCE,
+            )))
+            await db.commit()
+            return {"import_enabled": False, "export_enabled": False, "auto_sync_enabled": False, "availability_calendar_id": None}
         raise HTTPException(status_code=404, detail="Google kalendář není připojen")
 
     if data.import_enabled is not None:
@@ -360,7 +367,8 @@ async def list_google_calendars(
     page_token = None
     async with httpx.AsyncClient() as client:
         while True:
-            params = {"minAccessRole": "reader", "showDeleted": "false"}
+            # freeBusyReader also includes shared calendars with limited read access.
+            params = {"minAccessRole": "freeBusyReader", "showDeleted": "false", "showHidden": "true"}
             if page_token:
                 params["pageToken"] = page_token
             resp = await client.get(f"{CALENDAR_API_BASE}/users/me/calendarList", headers={"Authorization": f"Bearer {token}"}, params=params, timeout=30)
@@ -494,6 +502,13 @@ async def list_blocks(
     conditions = [
         AvailabilityBlock.institution_id == inst_uuid,
         AvailabilityBlock.source == SOURCE,
+        exists(select(1).where(and_(
+            UserCalendarIntegration.user_id == AvailabilityBlock.user_id,
+            UserCalendarIntegration.institution_id == AvailabilityBlock.institution_id,
+            UserCalendarIntegration.provider == PROVIDER,
+            UserCalendarIntegration.is_active == True,
+            UserCalendarIntegration.import_enabled == True,
+        ))),
     ]
     if user_id:
         conditions.append(AvailabilityBlock.user_id == uuid.UUID(user_id))

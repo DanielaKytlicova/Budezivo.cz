@@ -47,6 +47,17 @@ class CalendarImportSelectionTests(unittest.TestCase):
         self.assertIn('data-testid="outlook-calendar-selector"', source)
         self.assertIn("availability_calendar_id", source)
 
+    def test_shared_google_calendars_and_disable_cleanup_are_covered(self):
+        google = (ROOT / "backend/routes/google_calendar.py").read_text()
+        microsoft = (ROOT / "backend/routes/microsoft_calendar.py").read_text()
+        frontend = (ROOT / "frontend/src/pages/admin/LecturerAvailabilityPage.js").read_text()
+        self.assertIn('"minAccessRole": "freeBusyReader"', google)
+        self.assertIn('"showHidden": "true"', google)
+        self.assertIn('data.import_enabled is False', google)
+        self.assertIn('body.get("import_enabled") is False', microsoft)
+        self.assertIn('setGoogleBlocks([])', frontend)
+        self.assertIn('setOutlookBlocks([])', frontend)
+
 
 if __name__ == "__main__":
     unittest.main()

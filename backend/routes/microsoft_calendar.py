@@ -285,6 +285,7 @@ async def get_connection_status(
         "expires_at": integration.expires_at.isoformat() if integration.expires_at else None,
         "import_enabled": integration.import_enabled,
         "export_enabled": integration.export_enabled,
+        "availability_calendar_id": integration.availability_calendar_id,
         "has_write_scope": has_write,
         # Export requires write scope — old connections must reconnect first.
         "needs_reconnect": integration.needs_reconnect or not has_write,
@@ -311,6 +312,21 @@ async def update_ms_settings(
 
     if "import_enabled" in body:
         integration.import_enabled = bool(body["import_enabled"])
+        if not integration.import_enabled:
+            integration.availability_calendar_id = None
+            await db.execute(delete(AvailabilityBlock).where(and_(
+                AvailabilityBlock.user_id == user_uuid,
+                AvailabilityBlock.source == "outlook",
+            )))
+    if "availability_calendar_id" in body:
+        selected = str(body["availability_calendar_id"] or "").strip()
+        if not selected:
+            raise HTTPException(status_code=400, detail="Vyberte kalendář pro import blokací")
+        integration.availability_calendar_id = selected
+        await db.execute(delete(AvailabilityBlock).where(and_(
+            AvailabilityBlock.user_id == user_uuid,
+            AvailabilityBlock.source == "outlook",
+        )))
     if "export_enabled" in body:
         want_export = bool(body["export_enabled"])
         if want_export and not _has_write_scope(integration.granted_scopes):
@@ -328,7 +344,37 @@ async def update_ms_settings(
     return {
         "import_enabled": integration.import_enabled,
         "export_enabled": integration.export_enabled,
+        "availability_calendar_id": integration.availability_calendar_id,
     }
+
+
+@router.get("/calendars")
+async def list_outlook_calendars(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return calendars available for busy-time import."""
+    user_uuid = uuid.UUID(current_user["user_id"])
+    integration = (await db.execute(select(UserCalendarIntegration).where(and_(
+        UserCalendarIntegration.user_id == user_uuid,
+        UserCalendarIntegration.provider == PROVIDER,
+        UserCalendarIntegration.is_active == True,
+    )))).scalar_one_or_none()
+    if not integration:
+        raise HTTPException(status_code=404, detail="Outlook není připojen")
+    token = await _get_valid_token(db, integration)
+    if not token:
+        raise HTTPException(status_code=502, detail="Nelze načíst seznam Outlook kalendářů")
+    resp = await _graph_request("GET", token, "/me/calendars")
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Outlook kalendáře se nepodařilo načíst")
+    calendars = [{
+        "id": item.get("id"),
+        "name": item.get("name") or item.get("id"),
+        "primary": bool(item.get("isDefaultCalendar")),
+        "access_role": "writer" if item.get("canEdit") else "reader",
+    } for item in resp.json().get("value", []) if item.get("id")]
+    return {"calendars": calendars, "selected_calendar_id": integration.availability_calendar_id}
 
 
 @router.post("/disconnect")
@@ -523,6 +569,8 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
     Fetches events for a window based on the institution's max booking horizon + 60 day buffer.
     Default: 180 days. Adapts dynamically to max_days_before_booking setting.
     """
+    if not integration.import_enabled or not integration.availability_calendar_id:
+        return 0
     token = await _get_valid_token(db, integration)
     if not token:
         integration.sync_error = "Nepodařilo se obnovit token"
@@ -563,7 +611,8 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
     }
 
     all_events = []
-    url = f"{GRAPH_BASE}/me/calendarView"
+    from urllib.parse import quote
+    url = f"{GRAPH_BASE}/me/calendars/{quote(integration.availability_calendar_id, safe='')}/calendarView"
 
     try:
         async with httpx.AsyncClient() as client:
@@ -586,25 +635,6 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
                             logger.error(f"Token aud: {payload.get('aud', 'NONE')}")
                     except Exception as te:
                         logger.error(f"Could not decode token: {te}")
-                    
-                    # If calendarView fails, try /me/events as fallback
-                    if "/calendarView" in url and resp.status_code == 401:
-                        logger.info("Trying /me/events as fallback...")
-                        fallback_url = f"{GRAPH_BASE}/me/events"
-                        fallback_params = {
-                            "$top": 250,
-                            "$select": "id,subject,start,end,showAs,isAllDay",
-                            "$filter": f"start/dateTime ge '{now.strftime('%Y-%m-%dT%H:%M:%S')}'",
-                            "$orderby": "start/dateTime",
-                        }
-                        resp2 = await client.get(fallback_url, headers=headers, params=fallback_params, timeout=30)
-                        if resp2.status_code == 200:
-                            logger.info("Fallback /me/events succeeded!")
-                            all_events.extend(resp2.json().get("value", []))
-                            url = None
-                            continue
-                        else:
-                            logger.error(f"Fallback /me/events also failed: {resp2.status_code} {resp2.text[:300]}")
                     
                     integration.sync_error = error_msg
                     await db.commit()

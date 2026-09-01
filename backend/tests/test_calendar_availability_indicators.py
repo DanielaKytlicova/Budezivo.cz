@@ -11,7 +11,7 @@ class CalendarAvailabilityIndicatorTests(unittest.TestCase):
         self.assertIn("_calendar_exception_blocks_slot(slot, program_duration, exception_blocks)", text)
         self.assertIn("_slot_capacity_reached(slot, booked_blocks, program_duration, program_concurrent_limit)", text)
         self.assertIn("_calendar_blocks_overlap(slot, booked_block, duration)", text)
-        self.assertIn("available_blocks = sum(", text)
+        self.assertIn("available_blocks += 1", text)
 
     def test_booking_calendar_hides_dots_when_no_free_slots(self):
         text = (ROOT / "frontend/src/pages/public/BookingPage.js").read_text()

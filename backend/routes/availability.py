@@ -13,13 +13,12 @@ from typing import Optional
 
 from database.supabase import get_db
 from database.supabase_repositories import BookingRepositorySupabase, ProgramRepositorySupabase
-from database.models import AvailabilityException, Reservation
+from database.models import AvailabilityException, Program, Reservation
 from services.collision_service import (
     get_collision_info_for_availability,
-    check_lecturer_available_for_block,
-    check_any_lecturer_available_for_block,
     check_lecturer_has_any_availability_on_date,
 )
+from services.lecturer_assignment_service import pick_main_lecturer
 
 router = APIRouter(tags=["Availability"])
 
@@ -167,6 +166,20 @@ def _calendar_exception_blocks_slot(slot: str, duration: int, exceptions: list) 
     return False
 
 
+async def _slot_has_assignable_main_lecturer(
+    db: AsyncSession,
+    institution_id: str,
+    program: Program,
+    date: str,
+    time_block: str,
+) -> bool:
+    """Mirror public booking's main-lecturer assignment gate for availability preview."""
+    collision_resources = program.collision_resources or []
+    if "lecturer" not in collision_resources:
+        return True
+    return await pick_main_lecturer(db, institution_id, program, date, time_block) is not None
+
+
 @router.get("/availability/{institution_id}/{program_id}/{date}")
 async def get_program_availability(
     institution_id: str,
@@ -279,10 +292,17 @@ async def get_program_availability(
         return overlapping >= max_concurrent_bookings
     
     # Get program's assigned lecturer and collision settings
-    assigned_lecturer_id = program.get("assigned_lecturer_id")
     collision_resources = program.get("collision_resources") or []
-    collision_lecturer_ids = program.get("collision_lecturer_ids") or []
     has_lecturer_collision = "lecturer" in collision_resources
+    program_obj = None
+    if has_lecturer_collision:
+        program_result = await db.execute(
+            select(Program).where(and_(
+                Program.id == uuid.UUID(program_id),
+                Program.institution_id == uuid.UUID(institution_id),
+            ))
+        )
+        program_obj = program_result.scalar_one_or_none()
     
     for block in time_blocks:
         if slot_reaches_capacity(block["time"]):
@@ -294,35 +314,14 @@ async def get_program_availability(
             )
             if is_blocked:
                 block["status"] = "booked"
-            # Check lecturer availability when lecturer collision is enabled
-            elif has_lecturer_collision:
-                if assigned_lecturer_id:
-                    # Check assigned lecturer specifically
-                    lecturer_available = await check_lecturer_available_for_block(
-                        db, str(assigned_lecturer_id), institution_id,
-                        date, block["time"], program_duration
-                    )
-                    if not lecturer_available:
-                        block["status"] = "unavailable"
-                elif collision_lecturer_ids:
-                    # Check specific selected lecturers
-                    any_selected_available = False
-                    for lid in collision_lecturer_ids:
-                        if await check_lecturer_available_for_block(
-                            db, str(lid), institution_id,
-                            date, block["time"], program_duration
-                        ):
-                            any_selected_available = True
-                            break
-                    if not any_selected_available:
-                        block["status"] = "unavailable"
-                else:
-                    # No assigned lecturer, no selected lecturers — check ANY team lecturer
-                    any_available = await check_any_lecturer_available_for_block(
-                        db, institution_id, date, block["time"], program_duration
-                    )
-                    if not any_available:
-                        block["status"] = "unavailable"
+            # Check the same main-lecturer gate that public booking submit uses.
+            elif has_lecturer_collision and (
+                not program_obj
+                or not await _slot_has_assignable_main_lecturer(
+                    db, institution_id, program_obj, date, block["time"]
+                )
+            ):
+                block["status"] = "unavailable"
     
     return {"date": date, "time_blocks": time_blocks}
 
@@ -398,6 +397,7 @@ async def get_calendar_availability(
     total_blocks = len(unique_time_blocks)
 
     program_month_slots = []
+    program_obj = None
     program_duration = programs[0].get("duration") or 60 if programs else 60
     program_concurrent_limit = _program_concurrent_limit_from_dict(programs[0]) if program_id and programs else None
     reservations_by_date = defaultdict(list)
@@ -412,6 +412,14 @@ async def get_calendar_availability(
         month_end = f"{year}-{month:02d}-{num_days:02d}"
         inst_uuid = uuid.UUID(institution_id)
         prog_uuid = uuid.UUID(program_id)
+
+        program_result = await db.execute(
+            select(Program).where(and_(
+                Program.id == prog_uuid,
+                Program.institution_id == inst_uuid,
+            ))
+        )
+        program_obj = program_result.scalar_one_or_none()
 
         reservations_result = await db.execute(
             select(Reservation).where(and_(
@@ -547,12 +555,23 @@ async def get_calendar_availability(
             if program_id:
                 booked_blocks = reservations_by_date.get(date_str, [])
                 exception_blocks = exceptions_by_date.get(date_str, [])
-                available_blocks = sum(
-                    1
-                    for slot in program_month_slots
-                    if not _calendar_exception_blocks_slot(slot, program_duration, exception_blocks)
-                    and not _slot_capacity_reached(slot, booked_blocks, program_duration, program_concurrent_limit)
-                )
+                for slot in program_month_slots:
+                    if _calendar_exception_blocks_slot(slot, program_duration, exception_blocks):
+                        continue
+                    if _slot_capacity_reached(slot, booked_blocks, program_duration, program_concurrent_limit):
+                        continue
+                    if (
+                        has_lecturer_collision
+                        and (
+                            not program_obj
+                            or not await _slot_has_assignable_main_lecturer(
+                                db, institution_id, program_obj, date_str, slot
+                            )
+                        )
+                    ):
+                        continue
+                    available_blocks += 1
+                has_availability = available_blocks > 0
             else:
                 available_blocks = total_blocks
         

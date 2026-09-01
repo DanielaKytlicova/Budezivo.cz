@@ -7,10 +7,10 @@ import logging
 import hashlib
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, text
+from sqlalchemy import select, and_, or_, exists, text
 import uuid
 
-from database.models import Reservation, Program, Room, User
+from database.models import Reservation, Program, Room, User, UserCalendarIntegration
 
 logger = logging.getLogger(__name__)
 
@@ -433,6 +433,21 @@ async def check_availability_blocks(
             AvailabilityBlock.end_time > booking_start,
             AvailabilityBlock.start_time < booking_end,
             AvailabilityBlock.override == False,
+            or_(
+                AvailabilityBlock.source.notin_(['google', 'outlook']),
+                and_(AvailabilityBlock.source == 'google', exists(select(1).where(and_(
+                    UserCalendarIntegration.user_id == lect_uuid,
+                    UserCalendarIntegration.provider == 'google',
+                    UserCalendarIntegration.is_active == True,
+                    UserCalendarIntegration.import_enabled == True,
+                )))),
+                and_(AvailabilityBlock.source == 'outlook', exists(select(1).where(and_(
+                    UserCalendarIntegration.user_id == lect_uuid,
+                    UserCalendarIntegration.provider == 'microsoft',
+                    UserCalendarIntegration.is_active == True,
+                    UserCalendarIntegration.import_enabled == True,
+                )))),
+            ),
         ))
     )
     blocks = result.scalars().all()

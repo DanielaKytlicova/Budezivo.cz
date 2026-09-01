@@ -73,11 +73,13 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   // Outlook integration state
   const [outlookStatus, setOutlookStatus] = useState({ connected: false });
   const [outlookBlocks, setOutlookBlocks] = useState([]);
+  const [outlookCalendars, setOutlookCalendars] = useState([]);
   const [outlookSyncing, setOutlookSyncing] = useState(false);
 
   // Google Calendar integration state
   const [googleStatus, setGoogleStatus] = useState({ connected: false, configured: false });
   const [googleBlocks, setGoogleBlocks] = useState([]);
+  const [googleCalendars, setGoogleCalendars] = useState([]);
   const [googleSyncing, setGoogleSyncing] = useState(false);
   const [googleSyncResult, setGoogleSyncResult] = useState(null);
   const [showGoogleDisconnect, setShowGoogleDisconnect] = useState(false);
@@ -164,8 +166,10 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     if (onAutoOpenConsumed) onAutoOpenConsumed();
   }, [autoOpenAction]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { fetchOutlookStatus(); }, [token]);
+  useEffect(() => { if (outlookStatus.connected) fetchExternalCalendars('microsoft-calendar'); }, [outlookStatus.connected, token]);
   useEffect(() => { if (outlookStatus.connected) fetchOutlookBlocks(); }, [weekStart, lecturerId, outlookStatus.connected]);
   useEffect(() => { fetchGoogleStatus(); }, [token]);
+  useEffect(() => { if (googleStatus.connected) fetchExternalCalendars('google-calendar'); }, [googleStatus.connected, token]);
   useEffect(() => { if (googleStatus.connected) fetchGoogleBlocks(); }, [weekStart, lecturerId, googleStatus.connected]);
 
   // Listen for OAuth popup messages
@@ -271,6 +275,10 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
 
   // Single personal-page toggle: import busy events as blocks (+ auto-sync).
   const setOutlookImport = async (value) => {
+    if (value && !outlookStatus.availability_calendar_id) {
+      toast.error('Nejprve vyberte kalendář pro kontrolu dostupnosti.');
+      return;
+    }
     const prev = outlookStatus;
     setOutlookStatus(s => ({ ...s, import_enabled: value }));
     try {
@@ -288,6 +296,10 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
   };
 
   const setGoogleImport = async (value) => {
+    if (value && !googleStatus.availability_calendar_id) {
+      toast.error('Nejprve vyberte kalendář pro kontrolu dostupnosti.');
+      return;
+    }
     const prev = googleStatus;
     setGoogleStatus(s => ({ ...s, import_enabled: value, auto_sync_enabled: value }));
     try {
@@ -300,6 +312,42 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
     } catch (err) {
       setGoogleStatus(prev);
       toast.error(formatApiError(err, 'Nepodařilo se uložit nastavení'));
+    }
+  };
+
+  const fetchExternalCalendars = async (provider) => {
+    try {
+      const res = await axios.get(`${API}/${provider}/calendars`, { headers });
+      const calendars = res.data?.calendars || [];
+      if (provider === 'google-calendar') {
+        setGoogleCalendars(calendars);
+        setGoogleStatus(s => ({ ...s, availability_calendar_id: res.data?.selected_calendar_id || s.availability_calendar_id }));
+      } else {
+        setOutlookCalendars(calendars);
+        setOutlookStatus(s => ({ ...s, availability_calendar_id: res.data?.selected_calendar_id || s.availability_calendar_id }));
+      }
+    } catch (err) {
+      toast.error(formatApiError(err, 'Nepodařilo se načíst seznam kalendářů'));
+    }
+  };
+
+  const selectExternalCalendar = async (provider, value) => {
+    const isGoogle = provider === 'google-calendar';
+    const previous = isGoogle ? googleStatus : outlookStatus;
+    const setStatus = isGoogle ? setGoogleStatus : setOutlookStatus;
+    setStatus(s => ({ ...s, availability_calendar_id: value }));
+    try {
+      await axios.put(`${API}/${provider}/settings`, { availability_calendar_id: value }, { headers });
+      if (previous.import_enabled) {
+        await axios.post(`${API}/${provider}/sync`, {}, { headers });
+        if (isGoogle) fetchGoogleBlocks(); else fetchOutlookBlocks();
+        toast.success('Kalendář pro blokace byl změněn a synchronizován.');
+      } else {
+        toast.success('Kalendář pro blokace byl vybrán. Import je vypnutý; můžete ho zapnout.');
+      }
+    } catch (err) {
+      setStatus(previous);
+      toast.error(formatApiError(err, 'Nepodařilo se uložit výběr kalendáře'));
     }
   };
 
@@ -875,6 +923,19 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
             </div>
           )}
 
+          {outlookStatus.connected && (
+            <div className="mt-3 pt-3 border-t" data-testid="outlook-calendar-selector">
+              <Label className="text-sm font-medium text-slate-800">Kalendář pro kontrolu dostupnosti</Label>
+              <p className="text-xs text-gray-500 mb-2">Vyberte kalendář, jehož obsazené termíny mají ovlivňovat vaši dostupnost v Budeživo.</p>
+              <Select value={outlookStatus.availability_calendar_id || undefined} onValueChange={(value) => selectExternalCalendar('microsoft-calendar', value)}>
+                <SelectTrigger><SelectValue placeholder="Vyberte kalendář" /></SelectTrigger>
+                <SelectContent>
+                  {outlookCalendars.map(calendar => <SelectItem key={calendar.id} value={calendar.id}>{calendar.name}{calendar.primary ? ' (výchozí)' : ''}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Outlook blocks inline controls (compact) */}
           {outlookBlocks.length > 0 && (
             <div className="mt-3 pt-3 border-t">
@@ -1001,6 +1062,19 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
                 onCheckedChange={setGoogleImport}
                 data-testid="google-import-toggle"
               />
+            </div>
+          )}
+
+          {googleStatus.connected && (
+            <div className="mt-3 pt-3 border-t" data-testid="google-calendar-selector">
+              <Label className="text-sm font-medium text-slate-800">Kalendář pro kontrolu dostupnosti</Label>
+              <p className="text-xs text-gray-500 mb-2">Vyberte kalendář, jehož obsazené termíny mají ovlivňovat vaši dostupnost v Budeživo.</p>
+              <Select value={googleStatus.availability_calendar_id || undefined} onValueChange={(value) => selectExternalCalendar('google-calendar', value)}>
+                <SelectTrigger><SelectValue placeholder="Vyberte kalendář" /></SelectTrigger>
+                <SelectContent>
+                  {googleCalendars.map(calendar => <SelectItem key={calendar.id} value={calendar.id}>{calendar.name}{calendar.primary ? ' (výchozí)' : ''}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
           )}
 

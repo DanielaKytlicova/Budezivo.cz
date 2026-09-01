@@ -19,7 +19,7 @@ import uuid
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode, urlparse, quote
 
 import httpx
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
@@ -64,9 +64,8 @@ REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "")
 AUTH_URI = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URI = "https://oauth2.googleapis.com/token"
 USERINFO_URI = "https://www.googleapis.com/oauth2/v2/userinfo"
-CALENDAR_EVENTS_URI = (
-    "https://www.googleapis.com/calendar/v3/calendars/primary/events"
-)
+CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
+CALENDAR_EVENTS_URI = f"{CALENDAR_API_BASE}/calendars/primary/events"  # export target
 
 SCOPES = SCOPES  # imported from helpers (calendar.readonly + calendar.events + userinfo.email)
 PROVIDER = "google"
@@ -271,6 +270,7 @@ async def get_connection_status(
         "import_enabled": integration.import_enabled,
         "export_enabled": integration.export_enabled,
         "auto_sync_enabled": integration.auto_sync_enabled,
+        "availability_calendar_id": integration.availability_calendar_id,
         "needs_reconnect": integration.needs_reconnect,
         "has_events_scope": has_events_scope(integration.granted_scopes),
         "export_scope": "institution" if current_user.get("role") in ("admin", "spravce") else "assigned",
@@ -281,6 +281,7 @@ class SyncSettingsUpdate(BaseModel):
     import_enabled: Optional[bool] = None
     export_enabled: Optional[bool] = None
     auto_sync_enabled: Optional[bool] = None
+    availability_calendar_id: Optional[str] = None
 
 
 @router.put("/settings")
@@ -303,6 +304,21 @@ async def update_sync_settings(
 
     if data.import_enabled is not None:
         integration.import_enabled = data.import_enabled
+        if not data.import_enabled:
+            integration.availability_calendar_id = None
+            await db.execute(delete(AvailabilityBlock).where(and_(
+                AvailabilityBlock.user_id == user_uuid,
+                AvailabilityBlock.source == SOURCE,
+            )))
+    if data.availability_calendar_id is not None:
+        selected = data.availability_calendar_id.strip()
+        if not selected:
+            raise HTTPException(status_code=400, detail="Vyberte kalendář pro import blokací")
+        integration.availability_calendar_id = selected
+        await db.execute(delete(AvailabilityBlock).where(and_(
+            AvailabilityBlock.user_id == user_uuid,
+            AvailabilityBlock.source == SOURCE,
+        )))
     if data.export_enabled is not None:
         if data.export_enabled and not has_events_scope(integration.granted_scopes):
             integration.needs_reconnect = True
@@ -319,7 +335,48 @@ async def update_sync_settings(
         "import_enabled": integration.import_enabled,
         "export_enabled": integration.export_enabled,
         "auto_sync_enabled": integration.auto_sync_enabled,
+        "availability_calendar_id": integration.availability_calendar_id,
     }
+
+
+@router.get("/calendars")
+async def list_google_calendars(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return readable calendars; event titles are never returned."""
+    user_uuid = uuid.UUID(current_user["user_id"])
+    integration = (await db.execute(select(UserCalendarIntegration).where(and_(
+        UserCalendarIntegration.user_id == user_uuid,
+        UserCalendarIntegration.provider == PROVIDER,
+        UserCalendarIntegration.is_active == True,
+    )))).scalar_one_or_none()
+    if not integration:
+        raise HTTPException(status_code=404, detail="Google kalendář není připojen")
+    token = await _get_valid_token(db, integration)
+    if not token:
+        raise HTTPException(status_code=502, detail="Nelze načíst seznam Google kalendářů")
+    calendars = []
+    page_token = None
+    async with httpx.AsyncClient() as client:
+        while True:
+            params = {"minAccessRole": "reader", "showDeleted": "false"}
+            if page_token:
+                params["pageToken"] = page_token
+            resp = await client.get(f"{CALENDAR_API_BASE}/users/me/calendarList", headers={"Authorization": f"Bearer {token}"}, params=params, timeout=30)
+            if resp.status_code != 200:
+                raise HTTPException(status_code=502, detail="Google kalendáře se nepodařilo načíst")
+            data = resp.json()
+            calendars.extend({
+                "id": item.get("id"),
+                "name": item.get("summaryOverride") or item.get("summary") or item.get("id"),
+                "primary": bool(item.get("primary")),
+                "access_role": item.get("accessRole"),
+            } for item in data.get("items", []) if item.get("id"))
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
+    return {"calendars": calendars, "selected_calendar_id": integration.availability_calendar_id}
 
 
 class DisconnectRequest(BaseModel):
@@ -553,7 +610,9 @@ async def _get_valid_token(db: AsyncSession, integration: UserCalendarIntegratio
 
 
 async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarIntegration) -> int:
-    """Pull events from primary Google calendar into ``availability_blocks`` (source='google')."""
+    """Pull busy events from the explicitly selected Google calendar."""
+    if not integration.import_enabled or not integration.availability_calendar_id:
+        return 0
     token = await _get_valid_token(db, integration)
     if not token:
         integration.sync_error = "Nepodařilo se obnovit token"
@@ -595,7 +654,8 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
                 params = dict(base_params)
                 if page_token:
                     params["pageToken"] = page_token
-                resp = await client.get(CALENDAR_EVENTS_URI, headers=headers, params=params, timeout=30)
+                import_uri = f"{CALENDAR_API_BASE}/calendars/{quote(integration.availability_calendar_id, safe='')}/events"
+                resp = await client.get(import_uri, headers=headers, params=params, timeout=30)
                 if resp.status_code != 200:
                     error_msg = f"Google Calendar API error {resp.status_code}: {resp.text[:500]}"
                     logger.error(error_msg)

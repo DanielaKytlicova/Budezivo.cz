@@ -782,13 +782,14 @@ class UserCalendarIntegration(Base):
     sync_error = Column(Text)
     # Two-way sync mode flags (Google). Import = external events block availability;
     # export = Budeživo reservations are pushed to the user's calendar.
-    import_enabled = Column(Boolean, nullable=False, default=True, server_default='true')
+    import_enabled = Column(Boolean, nullable=False, default=False, server_default='false')
     export_enabled = Column(Boolean, nullable=False, default=False, server_default='false')
     auto_sync_enabled = Column(Boolean, nullable=False, default=True, server_default='true')
     # Set when the stored grant lacks a required scope (e.g. calendar.events) and
     # the user must re-authorize. Never triggers an infinite connect loop.
     needs_reconnect = Column(Boolean, nullable=False, default=False, server_default='false')
     granted_scopes = Column(Text)
+    availability_calendar_id = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 

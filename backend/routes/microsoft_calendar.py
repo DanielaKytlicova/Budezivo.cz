@@ -16,7 +16,7 @@ import msal
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, delete
+from sqlalchemy import select, and_, delete, exists, or_
 
 from core.security import get_current_user
 from database.supabase import get_db
@@ -308,6 +308,13 @@ async def update_ms_settings(
         ))
     )).scalar_one_or_none()
     if not integration or not integration.is_active:
+        if body.get("import_enabled") is False:
+            await db.execute(delete(AvailabilityBlock).where(and_(
+                AvailabilityBlock.user_id == user_uuid,
+                AvailabilityBlock.source == "outlook",
+            )))
+            await db.commit()
+            return {"import_enabled": False, "export_enabled": False, "availability_calendar_id": None}
         raise HTTPException(status_code=404, detail="Outlook není připojen")
 
     if "import_enabled" in body:
@@ -444,7 +451,19 @@ async def list_blocks(
 ):
     """List availability blocks (outlook + manual) for the institution."""
     inst_uuid = uuid.UUID(current_user["institution_id"])
-    conditions = [AvailabilityBlock.institution_id == inst_uuid]
+    conditions = [
+        AvailabilityBlock.institution_id == inst_uuid,
+        or_(
+            AvailabilityBlock.source != "outlook",
+            exists(select(1).where(and_(
+                UserCalendarIntegration.user_id == AvailabilityBlock.user_id,
+                UserCalendarIntegration.institution_id == AvailabilityBlock.institution_id,
+                UserCalendarIntegration.provider == PROVIDER,
+                UserCalendarIntegration.is_active == True,
+                UserCalendarIntegration.import_enabled == True,
+            ))),
+        ),
+    ]
 
     if user_id:
         conditions.append(AvailabilityBlock.user_id == uuid.UUID(user_id))

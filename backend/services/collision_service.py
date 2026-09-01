@@ -630,19 +630,18 @@ async def check_lecturer_available_for_block(
         if has_any_availability:
             # Lecturer has a schedule but not for this day → unavailable
             return False
-        # No schedule at all → no constraints → allow
-        return True
+        # No schedule at all → no working-hours constraints, but still check time-off below.
+    else:
+        in_availability = False
+        for ab in all_avail_blocks:
+            ab_start = time_str_to_min(ab.start_time)
+            ab_end = time_str_to_min(ab.end_time)
+            if block_start >= ab_start and block_end <= ab_end:
+                in_availability = True
+                break
 
-    in_availability = False
-    for ab in all_avail_blocks:
-        ab_start = time_str_to_min(ab.start_time)
-        ab_end = time_str_to_min(ab.end_time)
-        if block_start >= ab_start and block_end <= ab_end:
-            in_availability = True
-            break
-
-    if not in_availability:
-        return False
+        if not in_availability:
+            return False
 
     # 2. Check time-off / blockages
     result = await db.execute(

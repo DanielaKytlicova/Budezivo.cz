@@ -17,6 +17,11 @@ class GoogleExportCalendarTests(unittest.TestCase):
         self.assertIn("/calendars/{quote(calendar_id, safe='')}/events", ROUTE)
         self.assertIn("google_calendar_id=export_calendar_id", ROUTE)
         self.assertNotIn("CALENDAR_EVENTS_URI", ROUTE)
+        self.assertIn("has_export_calendar_scope", ROUTE)
+
+    def test_oauth_requests_calendar_creation_scope(self):
+        helpers = (ROOT / "services/google_calendar_helpers.py").read_text()
+        self.assertIn("https://www.googleapis.com/auth/calendar.app.created", helpers)
 
     def test_migration_is_nullable_and_non_destructive(self):
         self.assertIn("ADD COLUMN IF NOT EXISTS google_export_calendar_id TEXT", MIGRATION)

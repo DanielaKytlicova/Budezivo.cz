@@ -36,7 +36,7 @@ from database.models import (
 from services.plan_service import require_feature
 from core.permissions import require_roles, CALENDAR_PERSONAL_ROLES
 from services.google_calendar_helpers import (
-    SCOPES, EVENTS_SCOPE, has_events_scope, is_budezivo_event,
+    SCOPES, EVENTS_SCOPE, has_events_scope, has_export_calendar_scope, is_budezivo_event,
     build_export_event_body, reservation_assigned_user_ids, CANCELLED_STATUSES,
     GOOGLE_PROGRAM_COLOR_IDS,
     program_color_index,
@@ -274,6 +274,7 @@ async def get_connection_status(
         "export_calendar_name": f"Budeživo – {(await db.execute(select(Institution.name).where(Institution.id == integration.institution_id))).scalar_one_or_none() or ''}",
         "needs_reconnect": integration.needs_reconnect,
         "has_events_scope": has_events_scope(integration.granted_scopes),
+        "has_export_calendar_scope": has_export_calendar_scope(integration.granted_scopes),
         "export_scope": "institution" if current_user.get("role") in ("admin", "spravce") else "assigned",
     }
 
@@ -328,11 +329,11 @@ async def update_sync_settings(
             AvailabilityBlock.source == SOURCE,
         )))
     if data.export_enabled is not None:
-        if data.export_enabled and not has_events_scope(integration.granted_scopes):
+        if data.export_enabled and not has_export_calendar_scope(integration.granted_scopes):
             integration.needs_reconnect = True
             raise HTTPException(
                 status_code=409,
-                detail="Pro export je potřeba znovu připojit Google účet (chybí oprávnění calendar.events).",
+                detail="Pro vytvoření exportního kalendáře je potřeba znovu připojit Google účet.",
             )
         if data.export_enabled:
             token = await _get_valid_token(db, integration)
@@ -883,7 +884,7 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
     stats = {"created": 0, "updated": 0, "deleted": 0, "errors": 0}
     if not integration.export_enabled:
         return stats
-    if not has_events_scope(integration.granted_scopes):
+    if not has_export_calendar_scope(integration.granted_scopes):
         integration.needs_reconnect = True
         await db.commit()
         return stats

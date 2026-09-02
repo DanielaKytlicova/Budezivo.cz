@@ -12,9 +12,12 @@ CALENDAR_TIMEZONE = "Europe/Prague"
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/calendar.events",
+    # Allows Budeživo to create and manage only calendars it created itself.
+    "https://www.googleapis.com/auth/calendar.app.created",
     "https://www.googleapis.com/auth/userinfo.email",
 ]
 EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events"
+EXPORT_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.app.created"
 
 CANCELLED_STATUSES = {"cancelled", "canceled"}
 
@@ -43,6 +46,13 @@ def has_events_scope(granted_scopes: Optional[str]) -> bool:
     if not granted_scopes:
         return False
     return EVENTS_SCOPE in granted_scopes.split()
+
+
+def has_export_calendar_scope(granted_scopes: Optional[str]) -> bool:
+    """True if the grant can create and manage Budeživo-owned calendars."""
+    if not granted_scopes:
+        return False
+    return EXPORT_CALENDAR_SCOPE in granted_scopes.split()
 
 
 def is_budezivo_event(ev: dict) -> bool:

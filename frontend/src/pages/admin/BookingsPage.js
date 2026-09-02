@@ -189,6 +189,15 @@ const nearestBookingDate = (list, today) => {
   return future[0] || past[0] || null;
 };
 
+const todayDateKey = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
+const isTodayOrFutureBooking = (booking, today = todayDateKey()) => (
+  Boolean(booking?.date) && booking.date >= today
+);
+
 const BookingsPageContent = () => {
   const { t } = useTranslation();
   const { user } = useContext(AuthContext);
@@ -210,6 +219,7 @@ const BookingsPageContent = () => {
   // Bulk actions state
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [completionPrompt, setCompletionPrompt] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [calendarFocus, setCalendarFocus] = useState({ date: null, requestId: 0 });
@@ -364,7 +374,11 @@ const BookingsPageContent = () => {
 
   const filteredBookings = useMemo(() => {
     let filtered = bookings;
-    if (statusFilter === 'collision') {
+    if (statusFilter === 'all') {
+      // Keep the overview focused on current and upcoming visits. Historical
+      // reservations belong in the explicit completed/cancelled filters.
+      filtered = filtered.filter((booking) => isTodayOrFutureBooking(booking));
+    } else if (statusFilter === 'collision') {
       // "Kolize" virtual filter: show only bookings that are part of an
       // unresolved collision cluster (collisionIndex has them with peers).
       filtered = filtered.filter(b => collisionIndex.has(b.id));
@@ -453,12 +467,25 @@ const BookingsPageContent = () => {
 
   const bulkUpdateStatus = async (status) => {
     if (selectedIds.size === 0) return;
+    if (status === 'completed') {
+      const selected = bookings.filter(b => selectedIds.has(b.id));
+      const futureCount = selected.filter(isTodayOrFutureBooking).length;
+      if (futureCount > 0) {
+        setCompletionPrompt({ mode: 'bulk', ids: Array.from(selectedIds), count: futureCount });
+        return;
+      }
+    }
+    return performBulkUpdateStatus(status);
+  };
+
+  const performBulkUpdateStatus = async (status, overrideFutureCompletion = false) => {
     const labels = { confirmed: 'potvrzení', cancelled: 'zrušení', completed: 'dokončení' };
     setBulkLoading(true);
     try {
       const response = await axios.post(`${API}/bookings/bulk-status`, {
         booking_ids: Array.from(selectedIds),
-        status
+        status,
+        override_future_completion: overrideFutureCompletion
       });
       toast.success(response.data.message);
       setSelectedIds(new Set());
@@ -472,24 +499,45 @@ const BookingsPageContent = () => {
   };
 
   const statusCounts = useMemo(() => {
-    const counts = { all: bookings.length, pending: 0, confirmed: 0, cancelled: 0, completed: 0, collision: 0 };
+    const counts = { all: 0, pending: 0, confirmed: 0, cancelled: 0, completed: 0, collision: 0 };
     bookings.forEach(b => {
+      if (isTodayOrFutureBooking(b)) counts.all++;
       if (counts[b.status] !== undefined) counts[b.status]++;
     });
     counts.collision = collisionIndex.size;
     return counts;
   }, [bookings, collisionIndex]);
 
-  const updateStatus = async (id, status) => {
+  const updateStatus = async (id, status, overrideFutureCompletion = false) => {
+    if (status === 'completed') {
+      const booking = bookings.find(b => b.id === id) || selectedBooking;
+      if (booking && isTodayOrFutureBooking(booking) && !overrideFutureCompletion) {
+        setCompletionPrompt({ mode: 'single', id, booking });
+        return;
+      }
+    }
     try {
-      await axios.patch(`${API}/bookings/${id}/status?status=${status}`);
+      const params = new URLSearchParams({ status });
+      if (overrideFutureCompletion) params.set('override_future_completion', 'true');
+      await axios.patch(`${API}/bookings/${id}/status?${params.toString()}`);
       toast.success('Stav rezervace byl aktualizován');
       fetchBookings();
       if (selectedBooking?.id === id) {
         setSelectedBooking(prev => normalizeBooking({ ...prev, status }));
       }
     } catch (error) {
-      toast.error(t('common.error'));
+      toast.error(extractErrorDetail(error.response?.data?.detail, t('common.error')));
+    }
+  };
+
+  const confirmFutureCompletion = async () => {
+    const prompt = completionPrompt;
+    setCompletionPrompt(null);
+    if (!prompt) return;
+    if (prompt.mode === 'single') {
+      await updateStatus(prompt.id, 'completed', true);
+    } else {
+      await performBulkUpdateStatus('completed', true);
     }
   };
 
@@ -1562,6 +1610,29 @@ const BookingsPageContent = () => {
       <BookingsPageErrorBoundary resetKey={selectedBooking?.id || 'no-booking'}>
         {renderDetailModal()}
       </BookingsPageErrorBoundary>
+      <Dialog open={Boolean(completionPrompt)} onOpenChange={(open) => !open && setCompletionPrompt(null)}>
+        <DialogContent className="w-[calc(100%-1rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Termín ještě neproběhl</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-3 text-sm text-slate-700">
+            <p>
+              {completionPrompt?.mode === 'bulk'
+                ? `Ve výběru je ${completionPrompt.count} rezervací, jejichž termín ještě neproběhl.`
+                : `Rezervace programu „${completionPrompt?.booking?.program_name || 'Program'}“ je naplánovaná na ${completionPrompt?.booking?.date || ''} v ${completionPrompt?.booking?.time_block || ''}.`}
+            </p>
+            <p>Za běžného průběhu zůstane rezervace potvrzená a systém ji po termínu automaticky přesune mezi dokončené. Chcete ji přesto dokončit už nyní?</p>
+          </div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => setCompletionPrompt(null)} data-testid="keep-booking-confirmed">
+              Ponechat jako potvrzenou
+            </Button>
+            <Button className="bg-blue-600 text-white hover:bg-blue-700" onClick={confirmFutureCompletion} data-testid="override-future-completion">
+              Přesto označit jako dokončenou
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <ReservationSyncDialog
         open={showSyncDialog}
         onClose={() => setShowSyncDialog(false)}

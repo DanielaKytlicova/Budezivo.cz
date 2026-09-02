@@ -54,12 +54,22 @@ from pydantic import BaseModel as PydanticBaseModel
 class BulkStatusRequest(PydanticBaseModel):
     booking_ids: List[str]
     status: str  # confirmed, cancelled, completed
+    override_future_completion: bool = False
 
 class AssignLecturerRequest(PydanticBaseModel):
     lecturer_id: Optional[str] = None
     # Multi-lecturer assignment (when the "Přiřadit více lektorů" checkbox is used).
     # If provided, takes precedence; the first id becomes the main lecturer.
     lecturer_ids: Optional[List[str]] = None
+
+
+def _completion_requires_override(booking: dict) -> bool:
+    """Keep manual completion of today's/future bookings explicit."""
+    try:
+        booking_date = datetime.fromisoformat(str(booking.get("date"))).date()
+    except (TypeError, ValueError):
+        return False
+    return booking_date >= datetime.now(timezone.utc).date()
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"])
 logger = logging.getLogger(__name__)
@@ -731,7 +741,8 @@ async def update_booking_status(
     status: str,
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    override_future_completion: bool = False,
 ):
     """Update booking status and trigger appropriate emails."""
     booking_repo = BookingRepositorySupabase(db)
@@ -745,6 +756,20 @@ async def update_booking_status(
         raise HTTPException(status_code=404, detail="Booking not found")
     
     old_status = booking.get("status")
+
+    if (
+        status == "completed"
+        and old_status == "confirmed"
+        and _completion_requires_override(booking)
+        and not override_future_completion
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "future_completion_requires_confirmation",
+                "message_cs": "Termín této rezervace ještě neproběhl. Pro ruční dokončení je nutné výslovné potvrzení.",
+            },
+        )
     
     # Update status
     result = await booking_repo.update_status(
@@ -1033,6 +1058,24 @@ async def bulk_update_booking_status(
     
     if not bookings_before:
         raise HTTPException(status_code=404, detail="Žádné rezervace nenalezeny")
+
+    future_confirmed = [
+        booking for booking in bookings_before
+        if booking.get("status") == "confirmed" and _completion_requires_override(booking)
+    ]
+    if (
+        request.status == "completed"
+        and future_confirmed
+        and not request.override_future_completion
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "future_completion_requires_confirmation",
+                "count": len(future_confirmed),
+                "message_cs": f"Ve výběru je {len(future_confirmed)} rezervací, jejichž termín ještě neproběhl.",
+            },
+        )
     
     # Perform bulk update
     updated_count = await booking_repo.bulk_update_status(

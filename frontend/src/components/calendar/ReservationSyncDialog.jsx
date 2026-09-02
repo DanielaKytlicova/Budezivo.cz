@@ -206,6 +206,11 @@ export const ReservationSyncDialog = ({ open, onClose, user, token }) => {
                   ? 'Všechny rezervace instituce se zapíší do tohoto kalendáře.'
                   : 'Do kalendáře se zapíší jen rezervace, ke kterým jste přiřazeni.'}
               </p>
+              {provider === 'google' && status.export_calendar_id && (
+                <p className="text-xs text-slate-600 mt-1" data-testid="google-export-calendar">
+                  Exportní kalendář: <span className="font-medium">{status.export_calendar_name || 'Budeživo'}</span>
+                </p>
+              )}
               {status.needs_reconnect && (
                 <p className="text-xs text-amber-700 mt-1">Pro export je potřeba účet znovu připojit (oprávnění k zápisu).</p>
               )}

@@ -790,6 +790,7 @@ class UserCalendarIntegration(Base):
     needs_reconnect = Column(Boolean, nullable=False, default=False, server_default='false')
     granted_scopes = Column(Text)
     availability_calendar_id = Column(Text, nullable=True)
+    google_export_calendar_id = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 

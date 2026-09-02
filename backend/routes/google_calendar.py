@@ -65,7 +65,6 @@ AUTH_URI = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URI = "https://oauth2.googleapis.com/token"
 USERINFO_URI = "https://www.googleapis.com/oauth2/v2/userinfo"
 CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
-CALENDAR_EVENTS_URI = f"{CALENDAR_API_BASE}/calendars/primary/events"  # export target
 
 SCOPES = SCOPES  # imported from helpers (calendar.readonly + calendar.events + userinfo.email)
 PROVIDER = "google"
@@ -271,6 +270,8 @@ async def get_connection_status(
         "export_enabled": integration.export_enabled,
         "auto_sync_enabled": integration.auto_sync_enabled,
         "availability_calendar_id": integration.availability_calendar_id,
+        "export_calendar_id": integration.google_export_calendar_id,
+        "export_calendar_name": f"Budeživo – {(await db.execute(select(Institution.name).where(Institution.id == integration.institution_id))).scalar_one_or_none() or ''}",
         "needs_reconnect": integration.needs_reconnect,
         "has_events_scope": has_events_scope(integration.granted_scopes),
         "export_scope": "institution" if current_user.get("role") in ("admin", "spravce") else "assigned",
@@ -333,6 +334,20 @@ async def update_sync_settings(
                 status_code=409,
                 detail="Pro export je potřeba znovu připojit Google účet (chybí oprávnění calendar.events).",
             )
+        if data.export_enabled:
+            token = await _get_valid_token(db, integration)
+            if not token:
+                raise HTTPException(status_code=502, detail="Nelze ověřit přístup ke Google kalendáři")
+            institution_name = (await db.execute(
+                select(Institution.name).where(Institution.id == integration.institution_id)
+            )).scalar_one_or_none() or "Budeživo"
+            try:
+                integration.google_export_calendar_id = await _ensure_export_calendar(
+                    token, integration.google_export_calendar_id, institution_name
+                )
+            except Exception as exc:
+                logger.error("Google export calendar setup failed: %s", type(exc).__name__)
+                raise HTTPException(status_code=502, detail="Exportní kalendář Google se nepodařilo připravit")
         integration.export_enabled = data.export_enabled
     if data.auto_sync_enabled is not None:
         integration.auto_sync_enabled = data.auto_sync_enabled
@@ -343,6 +358,7 @@ async def update_sync_settings(
         "export_enabled": integration.export_enabled,
         "auto_sync_enabled": integration.auto_sync_enabled,
         "availability_calendar_id": integration.availability_calendar_id,
+        "export_calendar_id": integration.google_export_calendar_id,
     }
 
 
@@ -421,7 +437,7 @@ async def disconnect_google(
         )).scalars().all()
         if token:
             for exp in exports:
-                if exp.google_event_id and not await _delete_google_event(token, exp.google_event_id):
+                if exp.google_event_id and exp.google_calendar_id and exp.google_calendar_id != "primary" and not await _delete_google_event(token, exp.google_calendar_id, exp.google_event_id):
                     failed_deletes += 1
 
     # Remove our export links regardless (integration is going away).
@@ -769,12 +785,44 @@ def _admin_base_url() -> str:
     return os.environ.get("FRONTEND_URL", "https://www.budezivo.cz").rstrip("/")
 
 
-async def _create_google_event(token: str, body: dict) -> Optional[str]:
+async def _ensure_export_calendar(token: str, stored_id: Optional[str], institution_name: str) -> str:
+    """Return one Budeživo-owned secondary calendar, creating it when needed."""
+    headers = {"Authorization": f"Bearer {token}"}
+    async with httpx.AsyncClient() as client:
+        if stored_id:
+            resp = await client.get(
+                f"{CALENDAR_API_BASE}/calendars/{quote(stored_id, safe='')}",
+                headers=headers,
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                return stored_id
+            if resp.status_code not in (404, 410):
+                raise Exception(f"Google calendar lookup failed: {resp.status_code}")
+        resp = await client.post(
+            f"{CALENDAR_API_BASE}/calendars",
+            headers=headers,
+            json={
+                "summary": f"Budeživo – {institution_name}",
+                "description": "Export rezervací z Budeživo.cz",
+                "timeZone": "Europe/Prague",
+            },
+            timeout=30,
+        )
+        if resp.status_code not in (200, 201):
+            raise Exception(f"Google calendar creation failed: {resp.status_code}")
+        calendar_id = resp.json().get("id")
+        if not calendar_id:
+            raise Exception("Google calendar creation returned no id")
+        return calendar_id
+
+
+async def _create_google_event(token: str, calendar_id: str, body: dict) -> Optional[str]:
     """Create a Google event; return its id or None on failure."""
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                CALENDAR_EVENTS_URI,
+                f"{CALENDAR_API_BASE}/calendars/{quote(calendar_id, safe='')}/events",
                 headers={"Authorization": f"Bearer {token}"},
                 json=body,
                 timeout=30,
@@ -788,12 +836,12 @@ async def _create_google_event(token: str, body: dict) -> Optional[str]:
         return None
 
 
-async def _patch_google_event(token: str, event_id: str, body: dict) -> bool:
+async def _patch_google_event(token: str, calendar_id: str, event_id: str, body: dict) -> bool:
     """Update a Budeživo-owned Google event. Returns True on success."""
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.patch(
-                f"{CALENDAR_EVENTS_URI}/{event_id}",
+                f"{CALENDAR_API_BASE}/calendars/{quote(calendar_id, safe='')}/events/{quote(event_id, safe='')}",
                 headers={"Authorization": f"Bearer {token}"},
                 json=body,
                 timeout=30,
@@ -810,12 +858,12 @@ async def _patch_google_event(token: str, event_id: str, body: dict) -> bool:
         return False
 
 
-async def _delete_google_event(token: str, event_id: str) -> bool:
+async def _delete_google_event(token: str, calendar_id: str, event_id: str) -> bool:
     """Delete a Budeživo-owned Google event. 404/410 counts as already gone."""
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.delete(
-                f"{CALENDAR_EVENTS_URI}/{event_id}",
+                f"{CALENDAR_API_BASE}/calendars/{quote(calendar_id, safe='')}/events/{quote(event_id, safe='')}",
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=30,
             )
@@ -843,6 +891,23 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
     token = await _get_valid_token(db, integration)
     if not token:
         await db.commit()
+        return stats
+
+    institution_name = (await db.execute(
+        select(Institution.name).where(Institution.id == integration.institution_id)
+    )).scalar_one_or_none() or "Budeživo"
+    try:
+        export_calendar_id = await _ensure_export_calendar(
+            token, integration.google_export_calendar_id, institution_name
+        )
+        if integration.google_export_calendar_id != export_calendar_id:
+            integration.google_export_calendar_id = export_calendar_id
+            await db.commit()
+    except Exception as exc:
+        logger.error("Google export calendar unavailable: %s", type(exc).__name__)
+        integration.sync_error = "Exportní kalendář Google není dostupný"
+        await db.commit()
+        stats["errors"] += 1
         return stats
 
     user_id = str(integration.user_id)
@@ -923,16 +988,17 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
         link = link_by_booking.get(str(r.id))
         try:
             if link and link.google_event_id:
-                if await _patch_google_event(token, link.google_event_id, body):
+                if link.google_calendar_id == export_calendar_id and await _patch_google_event(token, export_calendar_id, link.google_event_id, body):
                     link.sync_status = "synced"
                     link.sync_error = None
                     link.last_synced_at = now
                     stats["updated"] += 1
                 else:
                     # Event gone → recreate.
-                    ev_id = await _create_google_event(token, body)
+                    ev_id = await _create_google_event(token, export_calendar_id, body)
                     if ev_id:
                         link.google_event_id = ev_id
+                        link.google_calendar_id = export_calendar_id
                         link.sync_status = "synced"
                         link.last_synced_at = now
                         stats["created"] += 1
@@ -940,10 +1006,11 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
                         link.sync_status = "error"
                         stats["errors"] += 1
             else:
-                ev_id = await _create_google_event(token, body)
+                ev_id = await _create_google_event(token, export_calendar_id, body)
                 if ev_id:
                     if link:
                         link.google_event_id = ev_id
+                        link.google_calendar_id = export_calendar_id
                         link.sync_status = "synced"
                         link.last_synced_at = now
                     else:
@@ -952,7 +1019,7 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
                             user_id=integration.user_id,
                             booking_id=r.id,
                             provider=PROVIDER,
-                            google_calendar_id="primary",
+                            google_calendar_id=export_calendar_id,
                             google_event_id=ev_id,
                             sync_status="synced",
                             last_synced_at=now,
@@ -967,7 +1034,7 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
     # Remove events for reservations no longer assigned / cancelled.
     for booking_id, link in link_by_booking.items():
         if booking_id not in assigned_ids:
-            if link.google_event_id and not await _delete_google_event(token, link.google_event_id):
+            if link.google_event_id and link.google_calendar_id and link.google_calendar_id != "primary" and not await _delete_google_event(token, link.google_calendar_id, link.google_event_id):
                 stats["errors"] += 1
             else:
                 stats["deleted"] += 1

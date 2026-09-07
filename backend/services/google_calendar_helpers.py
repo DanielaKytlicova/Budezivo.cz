@@ -8,9 +8,11 @@ from typing import Optional, Tuple
 
 CALENDAR_TIMEZONE = "Europe/Prague"
 
-# Required OAuth scopes (never the broad calendar scope).
+# Availability import uses CalendarList + FreeBusy only. The write scopes are
+# used solely for the Budeživo-owned export calendar.
 SCOPES = [
-    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+    "https://www.googleapis.com/auth/calendar.freebusy",
     "https://www.googleapis.com/auth/calendar.events",
     # Allows Budeživo to create and manage only calendars it created itself.
     "https://www.googleapis.com/auth/calendar.app.created",
@@ -18,6 +20,8 @@ SCOPES = [
 ]
 EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events"
 EXPORT_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.app.created"
+CALENDAR_LIST_SCOPE = "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
+FREEBUSY_SCOPE = "https://www.googleapis.com/auth/calendar.freebusy"
 
 CANCELLED_STATUSES = {"cancelled", "canceled"}
 
@@ -53,6 +57,14 @@ def has_export_calendar_scope(granted_scopes: Optional[str]) -> bool:
     if not granted_scopes:
         return False
     return EXPORT_CALENDAR_SCOPE in granted_scopes.split()
+
+
+def has_availability_scopes(granted_scopes: Optional[str]) -> bool:
+    """True if the grant can list calendars and read only busy intervals."""
+    if not granted_scopes:
+        return False
+    granted = set(granted_scopes.split())
+    return CALENDAR_LIST_SCOPE in granted and FREEBUSY_SCOPE in granted
 
 
 def is_budezivo_event(ev: dict) -> bool:

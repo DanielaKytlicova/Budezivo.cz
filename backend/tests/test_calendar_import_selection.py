@@ -19,12 +19,14 @@ class CalendarImportSelectionTests(unittest.TestCase):
         self.assertIn("availability_calendar_id IS NULL", migration)
         self.assertIn("SET import_enabled = FALSE", migration)
 
-    def test_google_import_uses_selected_calendar_but_export_keeps_primary(self):
+    def test_google_import_uses_selected_calendar_and_export_is_separate(self):
         source = (ROOT / "backend/routes/google_calendar.py").read_text()
         self.assertIn("users/me/calendarList", source)
         self.assertIn("integration.availability_calendar_id", source)
-        self.assertIn("quote(integration.availability_calendar_id, safe='')", source)
-        self.assertIn("CALENDAR_EVENTS_URI = f\"{CALENDAR_API_BASE}/calendars/primary/events\"", source)
+        self.assertIn("quote(selected", source)
+        self.assertIn("google_export_calendar_id", source)
+        self.assertIn("_ensure_export_calendar", source)
+        self.assertNotIn("CALENDAR_EVENTS_URI", source)
 
     def test_disabled_external_blocks_are_removed_and_ignored_by_collision(self):
         google = (ROOT / "backend/routes/google_calendar.py").read_text()
@@ -57,6 +59,12 @@ class CalendarImportSelectionTests(unittest.TestCase):
         self.assertIn('body.get("import_enabled") is False', microsoft)
         self.assertIn('setGoogleBlocks([])', frontend)
         self.assertIn('setOutlookBlocks([])', frontend)
+
+    def test_google_export_calendar_is_not_available_for_import(self):
+        source = (ROOT / "backend/routes/google_calendar.py").read_text()
+        frontend = (ROOT / "frontend/src/pages/admin/LecturerAvailabilityPage.js").read_text()
+        self.assertIn("selected == integration.google_export_calendar_id", source)
+        self.assertIn("!calendar.is_budezivo_export", frontend)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,9 @@ class GoogleExportCalendarTests(unittest.TestCase):
     def test_oauth_requests_calendar_creation_scope(self):
         helpers = (ROOT / "services/google_calendar_helpers.py").read_text()
         self.assertIn("https://www.googleapis.com/auth/calendar.app.created", helpers)
+        self.assertIn("https://www.googleapis.com/auth/calendar.calendarlist.readonly", helpers)
+        self.assertIn("https://www.googleapis.com/auth/calendar.freebusy", helpers)
+        self.assertNotIn("https://www.googleapis.com/auth/calendar.readonly", helpers)
 
     def test_migration_is_nullable_and_non_destructive(self):
         self.assertIn("ADD COLUMN IF NOT EXISTS google_export_calendar_id TEXT", MIGRATION)
@@ -34,3 +37,14 @@ class GoogleExportCalendarTests(unittest.TestCase):
     def test_ui_shows_dedicated_export_calendar(self):
         self.assertIn('data-testid="google-export-calendar"', FRONTEND)
         self.assertIn("status.export_calendar_id", FRONTEND)
+
+    def test_import_uses_freebusy_without_private_event_titles(self):
+        self.assertIn("/freeBusy", ROUTE)
+        self.assertIn('"busy"', ROUTE)
+        self.assertIn('"Obsazeno v Google kalendáři"', ROUTE)
+        self.assertNotIn('title = ev.get("summary")', ROUTE)
+
+    def test_export_is_one_way_and_never_mutates_reservations_from_google(self):
+        self.assertIn('"source": "budezivo"', (ROOT / "services/google_calendar_helpers.py").read_text())
+        self.assertNotIn("Reservation.date =", ROUTE)
+        self.assertNotIn("Reservation.time_block =", ROUTE)

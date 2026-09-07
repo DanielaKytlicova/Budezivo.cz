@@ -1076,7 +1076,7 @@ export const LecturerAvailabilityPage = ({ viewToggle, onViewToggle, embedded = 
               <Select value={googleStatus.availability_calendar_id || undefined} onValueChange={(value) => selectExternalCalendar('google-calendar', value)}>
                 <SelectTrigger><SelectValue placeholder="Vyberte kalendář" /></SelectTrigger>
                 <SelectContent>
-                  {googleCalendars.map(calendar => <SelectItem key={calendar.id} value={calendar.id}>{calendar.name}{calendar.primary ? ' (výchozí)' : ''}</SelectItem>)}
+                  {googleCalendars.filter(calendar => calendar.can_use_for_availability && !calendar.is_budezivo_export).map(calendar => <SelectItem key={calendar.id} value={calendar.id}>{calendar.name}{calendar.primary ? ' (výchozí)' : ''}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

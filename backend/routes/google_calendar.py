@@ -17,6 +17,7 @@ import logging
 import os
 import uuid
 import secrets
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from urllib.parse import urlencode, urlparse, quote
@@ -36,7 +37,7 @@ from database.models import (
 from services.plan_service import require_feature
 from core.permissions import require_roles, CALENDAR_PERSONAL_ROLES
 from services.google_calendar_helpers import (
-    SCOPES, EVENTS_SCOPE, has_events_scope, has_export_calendar_scope, is_budezivo_event,
+    SCOPES, EVENTS_SCOPE, has_events_scope, has_export_calendar_scope, has_availability_scopes,
     build_export_event_body, reservation_assigned_user_ids, CANCELLED_STATUSES,
     GOOGLE_PROGRAM_COLOR_IDS,
     program_color_index,
@@ -66,7 +67,7 @@ TOKEN_URI = "https://oauth2.googleapis.com/token"
 USERINFO_URI = "https://www.googleapis.com/oauth2/v2/userinfo"
 CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
 
-SCOPES = SCOPES  # imported from helpers (calendar.readonly + calendar.events + userinfo.email)
+SCOPES = SCOPES  # imported from helpers (CalendarList + FreeBusy + export scopes)
 PROVIDER = "google"
 SOURCE = "google"
 OAUTH_STATE_TTL_MINUTES = 10
@@ -312,6 +313,8 @@ async def update_sync_settings(
         raise HTTPException(status_code=404, detail="Google kalendář není připojen")
 
     if data.import_enabled is not None:
+        if data.import_enabled and not data.availability_calendar_id and not integration.availability_calendar_id:
+            raise HTTPException(status_code=400, detail="Vyberte kalendář pro import blokací")
         integration.import_enabled = data.import_enabled
         if not data.import_enabled:
             integration.availability_calendar_id = None
@@ -323,11 +326,27 @@ async def update_sync_settings(
         selected = data.availability_calendar_id.strip()
         if not selected:
             raise HTTPException(status_code=400, detail="Vyberte kalendář pro import blokací")
+        if selected == integration.google_export_calendar_id:
+            raise HTTPException(status_code=400, detail="Exportní kalendář Budeživo nelze použít pro import blokací")
+        token = await _get_valid_token(db, integration)
+        if not token:
+            raise HTTPException(status_code=502, detail="Nelze ověřit vybraný Google kalendář")
+        async with httpx.AsyncClient() as client:
+            calendar_resp = await client.get(
+                f"{CALENDAR_API_BASE}/calendars/{quote(selected, safe='')}",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=30,
+            )
+        if calendar_resp.status_code != 200:
+            raise HTTPException(status_code=400, detail="Vybraný Google kalendář není dostupný")
         integration.availability_calendar_id = selected
         await db.execute(delete(AvailabilityBlock).where(and_(
             AvailabilityBlock.user_id == user_uuid,
             AvailabilityBlock.source == SOURCE,
         )))
+    if data.import_enabled and not has_availability_scopes(integration.granted_scopes):
+        integration.needs_reconnect = True
+        raise HTTPException(status_code=409, detail="Pro import blokací je potřeba znovu připojit Google účet.")
     if data.export_enabled is not None:
         if data.export_enabled and not has_export_calendar_scope(integration.granted_scopes):
             integration.needs_reconnect = True
@@ -397,6 +416,8 @@ async def list_google_calendars(
                 "name": item.get("summaryOverride") or item.get("summary") or item.get("id"),
                 "primary": bool(item.get("primary")),
                 "access_role": item.get("accessRole"),
+                "can_use_for_availability": item.get("accessRole") in ("freeBusyReader", "reader", "writer", "owner"),
+                "is_budezivo_export": item.get("id") == integration.google_export_calendar_id,
             } for item in data.get("items", []) if item.get("id"))
             page_token = data.get("nextPageToken")
             if not page_token:
@@ -669,36 +690,39 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
     now = datetime.now(timezone.utc)
     end_date = now + timedelta(days=sync_days)
     headers = {"Authorization": f"Bearer {token}"}
-    base_params = {
-        "timeMin": now.isoformat(),
-        "timeMax": end_date.isoformat(),
-        "singleEvents": "true",     # expand recurring instances
-        "orderBy": "startTime",
-        "maxResults": 250,
-        "showDeleted": "false",
-    }
+    if not has_availability_scopes(integration.granted_scopes):
+        integration.needs_reconnect = True
+        await db.commit()
+        raise Exception("Google grant lacks CalendarList/FreeBusy scopes")
 
-    all_events = []
-    page_token = None
+    busy_intervals = []
     try:
         async with httpx.AsyncClient() as client:
-            while True:
-                params = dict(base_params)
-                if page_token:
-                    params["pageToken"] = page_token
-                import_uri = f"{CALENDAR_API_BASE}/calendars/{quote(integration.availability_calendar_id, safe='')}/events"
-                resp = await client.get(import_uri, headers=headers, params=params, timeout=30)
-                if resp.status_code != 200:
-                    error_msg = f"Google Calendar API error {resp.status_code}: {resp.text[:500]}"
-                    logger.error(error_msg)
-                    integration.sync_error = error_msg
-                    await db.commit()
-                    raise Exception(error_msg)
-                data = resp.json()
-                all_events.extend(data.get("items", []))
-                page_token = data.get("nextPageToken")
-                if not page_token:
-                    break
+            resp = await client.post(
+                f"{CALENDAR_API_BASE}/freeBusy",
+                headers={**headers, "Content-Type": "application/json"},
+                json={
+                    "timeMin": now.isoformat(),
+                    "timeMax": end_date.isoformat(),
+                    "timeZone": "Europe/Prague",
+                    "items": [{"id": integration.availability_calendar_id}],
+                },
+                timeout=30,
+            )
+            if resp.status_code != 200:
+                error_msg = f"Google FreeBusy API error {resp.status_code}: {resp.text[:500]}"
+                logger.error(error_msg)
+                integration.sync_error = error_msg
+                await db.commit()
+                raise Exception(error_msg)
+            data = resp.json()
+            calendar_data = (data.get("calendars") or {}).get(integration.availability_calendar_id) or {}
+            if calendar_data.get("errors"):
+                error_msg = "Google FreeBusy kalendář se nepodařilo načíst"
+                integration.sync_error = error_msg
+                await db.commit()
+                raise Exception(error_msg)
+            busy_intervals = calendar_data.get("busy") or []
     except httpx.HTTPError as e:
         integration.sync_error = str(e)
         await db.commit()
@@ -717,43 +741,27 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
 
     synced_ids: set[str] = set()
     count = 0
-    for ev in all_events:
-        ev_id = ev.get("id")
-        if not ev_id:
-            continue
-        # Google event ``transparency`` == 'transparent' means "show as free".
-        if ev.get("transparency") == "transparent":
-            continue
-        if ev.get("status") == "cancelled":
-            continue
-        # Loop prevention: never import an event that Budeživo itself exported.
-        if is_budezivo_event(ev):
-            continue
-
-        title = ev.get("summary") or "Google událost"
-        start_obj = ev.get("start") or {}
-        end_obj = ev.get("end") or {}
-
-        # Skip pure all-day events (only date, no dateTime) — these don't block
-        # specific time slots. We could expand to all-day blockers later.
-        start_str = start_obj.get("dateTime")
-        end_str = end_obj.get("dateTime")
+    for interval in busy_intervals:
+        start_str = interval.get("start")
+        end_str = interval.get("end")
         if not start_str or not end_str:
             continue
-
         try:
             start_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
             end_dt = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
         except (ValueError, IndexError):
             continue
 
+        ev_id = "freebusy:" + hashlib.sha256(
+            f"{integration.availability_calendar_id}|{start_str}|{end_str}".encode("utf-8")
+        ).hexdigest()[:40]
         synced_ids.add(ev_id)
 
         if ev_id in existing:
             block = existing[ev_id]
             block.start_time = start_dt
             block.end_time = end_dt
-            block.title = title
+            block.title = "Obsazeno v Google kalendáři"
             block.updated_at = datetime.now(timezone.utc)
         else:
             db.add(AvailabilityBlock(
@@ -763,7 +771,7 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
                 end_time=end_dt,
                 source=SOURCE,
                 external_event_id=ev_id,
-                title=title,
+                title="Obsazeno v Google kalendáři",
                 override=False,
             ))
         count += 1

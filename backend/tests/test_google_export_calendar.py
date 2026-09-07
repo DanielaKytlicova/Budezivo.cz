@@ -40,6 +40,8 @@ class GoogleExportCalendarTests(unittest.TestCase):
 
     def test_import_uses_freebusy_without_private_event_titles(self):
         self.assertIn("/freeBusy", ROUTE)
+        self.assertIn("FREEBUSY_WINDOW_DAYS = 90", ROUTE)
+        self.assertIn("while window_start < end_date", ROUTE)
         self.assertIn('"busy"', ROUTE)
         self.assertIn('"Obsazeno v Google kalendáři"', ROUTE)
         self.assertNotIn('title = ev.get("summary")', ROUTE)

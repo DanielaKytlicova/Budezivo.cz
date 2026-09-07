@@ -71,6 +71,7 @@ SCOPES = SCOPES  # imported from helpers (CalendarList + FreeBusy + export scope
 PROVIDER = "google"
 SOURCE = "google"
 OAUTH_STATE_TTL_MINUTES = 10
+FREEBUSY_WINDOW_DAYS = 90
 
 
 def _is_configured() -> bool:
@@ -698,31 +699,42 @@ async def _sync_calendar_events(db: AsyncSession, integration: UserCalendarInteg
     busy_intervals = []
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{CALENDAR_API_BASE}/freeBusy",
-                headers={**headers, "Content-Type": "application/json"},
-                json={
-                    "timeMin": now.isoformat(),
-                    "timeMax": end_date.isoformat(),
-                    "timeZone": "Europe/Prague",
-                    "items": [{"id": integration.availability_calendar_id}],
-                },
-                timeout=30,
-            )
-            if resp.status_code != 200:
-                error_msg = f"Google FreeBusy API error {resp.status_code}: {resp.text[:500]}"
-                logger.error(error_msg)
-                integration.sync_error = error_msg
-                await db.commit()
-                raise Exception(error_msg)
-            data = resp.json()
-            calendar_data = (data.get("calendars") or {}).get(integration.availability_calendar_id) or {}
-            if calendar_data.get("errors"):
-                error_msg = "Google FreeBusy kalendář se nepodařilo načíst"
-                integration.sync_error = error_msg
-                await db.commit()
-                raise Exception(error_msg)
-            busy_intervals = calendar_data.get("busy") or []
+            # Google rejects overly long FreeBusy ranges. Query in bounded,
+            # adjacent windows while keeping one logical sync result.
+            window_start = now
+            interval_keys = set()
+            while window_start < end_date:
+                window_end = min(window_start + timedelta(days=FREEBUSY_WINDOW_DAYS), end_date)
+                resp = await client.post(
+                    f"{CALENDAR_API_BASE}/freeBusy",
+                    headers={**headers, "Content-Type": "application/json"},
+                    json={
+                        "timeMin": window_start.isoformat(),
+                        "timeMax": window_end.isoformat(),
+                        "timeZone": "Europe/Prague",
+                        "items": [{"id": integration.availability_calendar_id}],
+                    },
+                    timeout=30,
+                )
+                if resp.status_code != 200:
+                    error_msg = f"Google FreeBusy API error {resp.status_code}: {resp.text[:500]}"
+                    logger.error(error_msg)
+                    integration.sync_error = error_msg
+                    await db.commit()
+                    raise Exception(error_msg)
+                data = resp.json()
+                calendar_data = (data.get("calendars") or {}).get(integration.availability_calendar_id) or {}
+                if calendar_data.get("errors"):
+                    error_msg = "Google FreeBusy kalendář se nepodařilo načíst"
+                    integration.sync_error = error_msg
+                    await db.commit()
+                    raise Exception(error_msg)
+                for interval in calendar_data.get("busy") or []:
+                    key = (interval.get("start"), interval.get("end"))
+                    if key not in interval_keys:
+                        interval_keys.add(key)
+                        busy_intervals.append(interval)
+                window_start = window_end
     except httpx.HTTPError as e:
         integration.sync_error = str(e)
         await db.commit()

@@ -38,6 +38,11 @@ class GoogleExportCalendarTests(unittest.TestCase):
         self.assertIn('data-testid="google-export-calendar"', FRONTEND)
         self.assertIn("status.export_calendar_id", FRONTEND)
 
+    def test_enabling_export_backfills_existing_reservations(self):
+        self.assertIn("if data.export_enabled is True:", ROUTE)
+        self.assertIn("export_stats = await _export_reservations(db, integration)", ROUTE)
+        self.assertIn('"export": export_stats', ROUTE)
+
     def test_import_uses_freebusy_without_private_event_titles(self):
         self.assertIn("/freeBusy", ROUTE)
         self.assertIn("FREEBUSY_WINDOW_DAYS = 90", ROUTE)

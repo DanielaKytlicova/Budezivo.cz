@@ -374,12 +374,24 @@ async def update_sync_settings(
         integration.auto_sync_enabled = data.auto_sync_enabled
     integration.updated_at = datetime.now(timezone.utc)
     await db.commit()
+
+    # Enabling export must also backfill currently eligible reservations.
+    # Keep this separate from import so personal calendar blocks are not
+    # touched by an export-only settings change.
+    export_stats = None
+    if data.export_enabled is True:
+        try:
+            export_stats = await _export_reservations(db, integration)
+        except Exception as exc:
+            logger.error("Google export after enabling settings failed: %s", type(exc).__name__)
+            export_stats = {"created": 0, "updated": 0, "deleted": 0, "errors": 1}
     return {
         "import_enabled": integration.import_enabled,
         "export_enabled": integration.export_enabled,
         "auto_sync_enabled": integration.auto_sync_enabled,
         "availability_calendar_id": integration.availability_calendar_id,
         "export_calendar_id": integration.google_export_calendar_id,
+        "export": export_stats,
     }
 
 

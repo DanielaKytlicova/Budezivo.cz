@@ -1,4 +1,6 @@
 from pathlib import Path
+import ast
+import hashlib
 import unittest
 
 
@@ -55,3 +57,40 @@ class GoogleExportCalendarTests(unittest.TestCase):
         self.assertIn('"source": "budezivo"', (ROOT / "services/google_calendar_helpers.py").read_text())
         self.assertNotIn("Reservation.date =", ROUTE)
         self.assertNotIn("Reservation.time_block =", ROUTE)
+
+    def test_calendar_move_deletes_only_the_event_recorded_in_export_mapping(self):
+        self.assertIn("if link.google_calendar_id != export_calendar_id:", ROUTE)
+        self.assertIn(
+            "token, link.google_calendar_id, link.google_event_id", ROUTE
+        )
+        self.assertIn("continue", ROUTE)
+        self.assertNotIn('calendar_id="primary"', ROUTE)
+
+    def test_export_creation_uses_a_stable_google_event_id(self):
+        tree = ast.parse(ROUTE)
+        helper = next(
+            node for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "_google_export_event_id"
+        )
+        self.assertIn("hashlib.sha256", ast.unparse(helper))
+        namespace = {"hashlib": hashlib, "PROVIDER": "google"}
+        exec(compile(ast.Module(body=[helper], type_ignores=[]), "<helper>", "exec"), namespace)
+        event_id = namespace["_google_export_event_id"]("user-1", "booking-1")
+        self.assertEqual(event_id, namespace["_google_export_event_id"]("user-1", "booking-1"))
+        self.assertNotEqual(event_id, namespace["_google_export_event_id"]("user-1", "booking-2"))
+        self.assertRegex(event_id, r"^[0-9a-v]{5,1024}$")
+        self.assertIn(
+            "body, deterministic_event_id",
+            ROUTE,
+        )
+        self.assertIn("resp.status_code == 409 and event_id", ROUTE)
+
+    def test_export_sync_is_serialized_before_calendar_reconciliation(self):
+        lock = ROUTE.index("func.pg_advisory_xact_lock")
+        refresh = ROUTE.index("await db.refresh(integration)", lock)
+        reconcile = ROUTE.index("await _ensure_export_calendar(", refresh)
+        final_commit = ROUTE.index("await db.commit()", reconcile)
+        self.assertLess(lock, refresh)
+        self.assertLess(refresh, reconcile)
+        self.assertLess(reconcile, final_commit)

@@ -25,7 +25,7 @@ from urllib.parse import urlencode, urlparse, quote
 import httpx
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from fastapi.responses import HTMLResponse
-from sqlalchemy import select, and_, delete, exists
+from sqlalchemy import select, and_, delete, exists, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
@@ -850,18 +850,33 @@ async def _ensure_export_calendar(token: str, stored_id: Optional[str], institut
         return calendar_id
 
 
-async def _create_google_event(token: str, calendar_id: str, body: dict) -> Optional[str]:
+def _google_export_event_id(user_id: object, booking_id: object) -> str:
+    """Stable Google id makes event creation retry-safe even after a lost response."""
+    # Google accepts lower-case base32hex characters (a-v and 0-9) for custom ids.
+    return "bude" + hashlib.sha256(
+        f"{PROVIDER}:{user_id}:{booking_id}".encode("utf-8")
+    ).hexdigest()[:40]
+
+
+async def _create_google_event(
+    token: str, calendar_id: str, body: dict, event_id: Optional[str] = None
+) -> Optional[str]:
     """Create a Google event; return its id or None on failure."""
     try:
+        payload = {**body, "id": event_id} if event_id else body
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"{CALENDAR_API_BASE}/calendars/{quote(calendar_id, safe='')}/events",
                 headers={"Authorization": f"Bearer {token}"},
-                json=body,
+                json=payload,
                 timeout=30,
             )
             if resp.status_code in (200, 201):
                 return resp.json().get("id")
+            # A previous attempt may have reached Google while its response did
+            # not reach us. The deterministic id then identifies that same event.
+            if resp.status_code == 409 and event_id:
+                return event_id
             logger.error(f"Google event create failed: {resp.status_code}")
             return None
     except Exception as e:
@@ -926,6 +941,14 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
         await db.commit()
         return stats
 
+    # Serialize export reconciliations for this integration. This transaction-
+    # scoped PostgreSQL advisory lock covers both manual and scheduled syncs and
+    # is held until the final commit below. It prevents two workers from both
+    # observing a missing mapping and creating an event.
+    lock_key = integration.user_id.int & 0x7FFFFFFFFFFFFFFF
+    await db.execute(select(func.pg_advisory_xact_lock(lock_key)))
+    await db.refresh(integration)
+
     institution_name = (await db.execute(
         select(Institution.name).where(Institution.id == integration.institution_id)
     )).scalar_one_or_none() or "Budeživo"
@@ -935,7 +958,6 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
         )
         if integration.google_export_calendar_id != export_calendar_id:
             integration.google_export_calendar_id = export_calendar_id
-            await db.commit()
     except Exception as exc:
         logger.error("Google export calendar unavailable: %s", type(exc).__name__)
         integration.sync_error = "Exportní kalendář Google není dostupný"
@@ -1019,6 +1041,7 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
         if not body:
             continue
         link = link_by_booking.get(str(r.id))
+        deterministic_event_id = _google_export_event_id(integration.user_id, r.id)
         try:
             if link and link.google_event_id:
                 if link.google_calendar_id == export_calendar_id and await _patch_google_event(token, export_calendar_id, link.google_event_id, body):
@@ -1027,19 +1050,36 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
                     link.last_synced_at = now
                     stats["updated"] += 1
                 else:
-                    # Event gone → recreate.
-                    ev_id = await _create_google_event(token, export_calendar_id, body)
+                    # A changed export calendar is a move: remove precisely the
+                    # old Budeživo event recorded by this mapping before creating
+                    # its replacement. Never search or delete personal events.
+                    if link.google_calendar_id != export_calendar_id:
+                        if not link.google_calendar_id or not await _delete_google_event(
+                            token, link.google_calendar_id, link.google_event_id
+                        ):
+                            link.sync_status = "error"
+                            link.sync_error = "Starou exportovanou událost se nepodařilo odstranit"
+                            stats["errors"] += 1
+                            continue
+                        stats["deleted"] += 1
+                    # Event vanished, or its old tracked copy was removed: recreate.
+                    ev_id = await _create_google_event(
+                        token, export_calendar_id, body, deterministic_event_id
+                    )
                     if ev_id:
                         link.google_event_id = ev_id
                         link.google_calendar_id = export_calendar_id
                         link.sync_status = "synced"
+                        link.sync_error = None
                         link.last_synced_at = now
                         stats["created"] += 1
                     else:
                         link.sync_status = "error"
                         stats["errors"] += 1
             else:
-                ev_id = await _create_google_event(token, export_calendar_id, body)
+                ev_id = await _create_google_event(
+                    token, export_calendar_id, body, deterministic_event_id
+                )
                 if ev_id:
                     if link:
                         link.google_event_id = ev_id

@@ -43,6 +43,25 @@ const DURATION_FILTER_OPTIONS = [
   { value: 'long', label: 'Dlouhý (120+ min)' },
 ];
 
+const programValidityDate = (value) => {
+  const match = String(value || '').match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : null;
+};
+
+const currentLocalDate = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const isProgramCurrentlyValid = (program, today = currentLocalDate()) => {
+  const startDate = programValidityDate(program?.start_date);
+  const endDate = programValidityDate(program?.end_date);
+  return (!startDate || startDate <= today) && (!endDate || endDate >= today);
+};
+
 const BOOKING_API_FIELD_LABELS = {
   program_id: 'program',
   date: 'datum',
@@ -314,11 +333,12 @@ export const BookingPage = () => {
     try {
       const response = await axios.get(`${API}/programs/public/${institutionId}`);
       const allPrograms = Array.isArray(response.data) ? response.data : [];
-      setPrograms(allPrograms);
+      const currentlyValidPrograms = allPrograms.filter(program => isProgramCurrentlyValid(program));
+      setPrograms(currentlyValidPrograms);
       
       // Auto-select preselected program from URL parameter
       if (preselectedProgramId) {
-        const preselected = allPrograms.find(p => p.id === preselectedProgramId);
+        const preselected = currentlyValidPrograms.find(p => p.id === preselectedProgramId);
         if (preselected) {
           setSelectedProgram(preselected);
           setFormData(prev => ({ ...prev, program_id: preselected.id }));
@@ -911,7 +931,7 @@ export const BookingPage = () => {
                         <p className="text-sm text-gray-500">Doprovodný program</p>
                       </div>
                     </div>
-                    <p className="text-gray-600 mb-4">{program.description_cs}</p>
+                    <p className="text-gray-600 mb-4 whitespace-pre-line">{program.description_cs}</p>
                     <div className="flex flex-wrap gap-3 mb-3">
                       {(() => {
                         const ageLabel = AGE_GROUPS[program.age_group] || AGE_GROUPS[(program.target_groups || [])[0]];

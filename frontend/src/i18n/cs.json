@@ -184,6 +184,7 @@
     "forgotPassword": {
       "title": "Zapomenuté heslo",
       "subtitle": "Zadejte váš e-mail a pošleme vám odkaz pro obnovení hesla",
+      "success": "Pokud účet s tímto e-mailem existuje, poslali jsme na něj odkaz pro obnovení hesla.",
       "email": "E-mail",
       "submit": "Odeslat odkaz",
       "backToLogin": "Zpět na přihlášení"

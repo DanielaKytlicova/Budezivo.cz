@@ -90,6 +90,23 @@ class PilotTransactionalEmailTemplateTests(unittest.TestCase):
             with self.subTest(template_name=template_name):
                 self.assert_template_renders(template_name, EVENT_DATA, expected_text)
 
+    def test_teacher_reminder_does_not_ask_for_confirmed_participant_count(self):
+        rendered = get_template("reservation_reminder_teacher", RESERVATION_DATA)
+
+        for content in (rendered["html"], rendered["text"]):
+            self.assertNotIn("potvrzený počet účastníků", content)
+        self.assertIn("Dostavte se 10 minut před začátkem", rendered["html"])
+
+    def test_forgot_password_response_does_not_disclose_registered_accounts(self):
+        auth_source = (BACKEND_ROOT / "routes/auth.py").read_text()
+        page_source = (BACKEND_ROOT.parent / "frontend/src/pages/public/ForgotPasswordPage.js").read_text()
+        translations = (BACKEND_ROOT.parent / "frontend/src/i18n/cs.json").read_text()
+        public_message = 'return {"message": "If email exists, password reset link has been sent"}'
+
+        self.assertEqual(auth_source.count(public_message), 2)
+        self.assertIn("auth.forgotPassword.success", page_source)
+        self.assertIn("Pokud účet s tímto e-mailem existuje", translations)
+
     def test_reservation_sender_mapping_uses_reservation_sender(self):
         for email_type in (
             EmailType.RESERVATION_CREATED_TEACHER,

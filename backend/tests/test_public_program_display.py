@@ -21,25 +21,27 @@ class PublicProgramDisplayTests(unittest.TestCase):
             self.source,
         )
 
-    def test_public_list_filters_programs_to_current_validity_period(self):
-        self.assertIn("const isProgramCurrentlyValid = (program", self.source)
-        self.assertIn("(!startDate || startDate <= today)", self.source)
-        self.assertIn("(!endDate || endDate >= today)", self.source)
-        self.assertIn(
-            "const currentlyValidPrograms = allPrograms.filter(program => isProgramCurrentlyValid(program));",
-            self.source,
-        )
-        self.assertIn("setPrograms(currentlyValidPrograms);", self.source)
+    def test_all_public_programs_are_visible_by_default(self):
+        self.assertIn("const [validityFilter, setValidityFilter] = useState('all');", self.source)
+        self.assertIn("setPrograms(allPrograms);", self.source)
+        self.assertNotIn("setPrograms(currentlyValidPrograms);", self.source)
 
-    def test_preselected_program_uses_the_same_validity_filter(self):
+    def test_preselected_future_program_remains_available(self):
         self.assertIn(
-            "const preselected = currentlyValidPrograms.find(p => p.id === preselectedProgramId);",
-            self.source,
-        )
-        self.assertNotIn(
             "const preselected = allPrograms.find(p => p.id === preselectedProgramId);",
             self.source,
         )
+
+    def test_validity_filter_can_show_current_upcoming_or_past_programs(self):
+        self.assertIn("const programValidityState = (program", self.source)
+        self.assertIn("if (startDate && startDate > today) return 'upcoming';", self.source)
+        self.assertIn("if (endDate && endDate < today) return 'past';", self.source)
+        self.assertIn("programValidityState(p) === validityFilter", self.source)
+        self.assertIn('data-testid="filter-validity"', self.source)
+        self.assertIn("{ value: 'all', label: 'Všechna období' }", self.source)
+        self.assertIn("{ value: 'current', label: 'Aktuálně platné' }", self.source)
+        self.assertIn("{ value: 'upcoming', label: 'Budoucí programy' }", self.source)
+        self.assertIn("{ value: 'past', label: 'Ukončené programy' }", self.source)
 
 
 if __name__ == "__main__":

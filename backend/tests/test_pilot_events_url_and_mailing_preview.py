@@ -19,6 +19,15 @@ class PilotEventsUrlAndMailingPreviewTests(unittest.TestCase):
         self.assertIn('"email": school.email', source)
         self.assertNotIn("FakeContact", source)
 
+    def test_event_applications_offer_payment_filter_and_cash_quick_action(self):
+        source = (ROOT / "frontend/src/pages/admin/EventsPage.js").read_text()
+
+        self.assertIn('application-payment-filter-awaiting', source)
+        self.assertIn("const MARK_PAID_ROLES = ['admin', 'spravce', 'ucetni', 'pokladni']", source)
+        self.assertIn("app.payment_method === 'cash'", source)
+        self.assertIn('data-testid={`quick-mark-paid-${app.id}`}', source)
+        self.assertIn("updateApplicationStatus(app.id, null, 'paid')", source)
+
 
 if __name__ == "__main__":
     unittest.main()

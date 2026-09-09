@@ -48,6 +48,7 @@ const VALIDITY_FILTER_OPTIONS = [
   { value: 'current', label: 'Aktuálně platné' },
   { value: 'upcoming', label: 'Budoucí programy' },
   { value: 'past', label: 'Ukončené programy' },
+  { value: 'range', label: 'Vlastní rozsah' },
 ];
 
 const programValidityDate = (value) => {
@@ -69,6 +70,13 @@ const programValidityState = (program, today = currentLocalDate()) => {
   if (startDate && startDate > today) return 'upcoming';
   if (endDate && endDate < today) return 'past';
   return 'current';
+};
+
+const programOverlapsDateRange = (program, rangeStart, rangeEnd) => {
+  const programStart = programValidityDate(program?.start_date);
+  const programEnd = programValidityDate(program?.end_date);
+  return (!rangeEnd || !programStart || programStart <= rangeEnd)
+    && (!rangeStart || !programEnd || programEnd >= rangeStart);
 };
 
 const BOOKING_API_FIELD_LABELS = {
@@ -167,6 +175,8 @@ export const BookingPage = () => {
   });
   const [durationFilter, setDurationFilter] = useState(() => searchParams.get('duration') || 'all');
   const [validityFilter, setValidityFilter] = useState('all');
+  const [validityRangeStart, setValidityRangeStart] = useState('');
+  const [validityRangeEnd, setValidityRangeEnd] = useState('');
   const preselectedProgramId = searchParams.get('program') || null;
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [waitlistDate, setWaitlistDate] = useState(null);
@@ -430,12 +440,14 @@ export const BookingPage = () => {
       });
     }
 
-    if (validityFilter !== 'all') {
+    if (validityFilter === 'range') {
+      result = result.filter(p => programOverlapsDateRange(p, validityRangeStart, validityRangeEnd));
+    } else if (validityFilter !== 'all') {
       result = result.filter(p => programValidityState(p) === validityFilter);
     }
     
     return result;
-  }, [programs, ageFilters, durationFilter, validityFilter]);
+  }, [programs, ageFilters, durationFilter, validityFilter, validityRangeStart, validityRangeEnd]);
 
   const toggleAgeFilter = (code) => {
     setAgeFilters(prev => 
@@ -447,6 +459,8 @@ export const BookingPage = () => {
     setAgeFilters([]);
     setDurationFilter('all');
     setValidityFilter('all');
+    setValidityRangeStart('');
+    setValidityRangeEnd('');
   };
 
   const hasActiveFilters = ageFilters.length > 0 || durationFilter !== 'all' || validityFilter !== 'all';
@@ -888,6 +902,32 @@ export const BookingPage = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                    {validityFilter === 'range' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3" data-testid="filter-validity-range">
+                        <div>
+                          <Label htmlFor="validity-range-start" className="text-xs text-gray-600">Od</Label>
+                          <Input
+                            id="validity-range-start"
+                            type="date"
+                            value={validityRangeStart}
+                            max={validityRangeEnd || undefined}
+                            onChange={event => setValidityRangeStart(event.target.value)}
+                            data-testid="filter-validity-start"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="validity-range-end" className="text-xs text-gray-600">Do</Label>
+                          <Input
+                            id="validity-range-end"
+                            type="date"
+                            value={validityRangeEnd}
+                            min={validityRangeStart || undefined}
+                            onChange={event => setValidityRangeEnd(event.target.value)}
+                            data-testid="filter-validity-end"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </Card>
               )}

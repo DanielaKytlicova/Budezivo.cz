@@ -42,6 +42,19 @@ class PublicProgramDisplayTests(unittest.TestCase):
         self.assertIn("{ value: 'current', label: 'Aktuálně platné' }", self.source)
         self.assertIn("{ value: 'upcoming', label: 'Budoucí programy' }", self.source)
         self.assertIn("{ value: 'past', label: 'Ukončené programy' }", self.source)
+        self.assertIn("{ value: 'range', label: 'Vlastní rozsah' }", self.source)
+
+    def test_custom_range_filters_programs_by_overlapping_validity(self):
+        self.assertIn("const programOverlapsDateRange = (program", self.source)
+        self.assertIn("programStart <= rangeEnd", self.source)
+        self.assertIn("programEnd >= rangeStart", self.source)
+        self.assertIn(
+            "programOverlapsDateRange(p, validityRangeStart, validityRangeEnd)",
+            self.source,
+        )
+        self.assertIn('data-testid="filter-validity-range"', self.source)
+        self.assertIn('data-testid="filter-validity-start"', self.source)
+        self.assertIn('data-testid="filter-validity-end"', self.source)
 
 
 if __name__ == "__main__":

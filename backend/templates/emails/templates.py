@@ -955,7 +955,6 @@ def reservation_reminder_teacher(data: Dict[str, Any]) -> Dict[str, str]:
         <h2 style="{BASE_STYLES['h2']}">Nezapomeňte</h2>
         <ul style="color: #475569; padding-left: 20px;">
             <li style="margin-bottom: 8px;">Dostavte se 10 minut před začátkem</li>
-            <li style="margin-bottom: 8px;">Ujistěte se, že máte potvrzený počet účastníků</li>
         </ul>
 
         <p style="{BASE_STYLES['text']}">

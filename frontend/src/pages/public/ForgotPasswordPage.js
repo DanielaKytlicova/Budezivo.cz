@@ -67,7 +67,9 @@ export const ForgotPasswordPage = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <p className="text-slate-700 mb-6">{t('auth.forgotPassword.subtitle')}</p>
+              <p className="text-slate-700 mb-6" data-testid="forgot-password-success-message">
+                {t('auth.forgotPassword.success')}
+              </p>
               <Link to="/login" data-testid="back-to-login-link">
                 <Button className="bg-slate-800 hover:bg-slate-700">
                   {t('auth.forgotPassword.backToLogin')}

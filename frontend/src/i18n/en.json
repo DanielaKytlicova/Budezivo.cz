@@ -158,6 +158,7 @@
     "forgotPassword": {
       "title": "Forgot Password",
       "subtitle": "Enter your email and we'll send you a password reset link",
+      "success": "If an account with this email exists, we sent it a password reset link.",
       "email": "Email",
       "submit": "Send Link",
       "backToLogin": "Back to Login"

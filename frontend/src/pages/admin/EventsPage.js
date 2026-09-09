@@ -52,6 +52,8 @@ const PAYMENT_METHOD_LABELS = {
   cash: 'Platba na místě',
 };
 
+const MARK_PAID_ROLES = ['admin', 'spravce', 'ucetni', 'pokladni'];
+
 const toApiDateTime = (value) => value ? new Date(value).toISOString() : null;
 
 const toDateTimeLocal = (value) => {
@@ -97,6 +99,7 @@ export const EventsPage = () => {
   const [paymentSettings, setPaymentSettings] = useState(null);
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [expandedApp, setExpandedApp] = useState(null);
+  const [applicationPaymentFilter, setApplicationPaymentFilter] = useState('all');
   const [savingEvent, setSavingEvent] = useState(false);
 
   useEffect(() => {
@@ -149,6 +152,7 @@ export const EventsPage = () => {
     setNewDateErrors({});
     setDateDeadlineErrors({});
     setApplications([]);
+    setApplicationPaymentFilter('all');
     setActiveTab('detail');
     setShowDialog(true);
   };
@@ -167,6 +171,7 @@ export const EventsPage = () => {
       allowed_payment_methods: event.allowed_payment_methods || null,
       registration_deadline: toDateTimeLocal(event.registration_deadline),
     });
+    setApplicationPaymentFilter('all');
     setActiveTab('detail');
     setShowDialog(true);
     await fetchEventDetail(event.id);
@@ -409,6 +414,13 @@ export const EventsPage = () => {
     const labels = { unpaid: 'Nezaplaceno', pending: 'Čeká platba', paid: 'Zaplaceno', not_required: 'Platba není vyžadována' };
     return <span className={`px-2 py-0.5 text-xs rounded-full ${map[status] || 'bg-gray-100'}`}>{labels[status] || status}</span>;
   };
+
+  const awaitingPaymentCount = applications.filter(app =>
+    app.total_amount > 0 && !['paid', 'not_required'].includes(app.payment_status)
+  ).length;
+  const filteredApplications = applicationPaymentFilter === 'awaiting'
+    ? applications.filter(app => app.total_amount > 0 && !['paid', 'not_required'].includes(app.payment_status))
+    : applications;
 
   // ===== RENDER =====
 
@@ -824,7 +836,9 @@ export const EventsPage = () => {
             <div className="space-y-6">
               <Card className="p-4 md:p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-slate-900">Přihlášky ({applications.length})</h3>
+                  <h3 className="font-semibold text-slate-900">
+                    Přihlášky ({filteredApplications.length}{applicationPaymentFilter === 'awaiting' ? ` z ${applications.length}` : ''})
+                  </h3>
                   {editingEvent && applications.length > 0 && (
                     <div className="flex gap-2">
                       <Button size="sm" variant="outline" onClick={() => window.open(`${API}/events/${editingEvent.id}/export/xlsx`, '_blank')} data-testid="export-xlsx">
@@ -836,6 +850,28 @@ export const EventsPage = () => {
                     </div>
                   )}
                 </div>
+                {applications.length > 0 && (
+                  <div className="flex flex-wrap gap-2" aria-label="Filtr přihlášek podle platby">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={applicationPaymentFilter === 'all' ? 'default' : 'outline'}
+                      onClick={() => setApplicationPaymentFilter('all')}
+                      data-testid="application-payment-filter-all"
+                    >
+                      Všechny ({applications.length})
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={applicationPaymentFilter === 'awaiting' ? 'default' : 'outline'}
+                      onClick={() => setApplicationPaymentFilter('awaiting')}
+                      data-testid="application-payment-filter-awaiting"
+                    >
+                      Čeká na platbu ({awaitingPaymentCount})
+                    </Button>
+                  </div>
+                )}
                 {editingEvent && applications.length > 0 && (formData.price || 0) > 0 && (() => {
                   const b = { qr: { total: 0, paid: 0 }, gateway: { total: 0, paid: 0 }, cash: { total: 0, paid: 0 } };
                   applications.forEach(a => {
@@ -865,7 +901,12 @@ export const EventsPage = () => {
                 })()}
                 {!editingEvent && <p className="text-sm text-amber-600">Nejprve uložte událost.</p>}
                 {editingEvent && applications.length === 0 && <p className="text-sm text-gray-500">Zatím žádné přihlášky.</p>}
-                {applications.map(app => {
+                {editingEvent && applications.length > 0 && filteredApplications.length === 0 && (
+                  <p className="text-sm text-gray-500" data-testid="application-payment-filter-empty">
+                    Žádná přihláška nyní nečeká na platbu.
+                  </p>
+                )}
+                {filteredApplications.map(app => {
                   const fieldLabelMap = {};
                   (formData.form_fields || []).forEach(f => { fieldLabelMap[f.id] = f.label; });
                   const isExpanded = expandedApp === app.id;
@@ -873,25 +914,39 @@ export const EventsPage = () => {
                   return (
                   <div key={app.id} className="border rounded-lg overflow-hidden" data-testid={`application-${app.id}`}>
                     {/* Collapsed header — always visible */}
-                    <button
-                      type="button"
-                      onClick={() => setExpandedApp(isExpanded ? null : app.id)}
-                      className="w-full text-left p-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                      data-testid={`toggle-app-${app.id}`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{app.applicant_name || 'Bez jména'}</p>
-                          <p className="text-xs text-gray-500 truncate">{app.applicant_email}</p>
+                    <div className="flex items-center gap-2 p-3 hover:bg-gray-50 transition-colors">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedApp(isExpanded ? null : app.id)}
+                        className="flex-1 min-w-0 text-left flex items-center justify-between"
+                        data-testid={`toggle-app-${app.id}`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`} />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{app.applicant_name || 'Bez jména'}</p>
+                            <p className="text-xs text-gray-500 truncate">{app.applicant_email}</p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0 ml-2">
-                        {app.total_amount > 0 && <span className="text-xs text-gray-500">{app.total_amount} Kč</span>}
-                        {statusBadge(app.status)}
-                        {payBadge(app.payment_status)}
-                      </div>
-                    </button>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          {app.total_amount > 0 && <span className="text-xs text-gray-500">{app.total_amount} Kč</span>}
+                          {statusBadge(app.status)}
+                          {payBadge(app.payment_status)}
+                        </div>
+                      </button>
+                      {MARK_PAID_ROLES.includes(user?.role) && app.payment_method === 'cash' && app.payment_status !== 'paid' && app.total_amount > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="shrink-0 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                          onClick={() => updateApplicationStatus(app.id, null, 'paid')}
+                          data-testid={`quick-mark-paid-${app.id}`}
+                        >
+                          Označit zaplaceno
+                        </Button>
+                      )}
+                    </div>
 
                     {/* Expanded detail */}
                     {isExpanded && (
@@ -930,7 +985,7 @@ export const EventsPage = () => {
                           {app.status === 'waitlist' && (
                             <Button size="sm" variant="outline" className="text-orange-600" onClick={() => updateApplicationStatus(app.id, 'pending')} data-testid={`promote-app-${app.id}`}>Posunout z čekací listiny</Button>
                           )}
-                          {app.payment_status !== 'paid' && app.total_amount > 0 && (
+                          {MARK_PAID_ROLES.includes(user?.role) && app.payment_status !== 'paid' && app.total_amount > 0 && (
                             <Button size="sm" variant="outline" className="text-slate-600" onClick={() => updateApplicationStatus(app.id, null, 'paid')} data-testid={`mark-paid-${app.id}`}>Označit zaplaceno</Button>
                           )}
                           <Button size="sm" variant="outline" onClick={() => window.open(`${API}/events/applications/${app.id}/pdf`, '_blank')} data-testid={`pdf-${app.id}`}>

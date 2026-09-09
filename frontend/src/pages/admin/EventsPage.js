@@ -421,6 +421,20 @@ export const EventsPage = () => {
   const filteredApplications = applicationPaymentFilter === 'awaiting'
     ? applications.filter(app => app.total_amount > 0 && !['paid', 'not_required'].includes(app.payment_status))
     : applications;
+  const revenueApplications = applications.filter(app =>
+    app.total_amount > 0 && !['rejected', 'waitlist'].includes(app.status)
+  );
+  const revenueSummary = revenueApplications.reduce((summary, app) => {
+    const amount = Number(app.total_amount) || 0;
+    if (app.payment_status === 'paid') summary.collected += amount;
+    else summary.outstanding += amount;
+    return summary;
+  }, { collected: 0, outstanding: 0 });
+  const formatRevenue = (amount) => new Intl.NumberFormat('cs-CZ', {
+    style: 'currency',
+    currency: formData.currency || 'CZK',
+    maximumFractionDigits: 0,
+  }).format(amount);
 
   // ===== RENDER =====
 
@@ -899,6 +913,22 @@ export const EventsPage = () => {
                     </div>
                   );
                 })()}
+                {editingEvent && revenueApplications.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" data-testid="event-revenue-summary">
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="text-sm font-medium text-emerald-800">Vybráno</p>
+                      <p className="text-2xl font-bold text-emerald-900" data-testid="event-revenue-collected">
+                        {formatRevenue(revenueSummary.collected)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-sm font-medium text-amber-800">Zbývá vybrat</p>
+                      <p className="text-2xl font-bold text-amber-900" data-testid="event-revenue-outstanding">
+                        {formatRevenue(revenueSummary.outstanding)}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {!editingEvent && <p className="text-sm text-amber-600">Nejprve uložte událost.</p>}
                 {editingEvent && applications.length === 0 && <p className="text-sm text-gray-500">Zatím žádné přihlášky.</p>}
                 {editingEvent && applications.length > 0 && filteredApplications.length === 0 && (

@@ -28,6 +28,14 @@ class PilotEventsUrlAndMailingPreviewTests(unittest.TestCase):
         self.assertIn('data-testid={`quick-mark-paid-${app.id}`}', source)
         self.assertIn("updateApplicationStatus(app.id, null, 'paid')", source)
 
+    def test_event_revenue_summary_is_read_only_and_excludes_inactive_applications(self):
+        source = (ROOT / "frontend/src/pages/admin/EventsPage.js").read_text()
+
+        self.assertIn('data-testid="event-revenue-summary"', source)
+        self.assertIn("!['rejected', 'waitlist'].includes(app.status)", source)
+        self.assertIn("revenueSummary.collected", source)
+        self.assertIn("revenueSummary.outstanding", source)
+
 
 if __name__ == "__main__":
     unittest.main()

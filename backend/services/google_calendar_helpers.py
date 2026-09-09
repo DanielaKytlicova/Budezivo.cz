@@ -13,12 +13,9 @@ CALENDAR_TIMEZONE = "Europe/Prague"
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
     "https://www.googleapis.com/auth/calendar.freebusy",
-    "https://www.googleapis.com/auth/calendar.events",
     # Allows Budeživo to create and manage only calendars it created itself.
     "https://www.googleapis.com/auth/calendar.app.created",
-    "https://www.googleapis.com/auth/userinfo.email",
 ]
-EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events"
 EXPORT_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.app.created"
 CALENDAR_LIST_SCOPE = "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
 FREEBUSY_SCOPE = "https://www.googleapis.com/auth/calendar.freebusy"
@@ -45,13 +42,6 @@ def program_color_index(key: str) -> int:
     return value % len(GOOGLE_PROGRAM_COLOR_IDS)
 
 
-def has_events_scope(granted_scopes: Optional[str]) -> bool:
-    """True if the stored grant includes calendar.events (needed for export)."""
-    if not granted_scopes:
-        return False
-    return EVENTS_SCOPE in granted_scopes.split()
-
-
 def has_export_calendar_scope(granted_scopes: Optional[str]) -> bool:
     """True if the grant can create and manage Budeživo-owned calendars."""
     if not granted_scopes:
@@ -65,6 +55,11 @@ def has_availability_scopes(granted_scopes: Optional[str]) -> bool:
         return False
     granted = set(granted_scopes.split())
     return CALENDAR_LIST_SCOPE in granted and FREEBUSY_SCOPE in granted
+
+
+def has_required_google_scopes(granted_scopes: Optional[str]) -> bool:
+    """True when the grant covers every currently offered Google feature."""
+    return has_availability_scopes(granted_scopes) and has_export_calendar_scope(granted_scopes)
 
 
 def is_budezivo_event(ev: dict) -> bool:

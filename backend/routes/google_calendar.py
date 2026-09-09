@@ -37,7 +37,7 @@ from database.models import (
 from services.plan_service import require_feature
 from core.permissions import require_roles, CALENDAR_PERSONAL_ROLES
 from services.google_calendar_helpers import (
-    SCOPES, EVENTS_SCOPE, has_events_scope, has_export_calendar_scope, has_availability_scopes,
+    SCOPES, has_required_google_scopes, has_export_calendar_scope, has_availability_scopes,
     build_export_event_body, reservation_assigned_user_ids, CANCELLED_STATUSES,
     GOOGLE_PROGRAM_COLOR_IDS,
     program_color_index,
@@ -64,7 +64,6 @@ REDIRECT_URI = os.environ.get("GOOGLE_REDIRECT_URI", "")
 
 AUTH_URI = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URI = "https://oauth2.googleapis.com/token"
-USERINFO_URI = "https://www.googleapis.com/oauth2/v2/userinfo"
 CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
 
 SCOPES = SCOPES  # imported from helpers (CalendarList + FreeBusy + export scopes)
@@ -178,22 +177,6 @@ async def oauth_callback(
     expires_in = token_data.get("expires_in", 3600)
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
-    # Pull user identity (email) for diagnostics & to store as google_user_id
-    google_user_id = None
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                USERINFO_URI,
-                headers={"Authorization": f"Bearer {access_token}"},
-                timeout=15,
-            )
-            if resp.status_code == 200:
-                profile = resp.json()
-                # Prefer the stable "id" field; fall back to email.
-                google_user_id = profile.get("id") or profile.get("email")
-    except Exception as e:
-        logger.warning(f"Google userinfo failed: {e}")
-
     user_uuid = uuid.UUID(user_data["user_id"])
     inst_uuid = uuid.UUID(user_data["institution_id"])
 
@@ -211,12 +194,10 @@ async def oauth_callback(
         if refresh_token:
             integration.refresh_token = refresh_token
         integration.expires_at = expires_at
-        integration.microsoft_user_id = google_user_id  # reused col
         integration.is_active = True
         integration.sync_error = None
         integration.granted_scopes = granted_scopes
-        # New grant with events scope clears any pending reconnect requirement.
-        integration.needs_reconnect = not has_events_scope(granted_scopes)
+        integration.needs_reconnect = not has_required_google_scopes(granted_scopes)
         integration.updated_at = datetime.now(timezone.utc)
     else:
         integration = UserCalendarIntegration(
@@ -226,10 +207,9 @@ async def oauth_callback(
             access_token=access_token,
             refresh_token=refresh_token,
             expires_at=expires_at,
-            microsoft_user_id=google_user_id,
             is_active=True,
             granted_scopes=granted_scopes,
-            needs_reconnect=not has_events_scope(granted_scopes),
+            needs_reconnect=not has_required_google_scopes(granted_scopes),
         )
         db.add(integration)
 
@@ -275,7 +255,6 @@ async def get_connection_status(
         "export_calendar_id": integration.google_export_calendar_id,
         "export_calendar_name": f"Budeživo – {(await db.execute(select(Institution.name).where(Institution.id == integration.institution_id))).scalar_one_or_none() or ''}",
         "needs_reconnect": integration.needs_reconnect,
-        "has_events_scope": has_events_scope(integration.granted_scopes),
         "has_export_calendar_scope": has_export_calendar_scope(integration.granted_scopes),
         "export_scope": "institution" if current_user.get("role") in ("admin", "spravce") else "assigned",
     }

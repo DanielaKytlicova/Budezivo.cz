@@ -23,10 +23,31 @@ class GoogleExportCalendarTests(unittest.TestCase):
 
     def test_oauth_requests_calendar_creation_scope(self):
         helpers = (ROOT / "services/google_calendar_helpers.py").read_text()
+        tree = ast.parse(helpers)
+        scopes_assignment = next(
+            node for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "SCOPES" for target in node.targets)
+        )
+        self.assertEqual(
+            ast.literal_eval(scopes_assignment.value),
+            [
+                "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+                "https://www.googleapis.com/auth/calendar.freebusy",
+                "https://www.googleapis.com/auth/calendar.app.created",
+            ],
+        )
         self.assertIn("https://www.googleapis.com/auth/calendar.app.created", helpers)
         self.assertIn("https://www.googleapis.com/auth/calendar.calendarlist.readonly", helpers)
         self.assertIn("https://www.googleapis.com/auth/calendar.freebusy", helpers)
         self.assertNotIn("https://www.googleapis.com/auth/calendar.readonly", helpers)
+        self.assertNotIn("https://www.googleapis.com/auth/calendar.events\"", helpers)
+        self.assertNotIn("https://www.googleapis.com/auth/userinfo.email", helpers)
+
+    def test_oauth_does_not_fetch_unused_google_identity(self):
+        self.assertNotIn("USERINFO_URI", ROUTE)
+        self.assertNotIn("userinfo failed", ROUTE)
+        self.assertIn("has_required_google_scopes(granted_scopes)", ROUTE)
 
     def test_migration_is_nullable_and_non_destructive(self):
         self.assertIn("ADD COLUMN IF NOT EXISTS google_export_calendar_id TEXT", MIGRATION)

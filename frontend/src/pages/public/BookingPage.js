@@ -43,6 +43,13 @@ const DURATION_FILTER_OPTIONS = [
   { value: 'long', label: 'Dlouhý (120+ min)' },
 ];
 
+const VALIDITY_FILTER_OPTIONS = [
+  { value: 'all', label: 'Všechna období' },
+  { value: 'current', label: 'Aktuálně platné' },
+  { value: 'upcoming', label: 'Budoucí programy' },
+  { value: 'past', label: 'Ukončené programy' },
+];
+
 const programValidityDate = (value) => {
   const match = String(value || '').match(/^(\d{4}-\d{2}-\d{2})/);
   return match ? match[1] : null;
@@ -56,10 +63,12 @@ const currentLocalDate = () => {
   return `${year}-${month}-${day}`;
 };
 
-const isProgramCurrentlyValid = (program, today = currentLocalDate()) => {
+const programValidityState = (program, today = currentLocalDate()) => {
   const startDate = programValidityDate(program?.start_date);
   const endDate = programValidityDate(program?.end_date);
-  return (!startDate || startDate <= today) && (!endDate || endDate >= today);
+  if (startDate && startDate > today) return 'upcoming';
+  if (endDate && endDate < today) return 'past';
+  return 'current';
 };
 
 const BOOKING_API_FIELD_LABELS = {
@@ -157,6 +166,7 @@ export const BookingPage = () => {
     return [];
   });
   const [durationFilter, setDurationFilter] = useState(() => searchParams.get('duration') || 'all');
+  const [validityFilter, setValidityFilter] = useState('all');
   const preselectedProgramId = searchParams.get('program') || null;
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [waitlistDate, setWaitlistDate] = useState(null);
@@ -333,12 +343,11 @@ export const BookingPage = () => {
     try {
       const response = await axios.get(`${API}/programs/public/${institutionId}`);
       const allPrograms = Array.isArray(response.data) ? response.data : [];
-      const currentlyValidPrograms = allPrograms.filter(program => isProgramCurrentlyValid(program));
-      setPrograms(currentlyValidPrograms);
+      setPrograms(allPrograms);
       
       // Auto-select preselected program from URL parameter
       if (preselectedProgramId) {
-        const preselected = currentlyValidPrograms.find(p => p.id === preselectedProgramId);
+        const preselected = allPrograms.find(p => p.id === preselectedProgramId);
         if (preselected) {
           setSelectedProgram(preselected);
           setFormData(prev => ({ ...prev, program_id: preselected.id }));
@@ -420,9 +429,13 @@ export const BookingPage = () => {
         return true;
       });
     }
+
+    if (validityFilter !== 'all') {
+      result = result.filter(p => programValidityState(p) === validityFilter);
+    }
     
     return result;
-  }, [programs, ageFilters, durationFilter]);
+  }, [programs, ageFilters, durationFilter, validityFilter]);
 
   const toggleAgeFilter = (code) => {
     setAgeFilters(prev => 
@@ -433,9 +446,10 @@ export const BookingPage = () => {
   const clearFilters = () => {
     setAgeFilters([]);
     setDurationFilter('all');
+    setValidityFilter('all');
   };
 
-  const hasActiveFilters = ageFilters.length > 0 || durationFilter !== 'all';
+  const hasActiveFilters = ageFilters.length > 0 || durationFilter !== 'all' || validityFilter !== 'all';
 
   // Auto-show filters if URL params are present
   useEffect(() => {
@@ -803,7 +817,7 @@ export const BookingPage = () => {
                       className="ml-1 w-5 h-5 rounded-full text-xs text-white flex items-center justify-center"
                       style={{ backgroundColor: institutionData.primaryColor }}
                     >
-                      {ageFilters.length + (durationFilter !== 'all' ? 1 : 0)}
+                      {ageFilters.length + (durationFilter !== 'all' ? 1 : 0) + (validityFilter !== 'all' ? 1 : 0)}
                     </span>
                   )}
                 </button>
@@ -855,6 +869,21 @@ export const BookingPage = () => {
                       </SelectTrigger>
                       <SelectContent>
                         {DURATION_FILTER_OPTIONS.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Validity period select */}
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Období platnosti</p>
+                    <Select value={validityFilter} onValueChange={setValidityFilter}>
+                      <SelectTrigger className="w-full sm:w-56" data-testid="filter-validity">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VALIDITY_FILTER_OPTIONS.map(opt => (
                           <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
                         ))}
                       </SelectContent>

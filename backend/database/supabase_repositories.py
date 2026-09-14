@@ -443,6 +443,38 @@ class BookingRepositorySupabase:
     
     def __init__(self, db: AsyncSession):
         self.db = db
+
+    async def _attach_email_delivery_alerts(self, bookings: List[dict]) -> List[dict]:
+        from services.resend_delivery import (
+            TRANSACTIONAL_ALERT_STATUSES,
+            transactional_delivery_alert,
+        )
+
+        if not bookings:
+            return bookings
+        booking_ids = [uuid.UUID(booking["id"]) for booking in bookings]
+        result = await self.db.execute(
+            select(EmailLog)
+            .where(and_(
+                EmailLog.reservation_id.in_(booking_ids),
+                EmailLog.status.in_(TRANSACTIONAL_ALERT_STATUSES),
+            ))
+            .order_by(EmailLog.created_at.desc())
+        )
+        failed_by_booking = {}
+        for log in result.scalars().all():
+            key = str(log.reservation_id)
+            failed_by_booking.setdefault(key, []).append(log)
+
+        for booking in bookings:
+            current_email = (booking.get("contact_email") or "").strip().lower()
+            alert = transactional_delivery_alert(
+                failed_by_booking.get(booking["id"], []),
+                current_email,
+            )
+            booking["email_delivery_alert"] = bool(alert)
+            booking["email_delivery_status"] = alert["status"] if alert else None
+        return bookings
     
     async def find_by_id(self, booking_id: str, institution_id: str) -> Optional[dict]:
         """Find booking by ID."""
@@ -453,7 +485,9 @@ class BookingRepositorySupabase:
             ))
         )
         booking = result.scalar_one_or_none()
-        return to_dict(booking) if booking else None
+        if not booking:
+            return None
+        return (await self._attach_email_delivery_alerts([to_dict(booking)]))[0]
     
     async def find_by_institution(self, institution_id: str) -> List[dict]:
         """Find all bookings for an institution with program names, sorted by created_at desc."""
@@ -480,7 +514,7 @@ class BookingRepositorySupabase:
             booking_dict['program_name'] = program_lookup.get(program_id, 'Neznámý program')
             booking_list.append(booking_dict)
         
-        return booking_list
+        return await self._attach_email_delivery_alerts(booking_list)
     
     async def find_by_date(self, institution_id: str, date: str) -> List[dict]:
         """Find bookings for specific date."""

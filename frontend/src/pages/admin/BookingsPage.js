@@ -99,7 +99,20 @@ const normalizeBooking = (booking = {}) => ({
   contact_name: booking?.contact_name || '',
   contact_email: booking?.contact_email || '',
   contact_phone: booking?.contact_phone || '',
+  email_delivery_alert: Boolean(booking?.email_delivery_alert),
+  email_delivery_status: booking?.email_delivery_status || null,
 });
+
+const EMAIL_DELIVERY_ALERT_LABELS = {
+  bounced_hard: 'E-mailová adresa zprávu trvale odmítla.',
+  suppressed: 'E-mailová služba další zprávy na tuto adresu blokuje.',
+  complained: 'Příjemce označil předchozí zprávu jako nevyžádanou.',
+};
+
+const getEmailDeliveryAlertText = (booking) => (
+  EMAIL_DELIVERY_ALERT_LABELS[booking?.email_delivery_status]
+  || 'Potvrzovací e-mail se nepodařilo doručit.'
+);
 
 class BookingsPageErrorBoundary extends React.Component {
   constructor(props) {
@@ -562,7 +575,13 @@ const BookingsPageContent = () => {
       await axios.put(`${API}/bookings/${selectedBooking.id}`, payload);
       toast.success('Rezervace byla aktualizována');
       fetchBookings();
-      setSelectedBooking(prev => normalizeBooking({ ...prev, ...payload }));
+      setSelectedBooking(prev => normalizeBooking({
+        ...prev,
+        ...payload,
+        ...(editMode === 'contact' && payload.contact_email?.trim().toLowerCase() !== prev.contact_email?.trim().toLowerCase()
+          ? { email_delivery_alert: false, email_delivery_status: null }
+          : {}),
+      }));
       setEditMode(null);
     } catch (error) {
       const detail = error.response?.data?.detail;
@@ -895,6 +914,35 @@ const BookingsPageContent = () => {
                   </Button>
                 )}
               </div>
+
+              {selectedBooking.email_delivery_alert && (
+                <div
+                  className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800"
+                  data-testid="booking-email-delivery-alert"
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <div>
+                      <p className="font-semibold">E-mail se nepodařilo doručit</p>
+                      <p>{getEmailDeliveryAlertText(selectedBooking)}</p>
+                      <p className="mt-1">
+                        Ověřte adresu <strong>{selectedBooking.contact_email}</strong> a případně ji upravte.
+                      </p>
+                    </div>
+                  </div>
+                  {canEditContact && editMode !== 'contact' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 border-red-200 bg-white text-red-700 hover:bg-red-100"
+                      onClick={() => setEditMode('contact')}
+                      data-testid="verify-booking-email-btn"
+                    >
+                      Ověřit nebo opravit e-mail
+                    </Button>
+                  )}
+                </div>
+              )}
               
               {editMode === 'contact' ? (
                 <div className="space-y-3">
@@ -1506,6 +1554,16 @@ const BookingsPageContent = () => {
                       <div className="flex items-center gap-3 mb-2 flex-wrap">
                         <h3 className="text-lg font-semibold text-slate-900">{booking.program_name || 'Program'}</h3>
                         {getStatusBadge(booking.status)}
+                        {booking.email_delivery_alert && (
+                          <span
+                            data-testid={`booking-email-alert-${booking.id}`}
+                            title={`${getEmailDeliveryAlertText(booking)} Ověřte adresu ${booking.contact_email}.`}
+                            className="inline-flex cursor-help items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700"
+                          >
+                            <AlertTriangle className="h-3 w-3" />
+                            Nedoručený e-mail
+                          </span>
+                        )}
                         {booking.assigned_lecturer_name && (
                           <Badge variant="outline" className="text-xs">
                             <User className="w-3 h-3 mr-1" />

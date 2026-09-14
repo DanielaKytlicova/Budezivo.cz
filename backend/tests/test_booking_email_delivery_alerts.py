@@ -31,6 +31,19 @@ class BookingEmailDeliveryAlertTests(unittest.TestCase):
 
         self.assertIsNone(alert)
 
+    def test_failed_send_creates_alert_without_assuming_hard_bounce(self):
+        alert = transactional_delivery_alert(
+            [{
+                "recipient_email": "teacher@missing-domain.example",
+                "status": "failed",
+                "error_message": "invalid_recipient",
+            }],
+            "teacher@missing-domain.example",
+        )
+
+        self.assertEqual(alert["status"], "failed")
+        self.assertEqual(alert["reason"], "invalid_recipient")
+
     def test_failure_for_old_address_does_not_mark_corrected_address(self):
         alert = transactional_delivery_alert(
             [{"recipient_email": "old@example.cz", "status": "suppressed"}],
@@ -100,6 +113,23 @@ class EmailLogWebhookRaceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(session.added.status, "bounced_hard")
         self.assertEqual(session.added.error_message, "Nedoručeno")
+
+    async def test_email_log_recovers_failed_event_before_log_creation(self):
+        session = _FakeSession(ResendWebhookEvent(event_type="email.failed"))
+        repository = EmailLogRepositorySupabase(session)
+
+        await repository.create({
+            "institution_id": str(uuid.uuid4()),
+            "program_id": str(uuid.uuid4()),
+            "reservation_id": str(uuid.uuid4()),
+            "recipient_email": "teacher@missing-domain.example",
+            "subject": "reservation_created_customer",
+            "status": "sent",
+            "email_id": "failed-provider-message-id",
+        })
+
+        self.assertEqual(session.added.status, "failed")
+        self.assertEqual(session.added.error_message, "Selhalo")
 
 
 if __name__ == "__main__":

@@ -107,6 +107,7 @@ const EMAIL_DELIVERY_ALERT_LABELS = {
   bounced_hard: 'E-mailová adresa zprávu trvale odmítla.',
   suppressed: 'E-mailová služba další zprávy na tuto adresu blokuje.',
   complained: 'Příjemce označil předchozí zprávu jako nevyžádanou.',
+  failed: 'E-mail se nepodařilo odeslat. Ověřte adresu; příčinou může být také technická chyba.',
 };
 
 const getEmailDeliveryAlertText = (booking) => (

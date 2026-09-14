@@ -120,6 +120,19 @@ class ResendWebhookPayloadTests(unittest.TestCase):
         self.assertEqual(update["reason"], "Provider failure")
         self.assertIsNotNone(update["event_at"])
 
+    def test_failed_event_uses_nested_resend_reason(self):
+        update = delivery_update_from_payload({
+            "type": "email.failed",
+            "data": {
+                "email_id": "email_invalid_recipient",
+                "to": ["teacher@missing-domain.example"],
+                "failed": {"reason": "invalid_recipient"},
+            },
+        })
+
+        self.assertEqual(update["status"], "failed")
+        self.assertEqual(update["reason"], "invalid_recipient")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -15,7 +15,8 @@ STATUS_BY_EVENT = {
 }
 
 PERMANENT_SUPPRESSION = {"bounced_hard", "complained", "suppressed", "unsubscribed"}
-TRANSACTIONAL_ALERT_STATUSES = {"bounced_hard", "complained", "suppressed"}
+TRANSACTIONAL_ALERT_STATUSES = {"bounced_hard", "complained", "suppressed", "failed"}
+INVALID_CONTACT_STATUSES = {"bounced_hard", "complained", "suppressed"}
 
 DELIVERY_STATUS_LABELS = {
     "pending": "Čeká na odeslání",
@@ -47,7 +48,7 @@ def delivery_status_label(status: str | None) -> str:
 
 
 def transactional_delivery_alert(logs, current_email: str | None) -> dict | None:
-    """Return the latest permanent failure for the booking's current address."""
+    """Return the latest final delivery failure for the booking's current address."""
     normalized_email = (current_email or "").strip().lower()
     if not normalized_email:
         return None
@@ -116,6 +117,7 @@ def parse_datetime(value) -> datetime:
 def delivery_reason(data: dict, status: str) -> str | None:
     bounce = data.get("bounce") or {}
     suppressed = data.get("suppressed") or {}
+    failed = data.get("failed") or {}
     return (
         bounce.get("message")
         or bounce.get("subType")
@@ -123,12 +125,14 @@ def delivery_reason(data: dict, status: str) -> str | None:
         or suppressed.get("message")
         or suppressed.get("reason")
         or suppressed.get("type")
+        or failed.get("reason")
         or data.get("reason")
         or {
             "complained": "Příjemce označil zprávu jako spam",
             "suppressed": "Adresa je na suppression seznamu poskytovatele",
             "unsubscribed": "Příjemce se odhlásil",
             "bounced_soft": "Doručení je dočasně zpožděné",
+            "failed": "E-mail se nepodařilo odeslat",
         }.get(status)
     )
 
@@ -289,7 +293,7 @@ async def apply_delivery_update(db, delivery_update: dict, svix_id: str) -> dict
             contact.deliverability_status = status
             contact.deliverability_reason = reason
             contact.deliverability_updated_at = event_at
-        if status in TRANSACTIONAL_ALERT_STATUSES:
+        if status in INVALID_CONTACT_STATUSES:
             for contact in school_contacts:
                 contact.last_email_bounced = status == "bounced_hard"
                 contact.status = "invalid"

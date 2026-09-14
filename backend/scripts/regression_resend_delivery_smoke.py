@@ -31,6 +31,7 @@ except ModuleNotFoundError:
 PROVIDER_EMAIL_ID = "resend_regression_email_1"
 SVIX_ID = "msg_regression_resend_bounce_1"
 BOUNCE_REASON = "Regression mailbox does not exist"
+EMAIL_LOG_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1"
 
 
 def bounced_payload() -> dict:
@@ -57,10 +58,33 @@ def expected_checks() -> tuple[str, ...]:
         "central_contact_marked_bounced",
         "school_contact_marked_invalid",
         "permanent_suppression_visible",
+        "transactional_log_marked_bounced",
     )
 
 
 async def reset_delivery_state(conn) -> None:
+    await conn.execute(
+        """
+        INSERT INTO email_logs (
+            id, institution_id, program_id, reservation_id, recipient_email,
+            subject, status, error_message, email_id, created_at
+        ) VALUES (
+            $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5,
+            'reservation_confirmed', 'sent', NULL, $6, NOW()
+        )
+        ON CONFLICT (id) DO UPDATE SET
+            recipient_email = EXCLUDED.recipient_email,
+            status = 'sent',
+            error_message = NULL,
+            email_id = EXCLUDED.email_id
+        """,
+        EMAIL_LOG_ID,
+        IDS["institution"],
+        IDS["program"],
+        IDS["reservation"],
+        SCHOOL_EMAIL,
+        PROVIDER_EMAIL_ID,
+    )
     await conn.execute(
         """
         UPDATE mailing_campaign_recipients
@@ -130,11 +154,16 @@ async def collect_rows(conn) -> Dict[str, object]:
         "SELECT count(*) FROM resend_webhook_events WHERE svix_id = $1",
         SVIX_ID,
     )
+    email_log = await conn.fetchrow(
+        "SELECT status, error_message FROM email_logs WHERE id = $1::uuid",
+        EMAIL_LOG_ID,
+    )
     return {
         "recipient": dict(recipient) if recipient else None,
         "contact": dict(contact) if contact else None,
         "school_contact": dict(school_contact) if school_contact else None,
         "webhook_count": webhook_count,
+        "email_log": dict(email_log) if email_log else None,
     }
 
 
@@ -171,6 +200,7 @@ async def collect_report() -> Dict[str, object]:
     recipient = rows["recipient"] or {}
     contact = rows["contact"] or {}
     school_contact = rows["school_contact"] or {}
+    email_log = rows["email_log"] or {}
     checks = {
         "core_seed_present": bool(recipient and contact and school_contact),
         "webhook_event_recorded": rows["webhook_count"] == 1,
@@ -195,6 +225,11 @@ async def collect_report() -> Dict[str, object]:
             school_contact.get("deliverability_status") == "bounced_hard"
             and school_contact.get("deliverability_reason") == BOUNCE_REASON
             and school_contact.get("deliverability_updated_at") is not None
+        ),
+        "transactional_log_marked_bounced": (
+            first.get("matched_transactional") == 1
+            and email_log.get("status") == "bounced_hard"
+            and email_log.get("error_message") == BOUNCE_REASON
         ),
     }
     return {

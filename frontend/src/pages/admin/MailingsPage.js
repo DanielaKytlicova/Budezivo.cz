@@ -388,20 +388,31 @@ const CampaignDetail = ({ campaign, onClose, onRefresh, onEdit, onRepeatCreated 
 
         <div className="space-y-4">
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <Card className="p-3 text-center">
               <div className="text-2xl font-bold text-slate-900">{c.total_recipients}</div>
               <div className="text-xs text-slate-500">Příjemců</div>
             </Card>
             <Card className="p-3 text-center">
-              <div className="text-2xl font-bold text-green-600">{c.sent_count}</div>
-              <div className="text-xs text-slate-500">Odesláno</div>
+              <div className="text-2xl font-bold text-blue-600">{c.accepted_count}</div>
+              <div className="text-xs text-slate-500">Přijato Resendem</div>
             </Card>
             <Card className="p-3 text-center">
-              <div className="text-2xl font-bold text-red-600">{c.failed_count}</div>
-              <div className="text-xs text-slate-500">Neúspěšné</div>
+              <div className="text-2xl font-bold text-green-600">{c.delivered_count}</div>
+              <div className="text-xs text-slate-500">Doručeno</div>
+            </Card>
+            <Card className="p-3 text-center">
+              <div className="text-2xl font-bold text-amber-600">{c.awaiting_delivery_count}</div>
+              <div className="text-xs text-slate-500">Čeká na výsledek</div>
+            </Card>
+            <Card className="p-3 text-center">
+              <div className="text-2xl font-bold text-red-600">{c.delivery_failed_count}</div>
+              <div className="text-xs text-slate-500">Nedoručeno</div>
             </Card>
           </div>
+          <p className="text-xs text-slate-500">
+            Doručeno a nedoručeno se počítá z potvrzení Resendu. Přijetí Resendem ještě neznamená doručení příjemci.
+          </p>
 
           {/* Info */}
           <div className="bg-slate-50 rounded-lg p-4 space-y-2 text-sm">

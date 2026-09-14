@@ -28,7 +28,7 @@ from services.plan_service import require_feature
 from services.usage_service import track_usage
 from services.feature_flags import is_feature_enabled
 from services.email_service import EmailService
-from services.resend_delivery import delivery_status_label
+from services.resend_delivery import campaign_delivery_counts, delivery_status_label
 
 
 CONTACTS_FEATURE_KEY = "contacts_module"
@@ -139,6 +139,13 @@ async def list_campaigns(
             select(func.count()).where(MailingCampaignProgram.campaign_id == c.id)
         )
         prog_count = prog_result.scalar() or 0
+        delivery_result = await db.execute(
+            select(
+                MailingCampaignRecipient.status,
+                MailingCampaignRecipient.delivery_status,
+            ).where(MailingCampaignRecipient.campaign_id == c.id)
+        )
+        delivery_counts = campaign_delivery_counts(delivery_result.mappings().all())
 
         items.append({
             "id": str(c.id),
@@ -148,9 +155,13 @@ async def list_campaigns(
             "recipient_mode": c.recipient_mode,
             "subject": c.subject,
             "total_recipients": c.total_recipients or 0,
-            "sent_count": c.sent_count or 0,
-            "failed_count": c.failed_count or 0,
-            "skipped_count": c.skipped_count or 0,
+            "sent_count": delivery_counts["delivered_count"],
+            "accepted_count": delivery_counts["accepted_count"],
+            "delivered_count": delivery_counts["delivered_count"],
+            "failed_count": delivery_counts["delivery_failed_count"],
+            "delivery_failed_count": delivery_counts["delivery_failed_count"],
+            "awaiting_delivery_count": delivery_counts["awaiting_delivery_count"],
+            "skipped_count": delivery_counts["skipped_count"],
             "programs_count": prog_count,
             "scheduled_at": c.scheduled_at.isoformat() if c.scheduled_at else None,
             "failure_reason": c.failure_reason,
@@ -446,6 +457,7 @@ async def get_campaign(
         {"campaign_id": str(campaign.id)},
     )
     recipients = result.mappings().all()
+    delivery_counts = campaign_delivery_counts(recipients)
 
     # Load recipient programs
     recipient_ids = [r["id"] for r in recipients]
@@ -497,9 +509,13 @@ async def get_campaign(
         "selection_snapshot": campaign.selection_snapshot,
         "programs_snapshot": campaign.programs_snapshot,
         "total_recipients": campaign.total_recipients or 0,
-        "sent_count": campaign.sent_count or 0,
-        "failed_count": campaign.failed_count or 0,
-        "skipped_count": campaign.skipped_count or 0,
+        "sent_count": delivery_counts["delivered_count"],
+        "accepted_count": delivery_counts["accepted_count"],
+        "delivered_count": delivery_counts["delivered_count"],
+        "failed_count": delivery_counts["delivery_failed_count"],
+        "delivery_failed_count": delivery_counts["delivery_failed_count"],
+        "awaiting_delivery_count": delivery_counts["awaiting_delivery_count"],
+        "skipped_count": delivery_counts["skipped_count"],
         "scheduled_at": campaign.scheduled_at.isoformat() if campaign.scheduled_at else None,
         "failure_reason": campaign.failure_reason,
         "sent_at": campaign.sent_at.isoformat() if campaign.sent_at else None,

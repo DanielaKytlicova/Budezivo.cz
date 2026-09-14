@@ -1,6 +1,7 @@
 """Pure Resend delivery-event normalization helpers."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime, timezone
 
 
@@ -31,9 +32,55 @@ DELIVERY_STATUS_LABELS = {
     "unknown": "Neznámý stav",
 }
 
+DELIVERED_STATUSES = {"delivered", "opened", "clicked"}
+DELIVERY_FAILURE_STATUSES = {
+    "bounced_hard",
+    "failed",
+    "complained",
+    "suppressed",
+    "unsubscribed",
+}
+
 
 def delivery_status_label(status: str | None) -> str:
     return DELIVERY_STATUS_LABELS.get(status or "unknown", DELIVERY_STATUS_LABELS["unknown"])
+
+
+def campaign_delivery_counts(recipients) -> dict[str, int]:
+    """Calculate campaign results from the latest per-recipient delivery state.
+
+    ``status == sent`` only confirms that Resend accepted the message. A campaign
+    is successful only after a delivery webhook confirms it.
+    """
+    counts = {
+        "accepted_count": 0,
+        "delivered_count": 0,
+        "delivery_failed_count": 0,
+        "awaiting_delivery_count": 0,
+        "skipped_count": 0,
+    }
+
+    for recipient in recipients:
+        if isinstance(recipient, Mapping):
+            send_status = recipient.get("status")
+            delivery_status = recipient.get("delivery_status")
+        else:
+            send_status = getattr(recipient, "status", None)
+            delivery_status = getattr(recipient, "delivery_status", None)
+
+        delivery_status = delivery_status or send_status or "unknown"
+        if send_status == "sent":
+            counts["accepted_count"] += 1
+        if send_status == "skipped":
+            counts["skipped_count"] += 1
+        elif delivery_status in DELIVERED_STATUSES:
+            counts["delivered_count"] += 1
+        elif send_status == "failed" or delivery_status in DELIVERY_FAILURE_STATUSES:
+            counts["delivery_failed_count"] += 1
+        elif send_status in {"sent", "pending"}:
+            counts["awaiting_delivery_count"] += 1
+
+    return counts
 
 
 def parse_datetime(value) -> datetime:
@@ -47,10 +94,14 @@ def parse_datetime(value) -> datetime:
 
 def delivery_reason(data: dict, status: str) -> str | None:
     bounce = data.get("bounce") or {}
+    suppressed = data.get("suppressed") or {}
     return (
         bounce.get("message")
         or bounce.get("subType")
         or bounce.get("type")
+        or suppressed.get("message")
+        or suppressed.get("reason")
+        or suppressed.get("type")
         or data.get("reason")
         or {
             "complained": "Příjemce označil zprávu jako spam",
@@ -71,7 +122,7 @@ def delivery_update_from_payload(payload: dict) -> dict | None:
     data = payload.get("data") or {}
     if event_type == "email.bounced":
         bounce_type = str((data.get("bounce") or {}).get("type") or "").lower()
-        if bounce_type in {"transient", "soft"}:
+        if bounce_type in {"transient", "temporary", "soft"}:
             status = "bounced_soft"
 
     to_value = data.get("to") or []

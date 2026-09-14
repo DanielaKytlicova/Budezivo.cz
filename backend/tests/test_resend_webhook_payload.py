@@ -56,6 +56,18 @@ class ResendWebhookPayloadTests(unittest.TestCase):
         self.assertEqual(update["status"], "bounced_soft")
         self.assertEqual(update["reason"], "Mailbox temporarily unavailable")
 
+    def test_temporary_bounce_is_soft_failure(self):
+        update = delivery_update_from_payload({
+            "type": "email.bounced",
+            "data": {
+                "email_id": "email_temporary",
+                "to": ["delay@example.cz"],
+                "bounce": {"type": "Temporary"},
+            },
+        })
+
+        self.assertEqual(update["status"], "bounced_soft")
+
     def test_complained_and_suppressed_have_user_visible_reasons(self):
         complained = delivery_update_from_payload({
             "type": "email.complained",
@@ -70,6 +82,21 @@ class ResendWebhookPayloadTests(unittest.TestCase):
         self.assertIn("spam", complained["reason"])
         self.assertEqual(suppressed["status"], "suppressed")
         self.assertIn("suppression", suppressed["reason"])
+
+    def test_suppressed_reason_uses_nested_resend_message(self):
+        update = delivery_update_from_payload({
+            "type": "email.suppressed",
+            "data": {
+                "email_id": "email_blocked",
+                "to": ["blocked@example.cz"],
+                "suppressed": {
+                    "type": "SuppressionList",
+                    "message": "Previously bounced permanently",
+                },
+            },
+        })
+
+        self.assertEqual(update["reason"], "Previously bounced permanently")
 
     def test_unknown_event_is_ignored(self):
         self.assertIsNone(delivery_update_from_payload({

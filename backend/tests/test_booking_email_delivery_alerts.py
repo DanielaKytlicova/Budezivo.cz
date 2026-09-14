@@ -1,6 +1,9 @@
 from pathlib import Path
 import unittest
+import uuid
 
+from database.models import ResendWebhookEvent
+from database.supabase_repositories import EmailLogRepositorySupabase
 from services.resend_delivery import transactional_delivery_alert
 
 
@@ -42,6 +45,8 @@ class BookingEmailDeliveryAlertTests(unittest.TestCase):
         self.assertIn('data-testid="booking-email-delivery-alert"', source)
         self.assertIn('data-testid="verify-booking-email-btn"', source)
         self.assertIn('data-testid={`booking-email-alert-${booking.id}`}', source)
+        self.assertIn("{ key: 'email_delivery', label: 'Nedoručené e-maily' }", source)
+        self.assertIn("filtered = filtered.filter(b => b.email_delivery_alert)", source)
         self.assertIn("Ověřit nebo opravit e-mail", source)
 
     def test_transactional_status_is_kept_out_of_campaign_counts(self):
@@ -50,6 +55,51 @@ class BookingEmailDeliveryAlertTests(unittest.TestCase):
         self.assertIn("select(EmailLog).where(EmailLog.email_id == provider_email_id)", source)
         self.assertIn("matched_transactional", source)
         self.assertNotIn("matched_logs", source[source.index("def campaign_delivery_counts"):source.index("def parse_datetime")])
+
+
+class _ScalarResult:
+    def __init__(self, value):
+        self.value = value
+
+    def scalar_one_or_none(self):
+        return self.value
+
+
+class _FakeSession:
+    def __init__(self, existing_event):
+        self.existing_event = existing_event
+        self.added = None
+
+    async def execute(self, _statement):
+        return _ScalarResult(self.existing_event)
+
+    def add(self, value):
+        self.added = value
+
+    async def commit(self):
+        pass
+
+    async def refresh(self, _value):
+        pass
+
+
+class EmailLogWebhookRaceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_email_log_recovers_bounce_received_before_log_creation(self):
+        session = _FakeSession(ResendWebhookEvent(event_type="email.bounced"))
+        repository = EmailLogRepositorySupabase(session)
+
+        await repository.create({
+            "institution_id": str(uuid.uuid4()),
+            "program_id": str(uuid.uuid4()),
+            "reservation_id": str(uuid.uuid4()),
+            "recipient_email": "bounced@resend.dev",
+            "subject": "reservation_created_customer",
+            "status": "sent",
+            "email_id": "provider-message-id",
+        })
+
+        self.assertEqual(session.added.status, "bounced_hard")
+        self.assertEqual(session.added.error_message, "Nedoručeno")
 
 
 if __name__ == "__main__":

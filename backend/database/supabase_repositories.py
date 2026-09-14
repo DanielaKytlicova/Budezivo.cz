@@ -13,7 +13,8 @@ from sqlalchemy.orm import selectinload
 
 from .models import (
     Institution, User, Program, Reservation, School, 
-    ThemeSetting, Payment, ContactMessage, ProgramEmailTemplate, EmailLog
+    ThemeSetting, Payment, ContactMessage, ProgramEmailTemplate, EmailLog,
+    ResendWebhookEvent,
 )
 from services.program_booking_window import parse_program_datetime
 
@@ -1088,6 +1089,11 @@ class EmailLogRepositorySupabase:
     async def create(self, log_data: dict) -> dict:
         """Create email log entry."""
         from datetime import datetime, timezone
+        from services.resend_delivery import (
+            DELIVERY_STATUS_LABELS,
+            TRANSACTIONAL_ALERT_STATUSES,
+            STATUS_BY_EVENT,
+        )
         
         log = EmailLog(
             id=uuid.uuid4(),
@@ -1102,6 +1108,32 @@ class EmailLogRepositorySupabase:
             email_id=log_data.get('email_id'),
             sent_at=datetime.now(timezone.utc) if log_data.get('status') == 'sent' else None,
         )
+
+        # Resend test failures (and some real provider failures) can reach the
+        # webhook before the send call has returned and this EmailLog exists.
+        # Recover an already recorded permanent result by provider message ID.
+        if log.email_id:
+            permanent_event_types = [
+                event_type
+                for event_type, status in STATUS_BY_EVENT.items()
+                if status in TRANSACTIONAL_ALERT_STATUSES
+            ]
+            existing_event = (await self.db.execute(
+                select(ResendWebhookEvent)
+                .where(and_(
+                    ResendWebhookEvent.provider_email_id == log.email_id,
+                    ResendWebhookEvent.event_type.in_(permanent_event_types),
+                ))
+                .order_by(
+                    ResendWebhookEvent.event_at.desc().nullslast(),
+                    ResendWebhookEvent.created_at.desc(),
+                )
+                .limit(1)
+            )).scalar_one_or_none()
+            if existing_event:
+                log.status = STATUS_BY_EVENT[existing_event.event_type]
+                log.error_message = DELIVERY_STATUS_LABELS[log.status]
+
         self.db.add(log)
         await self.db.commit()
         await self.db.refresh(log)

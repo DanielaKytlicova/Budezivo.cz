@@ -395,6 +395,8 @@ const BookingsPageContent = () => {
       // "Kolize" virtual filter: show only bookings that are part of an
       // unresolved collision cluster (collisionIndex has them with peers).
       filtered = filtered.filter(b => collisionIndex.has(b.id));
+    } else if (statusFilter === 'email_delivery') {
+      filtered = filtered.filter(b => b.email_delivery_alert);
     } else if (statusFilter !== 'all') {
       filtered = filtered.filter(b => b.status === statusFilter);
     }
@@ -446,7 +448,11 @@ const BookingsPageContent = () => {
     }
     const q = searchQuery.trim().toLowerCase();
     const matches = bookings.filter((b) => {
-      const statusMatches = key === 'collision' ? collisionIndex.has(b.id) : b.status === key;
+      const statusMatches = key === 'collision'
+        ? collisionIndex.has(b.id)
+        : key === 'email_delivery'
+          ? b.email_delivery_alert
+          : b.status === key;
       if (!statusMatches) return false;
       return !q || [b.school_name, b.contact_name, b.contact_email, b.program_name]
         .some((value) => String(value || '').toLowerCase().includes(q));
@@ -512,10 +518,11 @@ const BookingsPageContent = () => {
   };
 
   const statusCounts = useMemo(() => {
-    const counts = { all: 0, pending: 0, confirmed: 0, cancelled: 0, completed: 0, collision: 0 };
+    const counts = { all: 0, pending: 0, confirmed: 0, cancelled: 0, completed: 0, collision: 0, email_delivery: 0 };
     bookings.forEach(b => {
       if (isTodayOrFutureBooking(b)) counts.all++;
       if (counts[b.status] !== undefined) counts[b.status]++;
+      if (b.email_delivery_alert) counts.email_delivery++;
     });
     counts.collision = collisionIndex.size;
     return counts;
@@ -1383,6 +1390,7 @@ const BookingsPageContent = () => {
                 { key: 'cancelled', label: 'Zrušené' },
                 { key: 'completed', label: 'Dokončené' },
                 { key: 'collision', label: 'Kolize' },
+                { key: 'email_delivery', label: 'Nedoručené e-maily' },
               ].map(f => (
                 <Button
                   key={f.key}
@@ -1394,12 +1402,17 @@ const BookingsPageContent = () => {
                       ? 'bg-slate-800 text-white'
                       : (f.key === 'collision' && statusCounts.collision > 0
                           ? 'border-amber-300 text-amber-700 hover:bg-amber-50'
+                          : f.key === 'email_delivery' && statusCounts.email_delivery > 0
+                            ? 'border-red-300 text-red-700 hover:bg-red-50'
                           : '')
                   }
                   data-testid={`filter-${f.key}`}
                 >
                   {f.key === 'collision' && (
                     <AlertTriangle className="w-3.5 h-3.5 mr-1 text-amber-500" />
+                  )}
+                  {f.key === 'email_delivery' && (
+                    <Mail className="w-3.5 h-3.5 mr-1 text-red-500" />
                   )}
                   {f.label}
                   <span className="ml-1.5 text-xs opacity-70">({statusCounts[f.key]})</span>

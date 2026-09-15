@@ -53,6 +53,16 @@ class GoogleExportCalendarTests(unittest.TestCase):
         self.assertIn('"Obsazeno v Google kalendáři"', ROUTE)
         self.assertNotIn('title = ev.get("summary")', ROUTE)
 
+    def test_availability_calendar_validation_uses_calendar_list_scope(self):
+        self.assertIn(
+            "/users/me/calendarList/{quote(selected, safe='')}",
+            ROUTE,
+        )
+        self.assertIn(
+            'access_role not in ("freeBusyReader", "reader", "writerWithoutPrivateAccess", "writer", "owner")',
+            ROUTE,
+        )
+
     def test_export_is_one_way_and_never_mutates_reservations_from_google(self):
         self.assertIn('"source": "budezivo"', (ROOT / "services/google_calendar_helpers.py").read_text())
         self.assertNotIn("Reservation.date =", ROUTE)

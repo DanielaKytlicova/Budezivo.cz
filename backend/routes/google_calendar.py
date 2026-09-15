@@ -334,12 +334,15 @@ async def update_sync_settings(
             raise HTTPException(status_code=502, detail="Nelze ověřit vybraný Google kalendář")
         async with httpx.AsyncClient() as client:
             calendar_resp = await client.get(
-                f"{CALENDAR_API_BASE}/calendars/{quote(selected, safe='')}",
+                f"{CALENDAR_API_BASE}/users/me/calendarList/{quote(selected, safe='')}",
                 headers={"Authorization": f"Bearer {token}"},
                 timeout=30,
             )
         if calendar_resp.status_code != 200:
             raise HTTPException(status_code=400, detail="Vybraný Google kalendář není dostupný")
+        access_role = calendar_resp.json().get("accessRole")
+        if access_role not in ("freeBusyReader", "reader", "writerWithoutPrivateAccess", "writer", "owner"):
+            raise HTTPException(status_code=400, detail="Vybraný Google kalendář nelze použít pro kontrolu dostupnosti")
         integration.availability_calendar_id = selected
         await db.execute(delete(AvailabilityBlock).where(and_(
             AvailabilityBlock.user_id == user_uuid,
@@ -429,7 +432,7 @@ async def list_google_calendars(
                 "name": item.get("summaryOverride") or item.get("summary") or item.get("id"),
                 "primary": bool(item.get("primary")),
                 "access_role": item.get("accessRole"),
-                "can_use_for_availability": item.get("accessRole") in ("freeBusyReader", "reader", "writer", "owner"),
+                "can_use_for_availability": item.get("accessRole") in ("freeBusyReader", "reader", "writerWithoutPrivateAccess", "writer", "owner"),
                 "is_budezivo_export": item.get("id") == integration.google_export_calendar_id,
             } for item in data.get("items", []) if item.get("id"))
             page_token = data.get("nextPageToken")

@@ -4,7 +4,8 @@ require("dotenv").config();
 
 // Check if we're in development/preview mode (not production build)
 // Craco sets NODE_ENV=development for start, NODE_ENV=production for build
-const isDevServer = process.env.NODE_ENV !== "production";
+// Visual-edit instrumentation is for the dev server, not the Jest test runner.
+const isDevServer = process.env.NODE_ENV === "development";
 
 // Environment variable overrides
 const config = {

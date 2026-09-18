@@ -1033,6 +1033,27 @@ class EventPayment(Base):
 
 
 
+# ============ PROGRAM ONE-OFF AVAILABILITY ============
+
+class ProgramOneOffAvailability(Base):
+    """Additional exact program slots; never personal lecturer availability."""
+    __tablename__ = 'program_one_off_availability'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    institution_id = Column(UUID(as_uuid=True), ForeignKey('institutions.id', ondelete='CASCADE'), nullable=False)
+    program_id = Column(UUID(as_uuid=True), ForeignKey('programs.id', ondelete='CASCADE'), nullable=False)
+    date = Column(Text, nullable=False)
+    start_time = Column(Text, nullable=False)
+    end_time = Column(Text, nullable=False)
+    created_by = Column(UUID(as_uuid=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint('institution_id', 'program_id', 'date', 'start_time', 'end_time', name='uq_program_one_off_slot'),
+        Index('idx_program_one_off_date', 'institution_id', 'program_id', 'date'),
+    )
+
+
 # ============ AVAILABILITY EXCEPTIONS ============
 
 class AvailabilityException(Base):

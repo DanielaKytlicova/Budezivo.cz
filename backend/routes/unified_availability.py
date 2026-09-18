@@ -7,12 +7,13 @@ import logging
 from datetime import date as date_class, datetime, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
 from database.supabase import get_db
-from database.models import AvailabilityException, Program
+from database.models import AvailabilityException, Program, ProgramOneOffAvailability
+from services.program_one_off_availability import get_program_one_offs, one_off_dict
 from core.security import get_current_user
 from core.permissions import ensure_role, BLOCK_MANAGE_ROLES
 from services.availability_service import evaluate_program_slots, evaluate_lecturer_slots
@@ -121,6 +122,107 @@ async def get_lecturer_slots(
         db, current_user["institution_id"], lecturer_id, date
     )
     return {"lecturer_id": lecturer_id, "date": date, "slots": slots}
+
+
+# ============ Additional program slots ============
+
+class ProgramOneOffCreate(BaseModel):
+    date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    start_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    end_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+async def _one_off_program(db, current_user, program_id, *, lock=False):
+    try:
+        program_uuid = uuid.UUID(program_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Neplatné ID programu")
+    query = select(Program).where(
+        Program.id == program_uuid,
+        Program.institution_id == uuid.UUID(current_user["institution_id"]),
+    )
+    if lock:
+        query = query.with_for_update()
+    result = await db.execute(query)
+    program = result.scalar_one_or_none()
+    if not program:
+        raise HTTPException(status_code=404, detail="Program nenalezen")
+    return program
+
+
+@router.get("/program/{program_id}/one-offs")
+async def list_program_one_offs(
+    program_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    await _one_off_program(db, current_user, program_id)
+    slots = await get_program_one_offs(db, current_user["institution_id"], program_id)
+    return [one_off_dict(slot) for slot in slots]
+
+
+@router.post("/program/{program_id}/one-offs")
+async def create_program_one_off(
+    program_id: str,
+    data: ProgramOneOffCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_role(current_user, BLOCK_EDIT_ROLES)
+    slot_date = _parse_date(data.date, "Datum")
+    _validate_time_range(data.start_time, data.end_time)
+    # Serialize additions to one program, including simultaneous duplicate submits.
+    program = await _one_off_program(db, current_user, program_id, lock=True)
+    if program.status == "archived":
+        raise HTTPException(status_code=400, detail="Archivovaný program nelze upravovat")
+    from services.program_booking_window import parse_program_datetime
+    start_value = parse_program_datetime(program.start_date)
+    start_date = start_value.date() if start_value else None
+    end_value = parse_program_datetime(program.end_date)
+    end_date = end_value.date() if end_value else None
+    if (start_date and slot_date < start_date) or (end_date and slot_date > end_date):
+        raise HTTPException(status_code=400, detail="Termín musí být v období konání programu")
+    existing = await get_program_one_offs(db, current_user["institution_id"], program_id, data.date, data.date)
+    for slot in existing:
+        if slot.start_time == data.start_time and slot.end_time == data.end_time:
+            await db.commit()
+            return one_off_dict(slot)
+    slot = ProgramOneOffAvailability(
+        institution_id=uuid.UUID(current_user["institution_id"]),
+        program_id=program.id, date=data.date, start_time=data.start_time, end_time=data.end_time,
+        created_by=uuid.UUID(current_user["user_id"]),
+    )
+    db.add(slot)
+    await db.commit()
+    await db.refresh(slot)
+    return one_off_dict(slot)
+
+
+@router.delete("/program/{program_id}/one-offs/{slot_id}")
+async def delete_program_one_off(
+    program_id: str,
+    slot_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    ensure_role(current_user, BLOCK_EDIT_ROLES)
+    await _one_off_program(db, current_user, program_id)
+    try:
+        slot_uuid = uuid.UUID(slot_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Neplatné ID termínu")
+    result = await db.execute(select(ProgramOneOffAvailability).where(
+        ProgramOneOffAvailability.id == slot_uuid,
+        ProgramOneOffAvailability.program_id == uuid.UUID(program_id),
+        ProgramOneOffAvailability.institution_id == uuid.UUID(current_user["institution_id"]),
+    ))
+    slot = result.scalar_one_or_none()
+    if not slot:
+        raise HTTPException(status_code=404, detail="Termín nenalezen")
+    # Removing an offered slot never deletes or changes existing reservations.
+    await db.delete(slot)
+    await db.commit()
+    return {"message": "Jednorázový termín odstraněn"}
 
 
 # ============ Exceptions CRUD ============

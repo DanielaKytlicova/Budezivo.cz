@@ -27,6 +27,7 @@ from services.collision_service import (
     check_any_lecturer_available_for_block,
 )
 from services.program_booking_window import program_booking_window_message
+from services.program_one_off_availability import get_program_one_offs, merge_program_one_off_slots
 
 logger = logging.getLogger(__name__)
 
@@ -287,8 +288,12 @@ async def evaluate_program_slots(
 
     days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
     day_name = days[date_obj.weekday()]
-    if day_name not in available_days:
+    one_offs = await get_program_one_offs(db, institution_id, program_id, date, date)
+    if day_name not in available_days and not one_offs:
         return [{"time": "all", "status": STATUS_OUTSIDE_BASE, "reason": f"{day_name} není v dostupných dnech programu"}]
+
+    if day_name not in available_days:
+        time_blocks_raw = []
 
     # Expand time blocks
     expanded = []
@@ -307,6 +312,10 @@ async def evaluate_program_slots(
         else:
             start = _time_to_min(tb.strip())
             expanded.append((_min_to_time(start), _min_to_time(start + duration)))
+
+    expanded = [tuple(slot.split('-')) for slot in merge_program_one_off_slots(
+        [f"{start}-{end}" for start, end in expanded], one_offs
+    )]
 
     # Get exceptions for this program+date
     exceptions = await get_program_exceptions(db, institution_id, program_id, date)

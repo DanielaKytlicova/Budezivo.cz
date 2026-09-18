@@ -19,6 +19,7 @@ from services.collision_service import (
     check_lecturer_has_any_availability_on_date,
 )
 from services.lecturer_assignment_service import pick_main_lecturer
+from services.program_one_off_availability import get_program_one_offs, merge_program_one_off_slots
 
 router = APIRouter(tags=["Availability"])
 
@@ -211,8 +212,9 @@ async def get_program_availability(
         if not _date_allowed_by_program_booking_window(program, date_obj, datetime.now(timezone.utc)):
             return {"date": date, "time_blocks": []}
         day_name = get_day_name(date_obj)
+        one_offs = await get_program_one_offs(db, institution_id, program_id, date, date)
         if day_name not in available_days:
-            return {"date": date, "time_blocks": []}
+            program_time_blocks = []
     except ValueError:
         return {"date": date, "time_blocks": []}
     
@@ -249,6 +251,8 @@ async def get_program_availability(
             end = start + program_duration
             expanded_blocks.append(f"{min_to_time(start)}-{min_to_time(end)}")
     
+    expanded_blocks = merge_program_one_off_slots(expanded_blocks, one_offs)
+
     # Create time blocks from expanded list
     time_blocks = [{"time": tb, "status": "available"} for tb in expanded_blocks]
     
@@ -394,7 +398,6 @@ async def get_calendar_availability(
     
     # Remove duplicates from time blocks
     unique_time_blocks = list(set(all_time_blocks))
-    total_blocks = len(unique_time_blocks)
 
     program_month_slots = []
     program_obj = None
@@ -402,6 +405,15 @@ async def get_calendar_availability(
     program_concurrent_limit = _program_concurrent_limit_from_dict(programs[0]) if program_id and programs else None
     reservations_by_date = defaultdict(list)
     exceptions_by_date = defaultdict(list)
+    one_offs_by_date = defaultdict(list)
+    month_one_offs = await get_program_one_offs(
+        db, institution_id, program_id,
+        f"{year}-{month:02d}-01", f"{year}-{month:02d}-{num_days:02d}",
+    )
+    visible_program_ids = {str(prog["id"]) for prog in programs}
+    for slot in month_one_offs:
+        if str(slot.program_id) in visible_program_ids:
+            one_offs_by_date[slot.date].append(slot)
 
     if program_id and programs:
         program_month_slots = _expand_calendar_time_blocks(
@@ -510,7 +522,8 @@ async def get_calendar_availability(
         is_past = date_obj < today
         is_too_soon = (date_obj - today).days < min_days_before
         is_too_far = (date_obj - today).days > max_days_before
-        is_available_day = day_name in all_available_days
+        day_one_offs = one_offs_by_date.get(date_str, [])
+        is_available_day = day_name in all_available_days or bool(day_one_offs)
         is_before_booking_open = not any(
             not opens_at or now >= opens_at
             for opens_at in (_program_validity_datetime(prog.get("booking_opens_at")) for prog in programs)
@@ -555,11 +568,20 @@ async def get_calendar_availability(
             if program_id:
                 booked_blocks = reservations_by_date.get(date_str, [])
                 exception_blocks = exceptions_by_date.get(date_str, [])
-                for slot in program_month_slots:
+                day_slots = merge_program_one_off_slots(
+                    program_month_slots if day_name in all_available_days else [], day_one_offs
+                )
+                extra_slot_times = {f"{item.start_time}-{item.end_time}" for item in day_one_offs}
+                for slot in day_slots:
                     if _calendar_exception_blocks_slot(slot, program_duration, exception_blocks):
                         continue
                     if _slot_capacity_reached(slot, booked_blocks, program_duration, program_concurrent_limit):
                         continue
+                    if slot in extra_slot_times:
+                        if await get_collision_info_for_availability(
+                            db, institution_id, program_id, date_str, slot
+                        ):
+                            continue
                     if (
                         has_lecturer_collision
                         and (
@@ -573,7 +595,9 @@ async def get_calendar_availability(
                     available_blocks += 1
                 has_availability = available_blocks > 0
             else:
-                available_blocks = total_blocks
+                available_blocks = len(merge_program_one_off_slots(
+                    unique_time_blocks if day_name in all_available_days else [], day_one_offs
+                ))
         
         dates.append({
             "date": date_str,

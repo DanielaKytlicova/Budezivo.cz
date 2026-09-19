@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
 import { LecturerAvailabilityPage } from './LecturerAvailabilityPage';
+import { ProgramOneOffAvailability } from '../../components/admin/ProgramOneOffAvailability';
 import { FieldError, FIELD_ERROR_CLASS } from '../../components/ui/field-error';
 
 const DAY_SHORT = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
@@ -110,6 +111,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
   const [loading, setLoading] = useState(false);
   const [slotDetail, setSlotDetail] = useState(null);
   const [showExceptionDialog, setShowExceptionDialog] = useState(false);
+  const [showProgramOneOff, setShowProgramOneOff] = useState(false);
   const [exceptionReason, setExceptionReason] = useState('');
   const [exceptions, setExceptions] = useState([]);
   const [allProgramExceptions, setAllProgramExceptions] = useState([]);
@@ -609,8 +611,7 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
             <h1 className="text-2xl font-bold text-slate-900">Dostupnost</h1>
             <p className="text-sm text-gray-500 mt-1">Programová dostupnost a jednorázové výjimky</p>
           </div>
-          {/* Quick availability actions — same as personal calendar; useful for
-              institutions that don't use program collisions. */}
+          {/* Personal recurring schedule, program-specific extra terms and closures. */}
           <div className="flex gap-2 flex-wrap" data-testid="program-availability-quick-actions">
             <Button
               onClick={() => onRequestPersonalAction && onRequestPersonalAction('recurring')}
@@ -618,10 +619,11 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
               size="sm"
               data-testid="program-add-recurring-btn"
             >
-              <Plus className="w-4 h-4 mr-1" /> Pravidelné bloky
+              <Plus className="w-4 h-4 mr-1" /> Osobní pravidelné bloky
             </Button>
             <Button
-              onClick={() => onRequestPersonalAction && onRequestPersonalAction('oneoff')}
+              onClick={() => setShowProgramOneOff(true)}
+              disabled={!selectedProgram}
               variant="outline"
               size="sm"
               className="border-amber-300 text-amber-700 hover:bg-amber-50"
@@ -723,6 +725,21 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
           )}
         </Card>
 
+        <ProgramOneOffAvailability
+          key={selectedProgram || 'none'}
+          program={selectedProgramData}
+          open={showProgramOneOff}
+          onOpenChange={setShowProgramOneOff}
+          onSaved={(date) => {
+            const targetWeek = getMonday(new Date(`${date}T12:00:00`));
+            if (fmtDate(targetWeek) === fmtDate(weekStart)) {
+              doFetchWeek(selectedProgram, weekStart);
+            } else {
+              setWeekStart(targetWeek);
+            }
+          }}
+          onDeleted={() => doFetchWeek(selectedProgram, weekStart)}
+        />
         {renderAvailabilitySummary()}
 
         {/* Exception dialog */}

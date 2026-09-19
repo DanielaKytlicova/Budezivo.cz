@@ -37,6 +37,7 @@ from services.collision_classifier import classify as classify_collision
 from services.lecturer_assignment_service import pick_main_lecturer, SOURCE_MANUAL, SOURCE_UNASSIGNED
 from services.contact_service import seed_contact_from_booking_dict
 from services.program_booking_window import booking_opens_message
+from services.program_one_off_availability import get_program_one_offs, merge_program_one_off_slots
 from services.notification_preferences import (
     ADMIN_RECIPIENT_ROLES,
     normalize_notifications,
@@ -186,13 +187,14 @@ def _public_booking_input_error(program: dict, booking_data: BookingCreate) -> O
     if max_days and booking_date > today + timedelta(days=max_days):
         return {"field": "date", "message_cs": f"Termín je možné rezervovat nejvýše {max_days} dní předem."}
 
+    is_one_off = booking_data.time_block in program.get("_one_off_slots", [])
     available_days = program.get("available_days") or []
-    if available_days and _PROGRAM_DAY_CODES[booking_date.weekday()] not in available_days:
+    if not is_one_off and available_days and _PROGRAM_DAY_CODES[booking_date.weekday()] not in available_days:
         return {"field": "date", "message_cs": "Program se ve vybraný den nenabízí."}
 
     requested_start = _time_block_start(booking_data.time_block)
     configured_starts = {_time_block_start(block) for block in (program.get("time_blocks") or [])}
-    if configured_starts and requested_start not in configured_starts:
+    if not is_one_off and configured_starts and requested_start not in configured_starts:
         return {"field": "time_block", "message_cs": "Vybraný čas už není pro tento program dostupný."}
 
     min_capacity = program.get("min_capacity") or 1
@@ -452,6 +454,10 @@ async def create_public_booking(
         )
         raise HTTPException(status_code=409, detail=opens_error)
 
+    one_offs = await get_program_one_offs(
+        db, institution_id, booking_data.program_id, booking_data.date, booking_data.date, lock=True
+    )
+    program = {**program, "_one_off_slots": merge_program_one_off_slots([], one_offs)}
     input_error = _public_booking_input_error(program, booking_data)
     if input_error:
         _track_public_booking_event(

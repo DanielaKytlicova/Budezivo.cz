@@ -5,7 +5,7 @@ import { Footer } from '../../components/layout/Footer';
 import { Button } from '../../components/ui/button';
 import { Card } from '../../components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/accordion';
-import { Check, X, Mail, RefreshCw, Table2, Copy, Eye, Calendar, Bell, Settings, Users, UserCheck, BarChart3, FileText, Clock, TrendingUp, Shield, Zap, Quote, Building2, Palette, BookOpen, Sprout, Music, School as SchoolIcon, ArrowRight, CalendarCheck2, MailCheck, CheckCircle2, CalendarDays, UserPlus, Smile, AlertTriangle, Play } from 'lucide-react';
+import { Check, X, Mail, RefreshCw, Table2, Copy, Eye, Calendar, Bell, Settings, Users, UserCheck, BarChart3, FileText, Clock, TrendingUp, Shield, Zap, Quote, Building2, Palette, BookOpen, Sprout, Music, School as SchoolIcon, ArrowRight, MailCheck, CheckCircle2, CalendarDays, UserPlus, Smile, AlertTriangle, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { Input } from '../../components/ui/input';
@@ -649,11 +649,11 @@ export const HomePage = () => {
                 Vzniklo přímo v praxi
               </p>
               <div className="relative max-w-md">
-                <div className="aspect-[4/5] overflow-hidden bg-black">
+                <div className="aspect-[3/4] overflow-hidden bg-black">
                   <img
-                    src="https://customer-assets.emergentagent.com/job_bdc8108c-9554-4444-8179-a7723f12fc54/artifacts/tju1uhiz_ChatGPT%20Image%2025.%204.%202026%2011_48_59.png"
+                    src="/images/daniela-kytlicova.jpg"
                     alt="Daniela Kytlicová"
-                    className="h-full w-full object-cover grayscale contrast-125"
+                    className="h-full w-full object-cover"
                   />
                 </div>
                 <div className="absolute right-0 bottom-0 translate-x-4 translate-y-4 bg-[#B58752] px-6 py-5 text-white shadow-xl sm:px-7 sm:py-6">
@@ -678,7 +678,7 @@ export const HomePage = () => {
             </div>
 
             <div className="lg:pt-8">
-              <h2 className="max-w-3xl text-4xl font-bold leading-[1.05] tracking-tight text-[#142536] md:text-6xl">
+              <h2 className="max-w-3xl text-3xl font-bold leading-tight text-[#2B3E50] md:text-5xl">
                 Navržené někým,<br />
                 kdo zná provoz <span className="text-[#B58752]">zevnitř.</span>
               </h2>
@@ -694,7 +694,7 @@ export const HomePage = () => {
                 </p>
               </div>
               <div className="mt-12 border-t border-[#E7E0D7] pt-9">
-                <blockquote className="max-w-3xl text-2xl font-medium leading-snug text-[#2B3E50] md:text-3xl">
+                <blockquote className="max-w-3xl text-xl font-medium leading-snug text-[#2B3E50] md:text-2xl">
                   „Nejdřív jsem ten problém roky řešila v praxi. Teprve potom jsem pro něj začala stavět systém.“
                 </blockquote>
               </div>
@@ -945,78 +945,85 @@ export const HomePage = () => {
       </section>
 
       {/* Calendar integrations — public OAuth disclosure */}
-      <section className="bg-[#243446] text-white py-16 md:py-20" aria-labelledby="calendar-integration-title">
+      <section className="bg-[#F7F3EE] py-20 md:py-28" aria-labelledby="calendar-integration-title">
         <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-[136px_1fr] gap-8 md:gap-10 items-start">
-            <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl bg-white/5 flex items-center justify-center">
-              <CalendarCheck2 className="w-9 h-9 md:w-10 md:h-10 text-[#C4AB86]" aria-hidden="true" />
-            </div>
-
-            <div className="max-w-5xl">
-              <p className="text-xs md:text-sm font-semibold tracking-[0.25em] uppercase text-[#C4AB86] mb-4">
-                Propojení
-              </p>
-              <h2 id="calendar-integration-title" className="text-3xl md:text-4xl font-bold text-white mb-6">
-                Kalendáře, které už používáte
-              </h2>
-              <p className="text-base md:text-lg text-white/75 leading-relaxed max-w-4xl">
-                Pro snazší plánování lze Bude živo propojit s Google Kalendářem nebo Outlookem, které už používáte. Rezervace a obsazené termíny se mohou automaticky synchronizovat, takže nemusíte spravovat další samostatný kalendář a systém může včas upozornit na možné časové kolize.
-              </p>
-              <p className="text-sm md:text-base text-white/55 mt-5">
-                Propojení aktivujete přímo ve svém účtu a můžete ho kdykoli zase zrušit.
-              </p>
-
-              <div className="mt-8 pt-7 border-t border-white/10 flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
-                <span className="text-sm text-white/50">Funguje s</span>
-                <div className="flex flex-wrap gap-3">
-                  <div className="inline-flex items-center gap-2.5 rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white/90">
-                    <CalendarDays className="w-4 h-4" aria-hidden="true" />
-                    <span>Google Kalendář</span>
-                  </div>
-                  <div className="inline-flex items-center gap-2.5 rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white/90">
-                    <Mail className="w-4 h-4" aria-hidden="true" />
-                    <span>Outlook</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-12 md:py-16 bg-white border-b border-slate-100" id="o-projektu" data-testid="oauth-purpose-section">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          <div className="grid lg:grid-cols-[1.15fr_0.85fr] gap-8 lg:gap-12 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_0.95fr] gap-12 lg:gap-20 items-center">
             <div>
-              <p className="text-xs font-semibold tracking-[0.22em] uppercase text-[#C4AB86] mb-3">
-                O aplikaci Budeživo
+              <p className="text-xs font-semibold tracking-[0.2em] uppercase text-[#B58752] mb-5">
+                Napojení na vaši práci
               </p>
-              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 mb-4">
-                Rezervační a provozní systém pro kulturní instituce
+              <h2 id="calendar-integration-title" className="max-w-xl text-4xl md:text-6xl font-bold leading-[1.05] tracking-tight text-[#142536]">
+                Kalendář už máte.<br />Nemusíte mít další.
               </h2>
-              <p className="text-base text-slate-600 leading-relaxed mb-4">
-                Budeživo.cz pomáhá muzeím, galeriím, knihovnám a dalším kulturním institucím spravovat vzdělávací programy, veřejné akce, školní rezervace, dostupnost termínů, lektory a místnosti v jednom online systému.
+              <p className="max-w-xl mt-8 text-base md:text-lg leading-relaxed text-slate-500">
+                Propojte Budeživo s Google Kalendářem nebo Microsoft Outlookem, které už používáte. Rezervace a obsazené termíny se synchronizují, takže tým nemusí stejné údaje spravovat na více místech.
               </p>
-              <p className="text-base text-slate-600 leading-relaxed">
-                Učitelé a návštěvníci si přes veřejný rezervační formulář vyberou program a volný termín. Instituce následně vidí rezervace v administraci, může je potvrdit, upravit, vyhodnotit a posílat související organizační e-maily.
+
+              <div className="mt-10 space-y-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-white border border-[#E6DDD2] flex items-center justify-center shadow-sm">
+                    <CalendarDays className="w-6 h-6 text-[#4A6FA5]" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-[#2B3E50]">Google Kalendář</p>
+                    <p className="text-sm text-slate-500">Synchronizace rezervací a dostupnosti</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-white border border-[#E6DDD2] flex items-center justify-center shadow-sm">
+                    <Mail className="w-6 h-6 text-[#4A6FA5]" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-[#2B3E50]">Microsoft Outlook</p>
+                    <p className="text-sm text-slate-500">Kalendář týmu vždy aktuální</p>
+                  </div>
+                </div>
+              </div>
+
+              <p className="mt-10 inline-flex items-center gap-2 text-sm text-slate-500">
+                <Shield className="w-4 h-4 text-[#B58752]" aria-hidden="true" />
+                Propojení je volitelné, bezpečné a můžete je kdykoli odpojit.
               </p>
+              <details className="mt-4 max-w-xl text-sm text-slate-500" data-testid="oauth-purpose-details">
+                <summary className="cursor-pointer text-xs text-slate-400 underline underline-offset-4 hover:text-[#B58752]">
+                  O aplikaci Budeživo
+                </summary>
+                <div className="mt-4 space-y-3 leading-relaxed">
+                  <h3 className="text-base font-semibold text-[#2B3E50]">Rezervační a provozní systém pro kulturní instituce</h3>
+                  <p>
+                    Budeživo.cz pomáhá muzeím, galeriím, knihovnám a dalším kulturním institucím spravovat vzdělávací programy, veřejné akce, školní rezervace, dostupnost termínů, lektory a místnosti v jednom online systému.
+                  </p>
+                  <p>
+                    Učitelé a návštěvníci si přes veřejný rezervační formulář vyberou program a volný termín. Instituce následně vidí rezervace v administraci, může je potvrdit, upravit, vyhodnotit a posílat související organizační e-maily.
+                  </p>
+                  <p>
+                    Přístup ke kalendáři slouží pouze pro provoz rezervací dané instituce. Podrobnosti jsou uvedené v <Link to="/gdpr" className="font-medium text-[#4A6FA5] hover:underline">zásadách ochrany osobních údajů</Link> a v <Link to="/terms" className="font-medium text-[#4A6FA5] hover:underline">obchodních podmínkách</Link>.
+                  </p>
+                </div>
+              </details>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-[#F8F9FA] p-6" data-testid="oauth-calendar-purpose">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-lg bg-[#4A6FA5]/10 text-[#4A6FA5] flex items-center justify-center">
-                  <CalendarCheck2 className="w-5 h-5" />
-                </div>
-                <h3 className="text-lg font-semibold text-slate-900">
-                  Proč se aplikace připojuje ke kalendáři
-                </h3>
+            <div className="rounded-[24px] border border-[#E4DCD2] bg-white p-6 md:p-9 shadow-[0_20px_50px_rgba(43,62,80,0.08)]" aria-label="Ukázka synchronizovaného kalendáře">
+              <div className="flex items-center justify-between">
+                <button type="button" className="w-10 h-10 rounded-xl border border-[#E4DCD2] text-[#2B3E50]" aria-label="Předchozí měsíc">‹</button>
+                <h3 className="text-xl font-bold text-[#2B3E50]">Červenec 2026</h3>
+                <button type="button" className="w-10 h-10 rounded-xl border border-[#E4DCD2] text-[#2B3E50]" aria-label="Další měsíc">›</button>
               </div>
-              <p className="text-sm text-slate-600 leading-relaxed mb-4">
-                Pokud instituce dobrovolně propojí Google Kalendář, Budeživo může zobrazovat dostupnost termínů, hlídat kolize rezervací a zapisovat potvrzené rezervace do pracovního kalendáře instituce.
-              </p>
-              <p className="text-sm text-slate-600 leading-relaxed">
-                Přístup ke kalendáři slouží pouze pro provoz rezervací dané instituce. Podrobnosti o zpracování údajů jsou uvedené v <Link to="/gdpr" className="font-medium text-[#4A6FA5] hover:underline">zásadách ochrany osobních údajů</Link> a v <Link to="/terms" className="font-medium text-[#4A6FA5] hover:underline">obchodních podmínkách</Link>.
-              </p>
+              <div className="mt-8 grid grid-cols-7 gap-y-5 text-center text-xs text-slate-500">
+                {['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'].map((day) => <span key={day} className="font-semibold">{day}</span>)}
+                {Array.from({ length: 35 }, (_, index) => {
+                  const day = index - 2;
+                  const highlighted = [10, 14, 16, 21, 23].includes(day);
+                  return (
+                    <span key={index} className={`mx-auto flex h-10 w-10 items-center justify-center rounded-xl ${highlighted ? 'bg-[#F2E7D8] font-semibold text-[#9A6C3A] shadow-[inset_0_-3px_0_#B58752]' : 'text-[#2B3E50]'}`}>
+                      {day > 0 && day <= 31 ? day : ''}
+                    </span>
+                  );
+                })}
+              </div>
+              <div className="mt-8 border-t border-[#E4DCD2] pt-6 text-sm text-[#B58752]">
+                <span className="mr-2">✓</span> Synchronizováno před chvílí
+              </div>
             </div>
           </div>
         </div>

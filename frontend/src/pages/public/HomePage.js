@@ -640,6 +640,69 @@ export const HomePage = () => {
         </div>
       </section>
 
+      {/* Founder story — product shaped by day-to-day cultural operations */}
+      <section className="bg-white py-20 md:py-28" id="o-budezivu" data-testid="founder-story-section">
+        <div className="max-w-7xl mx-auto px-6 md:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(300px,0.85fr)_minmax(0,1.35fr)] gap-12 lg:gap-20 items-center">
+            <div>
+              <p className="text-xs font-semibold tracking-[0.2em] uppercase text-[#B58752] mb-6">
+                Vzniklo přímo v praxi
+              </p>
+              <div className="relative max-w-md">
+                <div className="aspect-[4/5] overflow-hidden bg-black">
+                  <img
+                    src="https://customer-assets.emergentagent.com/job_bdc8108c-9554-4444-8179-a7723f12fc54/artifacts/tju1uhiz_ChatGPT%20Image%2025.%204.%202026%2011_48_59.png"
+                    alt="Daniela Kytlicová"
+                    className="h-full w-full object-cover grayscale contrast-125"
+                  />
+                </div>
+                <div className="absolute right-0 bottom-0 translate-x-4 translate-y-4 bg-[#B58752] px-6 py-5 text-white shadow-xl sm:px-7 sm:py-6">
+                  <div className="flex items-end gap-3">
+                    <span className="text-5xl font-light leading-none">7+</span>
+                    <span className="pb-1 text-[10px] font-semibold uppercase leading-tight tracking-[0.14em]">
+                      let praxe<br />v edukaci
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-9 flex items-start gap-5">
+                <span className="mt-1 h-14 w-1 shrink-0 bg-[#B58752]" />
+                <div>
+                  <p className="text-lg font-semibold text-[#2B3E50]">MgA. Daniela Kytlicová</p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                    Zakladatelka Budeživo<br />
+                    produktová designérka a edukátorka
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:pt-8">
+              <h2 className="max-w-3xl text-4xl font-bold leading-[1.05] tracking-tight text-[#142536] md:text-6xl">
+                Navržené někým,<br />
+                kdo zná provoz <span className="text-[#B58752]">zevnitř.</span>
+              </h2>
+              <div className="mt-9 max-w-3xl space-y-5 text-base leading-relaxed text-slate-500 md:text-lg">
+                <p>
+                  Budeživo nevzniklo od stolu jako univerzální rezervační nástroj. Vytvořila jej Daniela Kytlicová,
+                  edukátorka s více než sedmiletou praxí v kulturní instituci — se zkušeností s programy pro školy,
+                  komunikací s pedagogy, koordinací lektorů i každodenní administrativou.
+                </p>
+                <p>
+                  Proto systém počítá s tím, co běžná řešení přehlížejí: kolizemi termínů, rozdílnými rolemi v týmu,
+                  dostupností lektorů, změnami na poslední chvíli i potřebou mít rychle jasno.
+                </p>
+              </div>
+              <div className="mt-12 border-t border-[#E7E0D7] pt-9">
+                <blockquote className="max-w-3xl text-2xl font-medium leading-snug text-[#2B3E50] md:text-3xl">
+                  „Nejdřív jsem ten problém roky řešila v praxi. Teprve potom jsem pro něj začala stavět systém.“
+                </blockquote>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Demo / CTA Section — dark navy with primary CTAs + customer-view demo card */}
       <section className="py-20 md:py-24 bg-[#2B3E50] relative overflow-hidden">
         {/* subtle gradient accent */}

@@ -188,6 +188,19 @@ async def get_program_availability(
     db: AsyncSession = Depends(get_db)
 ):
     """Get available time blocks for a program on a specific date."""
+    # The homepage booking demo uses synthetic programs and must not depend on
+    # production/test database rows. Keep its presentation deterministic while
+    # still demonstrating both a free slot and the waitlist action.
+    if institution_id == "demo":
+        return {
+            "date": date,
+            "time_blocks": [
+                {"time": "09:00-10:30", "status": "available"},
+                {"time": "10:45-12:15", "status": "booked"},
+                {"time": "13:00-14:30", "status": "available"},
+            ],
+        }
+
     # Get program to check its time blocks and available days
     program_repo = ProgramRepositorySupabase(db)
     program = await program_repo.find_by_id(program_id, institution_id)
@@ -251,9 +264,6 @@ async def get_program_availability(
     
     # Create time blocks from expanded list
     time_blocks = [{"time": tb, "status": "available"} for tb in expanded_blocks]
-    
-    if institution_id == "demo":
-        return {"date": date, "time_blocks": time_blocks}
     
     # Check existing bookings for this date
     booking_repo = BookingRepositorySupabase(db)

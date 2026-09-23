@@ -47,6 +47,18 @@ def delivery_status_label(status: str | None) -> str:
     return DELIVERY_STATUS_LABELS.get(status or "unknown", DELIVERY_STATUS_LABELS["unknown"])
 
 
+def effective_delivery_status(send_status: str | None, delivery_status: str | None) -> str:
+    """Prefer the send result when the provider has not emitted a webhook yet.
+
+    Older recipient rows may contain the literal ``unknown`` instead of NULL.
+    A successful send still means Resend accepted the message, so it should be
+    shown as accepted while we wait for a delivered/bounce webhook.
+    """
+    if delivery_status and delivery_status != "unknown":
+        return delivery_status
+    return send_status or delivery_status or "unknown"
+
+
 def transactional_delivery_alert(logs, current_email: str | None) -> dict | None:
     """Return the latest final delivery failure for the booking's current address."""
     normalized_email = (current_email or "").strip().lower()
@@ -90,7 +102,7 @@ def campaign_delivery_counts(recipients) -> dict[str, int]:
             send_status = getattr(recipient, "status", None)
             delivery_status = getattr(recipient, "delivery_status", None)
 
-        delivery_status = delivery_status or send_status or "unknown"
+        delivery_status = effective_delivery_status(send_status, delivery_status)
         if send_status == "sent":
             counts["accepted_count"] += 1
         if send_status == "skipped":

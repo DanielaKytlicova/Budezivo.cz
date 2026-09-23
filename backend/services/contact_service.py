@@ -364,6 +364,14 @@ async def list_contacts_for_institution(
     limit: int = 500,
 ) -> list[Contact]:
     q = select(Contact).where(Contact.institution_id == institution_id)
+    # School reservation contacts have their own school_contacts/reservations
+    # workflow. Keep them out of the personal Contacts directory by default,
+    # while still allowing an explicit source filter to inspect them safely.
+    if not source_filter or source_filter == 'all':
+        q = q.where(or_(
+            Contact.primary_source.is_(None),
+            Contact.primary_source != 'skolni_rezervace',
+        ))
     if type_filter and type_filter != 'all':
         q = q.where(Contact.type == type_filter)
     if source_filter and source_filter != 'all':

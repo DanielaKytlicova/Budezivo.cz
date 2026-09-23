@@ -21,7 +21,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security import get_current_user
@@ -225,7 +225,13 @@ async def contacts_stats(
     _guard=Depends(require_contacts_module),
 ):
     inst = _institution_id_from_user(current_user)
-    base = select(func.count(Contact.id)).where(Contact.institution_id == inst)
+    base = select(func.count(Contact.id)).where(
+        Contact.institution_id == inst,
+        or_(
+            Contact.primary_source.is_(None),
+            Contact.primary_source != 'skolni_rezervace',
+        ),
+    )
     total = (await db.execute(base)).scalar() or 0
     with_c = (await db.execute(base.where(Contact.marketing_consent.is_(True)))).scalar() or 0
     without_c = (await db.execute(base.where(Contact.marketing_consent.is_(False)))).scalar() or 0

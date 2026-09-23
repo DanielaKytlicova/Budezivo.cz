@@ -1,6 +1,6 @@
 import unittest
 
-from services.resend_delivery import delivery_status_label
+from services.resend_delivery import delivery_status_label, effective_delivery_status
 
 
 class ResendDeliveryLabelsTests(unittest.TestCase):
@@ -12,6 +12,10 @@ class ResendDeliveryLabelsTests(unittest.TestCase):
     def test_unknown_delivery_status_has_safe_fallback(self):
         self.assertEqual(delivery_status_label(None), "Neznámý stav")
         self.assertEqual(delivery_status_label("something-new"), "Neznámý stav")
+
+    def test_sent_recipient_is_not_displayed_as_unknown_before_webhook(self):
+        self.assertEqual(effective_delivery_status("sent", "unknown"), "sent")
+        self.assertEqual(delivery_status_label(effective_delivery_status("sent", "unknown")), "Odesláno poskytovateli")
 
 
 if __name__ == "__main__":

@@ -75,7 +75,8 @@ from services.payment_gateways.factory import _detect_mode
 from services.contact_service import upsert_contact_from_event_application
 from services.email_service import trigger_event_application_confirmation
 from core.permissions import (
-    ensure_role, MANAGEMENT_ROLES, EVENT_MANAGE_ROLES, PAYMENTS_ROLES, MARK_PAID_ROLES,
+    ensure_role, MANAGEMENT_ROLES, EVENT_MANAGE_ROLES, EVENT_CONTENT_EDIT_ROLES,
+    PAYMENTS_ROLES, MARK_PAID_ROLES,
 )
 import re as _re
 
@@ -441,8 +442,14 @@ async def create_event(
     _guard=Depends(require_feature("events_basic")),
 ):
     """Create a new event."""
-    ensure_role(current_user, EVENT_MANAGE_ROLES)
+    ensure_role(current_user, EVENT_CONTENT_EDIT_ROLES)
     await require_events_module(db, current_user["institution_id"])
+
+    if current_user.get("role") == "edukator" and (data.price or 0) > 0:
+        raise HTTPException(
+            status_code=403,
+            detail="Placené akce může vytvořit nebo upravit pouze správce instituce.",
+        )
 
     inst_uuid = uuid.UUID(current_user["institution_id"])
     methods = None
@@ -529,7 +536,7 @@ async def update_event(
     current_user: dict = Depends(get_current_user),
 ):
     """Update an event."""
-    ensure_role(current_user, EVENT_MANAGE_ROLES)
+    ensure_role(current_user, EVENT_CONTENT_EDIT_ROLES)
     await require_events_module(db, current_user["institution_id"])
     inst_uuid = uuid.UUID(current_user["institution_id"])
 
@@ -544,6 +551,12 @@ async def update_event(
         raise HTTPException(status_code=404, detail="Událost nenalezena")
 
     update_data = data.model_dump(exclude_unset=True)
+    if current_user.get("role") == "edukator":
+        # Educators may maintain event content, but not event-level payment
+        # configuration. The frontend omits these fields; stripping them here
+        # keeps the API safe if an older client still sends the full form.
+        for payment_field in ("price", "currency", "allowed_payment_methods"):
+            update_data.pop(payment_field, None)
     if "registration_deadline" in update_data:
         update_data["registration_deadline"] = _parse_datetime(
             update_data["registration_deadline"], "uzávěrka přihlášek"
@@ -648,7 +661,7 @@ async def add_event_date(
     current_user: dict = Depends(get_current_user),
 ):
     """Add a date/time to an event."""
-    ensure_role(current_user, EVENT_MANAGE_ROLES)
+    ensure_role(current_user, EVENT_CONTENT_EDIT_ROLES)
     await require_events_module(db, current_user["institution_id"])
 
     event_uuid = uuid.UUID(event_id)
@@ -697,7 +710,7 @@ async def update_event_date(
     current_user: dict = Depends(get_current_user),
 ):
     """Update the per-date registration deadline override."""
-    ensure_role(current_user, EVENT_MANAGE_ROLES)
+    ensure_role(current_user, EVENT_CONTENT_EDIT_ROLES)
     await require_events_module(db, current_user["institution_id"])
 
     event_uuid = uuid.UUID(event_id)
@@ -742,7 +755,7 @@ async def remove_event_date(
     current_user: dict = Depends(get_current_user),
 ):
     """Remove a date from an event."""
-    ensure_role(current_user, EVENT_MANAGE_ROLES)
+    ensure_role(current_user, EVENT_CONTENT_EDIT_ROLES)
     await require_events_module(db, current_user["institution_id"])
 
     result = await db.execute(

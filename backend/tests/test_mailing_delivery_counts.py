@@ -1,9 +1,13 @@
 import unittest
 
-from services.resend_delivery import campaign_delivery_counts
+from services.resend_delivery import campaign_delivery_counts, effective_delivery_status
 
 
 class MailingDeliveryCountsTests(unittest.TestCase):
+    def test_literal_unknown_falls_back_to_provider_acceptance(self):
+        self.assertEqual(effective_delivery_status("sent", "unknown"), "sent")
+        self.assertEqual(effective_delivery_status("failed", "unknown"), "failed")
+
     def test_resend_acceptance_is_not_counted_as_delivery(self):
         counts = campaign_delivery_counts([
             {"status": "sent", "delivery_status": "sent"},

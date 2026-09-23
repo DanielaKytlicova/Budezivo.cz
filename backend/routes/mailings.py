@@ -28,7 +28,11 @@ from services.plan_service import require_feature
 from services.usage_service import track_usage
 from services.feature_flags import is_feature_enabled
 from services.email_service import EmailService
-from services.resend_delivery import campaign_delivery_counts, delivery_status_label
+from services.resend_delivery import (
+    campaign_delivery_counts,
+    delivery_status_label,
+    effective_delivery_status,
+)
 
 
 CONTACTS_FEATURE_KEY = "contacts_module"
@@ -224,7 +228,7 @@ async def get_delivery_health(
             }
         stats = email_stats[email]
         stats["total_sends"] += 1
-        delivery_status = row.delivery_status or row.status or "unknown"
+        delivery_status = effective_delivery_status(row.status, row.delivery_status)
         delivery_failed = delivery_status in {
             "bounced_hard",
             "failed",
@@ -486,8 +490,10 @@ async def get_campaign(
             "email": r["email"],
             "status": r["status"],
             "sent_at": r["sent_at"].isoformat() if r["sent_at"] else None,
-            "delivery_status": r["delivery_status"] or r["status"] or "unknown",
-            "delivery_status_label": delivery_status_label(r["delivery_status"] or r["status"]),
+            "delivery_status": effective_delivery_status(r["status"], r["delivery_status"]),
+            "delivery_status_label": delivery_status_label(
+                effective_delivery_status(r["status"], r["delivery_status"])
+            ),
             "delivery_event_at": r["delivery_event_at"].isoformat() if r["delivery_event_at"] else None,
             "failure_reason": r["failure_reason"],
             "matching_reason": _json_value(r["matching_reason"], {}),
@@ -1417,7 +1423,7 @@ async def export_recipients_csv(
             r["contact_name"] or '',
             r["school_name"] or '',
             r["status"],
-            delivery_status_label(r["delivery_status"] or r["status"]),
+            delivery_status_label(effective_delivery_status(r["status"], r["delivery_status"])),
             r["delivery_event_at"].isoformat() if r["delivery_event_at"] else '',
             r["sent_at"].isoformat() if r["sent_at"] else '',
             r["failure_reason"] or '',

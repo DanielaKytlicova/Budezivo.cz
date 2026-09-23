@@ -66,6 +66,17 @@ async def create_waitlist_entry(
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new waitlist entry (public, no auth)."""
+    # Homepage demo uses synthetic IDs and must never create a real waitlist
+    # entry. Return the same successful shape so the demo can show the flow.
+    if data.institution_id == "demo":
+        return {
+            "id": "demo-waitlist",
+            "institution_id": "demo",
+            "program_id": data.program_id,
+            "status": "active",
+            "demo": True,
+        }
+
     # Validate program exists
     prog_result = await db.execute(
         select(Program).where(and_(

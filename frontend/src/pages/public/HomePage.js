@@ -14,6 +14,8 @@ import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
 import { toast } from 'sonner';
 import axios from 'axios';
+import googleCalendarLogo from '../../assets/google-calendar-logo.svg';
+import microsoftOutlookLogo from '../../assets/microsoft-outlook-logo.svg';
 
 const API = process.env.REACT_APP_BACKEND_URL + '/api';
 
@@ -962,7 +964,7 @@ export const HomePage = () => {
               <div className="mt-10 space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-white border border-[#E6DDD2] flex items-center justify-center shadow-sm">
-                    <img src="/assets/google-calendar-logo.svg" alt="" className="w-8 h-8" />
+                    <img src={googleCalendarLogo} alt="Google Kalendář" className="w-8 h-8" />
                   </div>
                   <div>
                     <p className="font-semibold text-[#2B3E50]">Google Kalendář</p>
@@ -971,7 +973,7 @@ export const HomePage = () => {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-white border border-[#E6DDD2] flex items-center justify-center shadow-sm">
-                    <img src="/assets/microsoft-outlook-logo.svg" alt="" className="w-8 h-8" />
+                    <img src={microsoftOutlookLogo} alt="Microsoft Outlook" className="w-8 h-8" />
                   </div>
                   <div>
                     <p className="font-semibold text-[#2B3E50]">Microsoft Outlook</p>

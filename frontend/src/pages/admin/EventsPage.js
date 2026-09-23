@@ -53,6 +53,8 @@ const PAYMENT_METHOD_LABELS = {
 };
 
 const MARK_PAID_ROLES = ['admin', 'spravce', 'ucetni', 'pokladni'];
+const EVENT_CONTENT_ROLES = ['admin', 'spravce', 'edukator'];
+const APPLICATION_VIEW_ROLES = ['admin', 'spravce', 'ucetni', 'pokladni'];
 
 const toApiDateTime = (value) => value ? new Date(value).toISOString() : null;
 
@@ -80,6 +82,9 @@ const errorInputClass = 'border-red-500 ring-1 ring-red-500 focus-visible:ring-r
 
 export const EventsPage = () => {
   const { user } = useContext(AuthContext);
+  const canEditEventContent = EVENT_CONTENT_ROLES.includes(user?.role);
+  const canManagePayments = ['admin', 'spravce'].includes(user?.role);
+  const canViewApplications = APPLICATION_VIEW_ROLES.includes(user?.role);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showDialog, setShowDialog] = useState(false);
@@ -104,8 +109,8 @@ export const EventsPage = () => {
 
   useEffect(() => {
     fetchEvents();
-    fetchPaymentSettings();
-  }, []);
+    if (canManagePayments) fetchPaymentSettings();
+  }, [canManagePayments]);
 
   const fetchEvents = async () => {
     try {
@@ -175,7 +180,7 @@ export const EventsPage = () => {
     setActiveTab('detail');
     setShowDialog(true);
     await fetchEventDetail(event.id);
-    await fetchApplications(event.id);
+    if (canViewApplications) await fetchApplications(event.id);
   };
 
   const handleSave = async () => {
@@ -193,6 +198,11 @@ export const EventsPage = () => {
         ...formData,
         registration_deadline: toApiDateTime(formData.registration_deadline),
       };
+      if (!canManagePayments) {
+        delete payload.price;
+        delete payload.currency;
+        delete payload.allowed_payment_methods;
+      }
       if (editingEvent) {
         await axios.put(`${API}/events/${editingEvent.id}`, payload);
         toast.success('Událost aktualizována');
@@ -447,16 +457,18 @@ export const EventsPage = () => {
               <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Události</h1>
               <p className="text-sm text-gray-500 mt-1">Akce, tábory, workshopy a přihlášky</p>
             </div>
-            <Button onClick={handleCreate} className="bg-slate-800 text-white hover:bg-slate-700" data-testid="create-event-btn">
-              <Plus className="w-4 h-4 mr-2" /> Nová událost
-            </Button>
+            {canEditEventContent && (
+              <Button onClick={handleCreate} className="bg-slate-800 text-white hover:bg-slate-700" data-testid="create-event-btn">
+                <Plus className="w-4 h-4 mr-2" /> Nová událost
+              </Button>
+            )}
           </div>
 
           {/* URL generator banner + payment warning */}
           <Card className="p-4 bg-gray-50 border-gray-200">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                {(!paymentSettings || !paymentSettings.account_number) ? (
+                {canManagePayments && (!paymentSettings || !paymentSettings.account_number) ? (
                   <div className="flex items-center gap-2">
                     <CreditCard className="w-4 h-4 text-amber-600" />
                     <div>
@@ -490,7 +502,7 @@ export const EventsPage = () => {
             <Card className="p-12 text-center">
               <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-500 mb-4">Zatím nemáte žádné události</p>
-              <Button onClick={handleCreate} className="bg-slate-800 text-white"><Plus className="w-4 h-4 mr-2" /> Vytvořit první událost</Button>
+              {canEditEventContent && <Button onClick={handleCreate} className="bg-slate-800 text-white"><Plus className="w-4 h-4 mr-2" /> Vytvořit první událost</Button>}
             </Card>
           ) : (
             <div className="space-y-4">
@@ -545,6 +557,8 @@ export const EventsPage = () => {
         {/* Tabs */}
         <div className="flex border-b overflow-x-auto">
           {['detail', 'dates', 'form', 'applications', 'payment']
+            .filter(tab => tab !== 'applications' || canViewApplications)
+            .filter(tab => tab !== 'payment' || canManagePayments)
             .filter(tab => !(tab === 'payment' && (formData.price || 0) <= 0))
             .map(tab => (
             <button
@@ -602,7 +616,7 @@ export const EventsPage = () => {
                       type="number"
                       min="0"
                       value={formData.price}
-                      disabled={(formData.price || 0) <= 0}
+                      disabled={!canManagePayments || (formData.price || 0) <= 0}
                       onChange={e => setFormData(p => ({ ...p, price: parseFloat(e.target.value) || 0 }))}
                       className="mt-1 disabled:opacity-50"
                       data-testid="event-price-input"
@@ -617,6 +631,7 @@ export const EventsPage = () => {
                   </div>
                   <Switch
                     checked={(formData.price || 0) <= 0}
+                    disabled={!canManagePayments}
                     onCheckedChange={v => {
                       setFormData(p => ({ ...p, price: v ? 0 : (p.price > 0 ? p.price : 100) }));
                       if (v && activeTab === 'payment') setActiveTab('detail');
@@ -634,7 +649,7 @@ export const EventsPage = () => {
               </Card>
 
               {/* Povolené způsoby platby — jen pro placené akce, výběr z globálně povolených */}
-              {(formData.price || 0) > 0 && (() => {
+              {canManagePayments && (formData.price || 0) > 0 && (() => {
                 const globalMethods = (paymentSettings?.allowed_methods || []).filter(m => paymentSettings?.methods_configured?.[m]);
                 const selected = formData.allowed_payment_methods || globalMethods;
                 const toggle = (m) => {
@@ -1070,7 +1085,7 @@ export const EventsPage = () => {
             <Button onClick={handleSave} disabled={savingEvent} className="flex-1 bg-slate-800 text-white hover:bg-slate-700" data-testid="save-event-btn">
               {savingEvent ? 'Ukládám…' : 'Uložit událost'}
             </Button>
-            {editingEvent && (
+            {editingEvent && canManagePayments && (
               <Button variant="outline" onClick={() => handleDelete(editingEvent.id)} className="text-red-500 border-red-200 hover:bg-red-50" data-testid="delete-event-btn">
                 <Trash2 className="w-5 h-5" />
               </Button>

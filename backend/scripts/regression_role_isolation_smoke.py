@@ -92,6 +92,7 @@ def role_matrix_static_ok() -> bool:
     management = _extract_set_assignment(permissions, "MANAGEMENT_ROLES")
     program_edit = _extract_set_assignment(permissions, "PROGRAM_EDIT_ROLES")
     event_manage = _extract_set_assignment(permissions, "EVENT_MANAGE_ROLES")
+    event_content_edit = _extract_set_assignment(permissions, "EVENT_CONTENT_EDIT_ROLES")
     payments = _extract_set_assignment(permissions, "PAYMENTS_ROLES")
     calendar_personal = _extract_set_assignment(permissions, "CALENDAR_PERSONAL_ROLES")
     calendar_export = _extract_set_assignment(permissions, "CALENDAR_INSTITUTION_EXPORT_ROLES")
@@ -101,6 +102,7 @@ def role_matrix_static_ok() -> bool:
         management == {"admin", "spravce"}
         and program_edit == {"admin", "spravce", "edukator"}
         and event_manage == {"admin", "spravce"}
+        and event_content_edit == {"admin", "spravce", "edukator"}
         and payments == {"admin", "spravce", "ucetni", "pokladni"}
         and "pokladni" not in program_edit
         and "pokladni" not in event_manage

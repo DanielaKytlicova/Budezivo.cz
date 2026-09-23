@@ -21,9 +21,11 @@ from core.security import get_current_user
 # Institution configuration, team & role management, billing, payment SETTINGS
 MANAGEMENT_ROLES = {"admin", "spravce"}
 
-# Creating/editing programs and one-off events
+# Creating/editing programs and one-off event content. Payment settings and
+# application status changes remain restricted to institution managers.
 PROGRAM_EDIT_ROLES = {"admin", "spravce", "edukator"}
 EVENT_MANAGE_ROLES = {"admin", "spravce"}
+EVENT_CONTENT_EDIT_ROLES = {"admin", "spravce", "edukator"}
 
 # Accounting: view event applications & payments, mark manual payments paid.
 # Deliberately EXCLUDES produkcni (GDPR: no access to payment/applicant data).

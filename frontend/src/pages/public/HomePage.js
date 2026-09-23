@@ -682,7 +682,7 @@ export const HomePage = () => {
                 Navržené někým,<br />
                 kdo zná provoz <span className="text-[#B58752]">zevnitř.</span>
               </h2>
-              <div className="mt-9 max-w-3xl space-y-5 text-base leading-relaxed text-slate-500 md:text-lg">
+              <div className="mt-9 max-w-3xl space-y-5 text-base leading-relaxed text-slate-500">
                 <p>
                   Budeživo nevzniklo od stolu jako univerzální rezervační nástroj. Vytvořila jej Daniela Kytlicová,
                   edukátorka s více než sedmiletou praxí v kulturní instituci — se zkušeností s programy pro školy,
@@ -955,14 +955,14 @@ export const HomePage = () => {
               <h2 id="calendar-integration-title" className="max-w-xl text-4xl md:text-6xl font-bold leading-[1.05] tracking-tight text-[#142536]">
                 Kalendář už máte.<br />Nemusíte mít další.
               </h2>
-              <p className="max-w-xl mt-8 text-base md:text-lg leading-relaxed text-slate-500">
+              <p className="max-w-xl mt-8 text-base leading-relaxed text-slate-500">
                 Propojte Budeživo s Google Kalendářem nebo Microsoft Outlookem, které už používáte. Rezervace a obsazené termíny se synchronizují, takže tým nemusí stejné údaje spravovat na více místech.
               </p>
 
               <div className="mt-10 space-y-4">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-white border border-[#E6DDD2] flex items-center justify-center shadow-sm">
-                    <CalendarDays className="w-6 h-6 text-[#4A6FA5]" aria-hidden="true" />
+                    <img src="/assets/google-calendar-logo.svg" alt="" className="w-8 h-8" />
                   </div>
                   <div>
                     <p className="font-semibold text-[#2B3E50]">Google Kalendář</p>
@@ -971,7 +971,7 @@ export const HomePage = () => {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-white border border-[#E6DDD2] flex items-center justify-center shadow-sm">
-                    <Mail className="w-6 h-6 text-[#4A6FA5]" aria-hidden="true" />
+                    <img src="/assets/microsoft-outlook-logo.svg" alt="" className="w-8 h-8" />
                   </div>
                   <div>
                     <p className="font-semibold text-[#2B3E50]">Microsoft Outlook</p>

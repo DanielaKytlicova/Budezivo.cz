@@ -106,10 +106,9 @@ const CalendarVisibilityFilters = ({
         type="checkbox"
         checked={showPrograms}
         onChange={(event) => onProgramsChange(event.target.checked)}
-        className="h-4 w-4 rounded border-gray-300 text-[#84A98C] focus:ring-[#84A98C]"
+        className="h-4 w-4 rounded border-slate-300 accent-slate-400 focus:ring-slate-300"
         aria-label="Zobrazit doprovodné programy"
       />
-      <span className="w-3 h-3 rounded-sm bg-[#84A98C]" />
       Doprovodné programy
     </label>
     <label className="inline-flex items-center gap-2 cursor-pointer select-none">
@@ -117,10 +116,9 @@ const CalendarVisibilityFilters = ({
         type="checkbox"
         checked={showEvents}
         onChange={(event) => onEventsChange(event.target.checked)}
-        className="h-4 w-4 rounded border-gray-300 text-[#B8834A] focus:ring-[#B8834A]"
+        className="h-4 w-4 rounded border-slate-300 accent-slate-400 focus:ring-slate-300"
         aria-label="Zobrazit akce"
       />
-      <span className="w-3 h-3 rounded-sm bg-[#F4E7D7] border border-[#B8834A]" />
       Akce
     </label>
   </div>

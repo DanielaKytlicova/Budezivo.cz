@@ -385,6 +385,7 @@ async def check_events_access(
 @router.get("")
 async def list_events(
     include_archived: bool = False,
+    include_dates: bool = False,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
     _guard=Depends(require_feature("events_basic")),
@@ -413,6 +414,13 @@ async def list_events(
         )
         ev_dict["dates_count"] = dates_count.scalar() or 0
         ev_dict["applications_count"] = apps_count.scalar() or 0
+        if include_dates:
+            dates_result = await db.execute(
+                select(EventDate)
+                .where(EventDate.event_id == ev.id)
+                .order_by(EventDate.start_datetime)
+            )
+            ev_dict["dates"] = [_to_dict(d) for d in dates_result.scalars().all()]
         out.append(ev_dict)
 
     return out

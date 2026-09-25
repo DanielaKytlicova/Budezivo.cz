@@ -58,6 +58,12 @@ import {
   DialogTitle,
 } from '../../components/ui/dialog';
 
+const EVENT_CALENDAR_COLOR = {
+  bg: '#F4E7D7',
+  border: '#B8834A',
+  text: '#5A3A1F',
+};
+
 // ============ ViewSwitcher Component ============
 const ViewSwitcher = ({ view, onViewChange }) => (
   <div className="flex bg-gray-100 rounded-lg p-1" data-testid="view-switcher">
@@ -311,7 +317,27 @@ const ReservationList = ({ reservations, filter, onFilterChange, onSelectReserva
 };
 
 // ============ WeekCalendar Component ============
-const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReservation }) => {
+const WeekCalendar = ({
+  reservations = [],
+  events = [],
+  currentDate,
+  onDateChange,
+  onSelectReservation,
+  onSelectEvent,
+}) => {
+  const calendarItems = useMemo(
+    () => [
+      ...(Array.isArray(reservations)
+        ? reservations.map((reservation) => ({
+            ...reservation,
+            calendar_item_type: 'reservation',
+          }))
+        : []),
+      ...(Array.isArray(events) ? events : []),
+    ],
+    [reservations, events]
+  );
+
   // Generate week days
   const weekDays = useMemo(() => {
     const days = [];
@@ -329,11 +355,14 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
     return days;
   }, [currentDate]);
 
-  // Get reservations for a specific date
-  const getReservationsForDate = (date) => {
-    if (!Array.isArray(reservations)) return [];
+  // Get all calendar items for a specific date. Cancelled reservations stay hidden;
+  // events are read-only entries and have no reservation status.
+  const getCalendarItemsForDate = (date) => {
     const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-    return reservations.filter(r => r.date === dateStr && r.status !== 'cancelled');
+    return calendarItems.filter(item =>
+      item.date === dateStr &&
+      (item.calendar_item_type === 'event' || item.status !== 'cancelled')
+    );
   };
 
   // Time slots (8AM - 7PM)
@@ -381,8 +410,10 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
     [reservations]
   );
 
-  const getReservationColor = (reservation) =>
-    programColorMap[programCalendarKey(reservation)] || PROGRAM_CALENDAR_COLORS[0];
+  const getCalendarItemColor = (item) =>
+    item.calendar_item_type === 'event'
+      ? EVENT_CALENDAR_COLOR
+      : programColorMap[programCalendarKey(item)] || PROGRAM_CALENDAR_COLORS[0];
 
   // Parse time to get hour
   const getHourFromTime = (timeStr) => {
@@ -416,6 +447,17 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+        <span className="inline-flex items-center gap-2">
+          <span className="w-3 h-3 rounded-sm bg-[#84A98C]" />
+          Doprovodné programy
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span className="w-3 h-3 rounded-sm bg-[#F4E7D7] border border-[#B8834A]" />
+          Akce
+        </span>
+      </div>
+
       {/* Calendar Grid */}
       <div className="bg-white border rounded-xl overflow-hidden">
         {/* Days Header */}
@@ -425,7 +467,7 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
           </div>
           {weekDays.map((day, index) => {
             const isToday = day.toDateString() === new Date().toDateString();
-            const hasReservations = getReservationsForDate(day).length > 0;
+            const hasItems = getCalendarItemsForDate(day).length > 0;
             
             return (
               <div 
@@ -436,7 +478,7 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
                 <div className={`text-2xl font-semibold ${isToday ? 'text-blue-600' : 'text-gray-900'}`}>
                   {day.getDate()}
                 </div>
-                {hasReservations && (
+                {hasItems && (
                   <div className="w-1.5 h-1.5 rounded-full bg-[#5a7aae] mx-auto mt-1"></div>
                 )}
               </div>
@@ -452,15 +494,15 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
                 {time}
               </div>
               {weekDays.map((day, dayIndex) => {
-                const dayReservations = getReservationsForDate(day);
+                const dayItems = getCalendarItemsForDate(day);
                 const hour = parseInt(time.split(':')[0], 10);
-                const reservationsAtTime = dayReservations.filter(r => {
-                  const startHour = getHourFromTime(r.time_block);
+                const itemsAtTime = dayItems.filter(item => {
+                  const startHour = getHourFromTime(item.time_block);
                   // Assume 2-hour duration for display
                   return hour >= startHour && hour < startHour + 2;
                 });
                 
-                const isFirstHour = (r) => getHourFromTime(r.time_block) === hour;
+                const isFirstHour = (item) => getHourFromTime(item.time_block) === hour;
                 
                 return (
                   <div 
@@ -469,14 +511,15 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
                   >
                     {(() => {
                       // Only render the events that *start* in this hour (first row of their slot).
-                      const startingHere = reservationsAtTime.filter(isFirstHour);
+                      const startingHere = itemsAtTime.filter(isFirstHour);
                       const total = startingHere.length;
-                      return startingHere.map((reservation, rIndex) => {
-                        const color = getReservationColor(reservation);
+                      return startingHere.map((item, rIndex) => {
+                        const isEvent = item.calendar_item_type === 'event';
+                        const color = getCalendarItemColor(item);
                         return (
                         <div
-                          key={reservation.id}
-                          onClick={() => onSelectReservation(reservation)}
+                          key={item.id}
+                          onClick={() => isEvent ? onSelectEvent?.(item) : onSelectReservation(item)}
                           className="absolute rounded-md p-2 cursor-pointer text-xs shadow-sm hover:brightness-95 transition-all overflow-hidden"
                           style={{
                             top: '2px',
@@ -489,18 +532,18 @@ const WeekCalendar = ({ reservations, currentDate, onDateChange, onSelectReserva
                             borderLeft: `4px solid ${color.border}`,
                             color: color.text,
                           }}
-                          data-testid={`calendar-event-${reservation.id}`}
-                          title={`${reservation.program_name || ''} · ${reservation.time_block || ''}${reservation.assigned_lecturer_name ? ' · ' + reservation.assigned_lecturer_name : ''}`}
+                          data-testid={`calendar-event-${item.id}`}
+                          title={`${isEvent ? item.event_name : item.program_name || ''} · ${item.time_block || ''}${item.assigned_lecturer_name ? ' · ' + item.assigned_lecturer_name : ''}`}
                         >
                           <div className="font-semibold truncate leading-tight">
-                            {reservation.program_name || reservation.school_name}
+                            {isEvent ? item.event_name : item.program_name || item.school_name}
                           </div>
                           <div className="opacity-90 truncate text-[10px]">
-                            {reservation.time_block || '9:00'}
+                            {isEvent ? 'Akce · ' : ''}{item.time_block || '9:00'}
                           </div>
-                          {reservation.assigned_lecturer_name && total <= 2 && (
+                          {!isEvent && item.assigned_lecturer_name && total <= 2 && (
                             <div className="opacity-90 truncate text-[10px] mt-0.5">
-                              {reservation.assigned_lecturer_name}
+                              {item.assigned_lecturer_name}
                             </div>
                           )}
                         </div>
@@ -619,6 +662,50 @@ const ReservationDetailModal = ({ reservation, open, onClose }) => {
   );
 };
 
+// Events are intentionally read-only in this shared calendar. Editing remains in
+// the Events section so this view cannot accidentally change event data.
+const CalendarEventDetailModal = ({ event, open, onClose }) => {
+  if (!event) return null;
+
+  const formatDate = (dateStr) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('cs-CZ', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Detail akce</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="bg-[#F4E7D7] rounded-lg p-4 border-l-4 border-[#B8834A]">
+            <h3 className="font-semibold text-lg text-gray-900">{event.event_name}</h3>
+            <p className="text-gray-600 text-sm mt-1">
+              {formatDate(event.date)} · {event.time_block || 'Čas neuveden'}
+            </p>
+          </div>
+          <p className="text-sm text-gray-500">
+            Akce je v tomto kalendáři zobrazena pouze pro orientaci. Úpravy akce a její termíny
+            najdete v sekci Akce.
+          </p>
+        </div>
+        <div className="flex justify-end gap-2 pt-4 border-t">
+          <Button variant="outline" onClick={onClose}>Zavřít</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 // ============ Main DashboardPage ============
 export const DashboardPage = () => {
   const { t } = useTranslation();
@@ -628,6 +715,7 @@ export const DashboardPage = () => {
   const [stats, setStats] = useState(null);
   const [reservations, setReservations] = useState([]);
   const [calendarReservations, setCalendarReservations] = useState([]);
+  const [calendarEvents, setCalendarEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   
   // View state
@@ -638,6 +726,8 @@ export const DashboardPage = () => {
   // Modal state
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [selectedCalendarEvent, setSelectedCalendarEvent] = useState(null);
+  const [calendarEventModalOpen, setCalendarEventModalOpen] = useState(false);
 
   // Onboarding state
   const [onboardingData, setOnboardingData] = useState(null);
@@ -669,6 +759,17 @@ export const DashboardPage = () => {
         axios.get(`${API}/dashboard/stats`, { headers }),
         axios.get(`${API}/bookings`, { headers })
       ]);
+
+      let institutionEvents = [];
+      try {
+        const eventsRes = await axios.get(`${API}/events?include_dates=true`, { headers });
+        institutionEvents = Array.isArray(eventsRes.data) ? eventsRes.data : [];
+      } catch (eventError) {
+        // Institutions without the events module should still get the dashboard.
+        if (![403, 404].includes(eventError?.response?.status)) {
+          console.warn('Could not load dashboard events:', eventError);
+        }
+      }
       
       setStats(statsRes.data);
       
@@ -684,6 +785,24 @@ export const DashboardPage = () => {
       // Cancelled reservations remain hidden by WeekCalendar, while completed
       // and past reservations stay visible when navigating backwards.
       setCalendarReservations(allBookings);
+      setCalendarEvents(institutionEvents.flatMap((event) => (
+        Array.isArray(event.dates) ? event.dates.map((eventDate) => {
+          const start = new Date(eventDate.start_datetime);
+          const end = new Date(eventDate.end_datetime);
+          if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+
+          const date = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+          const time = (value) => `${String(value.getHours()).padStart(2, '0')}:${String(value.getMinutes()).padStart(2, '0')}`;
+          return {
+            id: `event-${event.id}-${eventDate.id}`,
+            calendar_item_type: 'event',
+            event_id: event.id,
+            event_name: event.name,
+            date,
+            time_block: `${time(start)}-${time(end)}`,
+          };
+        }) : []
+      )).filter(Boolean));
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -880,9 +999,14 @@ export const DashboardPage = () => {
             ) : (
               <WeekCalendar
                 reservations={calendarReservations}
+                events={calendarEvents}
                 currentDate={calendarDate}
                 onDateChange={setCalendarDate}
                 onSelectReservation={handleSelectReservation}
+                onSelectEvent={(event) => {
+                  setSelectedCalendarEvent(event);
+                  setCalendarEventModalOpen(true);
+                }}
               />
             )}
           </div>
@@ -894,6 +1018,11 @@ export const DashboardPage = () => {
         reservation={selectedReservation}
         open={modalOpen}
         onClose={() => setModalOpen(false)}
+      />
+      <CalendarEventDetailModal
+        event={selectedCalendarEvent}
+        open={calendarEventModalOpen}
+        onClose={() => setCalendarEventModalOpen(false)}
       />
     </AdminLayout>
   );

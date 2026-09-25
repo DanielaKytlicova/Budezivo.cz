@@ -3,9 +3,11 @@ Statistics routes with real data from database.
 Provides data for charts, reports, and CSV export.
 """
 import logging
-from datetime import datetime, timezone, timedelta
+from dataclasses import dataclass
+from datetime import datetime, timezone, timedelta, date as date_type
 from collections import defaultdict
 from typing import Optional, List
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,11 +18,22 @@ import io
 
 from core.security import get_current_user
 from database.supabase import get_db
-from database.models import Reservation, Program, Institution
+from database.models import (
+    AvailabilityBlock,
+    AvailabilityException,
+    LecturerAvailability,
+    LecturerTimeOff,
+    Program,
+    Reservation,
+    Institution,
+    User,
+    UserCalendarIntegration,
+)
 from database.supabase_repositories import InstitutionRepositorySupabase
 from services.plan_service import require_feature
 from services.usage_service import track_usage
 from routes.availability import _expand_calendar_time_blocks, _program_validity_date, get_day_name
+from services.collision_service import parse_time_block
 
 router = APIRouter(prefix="/statistics", tags=["Statistics"])
 logger = logging.getLogger(__name__)
@@ -175,51 +188,418 @@ STATUS_LABELS = {
 }
 
 
+PRAGUE_TZ = ZoneInfo("Europe/Prague")
+
+
+@dataclass(frozen=True)
+class _CapacityCandidate:
+    """One possible reservation run used only by the statistics calculation."""
+
+    program_id: str
+    start_minute: int
+    end_minute: int
+    allow_parallel: bool
+    collision_resources: frozenset[str]
+    room_id: Optional[str]
+    blocked_program_ids: frozenset[str]
+    lecturer_ids: frozenset[str]
+    same_program_limit: Optional[int]
+
+
+def _statistics_time_to_minute(value: Optional[str]) -> Optional[int]:
+    if not value:
+        return None
+    try:
+        hours, minutes = value.split(":")
+        return int(hours) * 60 + int(minutes)
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def _statistics_block_range(time_block: str, duration: int) -> Optional[tuple[int, int]]:
+    start, end = parse_time_block(time_block)
+    if start is None:
+        return None
+    return start, end if end is not None else start + duration
+
+
+def _statistics_ranges_overlap(
+    start_a: int,
+    end_a: int,
+    start_b: int,
+    end_b: int,
+) -> bool:
+    return start_a < end_b and start_b < end_a
+
+
+def _statistics_exception_blocks_slot(
+    start_minute: int,
+    end_minute: int,
+    exceptions: list,
+) -> bool:
+    for exception in exceptions:
+        if exception.start_time is None and exception.end_time is None:
+            return True
+        exception_start = _statistics_time_to_minute(exception.start_time) or 0
+        exception_end = _statistics_time_to_minute(exception.end_time) or 24 * 60
+        if _statistics_ranges_overlap(start_minute, end_minute, exception_start, exception_end):
+            return True
+    return False
+
+
+def _statistics_reporting_limit(program: Program) -> int:
+    """Use one unit for unlimited programs so the chart has a finite denominator.
+
+    ``NULL`` means unlimited in booking validation. A statistics graph cannot
+    display an infinite denominator, so it counts one schedulable run per
+    configured time block in that case.
+    """
+    try:
+        limit = int(program.max_concurrent_bookings)
+    except (TypeError, ValueError):
+        return 1
+    return limit if limit > 0 else 1
+
+
+def _statistics_candidates_conflict(
+    candidate: _CapacityCandidate,
+    selected: list[_CapacityCandidate],
+) -> bool:
+    """Mirror booking conflict rules for a hypothetical reporting schedule."""
+    for other in selected:
+        if candidate.program_id == other.program_id:
+            if not _statistics_ranges_overlap(
+                candidate.start_minute,
+                candidate.end_minute,
+                other.start_minute,
+                other.end_minute,
+            ):
+                continue
+            overlapping_same_program = sum(
+                1
+                for item in selected
+                if item.program_id == candidate.program_id
+                and _statistics_ranges_overlap(
+                    candidate.start_minute,
+                    candidate.end_minute,
+                    item.start_minute,
+                    item.end_minute,
+                )
+            )
+            return overlapping_same_program >= (candidate.same_program_limit or 1)
+
+        if not _statistics_ranges_overlap(
+            candidate.start_minute,
+            candidate.end_minute,
+            other.start_minute,
+            other.end_minute,
+        ):
+            continue
+
+        if not candidate.allow_parallel or not other.allow_parallel:
+            return True
+
+        if (
+            "lecturer" in candidate.collision_resources
+            and "lecturer" in other.collision_resources
+            and candidate.lecturer_ids
+            and other.lecturer_ids
+            and candidate.lecturer_ids.intersection(other.lecturer_ids)
+        ):
+            return True
+
+        if (
+            "room" in candidate.collision_resources
+            and "room" in other.collision_resources
+            and candidate.room_id
+            and candidate.room_id == other.room_id
+        ):
+            return True
+
+        if (
+            other.program_id in candidate.blocked_program_ids
+            or candidate.program_id in other.blocked_program_ids
+        ):
+            return True
+
+    return False
+
+
+def _statistics_max_additional_capacity(
+    candidates: list[_CapacityCandidate],
+    fixed_reservations: list[_CapacityCandidate],
+) -> int:
+    """Select the largest deterministic set of currently schedulable runs.
+
+    Candidates are ordered by end time, which keeps the result stable and
+    avoids counting several overlapping program windows as several physical
+    runs. Existing reservations are fixed first; new candidates are added only
+    when the same booking rules allow them to coexist.
+    """
+    available = [
+        candidate
+        for candidate in candidates
+        if not _statistics_candidates_conflict(candidate, fixed_reservations)
+    ]
+    available.sort(key=lambda item: (item.end_minute, item.start_minute, item.program_id))
+
+    selected: list[_CapacityCandidate] = []
+    for candidate in available:
+        if not _statistics_candidates_conflict(candidate, fixed_reservations + selected):
+            selected.append(candidate)
+    return len(selected)
+
+
+def _statistics_lecturer_ids(program: Program, users: list[User]) -> set[str]:
+    """Return active lecturers that the normal assignment pool can use."""
+    program_id = str(program.id)
+    configured_ids = {str(program.assigned_lecturer_id)} if program.assigned_lecturer_id else set()
+    configured_ids.update(str(value) for value in (program.collision_lecturer_ids or []) if value)
+    for user in users:
+        supported = {str(value) for value in (user.supported_program_ids or [])}
+        if program_id in supported:
+            configured_ids.add(str(user.id))
+    return {
+        str(user.id)
+        for user in users
+        if str(user.id) in configured_ids
+        and program_id not in {str(value) for value in (user.learning_program_ids or [])}
+    }
+
+
+def _statistics_lecturer_is_available(
+    lecturer_id: str,
+    day: date_type,
+    start_minute: int,
+    end_minute: int,
+    availability_by_lecturer: dict[str, list[LecturerAvailability]],
+    time_off_by_lecturer: dict[str, list[LecturerTimeOff]],
+    lecturer_exceptions: dict[tuple[str, str], list[AvailabilityException]],
+    blocks_by_lecturer: dict[str, list[AvailabilityBlock]],
+    integrations_by_user_provider: dict[tuple[str, str], UserCalendarIntegration],
+) -> bool:
+    lecturer_blocks = availability_by_lecturer.get(lecturer_id, [])
+    day_blocks = [
+        block
+        for block in lecturer_blocks
+        if (block.is_recurring and block.day_of_week == day.weekday())
+        or (not block.is_recurring and block.specific_date == day.isoformat())
+    ]
+    if day_blocks:
+        in_schedule = any(
+            (start := _statistics_time_to_minute(block.start_time)) is not None
+            and (end := _statistics_time_to_minute(block.end_time)) is not None
+            and start_minute >= start
+            and end_minute <= end
+            for block in day_blocks
+        )
+        if not in_schedule:
+            return False
+    elif lecturer_blocks:
+        return False
+
+    if _statistics_exception_blocks_slot(
+        start_minute,
+        end_minute,
+        lecturer_exceptions.get((lecturer_id, day.isoformat()), []),
+    ):
+        return False
+
+    for time_off in time_off_by_lecturer.get(lecturer_id, []):
+        if time_off.start_date > day.isoformat() or time_off.end_date < day.isoformat():
+            continue
+        if time_off.start_time is None or time_off.end_time is None:
+            return False
+        off_start = _statistics_time_to_minute(time_off.start_time) or 0
+        off_end = _statistics_time_to_minute(time_off.end_time) or 24 * 60
+        if _statistics_ranges_overlap(start_minute, end_minute, off_start, off_end):
+            return False
+
+    local_start = datetime.combine(
+        day,
+        datetime.min.time().replace(minute=start_minute % 60, hour=start_minute // 60),
+        tzinfo=PRAGUE_TZ,
+    )
+    local_end = datetime.combine(
+        day,
+        datetime.min.time().replace(minute=end_minute % 60, hour=end_minute // 60),
+        tzinfo=PRAGUE_TZ,
+    )
+    for block in blocks_by_lecturer.get(lecturer_id, []):
+        block_start = block.start_time
+        block_end = block.end_time
+        if block_start.tzinfo is None:
+            block_start = block_start.replace(tzinfo=PRAGUE_TZ)
+        if block_end.tzinfo is None:
+            block_end = block_end.replace(tzinfo=PRAGUE_TZ)
+        if block_end <= local_start or block_start >= local_end:
+            continue
+        if block.override:
+            continue
+        if block.source in ("google", "outlook"):
+            provider = "google" if block.source == "google" else "microsoft"
+            integration = integrations_by_user_provider.get((lecturer_id, provider))
+            if not integration or not integration.is_active or not integration.import_enabled:
+                continue
+        return False
+
+    return True
+
+
+def _statistics_candidate_for_program(
+    program: Program,
+    time_block: str,
+    lecturer_ids: set[str],
+) -> Optional[_CapacityCandidate]:
+    block_range = _statistics_block_range(time_block, program.duration or 60)
+    if not block_range:
+        return None
+    start_minute, end_minute = block_range
+    return _CapacityCandidate(
+        program_id=str(program.id),
+        start_minute=start_minute,
+        end_minute=end_minute,
+        allow_parallel=bool(program.allow_parallel),
+        collision_resources=frozenset(program.collision_resources or []),
+        room_id=str(program.room_id) if program.room_id else None,
+        blocked_program_ids=frozenset(str(value) for value in (program.blocked_program_ids or [])),
+        lecturer_ids=frozenset(lecturer_ids),
+        same_program_limit=program.max_concurrent_bookings,
+    )
+
+
 async def _get_capacity_monthly(
     db: AsyncSession,
     institution_id,
     date_start: datetime,
     date_end: datetime,
 ) -> list[CapacityMonthlyStats]:
-    """Count planned program runs and non-cancelled reservations by month.
+    """Calculate effective reservation capacity without changing booking logic.
 
-    This is a reporting-only calculation. It deliberately does not participate
-    in booking validation or alter program capacity/collision rules.
+    The old denominator counted every configured program window independently.
+    This version builds hypothetical runs for each day, applies the same
+    resource settings used by booking (program validity/exceptions, lecturer
+    schedules/time-off, external blocks, rooms, parallel rules and concurrent
+    limits), fixes already-created reservations, and then counts only the
+    largest compatible set of additional runs. The helper is intentionally
+    isolated to reporting; it never writes data or participates in booking.
     """
-    programs_result = await db.execute(select(Program).where(and_(
+    range_start = date_start.strftime("%Y-%m-%d")
+    range_end = date_end.strftime("%Y-%m-%d")
+
+    all_programs_result = await db.execute(select(Program).where(and_(
         Program.institution_id == institution_id,
-        Program.status == "active",
-        Program.is_published.is_(True),
         Program.deleted_at.is_(None),
     )))
-    programs = programs_result.scalars().all()
+    all_programs = all_programs_result.scalars().all()
+    programs = [
+        program
+        for program in all_programs
+        if program.status == "active" and program.is_published
+    ]
+    programs_by_id = {str(program.id): program for program in all_programs}
 
-    reservations_result = await db.execute(select(
-        Reservation.program_id,
-        Reservation.date,
-        Reservation.time_block,
-    ).where(and_(
+    reservations_result = await db.execute(select(Reservation).where(and_(
         Reservation.institution_id == institution_id,
-        Reservation.date >= date_start.strftime("%Y-%m-%d"),
-        Reservation.date <= date_end.strftime("%Y-%m-%d"),
+        Reservation.date >= range_start,
+        Reservation.date <= range_end,
         Reservation.deleted_at.is_(None),
         Reservation.status != "cancelled",
     )))
-    reserved_blocks_by_month: dict[tuple[int, int], set[tuple[str, str, str]]] = defaultdict(set)
-    for program_id, reservation_date, time_block in reservations_result.fetchall():
+    reservations_by_date: dict[str, list[Reservation]] = defaultdict(list)
+    reserved_by_month: dict[tuple[int, int], int] = defaultdict(int)
+    for reservation in reservations_result.scalars().all():
+        reservation_date = str(reservation.date)
         try:
-            parsed = datetime.strptime(str(reservation_date), "%Y-%m-%d")
+            parsed = datetime.strptime(reservation_date, "%Y-%m-%d")
         except ValueError:
             continue
-        reserved_blocks_by_month[(parsed.year, parsed.month)].add(
-            (str(program_id), str(reservation_date), str(time_block))
-        )
+        reservations_by_date[reservation_date].append(reservation)
+        reserved_by_month[(parsed.year, parsed.month)] += 1
 
-    offered_by_month: dict[tuple[int, int], int] = defaultdict(int)
+    exceptions_result = await db.execute(select(AvailabilityException).where(and_(
+        AvailabilityException.institution_id == institution_id,
+        AvailabilityException.date >= range_start,
+        AvailabilityException.date <= range_end,
+        AvailabilityException.scope_type.in_(["program", "lecturer"]),
+    )))
+    program_exceptions: dict[tuple[str, str], list[AvailabilityException]] = defaultdict(list)
+    lecturer_exceptions: dict[tuple[str, str], list[AvailabilityException]] = defaultdict(list)
+    for exception in exceptions_result.scalars().all():
+        key = (str(exception.scope_id), str(exception.date))
+        if exception.scope_type == "program":
+            program_exceptions[key].append(exception)
+        else:
+            lecturer_exceptions[key].append(exception)
+
+    users_result = await db.execute(select(User).where(and_(
+        User.institution_id == institution_id,
+        User.role.in_(("lektor", "edukator", "admin", "spravce")),
+        User.status == "active",
+        User.deleted_at.is_(None),
+    )))
+    users = users_result.scalars().all()
+    availability_result = await db.execute(select(LecturerAvailability).where(
+        LecturerAvailability.institution_id == institution_id
+    ))
+    time_off_result = await db.execute(select(LecturerTimeOff).where(and_(
+        LecturerTimeOff.institution_id == institution_id,
+        LecturerTimeOff.start_date <= range_end,
+        LecturerTimeOff.end_date >= range_start,
+    )))
+    availability_by_lecturer: dict[str, list[LecturerAvailability]] = defaultdict(list)
+    time_off_by_lecturer: dict[str, list[LecturerTimeOff]] = defaultdict(list)
+    for availability in availability_result.scalars().all():
+        availability_by_lecturer[str(availability.lecturer_id)].append(availability)
+    for time_off in time_off_result.scalars().all():
+        time_off_by_lecturer[str(time_off.lecturer_id)].append(time_off)
+
+    block_start = datetime.combine(date_start.date(), datetime.min.time(), tzinfo=PRAGUE_TZ)
+    block_end = datetime.combine(date_end.date(), datetime.max.time(), tzinfo=PRAGUE_TZ)
+    blocks_result = await db.execute(select(AvailabilityBlock).where(and_(
+        AvailabilityBlock.institution_id == institution_id,
+        AvailabilityBlock.end_time > block_start,
+        AvailabilityBlock.start_time < block_end,
+    )))
+    blocks_by_lecturer: dict[str, list[AvailabilityBlock]] = defaultdict(list)
+    for block in blocks_result.scalars().all():
+        blocks_by_lecturer[str(block.user_id)].append(block)
+
+    integrations_result = await db.execute(select(UserCalendarIntegration).where(and_(
+        UserCalendarIntegration.institution_id == institution_id,
+        UserCalendarIntegration.is_active.is_(True),
+        UserCalendarIntegration.import_enabled.is_(True),
+    )))
+    integrations_by_user_provider = {
+        (str(integration.user_id), integration.provider): integration
+        for integration in integrations_result.scalars().all()
+    }
+
+    lecturer_pool_by_program = {
+        str(program.id): _statistics_lecturer_ids(program, users)
+        for program in programs
+    }
+    qualified_pool_by_program = {
+        str(program.id): {
+            str(user.id)
+            for user in users
+            if str(program.id) in {
+                str(value) for value in (user.supported_program_ids or [])
+            }
+            and str(program.id) not in {
+                str(value) for value in (user.learning_program_ids or [])
+            }
+        }
+        for program in programs
+    }
+
+    effective_capacity_by_month: dict[tuple[int, int], int] = defaultdict(int)
     day = date_start.date()
     last_day = date_end.date()
     while day <= last_day:
+        date_str = day.isoformat()
         day_name = get_day_name(day)
+        candidates: list[_CapacityCandidate] = []
         for program in programs:
             program_start = _program_validity_date(program.start_date)
             program_end = _program_validity_date(program.end_date)
@@ -232,19 +612,100 @@ async def _get_capacity_monthly(
             ]
             if day_name not in available_days:
                 continue
-            blocks = _expand_calendar_time_blocks(
+
+            pool = lecturer_pool_by_program[str(program.id)]
+            for time_block in _expand_calendar_time_blocks(
                 program.time_blocks or ["09:00-10:30"],
                 program.duration or 60,
+            ):
+                block_range = _statistics_block_range(time_block, program.duration or 60)
+                if not block_range:
+                    continue
+                start_minute, end_minute = block_range
+                if _statistics_exception_blocks_slot(
+                    start_minute,
+                    end_minute,
+                    program_exceptions.get((str(program.id), date_str), []),
+                ):
+                    continue
+
+                available_lecturers = {
+                    lecturer_id
+                    for lecturer_id in pool
+                    if _statistics_lecturer_is_available(
+                        lecturer_id,
+                        day,
+                        start_minute,
+                        end_minute,
+                        availability_by_lecturer,
+                        time_off_by_lecturer,
+                        lecturer_exceptions,
+                        blocks_by_lecturer,
+                        integrations_by_user_provider,
+                    )
+                }
+                if "lecturer" in (program.collision_resources or []):
+                    required = getattr(program, "required_lecturers", 1) or 1
+                    if required > 1:
+                        available_qualified = available_lecturers.intersection(
+                            qualified_pool_by_program[str(program.id)]
+                        )
+                        if len(available_qualified) < required:
+                            continue
+                    has_explicit_pool = bool(
+                        program.assigned_lecturer_id or program.collision_lecturer_ids
+                    )
+                    if len(available_lecturers) < required and (
+                        bool(pool) or has_explicit_pool or required > 1
+                    ):
+                        continue
+                else:
+                    available_lecturers = set()
+
+                candidate = _statistics_candidate_for_program(
+                    program, time_block, available_lecturers
+                )
+                if not candidate:
+                    continue
+                # A finite concurrent limit means the system can accept that
+                # many reservations in one overlapping program slot.
+                candidates.extend([candidate] * _statistics_reporting_limit(program))
+
+        fixed_reservations: list[_CapacityCandidate] = []
+        for reservation in reservations_by_date.get(date_str, []):
+            program = programs_by_id.get(str(reservation.program_id))
+            if not program:
+                continue
+            assigned_lecturers = {
+                str(reservation.assigned_lecturer_id)
+            } if reservation.assigned_lecturer_id else set()
+            assigned_lecturers.update(
+                str(value)
+                for value in (reservation.assigned_lecturer_ids or [])
+                if value
             )
-            offered_by_month[(day.year, day.month)] += len(blocks)
+            if not assigned_lecturers:
+                assigned_lecturers = lecturer_pool_by_program.get(str(program.id), set())
+            candidate = _statistics_candidate_for_program(
+                program,
+                str(reservation.time_block),
+                assigned_lecturers,
+            )
+            if candidate:
+                fixed_reservations.append(candidate)
+
+        effective_capacity_by_month[(day.year, day.month)] += (
+            len(reservations_by_date.get(date_str, []))
+            + _statistics_max_additional_capacity(candidates, fixed_reservations)
+        )
         day += timedelta(days=1)
 
     result = []
     cursor = date_start.replace(day=1)
     while cursor <= date_end:
         key = (cursor.year, cursor.month)
-        offered = offered_by_month[key]
-        reserved = len(reserved_blocks_by_month[key])
+        offered = effective_capacity_by_month[key]
+        reserved = reserved_by_month[key]
         result.append(CapacityMonthlyStats(
             month=CZECH_MONTHS[cursor.month],
             year=cursor.year,

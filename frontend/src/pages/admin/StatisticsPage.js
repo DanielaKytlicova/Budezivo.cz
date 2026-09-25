@@ -244,8 +244,8 @@ export const StatisticsPage = () => {
   const capacityChartData =
     stats?.capacity_monthly?.map((m) => ({
       name: `${m.month.substring(0, 3)} ${m.year}`,
-      Nabízené: m.offered_blocks,
-      Rezervované: m.reserved_blocks,
+      Kapacita: m.offered_blocks,
+      Rezervováno: m.reserved_blocks,
       Vytížení: m.utilization_percent,
     })) || [];
 
@@ -523,9 +523,9 @@ export const StatisticsPage = () => {
         <Card className="p-6" data-testid="capacity-utilization-statistics">
           <div className="flex items-start justify-between gap-4 mb-2">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">Vytížení kapacity</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Vytížení efektivní kapacity</h2>
               <p className="text-sm text-gray-500">
-                Nabízené a rezervované bloky programů podle měsíců
+                Odhad maximálního počtu průchozích rezervací po zohlednění dostupnosti a kolizí
               </p>
             </div>
           </div>
@@ -539,15 +539,15 @@ export const StatisticsPage = () => {
                   <Tooltip
                     contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
                     formatter={(value, name, props) => {
-                      if (name === 'Rezervované') {
+                      if (name === 'Rezervováno') {
                         return [`${value} (${props?.payload?.Vytížení || 0} %)`, name];
                       }
                       return [value, name];
                     }}
                   />
                   <Legend />
-                  <Bar dataKey="Nabízené" fill="#CBD5E1" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Rezervované" fill="#2563EB" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Kapacita" fill="#CBD5E1" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Rezervováno" fill="#2563EB" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

@@ -94,6 +94,38 @@ const ViewSwitcher = ({ view, onViewChange }) => (
   </div>
 );
 
+const CalendarVisibilityFilters = ({
+  showPrograms,
+  showEvents,
+  onProgramsChange,
+  onEventsChange,
+}) => (
+  <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-xs text-gray-500">
+    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+      <input
+        type="checkbox"
+        checked={showPrograms}
+        onChange={(event) => onProgramsChange(event.target.checked)}
+        className="h-4 w-4 rounded border-gray-300 text-[#84A98C] focus:ring-[#84A98C]"
+        aria-label="Zobrazit doprovodné programy"
+      />
+      <span className="w-3 h-3 rounded-sm bg-[#84A98C]" />
+      Doprovodné programy
+    </label>
+    <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+      <input
+        type="checkbox"
+        checked={showEvents}
+        onChange={(event) => onEventsChange(event.target.checked)}
+        className="h-4 w-4 rounded border-gray-300 text-[#B8834A] focus:ring-[#B8834A]"
+        aria-label="Zobrazit akce"
+      />
+      <span className="w-3 h-3 rounded-sm bg-[#F4E7D7] border border-[#B8834A]" />
+      Akce
+    </label>
+  </div>
+);
+
 // ============ Status Badge Component ============
 const StatusBadge = ({ status }) => {
   const statusConfig = {
@@ -447,17 +479,6 @@ const WeekCalendar = ({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
-        <span className="inline-flex items-center gap-2">
-          <span className="w-3 h-3 rounded-sm bg-[#84A98C]" />
-          Doprovodné programy
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="w-3 h-3 rounded-sm bg-[#F4E7D7] border border-[#B8834A]" />
-          Akce
-        </span>
-      </div>
-
       {/* Calendar Grid */}
       <div className="bg-white border rounded-xl overflow-hidden">
         {/* Days Header */}
@@ -716,6 +737,8 @@ export const DashboardPage = () => {
   const [reservations, setReservations] = useState([]);
   const [calendarReservations, setCalendarReservations] = useState([]);
   const [calendarEvents, setCalendarEvents] = useState([]);
+  const [showCalendarPrograms, setShowCalendarPrograms] = useState(true);
+  const [showCalendarEvents, setShowCalendarEvents] = useState(true);
   const [loading, setLoading] = useState(true);
   
   // View state
@@ -984,7 +1007,17 @@ export const DashboardPage = () => {
             <h2 className="text-xl font-semibold text-slate-900">
               {view === 'calendar' ? 'Kalendář rezervací' : 'Nadcházející rezervace'}
             </h2>
-            <ViewSwitcher view={view} onViewChange={setView} />
+            <div className="flex flex-col items-end gap-2">
+              <ViewSwitcher view={view} onViewChange={setView} />
+              {view === 'calendar' && (
+                <CalendarVisibilityFilters
+                  showPrograms={showCalendarPrograms}
+                  showEvents={showCalendarEvents}
+                  onProgramsChange={setShowCalendarPrograms}
+                  onEventsChange={setShowCalendarEvents}
+                />
+              )}
+            </div>
           </div>
 
           {/* View Content with Transition */}
@@ -998,8 +1031,8 @@ export const DashboardPage = () => {
               />
             ) : (
               <WeekCalendar
-                reservations={calendarReservations}
-                events={calendarEvents}
+                reservations={showCalendarPrograms ? calendarReservations : []}
+                events={showCalendarEvents ? calendarEvents : []}
                 currentDate={calendarDate}
                 onDateChange={setCalendarDate}
                 onSelectReservation={handleSelectReservation}

@@ -4,6 +4,7 @@ Provides data for charts, reports, and CSV export.
 """
 import logging
 from datetime import datetime, timezone, timedelta
+from collections import defaultdict
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -19,6 +20,7 @@ from database.models import Reservation, Program, Institution
 from database.supabase_repositories import InstitutionRepositorySupabase
 from services.plan_service import require_feature
 from services.usage_service import track_usage
+from routes.availability import _expand_calendar_time_blocks, _program_validity_date, get_day_name
 
 router = APIRouter(prefix="/statistics", tags=["Statistics"])
 logger = logging.getLogger(__name__)
@@ -32,6 +34,14 @@ class MonthlyStats(BaseModel):
     bookings: int
     students: int
     teachers: int
+
+
+class CapacityMonthlyStats(BaseModel):
+    month: str
+    year: int
+    offered_blocks: int
+    reserved_blocks: int
+    utilization_percent: float
 
 
 class ProgramStats(BaseModel):
@@ -70,6 +80,7 @@ class StatisticsResponse(BaseModel):
     by_program: List[ProgramStats]
     by_status: List[StatusStats]
     by_age_group: List[AgeGroupStats]
+    capacity_monthly: List[CapacityMonthlyStats]
     period: dict
 
 
@@ -162,6 +173,90 @@ STATUS_LABELS = {
     "completed": "Dokončené",
     "no_show": "Nedostavil se",
 }
+
+
+async def _get_capacity_monthly(
+    db: AsyncSession,
+    institution_id,
+    date_start: datetime,
+    date_end: datetime,
+) -> list[CapacityMonthlyStats]:
+    """Count planned program runs and non-cancelled reservations by month.
+
+    This is a reporting-only calculation. It deliberately does not participate
+    in booking validation or alter program capacity/collision rules.
+    """
+    programs_result = await db.execute(select(Program).where(and_(
+        Program.institution_id == institution_id,
+        Program.status == "active",
+        Program.is_published.is_(True),
+        Program.deleted_at.is_(None),
+    )))
+    programs = programs_result.scalars().all()
+
+    reservations_result = await db.execute(select(
+        Reservation.program_id,
+        Reservation.date,
+        Reservation.time_block,
+    ).where(and_(
+        Reservation.institution_id == institution_id,
+        Reservation.date >= date_start.strftime("%Y-%m-%d"),
+        Reservation.date <= date_end.strftime("%Y-%m-%d"),
+        Reservation.deleted_at.is_(None),
+        Reservation.status != "cancelled",
+    )))
+    reserved_blocks_by_month: dict[tuple[int, int], set[tuple[str, str, str]]] = defaultdict(set)
+    for program_id, reservation_date, time_block in reservations_result.fetchall():
+        try:
+            parsed = datetime.strptime(str(reservation_date), "%Y-%m-%d")
+        except ValueError:
+            continue
+        reserved_blocks_by_month[(parsed.year, parsed.month)].add(
+            (str(program_id), str(reservation_date), str(time_block))
+        )
+
+    offered_by_month: dict[tuple[int, int], int] = defaultdict(int)
+    day = date_start.date()
+    last_day = date_end.date()
+    while day <= last_day:
+        day_name = get_day_name(day)
+        for program in programs:
+            program_start = _program_validity_date(program.start_date)
+            program_end = _program_validity_date(program.end_date)
+            if program_start and day < program_start:
+                continue
+            if program_end and day > program_end:
+                continue
+            available_days = program.available_days or [
+                "monday", "tuesday", "wednesday", "thursday", "friday"
+            ]
+            if day_name not in available_days:
+                continue
+            blocks = _expand_calendar_time_blocks(
+                program.time_blocks or ["09:00-10:30"],
+                program.duration or 60,
+            )
+            offered_by_month[(day.year, day.month)] += len(blocks)
+        day += timedelta(days=1)
+
+    result = []
+    cursor = date_start.replace(day=1)
+    while cursor <= date_end:
+        key = (cursor.year, cursor.month)
+        offered = offered_by_month[key]
+        reserved = len(reserved_blocks_by_month[key])
+        result.append(CapacityMonthlyStats(
+            month=CZECH_MONTHS[cursor.month],
+            year=cursor.year,
+            offered_blocks=offered,
+            reserved_blocks=reserved,
+            utilization_percent=round((reserved / offered) * 100, 1) if offered else 0,
+        ))
+        if cursor.month == 12:
+            cursor = cursor.replace(year=cursor.year + 1, month=1)
+        else:
+            cursor = cursor.replace(month=cursor.month + 1)
+    return result
 
 
 # ============ Main Statistics Endpoint ============
@@ -360,6 +455,10 @@ async def get_statistics(
         )
         for row in age_result.fetchall()
     ]
+
+    capacity_monthly = await _get_capacity_monthly(
+        db, institution_id, date_start, date_end
+    )
     
     return StatisticsResponse(
         overview=overview,
@@ -367,6 +466,7 @@ async def get_statistics(
         by_program=by_program,
         by_status=by_status,
         by_age_group=by_age_group,
+        capacity_monthly=capacity_monthly,
         period={
             "type": period_type,
             "label": period_label,

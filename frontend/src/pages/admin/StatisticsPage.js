@@ -2,27 +2,55 @@ import React, { useState, useEffect } from 'react';
 import { AdminLayout } from '../../components/layout/AdminLayout';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { API } from '../../config/api';
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
 } from 'recharts';
 import {
-  Calendar, Users, TrendingUp, Download, FileSpreadsheet,
-  GraduationCap, Building2, Clock, CheckCircle, XCircle, Loader2,
-  Star, MessageSquare, ThumbsUp
+  Calendar,
+  Users,
+  TrendingUp,
+  Download,
+  FileSpreadsheet,
+  GraduationCap,
+  Building2,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  Star,
+  MessageSquare,
+  ThumbsUp,
 } from 'lucide-react';
 
 // Barvy pro grafy
 const COLORS = ['#1E293B', '#84A98C', '#E9C46A', '#F4A261', '#E76F51', '#2A9D8F'];
 const STATUS_COLORS = {
-  'Potvrzené': '#22C55E',
-  'Čekající': '#F59E0B',
-  'Zrušené': '#EF4444',
-  'Dokončené': '#3B82F6',
+  Potvrzené: '#22C55E',
+  Čekající: '#F59E0B',
+  Zrušené: '#EF4444',
+  Dokončené: '#3B82F6',
   'Nedostavil se': '#6B7280',
 };
 
@@ -63,14 +91,13 @@ export const StatisticsPage = () => {
   const [isPro, setIsPro] = useState(false);
   const [feedbackStats, setFeedbackStats] = useState(null);
   const [loadingFeedback, setLoadingFeedback] = useState(true);
-  const [marketingStats, setMarketingStats] = useState(null);
 
   // Advanced analytics state
   const [heatmapData, setHeatmapData] = useState(null);
   const [trendsData, setTrendsData] = useState(null);
   const [topSchools, setTopSchools] = useState(null);
   const [conversionData, setConversionData] = useState(null);
-  
+
   // Filtry
   const [periodType, setPeriodType] = useState('month');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -82,17 +109,7 @@ export const StatisticsPage = () => {
     fetchFeedbackStatistics();
     checkProStatus();
     fetchAdvancedAnalytics();
-    fetchMarketingStatistics();
   }, [periodType, selectedYear, selectedMonth, selectedSemester]);
-
-  const fetchMarketingStatistics = async () => {
-    try {
-      const response = await axios.get(`${API}/marketing/subscription-stats`);
-      setMarketingStats(response.data);
-    } catch {
-      setMarketingStats(null);
-    }
-  };
 
   const checkProStatus = async () => {
     try {
@@ -121,7 +138,7 @@ export const StatisticsPage = () => {
     try {
       const params = new URLSearchParams();
       params.append('period_type', periodType);
-      
+
       if (periodType === 'month') {
         params.append('year', selectedYear);
         params.append('month', selectedMonth);
@@ -155,7 +172,7 @@ export const StatisticsPage = () => {
       const params = new URLSearchParams();
       params.append('period_type', periodType);
       params.append('export_type', exportType);
-      
+
       if (periodType === 'month') {
         params.append('year', selectedYear);
         params.append('month', selectedMonth);
@@ -169,14 +186,16 @@ export const StatisticsPage = () => {
       }
 
       const response = await axios.get(`${API}/statistics/export/csv?${params.toString()}`, {
-        responseType: 'blob'
+        responseType: 'blob',
       });
 
       // Stáhnout soubor
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      const filename = response.headers['content-disposition']?.split('filename=')[1]?.replace(/"/g, '') || 'export.csv';
+      const filename =
+        response.headers['content-disposition']?.split('filename=')[1]?.replace(/"/g, '') ||
+        'export.csv';
       link.setAttribute('download', filename);
       document.body.appendChild(link);
       link.click();
@@ -214,45 +233,61 @@ export const StatisticsPage = () => {
   };
 
   // Příprava dat pro grafy
-  const monthlyChartData = stats?.monthly?.map(m => ({
-    name: m.month.substring(0, 3),
-    Rezervace: m.bookings,
-    Žáci: m.students,
-    Pedagogové: m.teachers,
-  })) || [];
+  const monthlyChartData =
+    stats?.monthly?.map((m) => ({
+      name: m.month.substring(0, 3),
+      Rezervace: m.bookings,
+      Žáci: m.students,
+      Pedagogové: m.teachers,
+    })) || [];
 
-  const programChartData = stats?.by_program?.slice(0, 5).map(p => ({
-    name: p.program_name.length > 20 ? p.program_name.substring(0, 20) + '...' : p.program_name,
-    fullName: p.program_name,
-    Rezervace: p.bookings_count,
-    Návštěvníci: p.total_students + p.total_teachers,
-  })) || [];
+  const capacityChartData =
+    stats?.capacity_monthly?.map((m) => ({
+      name: `${m.month.substring(0, 3)} ${m.year}`,
+      Nabízené: m.offered_blocks,
+      Rezervované: m.reserved_blocks,
+      Vytížení: m.utilization_percent,
+    })) || [];
 
-  const statusChartData = stats?.by_status?.map(s => ({
-    name: s.status,
-    value: s.count,
-  })) || [];
+  const programChartData =
+    stats?.by_program?.slice(0, 5).map((p) => ({
+      name: p.program_name.length > 20 ? p.program_name.substring(0, 20) + '...' : p.program_name,
+      fullName: p.program_name,
+      Rezervace: p.bookings_count,
+      Návštěvníci: p.total_students + p.total_teachers,
+    })) || [];
 
-  const ageGroupChartData = stats?.by_age_group?.map(a => ({
-    name: a.age_group,
-    value: a.count,
-  })) || [];
+  const statusChartData =
+    stats?.by_status?.map((s) => ({
+      name: s.status,
+      value: s.count,
+    })) || [];
+
+  const ageGroupChartData =
+    stats?.by_age_group?.map((a) => ({
+      name: a.age_group,
+      value: a.count,
+    })) || [];
 
   // Feedback rating distribution data
-  const feedbackRatingData = feedbackStats?.by_rating ? 
-    Object.entries(feedbackStats.by_rating).map(([rating, count]) => ({
-      name: `${rating} ⭐`,
-      value: count,
-      rating: parseInt(rating)
-    })).sort((a, b) => a.rating - b.rating) : [];
+  const feedbackRatingData = feedbackStats?.by_rating
+    ? Object.entries(feedbackStats.by_rating)
+        .map(([rating, count]) => ({
+          name: `${rating} ⭐`,
+          value: count,
+          rating: parseInt(rating),
+        }))
+        .sort((a, b) => a.rating - b.rating)
+    : [];
 
   // Feedback by program data
-  const feedbackByProgramData = feedbackStats?.by_program?.slice(0, 5).map(p => ({
-    name: p.program_name?.length > 18 ? p.program_name.substring(0, 18) + '...' : p.program_name,
-    fullName: p.program_name,
-    'Průměr': p.avg_rating ? parseFloat(Number(p.avg_rating).toFixed(1)) : 0,
-    'Počet': p.count
-  })) || [];
+  const feedbackByProgramData =
+    feedbackStats?.by_program?.slice(0, 5).map((p) => ({
+      name: p.program_name?.length > 18 ? p.program_name.substring(0, 18) + '...' : p.program_name,
+      fullName: p.program_name,
+      Průměr: p.avg_rating ? parseFloat(Number(p.avg_rating).toFixed(1)) : 0,
+      Počet: p.count,
+    })) || [];
 
   if (loading && !stats) {
     return (
@@ -271,11 +306,9 @@ export const StatisticsPage = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Statistiky</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              {stats?.period?.label || 'Načítání...'}
-            </p>
+            <p className="text-sm text-gray-500 mt-1">{stats?.period?.label || 'Načítání...'}</p>
           </div>
-          
+
           {/* Export tlačítka */}
           <div className="flex gap-2">
             <Button
@@ -300,9 +333,7 @@ export const StatisticsPage = () => {
               <Download className="w-4 h-4 mr-2" />
               Rezervace
             </Button>
-            {!isPro && (
-              <span className="text-xs text-gray-400 self-center ml-2">PRO</span>
-            )}
+            {!isPro && <span className="text-xs text-gray-400 self-center ml-2">PRO</span>}
           </div>
         </div>
 
@@ -327,13 +358,18 @@ export const StatisticsPage = () => {
             {periodType === 'month' && (
               <div className="min-w-[140px]">
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Měsíc</label>
-                <Select value={String(selectedMonth)} onValueChange={(v) => setSelectedMonth(Number(v))}>
+                <Select
+                  value={String(selectedMonth)}
+                  onValueChange={(v) => setSelectedMonth(Number(v))}
+                >
                   <SelectTrigger data-testid="month-select">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {MONTHS.map(m => (
-                      <SelectItem key={m.value} value={String(m.value)}>{m.label}</SelectItem>
+                    {MONTHS.map((m) => (
+                      <SelectItem key={m.value} value={String(m.value)}>
+                        {m.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -343,7 +379,10 @@ export const StatisticsPage = () => {
             {periodType === 'semester' && (
               <div className="min-w-[140px]">
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Pololetí</label>
-                <Select value={String(selectedSemester)} onValueChange={(v) => setSelectedSemester(Number(v))}>
+                <Select
+                  value={String(selectedSemester)}
+                  onValueChange={(v) => setSelectedSemester(Number(v))}
+                >
                   <SelectTrigger data-testid="semester-select">
                     <SelectValue />
                   </SelectTrigger>
@@ -359,14 +398,19 @@ export const StatisticsPage = () => {
               <label className="text-sm font-medium text-gray-700 mb-1 block">
                 {periodType === 'school_year' || periodType === 'semester' ? 'Školní rok' : 'Rok'}
               </label>
-              <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+              <Select
+                value={String(selectedYear)}
+                onValueChange={(v) => setSelectedYear(Number(v))}
+              >
                 <SelectTrigger data-testid="year-select">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {getYearOptions().map(y => (
+                  {getYearOptions().map((y) => (
                     <SelectItem key={y} value={String(y)}>
-                      {periodType === 'school_year' || periodType === 'semester' ? `${y}/${y+1}` : y}
+                      {periodType === 'school_year' || periodType === 'semester'
+                        ? `${y}/${y + 1}`
+                        : y}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -386,7 +430,9 @@ export const StatisticsPage = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Celkem rezervací</p>
-                <p className="text-2xl font-bold text-slate-900">{stats?.overview?.total_bookings || 0}</p>
+                <p className="text-2xl font-bold text-slate-900">
+                  {stats?.overview?.total_bookings || 0}
+                </p>
               </div>
             </div>
           </Card>
@@ -398,7 +444,9 @@ export const StatisticsPage = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Počet žáků</p>
-                <p className="text-2xl font-bold text-slate-900">{stats?.overview?.total_students || 0}</p>
+                <p className="text-2xl font-bold text-slate-900">
+                  {stats?.overview?.total_students || 0}
+                </p>
               </div>
             </div>
           </Card>
@@ -410,7 +458,9 @@ export const StatisticsPage = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Počet pedagogů</p>
-                <p className="text-2xl font-bold text-slate-900">{stats?.overview?.total_teachers || 0}</p>
+                <p className="text-2xl font-bold text-slate-900">
+                  {stats?.overview?.total_teachers || 0}
+                </p>
               </div>
             </div>
           </Card>
@@ -422,7 +472,9 @@ export const StatisticsPage = () => {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Celkem návštěvníků</p>
-                <p className="text-2xl font-bold text-slate-900">{stats?.overview?.total_visitors || 0}</p>
+                <p className="text-2xl font-bold text-slate-900">
+                  {stats?.overview?.total_visitors || 0}
+                </p>
               </div>
             </div>
           </Card>
@@ -468,40 +520,43 @@ export const StatisticsPage = () => {
           </Card>
         </div>
 
-        {marketingStats && (
-          <Card className="p-6" data-testid="marketing-subscription-statistics">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">Odběr propagačních novinek</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div><p className="text-sm text-gray-500">Aktuální odběratelé</p><p className="text-2xl font-bold">{marketingStats.subscribers || 0}</p></div>
-              <div><p className="text-sm text-gray-500">Zrušené odběry</p><p className="text-2xl font-bold">{marketingStats.unsubscribed || 0}</p></div>
-              <div><p className="text-sm text-gray-500">Obnovené odběry</p><p className="text-2xl font-bold">{marketingStats.restored || 0}</p></div>
+        <Card className="p-6" data-testid="capacity-utilization-statistics">
+          <div className="flex items-start justify-between gap-4 mb-2">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Vytížení kapacity</h2>
+              <p className="text-sm text-gray-500">
+                Nabízené a rezervované bloky programů podle měsíců
+              </p>
             </div>
-            {Object.keys(marketingStats.unsubscribe_reasons || {}).length > 0 && (
-              <div className="mt-4 border-t pt-4">
-                <p className="text-sm font-medium mb-2">Důvody odhlášení</p>
-                {Object.entries(marketingStats.unsubscribe_reasons).map(([reason, count]) => (
-                  <div key={reason} className="flex justify-between text-sm py-1"><span>{reason}</span><strong>{count}</strong></div>
-                ))}
-              </div>
-            )}
-            {(marketingStats.trend || []).length > 0 && (
-              <div className="mt-6 h-[240px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={marketingStats.trend}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="new_subscriptions" name="Nové souhlasy" stroke="#22C55E" />
-                    <Line type="monotone" dataKey="unsubscribed" name="Zrušené odběry" stroke="#EF4444" />
-                    <Line type="monotone" dataKey="restored" name="Obnovené odběry" stroke="#3B82F6" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </Card>
-        )}
+          </div>
+          {capacityChartData.length > 0 ? (
+            <div className="h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={capacityChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
+                    formatter={(value, name, props) => {
+                      if (name === 'Rezervované') {
+                        return [`${value} (${props?.payload?.Vytížení || 0} %)`, name];
+                      }
+                      return [value, name];
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="Nabízené" fill="#CBD5E1" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Rezervované" fill="#2563EB" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-[280px] flex items-center justify-center text-gray-400">
+              Žádná data pro vybrané období
+            </div>
+          )}
+        </Card>
 
         {/* Grafy */}
         <div className="grid md:grid-cols-2 gap-6">
@@ -514,21 +569,19 @@ export const StatisticsPage = () => {
                   <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                   <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                   <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
-                  />
+                  <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }} />
                   <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="Rezervace" 
-                    stroke="#1E293B" 
+                  <Line
+                    type="monotone"
+                    dataKey="Rezervace"
+                    stroke="#1E293B"
                     strokeWidth={2}
                     dot={{ fill: '#1E293B' }}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="Žáci" 
-                    stroke="#84A98C" 
+                  <Line
+                    type="monotone"
+                    dataKey="Žáci"
+                    stroke="#84A98C"
                     strokeWidth={2}
                     dot={{ fill: '#84A98C' }}
                   />
@@ -549,13 +602,8 @@ export const StatisticsPage = () => {
                 <BarChart data={programChartData} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                   <XAxis type="number" tick={{ fontSize: 12 }} />
-                  <YAxis 
-                    type="category" 
-                    dataKey="name" 
-                    width={120}
-                    tick={{ fontSize: 11 }}
-                  />
-                  <Tooltip 
+                  <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
+                  <Tooltip
                     contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
                     formatter={(value, name, props) => [value, name]}
                     labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
@@ -590,9 +638,9 @@ export const StatisticsPage = () => {
                     labelLine={false}
                   >
                     {statusChartData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={STATUS_COLORS[entry.name] || COLORS[index % COLORS.length]} 
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={STATUS_COLORS[entry.name] || COLORS[index % COLORS.length]}
                       />
                     ))}
                   </Pie>
@@ -613,17 +661,15 @@ export const StatisticsPage = () => {
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={ageGroupChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                  <XAxis 
-                    dataKey="name" 
+                  <XAxis
+                    dataKey="name"
                     tick={{ fontSize: 10 }}
                     angle={-20}
                     textAnchor="end"
                     height={60}
                   />
                   <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
-                  />
+                  <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }} />
                   <Bar dataKey="value" name="Počet rezervací" fill="#E9C46A" radius={[4, 4, 0, 0]}>
                     {ageGroupChartData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -645,7 +691,9 @@ export const StatisticsPage = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Průměrná velikost skupiny</p>
-                <p className="text-3xl font-bold text-slate-900">{stats.overview.avg_group_size} žáků</p>
+                <p className="text-3xl font-bold text-slate-900">
+                  {stats.overview.avg_group_size} žáků
+                </p>
               </div>
               <Users className="w-12 h-12 text-slate-300" />
             </div>
@@ -675,7 +723,9 @@ export const StatisticsPage = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Celkem hodnocení</p>
-                    <p className="text-2xl font-bold text-slate-900">{feedbackStats.total_feedbacks}</p>
+                    <p className="text-2xl font-bold text-slate-900">
+                      {feedbackStats.total_feedbacks}
+                    </p>
                   </div>
                 </div>
               </Card>
@@ -703,19 +753,25 @@ export const StatisticsPage = () => {
                   <div>
                     <p className="text-sm text-gray-500">Doporučení</p>
                     <p className="text-2xl font-bold text-slate-900">
-                      {feedbackStats.recommendation_rate !== null ? `${feedbackStats.recommendation_rate}%` : '-'}
+                      {feedbackStats.recommendation_rate !== null
+                        ? `${feedbackStats.recommendation_rate}%`
+                        : '-'}
                     </p>
                   </div>
                 </div>
               </Card>
 
-              <Card className="p-4 bg-gradient-to-br from-yellow-50 to-orange-50" data-testid="feedback-stars">
+              <Card
+                className="p-4 bg-gradient-to-br from-yellow-50 to-orange-50"
+                data-testid="feedback-stars"
+              >
                 <div className="flex items-center gap-2 justify-center h-full">
                   {[1, 2, 3, 4, 5].map((star) => (
-                    <Star 
+                    <Star
                       key={star}
                       className={`w-6 h-6 ${
-                        feedbackStats.average_rating && star <= Math.round(feedbackStats.average_rating)
+                        feedbackStats.average_rating &&
+                        star <= Math.round(feedbackStats.average_rating)
                           ? 'fill-yellow-400 text-yellow-400'
                           : 'text-gray-300'
                       }`}
@@ -730,26 +786,27 @@ export const StatisticsPage = () => {
               {/* Rating Distribution */}
               <Card className="p-6">
                 <h3 className="text-lg font-semibold text-slate-900 mb-4">Rozložení hodnocení</h3>
-                {feedbackRatingData.length > 0 && feedbackRatingData.some(d => d.value > 0) ? (
+                {feedbackRatingData.length > 0 && feedbackRatingData.some((d) => d.value > 0) ? (
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={feedbackRatingData} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                       <XAxis type="number" tick={{ fontSize: 12 }} />
-                      <YAxis 
-                        type="category" 
-                        dataKey="name" 
-                        width={60}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <Tooltip 
+                      <YAxis type="category" dataKey="name" width={60} tick={{ fontSize: 12 }} />
+                      <Tooltip
                         contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
                         formatter={(value) => [value, 'Počet']}
                       />
                       <Bar dataKey="value" name="Počet" radius={[0, 4, 4, 0]}>
                         {feedbackRatingData.map((entry, index) => (
-                          <Cell 
-                            key={`cell-${index}`} 
-                            fill={entry.rating >= 4 ? '#22C55E' : entry.rating >= 3 ? '#F59E0B' : '#EF4444'} 
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={
+                              entry.rating >= 4
+                                ? '#22C55E'
+                                : entry.rating >= 3
+                                  ? '#F59E0B'
+                                  : '#EF4444'
+                            }
                           />
                         ))}
                       </Bar>
@@ -764,21 +821,20 @@ export const StatisticsPage = () => {
 
               {/* Rating by Program */}
               <Card className="p-6">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">Hodnocení podle programu</h3>
+                <h3 className="text-lg font-semibold text-slate-900 mb-4">
+                  Hodnocení podle programu
+                </h3>
                 {feedbackByProgramData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={feedbackByProgramData} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
                       <XAxis type="number" domain={[0, 5]} tick={{ fontSize: 12 }} />
-                      <YAxis 
-                        type="category" 
-                        dataKey="name" 
-                        width={100}
-                        tick={{ fontSize: 11 }}
-                      />
-                      <Tooltip 
+                      <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} />
+                      <Tooltip
                         contentStyle={{ borderRadius: '8px', border: '1px solid #E2E8F0' }}
-                        labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
+                        labelFormatter={(label, payload) =>
+                          payload?.[0]?.payload?.fullName || label
+                        }
                       />
                       <Legend />
                       <Bar dataKey="Průměr" fill="#F59E0B" radius={[0, 4, 4, 0]} />
@@ -801,10 +857,10 @@ export const StatisticsPage = () => {
                     Zobrazte všechny odpovědi, spravujte otázky a exportujte data.
                   </p>
                 </div>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
-                  onClick={() => window.location.href = '/admin/feedback'}
+                  onClick={() => (window.location.href = '/admin/feedback')}
                   className="border-[#84A98C] text-[#84A98C] hover:bg-[#84A98C]/10"
                 >
                   <MessageSquare className="w-4 h-4 mr-2" />
@@ -825,10 +881,10 @@ export const StatisticsPage = () => {
                   CSV export pro výroční zprávy je dostupný v PRO verzi.
                 </p>
               </div>
-              <Button 
-                variant="secondary" 
+              <Button
+                variant="secondary"
                 size="sm"
-                onClick={() => window.location.href = '/admin/plan'}
+                onClick={() => (window.location.href = '/admin/plan')}
               >
                 Zobrazit plány
               </Button>
@@ -838,20 +894,29 @@ export const StatisticsPage = () => {
 
         {/* ── Pokročilá analytika ─────────────────────────── */}
         <div className="pt-4 border-t border-gray-100">
-          <h2 className="text-lg font-semibold text-slate-800 mb-4" data-testid="advanced-analytics-heading">Pokročilá analytika</h2>
+          <h2
+            className="text-lg font-semibold text-slate-800 mb-4"
+            data-testid="advanced-analytics-heading"
+          >
+            Pokročilá analytika
+          </h2>
         </div>
 
         {/* Konverzní poměr */}
         {conversionData && (
           <Card className="p-4" data-testid="conversion-card">
-            <h3 className="font-medium text-slate-700 mb-3">Konverzní poměr — {conversionData.period}</h3>
+            <h3 className="font-medium text-slate-700 mb-3">
+              Konverzní poměr — {conversionData.period}
+            </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="text-center p-3 bg-slate-50 rounded-lg">
                 <div className="text-2xl font-bold text-slate-800">{conversionData.total}</div>
                 <div className="text-xs text-slate-500">Celkem</div>
               </div>
               <div className="text-center p-3 bg-emerald-50 rounded-lg">
-                <div className="text-2xl font-bold text-emerald-600">{conversionData.confirmed}</div>
+                <div className="text-2xl font-bold text-emerald-600">
+                  {conversionData.confirmed}
+                </div>
                 <div className="text-xs text-slate-500">Potvrzeno</div>
               </div>
               <div className="text-center p-3 bg-amber-50 rounded-lg">
@@ -865,9 +930,14 @@ export const StatisticsPage = () => {
             </div>
             <div className="mt-3 flex items-center gap-2">
               <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${conversionData.conversion_rate}%` }} />
+                <div
+                  className="h-full bg-emerald-500 rounded-full"
+                  style={{ width: `${conversionData.conversion_rate}%` }}
+                />
               </div>
-              <span className="text-sm font-semibold text-slate-700">{conversionData.conversion_rate}%</span>
+              <span className="text-sm font-semibold text-slate-700">
+                {conversionData.conversion_rate}%
+              </span>
             </div>
           </Card>
         )}
@@ -875,14 +945,18 @@ export const StatisticsPage = () => {
         {/* Heatmapa vytíženosti */}
         {heatmapData && heatmapData.time_blocks.length > 0 && (
           <Card className="p-4" data-testid="heatmap-card">
-            <h3 className="font-medium text-slate-700 mb-3">Heatmapa vytíženosti — {heatmapData.period}</h3>
+            <h3 className="font-medium text-slate-700 mb-3">
+              Heatmapa vytíženosti — {heatmapData.period}
+            </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr>
                     <th className="p-2 text-left text-slate-500">Den</th>
-                    {heatmapData.time_blocks.map(tb => (
-                      <th key={tb} className="p-2 text-center text-slate-500">{tb}</th>
+                    {heatmapData.time_blocks.map((tb) => (
+                      <th key={tb} className="p-2 text-center text-slate-500">
+                        {tb}
+                      </th>
                     ))}
                   </tr>
                 </thead>
@@ -890,11 +964,23 @@ export const StatisticsPage = () => {
                   {heatmapData.data.map((row) => (
                     <tr key={row.day}>
                       <td className="p-2 font-medium text-slate-700">{row.day}</td>
-                      {heatmapData.time_blocks.map(tb => {
+                      {heatmapData.time_blocks.map((tb) => {
                         const val = row[tb] || 0;
-                        const maxVal = Math.max(...heatmapData.data.map(r => Math.max(...heatmapData.time_blocks.map(t => r[t] || 0))), 1);
+                        const maxVal = Math.max(
+                          ...heatmapData.data.map((r) =>
+                            Math.max(...heatmapData.time_blocks.map((t) => r[t] || 0))
+                          ),
+                          1
+                        );
                         const intensity = val / maxVal;
-                        const bg = val === 0 ? 'bg-gray-50' : intensity > 0.7 ? 'bg-emerald-500 text-white' : intensity > 0.3 ? 'bg-emerald-200' : 'bg-emerald-100';
+                        const bg =
+                          val === 0
+                            ? 'bg-gray-50'
+                            : intensity > 0.7
+                              ? 'bg-emerald-500 text-white'
+                              : intensity > 0.3
+                                ? 'bg-emerald-200'
+                                : 'bg-emerald-100';
                         return (
                           <td key={tb} className={`p-2 text-center rounded ${bg}`}>
                             {val > 0 ? val : ''}
@@ -912,19 +998,41 @@ export const StatisticsPage = () => {
         {/* Trend graf */}
         {trendsData && (
           <Card className="p-4" data-testid="trends-card">
-            <h3 className="font-medium text-slate-700 mb-3">Roční trend — {trendsData.current_year} vs {trendsData.previous_year}</h3>
+            <h3 className="font-medium text-slate-700 mb-3">
+              Roční trend — {trendsData.current_year} vs {trendsData.previous_year}
+            </h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trendsData.chart_data} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                <BarChart
+                  data={trendsData.chart_data}
+                  margin={{ top: 5, right: 10, left: -10, bottom: 5 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
                   <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '8px', fontSize: '12px', border: '1px solid #e2e8f0' }}
-                    formatter={(value, name) => [value, name.includes('Žáci') ? 'Žáků' : 'Rezervací']}
+                  <Tooltip
+                    contentStyle={{
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      border: '1px solid #e2e8f0',
+                    }}
+                    formatter={(value, name) => [
+                      value,
+                      name.includes('Žáci') ? 'Žáků' : 'Rezervací',
+                    ]}
                   />
-                  <Bar dataKey={String(trendsData.current_year)} fill="#1E293B" radius={[3,3,0,0]} name={String(trendsData.current_year)} />
-                  <Bar dataKey={String(trendsData.previous_year)} fill="#CBD5E1" radius={[3,3,0,0]} name={String(trendsData.previous_year)} />
+                  <Bar
+                    dataKey={String(trendsData.current_year)}
+                    fill="#1E293B"
+                    radius={[3, 3, 0, 0]}
+                    name={String(trendsData.current_year)}
+                  />
+                  <Bar
+                    dataKey={String(trendsData.previous_year)}
+                    fill="#CBD5E1"
+                    radius={[3, 3, 0, 0]}
+                    name={String(trendsData.previous_year)}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -934,7 +1042,9 @@ export const StatisticsPage = () => {
         {/* Top školy */}
         {topSchools && topSchools.schools.length > 0 && (
           <Card className="p-4" data-testid="top-schools-card">
-            <h3 className="font-medium text-slate-700 mb-3">Nejaktivnější školy — {topSchools.period}</h3>
+            <h3 className="font-medium text-slate-700 mb-3">
+              Nejaktivnější školy — {topSchools.period}
+            </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -952,7 +1062,9 @@ export const StatisticsPage = () => {
                       <td className="p-2 text-slate-400 text-xs">{i + 1}</td>
                       <td className="p-2 font-medium text-slate-700">{s.name}</td>
                       <td className="p-2 text-center">
-                        <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-xs font-medium">{s.bookings}</span>
+                        <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full text-xs font-medium">
+                          {s.bookings}
+                        </span>
                       </td>
                       <td className="p-2 text-center text-slate-600">{s.students}</td>
                       <td className="p-2 text-center text-slate-600">{s.teachers}</td>

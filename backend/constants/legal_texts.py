@@ -31,7 +31,7 @@ Provozovatel systému Budezivo.cz nenese odpovědnost za:
 TERMS_OF_USE = {
     "v1": {
         "title": "Podmínky používání platformy",
-        "last_updated": "2026-03-21",
+        "last_updated": "2026-09-30",
         "articles": [
             {
                 "number": 1,
@@ -39,7 +39,7 @@ TERMS_OF_USE = {
                 "content": """
 Tyto Podmínky používání upravují práva a povinnosti uživatelů rezervačního systému Budeživo.cz (dále jen „Platforma").
 
-Provozovatelem Platformy je společnost Budeživo s.r.o., se sídlem v České republice (dále jen „Provozovatel").
+Provozovatelem Platformy je Daniela Kytlicová, fyzická osoba podnikající (OSVČ), IČO 07407971, se sídlem Mlýnská 538, která není plátcem DPH (dále jen „Provozovatel"). Provozovatel je dodavatelem a vystavovatelem faktur za předplatné Platformy.
 
 Používáním Platformy uživatel vyjadřuje souhlas s těmito Podmínkami.
 """
@@ -197,7 +197,7 @@ VOP_SECTIONS = {
             "number": 1,
             "title": "Úvodní ustanovení",
             "content": [
-                "1.1 Tyto obchodní podmínky upravují vztah mezi:\n- Provozovatelem: Daniela Kytlicová, IČO 07407971, se sídlem Mlýnská 538 (není plátce DPH)\n- Institucí: uživatelem platformy",
+                "1.1 Tyto obchodní podmínky upravují vztah mezi:\n- Provozovatelem: Daniela Kytlicová, fyzická osoba podnikající (OSVČ), IČO 07407971, se sídlem Mlýnská 538 (není plátce DPH)\n- Institucí: uživatelem platformy",
                 "1.2 Registrací vzniká smluvní vztah dle § 1724 a násl. zákona č. 89/2012 Sb."
             ]
         },
@@ -252,7 +252,7 @@ VOP_SECTIONS = {
                 "7.1 Platforma nabízí bezplatné i placené tarify.",
                 "7.2 Placené funkce jsou aktivovány:\n- na základě zálohové faktury\n- po připsání platby",
                 "7.3 Aktivace probíhá automaticky.",
-                "7.4 Provozovatel není plátcem DPH.",
+                "7.4 Dodavatelem a vystavovatelem faktur za předplatné Platformy je Provozovatel — Daniela Kytlicová, OSVČ, IČO 07407971. Provozovatel není plátcem DPH.",
                 "7.5 Ceny uvedené na webu jsou konečné.",
                 "7.6 Platby jsou nevratné, pokud není uvedeno jinak.",
                 "7.7 Při prodlení:\n- může být služba omezena",

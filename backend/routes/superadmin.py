@@ -23,6 +23,7 @@ from database.models import (
 from database.supabase_repositories import InstitutionRepositorySupabase
 from services.plan_service import PLAN_LIMITS, PLAN_LABELS
 from services.billing_service import create_billing_order, confirm_billing_order
+from services.manual_subscription_service import validate_manual_subscription
 from services.usage_service import get_institution_usage
 
 router = APIRouter(prefix="/superadmin", tags=["Superadmin"])
@@ -140,6 +141,25 @@ class SuperadminPlanChange(BaseModel):
 
 class SuperadminBillingConfirm(BaseModel):
     order_id: str
+
+
+class SuperadminSubscriptionUpdate(BaseModel):
+    """Commercial terms recorded manually; never triggers external billing."""
+
+    price_amount: Optional[int] = None  # CZK halere
+    currency: str = "CZK"
+    billing_cycle: Optional[str] = None
+    period_start: Optional[datetime] = None
+    period_end: Optional[datetime] = None
+    due_days: int = 30
+    renewal_mode: str = "manual"
+    consent_status: str = "pending"
+    billing_email: Optional[str] = None
+    copy_email: Optional[str] = None
+    payment_status: str = "not_invoiced"
+    amount_paid: int = 0  # CZK halere
+    invoice_number: Optional[str] = None
+    note: Optional[str] = None
 
 
 class SuperadminDeleteInstitution(BaseModel):
@@ -368,6 +388,23 @@ async def get_institution_detail(
         "billing_external_id": inst.billing_external_id,
         "billing_note": inst.billing_note,
         "auto_renew": inst.auto_renew,
+        "subscription": {
+            "price_amount": inst.subscription_price_amount,
+            "currency": inst.subscription_currency or "CZK",
+            "billing_cycle": inst.subscription_billing_cycle,
+            "period_start": inst.subscription_period_start.isoformat() if inst.subscription_period_start else None,
+            "period_end": inst.subscription_period_end.isoformat() if inst.subscription_period_end else None,
+            "due_days": inst.subscription_due_days or 30,
+            "renewal_mode": inst.subscription_renewal_mode or "manual",
+            "consent_status": inst.subscription_consent_status or "pending",
+            "billing_email": inst.subscription_billing_email,
+            "copy_email": inst.subscription_copy_email,
+            "payment_status": inst.subscription_payment_status or "not_invoiced",
+            "amount_paid": inst.subscription_amount_paid or 0,
+            "invoice_number": inst.subscription_invoice_number,
+            "note": inst.billing_note,
+            "external_sync_enabled": False,
+        },
         "created_at": inst.created_at.isoformat() if inst.created_at else None,
         "stats": {
             "programs": prog_count,
@@ -407,6 +444,96 @@ async def get_institution_detail(
             }
             for a in audit_entries
         ],
+    }
+
+
+# ---- Manual subscription terms (no external effects) ----
+
+@router.put("/institutions/{institution_id}/subscription")
+async def update_institution_subscription(
+    institution_id: str,
+    data: SuperadminSubscriptionUpdate,
+    current_user: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Store manually verified commercial and payment information only."""
+    try:
+        validate_manual_subscription(
+            price_amount=data.price_amount,
+            amount_paid=data.amount_paid,
+            currency=data.currency,
+            billing_cycle=data.billing_cycle,
+            renewal_mode=data.renewal_mode,
+            consent_status=data.consent_status,
+            payment_status=data.payment_status,
+            due_days=data.due_days,
+            period_start=data.period_start,
+            period_end=data.period_end,
+            billing_email=data.billing_email,
+            copy_email=data.copy_email,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    result = await db.execute(select(Institution).where(Institution.id == institution_id))
+    inst = result.scalar_one_or_none()
+    if not inst:
+        raise HTTPException(status_code=404, detail="Instituce nenalezena")
+
+    before = {
+        "price_amount": inst.subscription_price_amount,
+        "billing_cycle": inst.subscription_billing_cycle,
+        "period_start": inst.subscription_period_start.isoformat() if inst.subscription_period_start else None,
+        "period_end": inst.subscription_period_end.isoformat() if inst.subscription_period_end else None,
+        "payment_status": inst.subscription_payment_status,
+        "amount_paid": inst.subscription_amount_paid,
+    }
+    inst.subscription_price_amount = data.price_amount
+    inst.subscription_currency = data.currency
+    inst.subscription_billing_cycle = data.billing_cycle
+    inst.subscription_period_start = data.period_start
+    inst.subscription_period_end = data.period_end
+    inst.subscription_due_days = data.due_days
+    inst.subscription_renewal_mode = data.renewal_mode
+    inst.subscription_consent_status = data.consent_status
+    inst.subscription_billing_email = data.billing_email.strip() if data.billing_email else None
+    inst.subscription_copy_email = data.copy_email.strip() if data.copy_email else None
+    inst.subscription_payment_status = data.payment_status
+    inst.subscription_amount_paid = data.amount_paid
+    inst.subscription_invoice_number = data.invoice_number.strip() if data.invoice_number else None
+    inst.billing_note = data.note
+    inst.plan_updated_at = datetime.now(timezone.utc)
+
+    # Keep commercial details in the platform-only audit. Using the
+    # superadmin's institution prevents them from leaking through the target
+    # institution's audit endpoint.
+    await _log_superadmin(
+        db,
+        current_user=current_user,
+        target_institution_id=current_user.get("institution_id"),
+        action="subscription_update",
+        entity_type="institution_subscription",
+        entity_id=institution_id,
+        details={
+            "target_institution_id": institution_id,
+            "institution_name": inst.name,
+            "before": before,
+            "after": {
+                "price_amount": data.price_amount,
+                "billing_cycle": data.billing_cycle,
+                "period_start": data.period_start.isoformat() if data.period_start else None,
+                "period_end": data.period_end.isoformat() if data.period_end else None,
+                "payment_status": data.payment_status,
+                "amount_paid": data.amount_paid,
+            },
+            "external_effect": False,
+        },
+    )
+    await db.commit()
+
+    return {
+        "message": "Ruční údaje předplatného byly uloženy",
+        "external_effect": False,
     }
 
 

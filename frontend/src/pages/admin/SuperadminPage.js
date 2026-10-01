@@ -34,6 +34,15 @@ const STATUS_BADGE = {
   cancelled: 'bg-red-100 text-red-600',
 };
 
+const EMPTY_SUBSCRIPTION = {
+  price_czk: '', billing_cycle: 'none', period_start: '', period_end: '', due_days: '30',
+  renewal_mode: 'manual', consent_status: 'pending', billing_email: '', copy_email: '',
+  payment_status: 'not_invoiced', amount_paid_czk: '0', invoice_number: '', note: '',
+};
+const dateValue = value => value ? String(value).slice(0, 10) : '';
+const datePayload = value => value ? new Date(`${value}T12:00:00`).toISOString() : null;
+const money = (amount, currency = 'CZK') => amount == null ? 'Neuvedeno' : `${(amount / 100).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`;
+
 export const SuperadminPage = () => {
   const { user } = useContext(AuthContext);
   const [view, setView] = useState('overview'); // overview | institutions | detail | billing
@@ -52,6 +61,8 @@ export const SuperadminPage = () => {
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [planForm, setPlanForm] = useState({ plan: 'free', plan_status: 'active', activated_by: 'admin', billing_note: '' });
   const [saving, setSaving] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [subscriptionForm, setSubscriptionForm] = useState(EMPTY_SUBSCRIPTION);
 
   // Delete institution modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -152,6 +163,43 @@ export const SuperadminPage = () => {
       loadInstitutions();
       loadOverview();
     } catch (e) { toast.error(e.response?.data?.detail || 'Chyba'); }
+    finally { setSaving(false); }
+  };
+
+  const openSubscriptionModal = () => {
+    const s = selectedInst?.subscription || {};
+    setSubscriptionForm({
+      price_czk: s.price_amount == null ? '' : String(s.price_amount / 100), billing_cycle: s.billing_cycle || 'none',
+      period_start: dateValue(s.period_start), period_end: dateValue(s.period_end), due_days: String(s.due_days || 30),
+      renewal_mode: s.renewal_mode || 'manual', consent_status: s.consent_status || 'pending',
+      billing_email: s.billing_email || '', copy_email: s.copy_email || '', payment_status: s.payment_status || 'not_invoiced',
+      amount_paid_czk: String((s.amount_paid || 0) / 100), invoice_number: s.invoice_number || '', note: s.note || '',
+    });
+    setShowSubscriptionModal(true);
+  };
+
+  const handleSubscriptionChange = async () => {
+    if (!selectedInst) return;
+    const price = subscriptionForm.price_czk === '' ? null : Number(subscriptionForm.price_czk);
+    const paid = Number(subscriptionForm.amount_paid_czk || 0);
+    if ((price !== null && (!Number.isFinite(price) || price < 0)) || !Number.isFinite(paid) || paid < 0) {
+      toast.error('Cena a uhrazená částka musí být nezáporná čísla'); return;
+    }
+    setSaving(true);
+    try {
+      await axios.put(`${API}/superadmin/institutions/${selectedInst.id}/subscription`, {
+        price_amount: price === null ? null : Math.round(price * 100), currency: 'CZK',
+        billing_cycle: subscriptionForm.billing_cycle === 'none' ? null : subscriptionForm.billing_cycle,
+        period_start: datePayload(subscriptionForm.period_start), period_end: datePayload(subscriptionForm.period_end),
+        due_days: Number(subscriptionForm.due_days || 30), renewal_mode: subscriptionForm.renewal_mode,
+        consent_status: subscriptionForm.consent_status, billing_email: subscriptionForm.billing_email.trim() || null,
+        copy_email: subscriptionForm.copy_email.trim() || null, payment_status: subscriptionForm.payment_status,
+        amount_paid: Math.round(paid * 100), invoice_number: subscriptionForm.invoice_number.trim() || null,
+        note: subscriptionForm.note.trim() || null,
+      }, { withCredentials: true });
+      toast.success('Ruční údaje předplatného byly uloženy'); setShowSubscriptionModal(false);
+      await loadDetail(selectedInst.id);
+    } catch (e) { toast.error(e.response?.data?.detail || 'Údaje předplatného se nepodařilo uložit'); }
     finally { setSaving(false); }
   };
 
@@ -323,6 +371,7 @@ export const SuperadminPage = () => {
           <InstitutionDetail
             inst={selectedInst}
             canDelete={String(selectedInst.id) !== String(user?.institution_id)}
+            onSubscriptionChange={openSubscriptionModal}
             onPlanChange={() => {
               setPlanForm({ plan: selectedInst.plan, plan_status: selectedInst.plan_status, activated_by: 'admin', billing_note: selectedInst.billing_note || '' });
               setShowPlanModal(true);
@@ -572,6 +621,31 @@ export const SuperadminPage = () => {
           </Dialog>
         )}
 
+        {showSubscriptionModal && selectedInst && (
+          <Dialog open onOpenChange={() => setShowSubscriptionModal(false)}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="subscription-modal">
+              <DialogHeader><DialogTitle>Ruční předplatné: {selectedInst.name}</DialogTitle></DialogHeader>
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">Tyto údaje jsou pouze interní evidence. Nevystaví fakturu, neodešlou e-mail a nemění funkční tarif.</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><Label>Sjednaná cena v Kč</Label><Input type="number" min="0" step="0.01" value={subscriptionForm.price_czk} onChange={e => setSubscriptionForm(f => ({ ...f, price_czk: e.target.value }))} data-testid="subscription-price" /></div>
+                <div><Label>Periodicita</Label><Select value={subscriptionForm.billing_cycle} onValueChange={v => setSubscriptionForm(f => ({ ...f, billing_cycle: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Neuvedena</SelectItem><SelectItem value="monthly">Měsíční</SelectItem><SelectItem value="yearly">Roční</SelectItem><SelectItem value="one_off">Jednorázová</SelectItem></SelectContent></Select></div>
+                <div><Label>Začátek období</Label><Input type="date" value={subscriptionForm.period_start} onChange={e => setSubscriptionForm(f => ({ ...f, period_start: e.target.value }))} /></div>
+                <div><Label>Konec období</Label><Input type="date" value={subscriptionForm.period_end} onChange={e => setSubscriptionForm(f => ({ ...f, period_end: e.target.value }))} /></div>
+                <div><Label>Splatnost ve dnech</Label><Input type="number" min="1" max="365" value={subscriptionForm.due_days} onChange={e => setSubscriptionForm(f => ({ ...f, due_days: e.target.value }))} /></div>
+                <div><Label>Režim dalšího období</Label><Select value={subscriptionForm.renewal_mode} onValueChange={v => setSubscriptionForm(f => ({ ...f, renewal_mode: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="manual">Vždy ručně</SelectItem><SelectItem value="new_consent">Vyžaduje nový souhlas</SelectItem><SelectItem value="prior_consent">Předchozí souhlas</SelectItem></SelectContent></Select></div>
+                <div><Label>Souhlas instituce</Label><Select value={subscriptionForm.consent_status} onValueChange={v => setSubscriptionForm(f => ({ ...f, consent_status: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="pending">Čeká na souhlas</SelectItem><SelectItem value="accepted_in_app">Přijato v systému</SelectItem><SelectItem value="accepted_by_email">Přijato e-mailem</SelectItem><SelectItem value="not_required">Nevyžadován</SelectItem><SelectItem value="declined">Odmítnuto</SelectItem></SelectContent></Select></div>
+                <div><Label>Stav platby</Label><Select value={subscriptionForm.payment_status} onValueChange={v => setSubscriptionForm(f => ({ ...f, payment_status: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="not_invoiced">Nevystaveno</SelectItem><SelectItem value="invoiced">Vystaveno</SelectItem><SelectItem value="partially_paid">Částečně uhrazeno</SelectItem><SelectItem value="paid">Uhrazeno — ručně ověřeno</SelectItem><SelectItem value="overdue">Po splatnosti</SelectItem><SelectItem value="cancelled">Zrušeno</SelectItem><SelectItem value="manual_review">Ruční kontrola</SelectItem><SelectItem value="free">Bezplatně</SelectItem></SelectContent></Select></div>
+                <div><Label>Uhrazeno v Kč</Label><Input type="number" min="0" step="0.01" value={subscriptionForm.amount_paid_czk} onChange={e => setSubscriptionForm(f => ({ ...f, amount_paid_czk: e.target.value }))} /></div>
+                <div><Label>Číslo dokladu (ručně)</Label><Input value={subscriptionForm.invoice_number} onChange={e => setSubscriptionForm(f => ({ ...f, invoice_number: e.target.value }))} /></div>
+                <div><Label>Fakturační e-mail</Label><Input type="email" value={subscriptionForm.billing_email} onChange={e => setSubscriptionForm(f => ({ ...f, billing_email: e.target.value }))} /></div>
+                <div><Label>Kopie správci</Label><Input type="email" value={subscriptionForm.copy_email} onChange={e => setSubscriptionForm(f => ({ ...f, copy_email: e.target.value }))} /></div>
+                <div className="md:col-span-2"><Label>Interní poznámka</Label><Textarea rows={3} value={subscriptionForm.note} onChange={e => setSubscriptionForm(f => ({ ...f, note: e.target.value }))} /></div>
+              </div>
+              <DialogFooter><Button variant="outline" onClick={() => setShowSubscriptionModal(false)}>Zrušit</Button><Button onClick={handleSubscriptionChange} disabled={saving} data-testid="save-subscription">{saving && <Loader2 className="w-4 h-4 animate-spin mr-1" />} Uložit ruční evidenci</Button></DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+
         {/* Delete institution modal */}
         {showDeleteModal && selectedInst && (
           <Dialog open onOpenChange={() => setShowDeleteModal(false)}>
@@ -636,6 +710,7 @@ export const SuperadminPage = () => {
 /* ---- Institution detail component ---- */
 const AUDIT_ACTION_LABEL = {
   plan_change: 'Změna plánu',
+  subscription_update: 'Ruční změna předplatného',
   institution_delete: 'Smazání instituce',
   billing_confirm: 'Potvrzení objednávky',
   billing_cancel: 'Zrušení objednávky',
@@ -647,6 +722,7 @@ const AUDIT_ACTION_LABEL = {
 
 const AUDIT_ACTION_COLOR = {
   plan_change: 'bg-blue-100 text-blue-700',
+  subscription_update: 'bg-cyan-100 text-cyan-700',
   institution_delete: 'bg-red-100 text-red-700',
   billing_confirm: 'bg-emerald-100 text-emerald-700',
   billing_cancel: 'bg-amber-100 text-amber-700',
@@ -872,7 +948,7 @@ const ROLE_BADGE = {
   viewer: 'bg-slate-100 text-slate-600',
 };
 
-const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => {
+const InstitutionDetail = ({ inst, onPlanChange, onSubscriptionChange, onDelete, canDelete }) => {
   const [usersOpen, setUsersOpen] = React.useState(false);
   const { startImpersonation, user: me } = useContext(AuthContext);
   const [impBusyId, setImpBusyId] = useState(null);
@@ -907,6 +983,9 @@ const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => {
         <p className="text-sm text-slate-500">{inst.email} {inst.website && `| ${inst.website}`}</p>
       </div>
       <div className="flex gap-2">
+        <Button variant="outline" onClick={onSubscriptionChange} data-testid="change-subscription-btn">
+          <FileText className="w-4 h-4 mr-1" /> Předplatné a cena
+        </Button>
         <Button onClick={onPlanChange} data-testid="change-plan-btn">
           <Settings2 className="w-4 h-4 mr-1" /> Změnit plán
         </Button>
@@ -981,6 +1060,22 @@ const InstitutionDetail = ({ inst, onPlanChange, onDelete, canDelete }) => {
         {inst.plan_expires_at && <div><span className="text-slate-500">Vyprší:</span> {new Date(inst.plan_expires_at).toLocaleDateString('cs-CZ')}</div>}
         {inst.billing_note && <div className="col-span-2"><span className="text-slate-500">Poznámka:</span> {inst.billing_note}</div>}
       </div>
+    </Card>
+
+    <Card className="p-4" data-testid="subscription-card">
+      <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2"><FileText className="w-4 h-4" /> Ruční evidence předplatného</h3>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+        <div><span className="text-slate-500">Sjednaná cena:</span> <strong>{money(inst.subscription?.price_amount, inst.subscription?.currency)}</strong></div>
+        <div><span className="text-slate-500">Periodicita:</span> {({ monthly: 'Měsíční', yearly: 'Roční', one_off: 'Jednorázová' })[inst.subscription?.billing_cycle] || 'Neuvedena'}</div>
+        <div><span className="text-slate-500">Stav platby:</span> {inst.subscription?.payment_status || 'not_invoiced'}</div>
+        <div><span className="text-slate-500">Období:</span> {inst.subscription?.period_start ? new Date(inst.subscription.period_start).toLocaleDateString('cs-CZ') : '—'} až {inst.subscription?.period_end ? new Date(inst.subscription.period_end).toLocaleDateString('cs-CZ') : '—'}</div>
+        <div><span className="text-slate-500">Uhrazeno:</span> {money(inst.subscription?.amount_paid || 0, inst.subscription?.currency)}</div>
+        <div><span className="text-slate-500">Doklad:</span> {inst.subscription?.invoice_number || '—'}</div>
+        <div><span className="text-slate-500">Souhlas:</span> {inst.subscription?.consent_status || 'pending'}</div>
+        <div><span className="text-slate-500">Fakturační e-mail:</span> {inst.subscription?.billing_email || '—'}</div>
+        <div><span className="text-slate-500">Fakturoid:</span> <Badge className="bg-slate-100 text-slate-600">Nepřipojen</Badge></div>
+      </div>
+      <p className="text-xs text-slate-500 mt-3">Změna této evidence sama nezmění tarif, nevystaví doklad ani neodešle e-mail.</p>
     </Card>
 
     {/* Stats */}

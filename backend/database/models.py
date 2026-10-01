@@ -55,6 +55,22 @@ class Institution(Base):
     billing_provider = Column(Text)  # manual, fakturoid, stripe
     billing_external_id = Column(Text)  # external invoice/subscription ID
     billing_note = Column(Text)  # internal admin note
+    # Manually maintained commercial terms. These fields are deliberately
+    # separate from the functional plan and from BillingOrder payment state so
+    # that a negotiated price never changes feature access by itself.
+    subscription_price_amount = Column(Integer)  # CZK halere
+    subscription_currency = Column(Text, nullable=False, default='CZK')
+    subscription_billing_cycle = Column(Text)  # monthly, yearly, one_off
+    subscription_period_start = Column(DateTime(timezone=True))
+    subscription_period_end = Column(DateTime(timezone=True))
+    subscription_due_days = Column(Integer, nullable=False, default=30)
+    subscription_renewal_mode = Column(Text, nullable=False, default='manual')
+    subscription_consent_status = Column(Text, nullable=False, default='pending')
+    subscription_billing_email = Column(Text)
+    subscription_copy_email = Column(Text)
+    subscription_payment_status = Column(Text, nullable=False, default='not_invoiced')
+    subscription_amount_paid = Column(Integer, nullable=False, default=0)  # CZK halere
+    subscription_invoice_number = Column(Text)
     programs_limit = Column(Integer, nullable=False, default=3)
     bookings_monthly_limit = Column(Integer, nullable=False, default=50)
     

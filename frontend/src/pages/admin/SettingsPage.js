@@ -238,6 +238,7 @@ export const SettingsPage = () => {
     logo_url: '',
     primary_color: '#123456',
     secondary_color: '#123456',
+    subscription_billing_email: '',
   });
   const [institutionFieldErrors, setInstitutionFieldErrors] = useState({});
 
@@ -345,6 +346,10 @@ export const SettingsPage = () => {
   const validateInstitutionSettings = () => {
     const errors = {};
     if (!institutionData.name.trim()) errors.name = 'Vyplňte název instituce.';
+    const billingEmail = (institutionData.subscription_billing_email || '').trim();
+    if (billingEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billingEmail)) {
+      errors.subscription_billing_email = 'Zadejte platnou e-mailovou adresu.';
+    }
     setInstitutionFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
       toast.error('Zkontrolujte zvýrazněná pole.');
@@ -855,6 +860,21 @@ export const SettingsPage = () => {
       {/* Fakturační údaje */}
       <Card className="p-4 space-y-4">
         <h2 className="font-semibold text-slate-900">Fakturační údaje</h2>
+
+        <div>
+          <Label className="text-gray-600 text-sm">E-mail pro zasílání faktur Budeživo</Label>
+          <Input
+            type="email"
+            value={institutionData.subscription_billing_email || ''}
+            onChange={(e) => setInstitutionData({ ...institutionData, subscription_billing_email: e.target.value })}
+            placeholder="fakturace@instituce.cz"
+            className={`mt-1 ${institutionFieldErrors.subscription_billing_email ? FIELD_ERROR_CLASS : ''}`}
+            aria-invalid={Boolean(institutionFieldErrors.subscription_billing_email)}
+            data-testid="institution-subscription-billing-email"
+          />
+          <FieldError message={institutionFieldErrors.subscription_billing_email} />
+          <p className="text-xs text-slate-500 mt-1">Interní údaj pro fakturaci předplatného Budeživo. Nepoužívá se pro rezervace, propagaci ani mailing.</p>
+        </div>
         
         <div>
           <Label className="text-gray-600 text-sm">Adresa</Label>

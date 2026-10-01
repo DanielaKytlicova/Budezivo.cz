@@ -10,6 +10,8 @@ MIGRATION = pathlib.Path(
 )
 ROUTE = pathlib.Path("backend/routes/superadmin.py")
 UI = pathlib.Path("frontend/src/pages/admin/SuperadminPage.js")
+SETTINGS_UI = pathlib.Path("frontend/src/pages/admin/SettingsPage.js")
+MAIN = pathlib.Path("backend/main.py")
 
 
 def valid_terms(**overrides):
@@ -77,6 +79,15 @@ class ManualSubscriptionWiringTests(unittest.TestCase):
         self.assertIn('data-testid="change-subscription-btn"', ui_source)
         self.assertIn('data-testid="save-subscription"', ui_source)
         self.assertIn("Nevystaví fakturu", ui_source)
+
+    def test_billing_email_is_a_separate_internal_setting(self):
+        settings_source = SETTINGS_UI.read_text()
+        main_source = MAIN.read_text()
+        self.assertIn('data-testid="institution-subscription-billing-email"', settings_source)
+        self.assertIn("Nepoužívá se pro rezervace, propagaci ani mailing", settings_source)
+        self.assertIn('"subscription_billing_email"', main_source)
+        self.assertIn('current_user.get("role") not in ("admin", "spravce")', main_source)
+        self.assertNotIn("subscription_billing_email", pathlib.Path("backend/services/mailing_service.py").read_text())
 
 
 if __name__ == "__main__":

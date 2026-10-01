@@ -186,11 +186,20 @@ async def get_institution_settings(
     db: AsyncSession = Depends(get_db)
 ):
     """Get institution settings."""
+    if current_user.get("role") not in ("admin", "spravce"):
+        raise HTTPException(status_code=403, detail="Pouze správce může zobrazit nastavení instituce")
     institution_repo = InstitutionRepositorySupabase(db)
     institution = await institution_repo.find_by_id(current_user["institution_id"])
     if not institution:
         raise HTTPException(status_code=404, detail="Institution not found")
-    return institution
+    # Explicit allow-list prevents internal subscription fields from leaking
+    # through this endpoint as the Institution model grows.
+    allowed = (
+        "name", "type", "ico_dic", "address", "city", "psc", "country",
+        "phone", "email", "website", "logo_url", "primary_color",
+        "secondary_color", "subscription_billing_email",
+    )
+    return {key: institution.get(key) for key in allowed}
 
 
 @api_router.put("/institution/settings")
@@ -200,8 +209,18 @@ async def update_institution_settings(
     db: AsyncSession = Depends(get_db)
 ):
     """Update institution settings."""
+    if current_user.get("role") not in ("admin", "spravce"):
+        raise HTTPException(status_code=403, detail="Pouze správce může upravit nastavení instituce")
     institution_repo = InstitutionRepositorySupabase(db)
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
+
+    if "subscription_billing_email" in update_data:
+        billing_email = update_data["subscription_billing_email"].strip()
+        if billing_email and (
+            "@" not in billing_email or billing_email.startswith("@") or billing_email.endswith("@")
+        ):
+            raise HTTPException(status_code=400, detail="Neplatný e-mail pro zasílání faktur")
+        update_data["subscription_billing_email"] = billing_email or None
 
     result = await institution_repo.update(current_user["institution_id"], update_data)
 

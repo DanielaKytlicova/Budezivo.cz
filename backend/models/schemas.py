@@ -307,6 +307,9 @@ class InstitutionSettings(BaseModel):
     logo_url: Optional[str] = None
     primary_color: Optional[str] = None
     secondary_color: Optional[str] = None
+    # Internal Budezivo billing contact. It is deliberately not the general
+    # institution email and must not be used by reservation or mailing flows.
+    subscription_billing_email: Optional[str] = None
 
 
 class NotificationSettings(BaseModel):

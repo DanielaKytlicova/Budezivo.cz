@@ -581,8 +581,17 @@ async def trigger_reservation_confirmed_email(
     booking_data: Dict[str, Any],
     program_data: Dict[str, Any],
     institution_data: Dict[str, Any],
+    email_template: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Trigger email when reservation is confirmed."""
+    if email_template and email_template.get("subject") and email_template.get("body"):
+        return await EmailService.send_booking_confirmation(
+            booking_data=booking_data,
+            program_data=program_data,
+            institution_data=institution_data,
+            email_template=email_template,
+        )
+
     context = _build_email_context(booking_data, program_data, institution_data)
 
     return await EmailService.send_transactional_email(

@@ -667,10 +667,6 @@ def reservation_confirmed(data: Dict[str, Any]) -> Dict[str, str]:
         {_calendar_buttons(data)}
 
         <p style="{BASE_STYLES['text']}">
-            Dostavte se prosím 10 minut před začátkem. V případě nemoci nás kontaktujte 2 dny předem.
-        </p>
-
-        <p style="{BASE_STYLES['text']}">
             Těšíme se na vaši návštěvu!
         </p>
 
@@ -694,8 +690,6 @@ Detail:
 - Program: {data.get('program_name', '')}
 - Datum: {data.get('reservation_date', '')}
 - Čas: {data.get('reservation_time', '')}
-
-Dostavte se prosím 10 minut před začátkem.
 
 {data.get('institution_name', '')}
 {data.get('institution_email', '')} | {data.get('institution_phone', '')}

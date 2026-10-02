@@ -118,7 +118,12 @@ export default function CatalogDetailPage() {
             {/* Cover */}
             <div className="relative h-64 md:h-80 rounded-2xl overflow-hidden bg-gradient-to-br from-[#EEF2F9] to-[#F8F9FA] mb-6">
               {p.image_url ? (
-                <img src={resolveAssetUrl(p.image_url)} alt={p.name} className="w-full h-full object-cover" />
+                <img
+                  src={resolveAssetUrl(p.image_url)}
+                  alt={p.name}
+                  className="w-full h-full object-cover"
+                  style={{ objectPosition: `${p.image_focus_x ?? 50}% ${p.image_focus_y ?? 50}%` }}
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <Sparkles className="w-16 h-16 text-[#4A6FA5]/30" />

@@ -1,0 +1,67 @@
+import pathlib
+import ast
+import unittest
+
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+
+
+class ProgramBookingOptionsRegressionTests(unittest.TestCase):
+    def test_hardcoded_time_note_is_removed_and_custom_note_is_gated(self):
+        source = (ROOT / "frontend/src/pages/public/BookingPage.js").read_text()
+        self.assertNotIn("Všechny časové bloky jsou 90 min. dlouhé", source)
+        self.assertIn("booking_time_note_enabled", source)
+        self.assertIn("selectedProgram.booking_time_note", source)
+
+    def test_payment_choice_is_validated_on_server(self):
+        source = (ROOT / "backend/routes/bookings.py").read_text()
+        self.assertIn("allowed_payment_methods", source)
+        self.assertIn("Vybraný způsob platby není pro tento program dostupný", source)
+        self.assertIn("Vyplňte fakturační údaje", source)
+
+    def test_month_calendar_checks_collisions_for_regular_slots(self):
+        source = (ROOT / "backend/routes/availability.py").read_text()
+        calendar = source.split("available_blocks = 0", 1)[1]
+        self.assertIn("get_collision_info_for_availability", calendar)
+        self.assertNotIn("if slot in extra_slot_times", calendar)
+
+    def test_program_exception_overlay_is_independent_of_base_schedule(self):
+        source = (ROOT / "frontend/src/pages/admin/UnifiedAvailabilityPage.js").read_text()
+        cell_status = source.split("const getCellStatus", 1)[1].split("const handleCellClick", 1)[0]
+        self.assertLess(cell_status.index("exceptions.find"), cell_status.index("weekSlots[dateStr]"))
+        self.assertIn("status: 'blocked_exception'", cell_status)
+
+    def test_reschedule_note_is_escaped_in_email(self):
+        source = (ROOT / "backend/templates/emails/templates.py").read_text()
+        template = source.split("def reservation_rescheduled", 1)[1].split("def reservation_reminder_teacher", 1)[0]
+        self.assertIn("html_lib.escape(reschedule_note)", template)
+        self.assertIn("Poznámka ke změně", template)
+
+    def test_invite_dialog_is_scrollable(self):
+        source = (ROOT / "frontend/src/pages/admin/TeamPage.js").read_text()
+        invite = source.split("{/* Invite Dialog */}", 1)[1]
+        self.assertIn("max-h-[90dvh] overflow-y-auto", invite)
+
+    def test_collision_windows_include_preparation_and_cleanup(self):
+        source = (ROOT / "backend/services/collision_service.py").read_text()
+        overlap = source.split("def time_blocks_overlap", 1)[1].split("def reservation_lecturer_ids", 1)[0]
+        self.assertIn("start_a -= max(0, preparation_a or 0)", overlap)
+        self.assertIn("end_a += max(0, cleanup_a or 0)", overlap)
+        self.assertIn("end_b += max(0, cleanup_b or 0)", overlap)
+        tree = ast.parse(source)
+        functions = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name in {"parse_time_block", "time_blocks_overlap"}]
+        namespace = {}
+        exec(compile(ast.Module(body=functions, type_ignores=[]), "collision_helpers", "exec"), namespace)
+        self.assertTrue(namespace["time_blocks_overlap"]("13:00", 60, "11:30", 60, 0, 0, 0, 200))
+        self.assertFalse(namespace["time_blocks_overlap"]("16:00", 60, "11:30", 60, 0, 0, 0, 200))
+
+    def test_daily_program_limit_is_checked_by_collision_gate(self):
+        source = (ROOT / "backend/services/collision_service.py").read_text()
+        collision = source.split("async def check_booking_collision", 1)[1]
+        self.assertIn("check_program_daily_limit", collision)
+        self.assertIn("Reservation.status != \"cancelled\"", source)
+        self.assertIn("Denní limit programu", source)
+
+
+if __name__ == "__main__":
+    unittest.main()

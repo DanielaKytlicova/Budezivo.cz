@@ -581,17 +581,15 @@ async def get_calendar_availability(
                 day_slots = merge_program_one_off_slots(
                     program_month_slots if day_name in all_available_days else [], day_one_offs
                 )
-                extra_slot_times = {f"{item.start_time}-{item.end_time}" for item in day_one_offs}
                 for slot in day_slots:
                     if _calendar_exception_blocks_slot(slot, program_duration, exception_blocks):
                         continue
                     if _slot_capacity_reached(slot, booked_blocks, program_duration, program_concurrent_limit):
                         continue
-                    if slot in extra_slot_times:
-                        if await get_collision_info_for_availability(
-                            db, institution_id, program_id, date_str, slot
-                        ):
-                            continue
+                    if await get_collision_info_for_availability(
+                        db, institution_id, program_id, date_str, slot
+                    ):
+                        continue
                     if (
                         has_lecturer_collision
                         and (

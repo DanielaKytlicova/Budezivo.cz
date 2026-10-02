@@ -89,7 +89,7 @@ async def _lecturer_load(db: AsyncSession, lecturer_id: uuid.UUID, institution_i
 
 async def _has_same_lecturer_collision(
     db: AsyncSession, lecturer_id: uuid.UUID, institution_id: uuid.UUID,
-    date: str, time_block: str, duration: int,
+    date: str, time_block: str, duration: int, preparation_time: int = 0, cleanup_time: int = 0,
 ) -> bool:
     """Check whether the lecturer already has an overlapping reservation on that date."""
     r = await db.execute(
@@ -103,9 +103,15 @@ async def _has_same_lecturer_collision(
         if str(lecturer_id) not in reservation_lecturer_ids(other):
             continue
         # Need other program duration
-        op = await db.execute(select(Program.duration).where(Program.id == other.program_id))
-        other_duration = op.scalar_one_or_none() or 60
-        if time_blocks_overlap(time_block, duration, other.time_block, other_duration):
+        op = await db.execute(select(Program).where(Program.id == other.program_id))
+        other_program = op.scalar_one_or_none()
+        other_duration = other_program.duration if other_program else 60
+        if time_blocks_overlap(
+            time_block, duration, other.time_block, other_duration,
+            preparation_time, cleanup_time,
+            other_program.preparation_time if other_program else 0,
+            other_program.cleanup_time if other_program else 0,
+        ):
             return True
     return False
 
@@ -161,7 +167,10 @@ async def pick_main_lecturer(
         if block_err:
             continue
 
-        if await _has_same_lecturer_collision(db, lect.id, inst_uuid, date, time_block, duration):
+        if await _has_same_lecturer_collision(
+            db, lect.id, inst_uuid, date, time_block, duration,
+            program.preparation_time or 0, program.cleanup_time or 0,
+        ):
             continue
 
         load = await _lecturer_load(db, lect.id, inst_uuid)

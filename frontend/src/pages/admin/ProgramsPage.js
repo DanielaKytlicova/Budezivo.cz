@@ -26,6 +26,96 @@ import { API, resolveAssetUrl } from '../../config/api';
 
 const TOUR_SEEN_KEY = 'bz_program_tour_seen_v1';
 
+const ProgramImageCropEditor = ({ src, layout, focusX, focusY, onChange }) => {
+  const updateFocusFromPointer = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = Math.round(Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)));
+    const y = Math.round(Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100)));
+    onChange({ image_focus_x: x, image_focus_y: y });
+  };
+
+  return (
+    <div className="space-y-3 flex-1 min-w-0">
+      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Rozložení fotografie">
+        <button
+          type="button"
+          className={`rounded-lg border px-3 py-2 text-sm text-left ${layout === 'hero' ? 'border-slate-800 bg-slate-50 font-medium' : 'border-slate-200'}`}
+          onClick={() => onChange({ image_layout: 'hero' })}
+          aria-pressed={layout === 'hero'}
+          data-testid="program-photo-layout-hero"
+        >
+          Široký obrázek nahoře
+        </button>
+        <button
+          type="button"
+          className={`rounded-lg border px-3 py-2 text-sm text-left ${layout === 'square' ? 'border-slate-800 bg-slate-50 font-medium' : 'border-slate-200'}`}
+          onClick={() => onChange({ image_layout: 'square' })}
+          aria-pressed={layout === 'square'}
+          data-testid="program-photo-layout-square"
+        >
+          Čtverec vpravo
+        </button>
+      </div>
+
+      <div>
+        <p className="text-xs font-medium text-slate-600 mb-1">Přetáhněte fotografii na místo, které má zůstat ve výřezu</p>
+        <div
+          className={`relative overflow-hidden rounded-lg border-2 border-slate-300 bg-slate-100 cursor-crosshair touch-none ${layout === 'square' ? 'aspect-square max-w-64' : 'aspect-[3/1] w-full'}`}
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            updateFocusFromPointer(event);
+          }}
+          onPointerMove={(event) => {
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) updateFocusFromPointer(event);
+          }}
+          data-testid="program-photo-crop-editor"
+        >
+          <img
+            src={src}
+            alt="Náhled zvoleného výřezu"
+            className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+            style={{ objectPosition: `${focusX}% ${focusY}%` }}
+            draggable="false"
+            data-testid="program-photo-preview"
+          />
+          <span
+            className="absolute w-6 h-6 -ml-3 -mt-3 rounded-full border-2 border-white bg-slate-900/70 shadow pointer-events-none"
+            style={{ left: `${focusX}%`, top: `${focusY}%` }}
+            aria-hidden="true"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <label className="text-xs text-slate-600">
+          Vodorovně
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={focusX}
+            onChange={(event) => onChange({ image_focus_x: Number(event.target.value) })}
+            className="block w-full mt-1"
+            aria-label="Vodorovná poloha výřezu"
+          />
+        </label>
+        <label className="text-xs text-slate-600">
+          Svisle
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={focusY}
+            onChange={(event) => onChange({ image_focus_y: Number(event.target.value) })}
+            className="block w-full mt-1"
+            aria-label="Svislá poloha výřezu"
+          />
+        </label>
+      </div>
+    </div>
+  );
+};
+
 const DAYS = [
   { key: 'monday', label: 'Po' },
   { key: 'tuesday', label: 'Út' },
@@ -73,7 +163,15 @@ const getDefaultFormData = () => ({
   price: 0,
   tariff: 'free',
   pricing_info: '',
+  booking_time_note_enabled: false,
+  booking_time_note: '',
+  booking_payment_enabled: false,
+  booking_payment_required: false,
+  booking_payment_methods: [],
   image_url: null,
+  image_layout: 'hero',
+  image_focus_x: 50,
+  image_focus_y: 50,
   requires_approval: false,
   is_published: true,
   is_in_catalog: false,
@@ -91,6 +189,7 @@ const getDefaultFormData = () => ({
   age_group: 'zs1_7_12',
   allow_parallel: false,
   max_concurrent_bookings: 1,
+  max_bookings_per_day: '',
   collision_resources: [],
   blocked_program_ids: [],
   room_id: null,
@@ -235,8 +334,18 @@ export const ProgramsPage = () => {
         { headers: { 'Content-Type': 'multipart/form-data' } },
       );
       const newUrl = res.data?.image_url;
-      setFormData((prev) => ({ ...prev, image_url: newUrl }));
-      setEditingProgram((prev) => (prev ? { ...prev, image_url: newUrl } : prev));
+      setFormData((prev) => ({
+        ...prev,
+        image_url: newUrl,
+        image_focus_x: 50,
+        image_focus_y: 50,
+      }));
+      setEditingProgram((prev) => (prev ? {
+        ...prev,
+        image_url: newUrl,
+        image_focus_x: 50,
+        image_focus_y: 50,
+      } : prev));
       fetchPrograms();
       toast.success('Fotografie nahrána');
     } catch (error) {
@@ -303,6 +412,9 @@ export const ProgramsPage = () => {
     if (!formData.target_groups || formData.target_groups.length === 0) errors.target_groups = PROGRAM_REQUIRED_FIELD_ERRORS.target_groups;
     if (!Number(formData.duration) || Number(formData.duration) <= 0) errors.duration = PROGRAM_REQUIRED_FIELD_ERRORS.duration;
     if (!Number(formData.max_capacity) || Number(formData.max_capacity) <= 0) errors.max_capacity = PROGRAM_REQUIRED_FIELD_ERRORS.max_capacity;
+    if (formData.booking_payment_enabled && (formData.booking_payment_methods || []).length === 0) {
+      errors.booking_payment_methods = 'Vyberte alespoň jeden způsob platby.';
+    }
 
     const hasDetailErrors = Object.keys(errors).length > 0;
     if (formData.feedback_enabled && isPro) {
@@ -315,7 +427,7 @@ export const ProgramsPage = () => {
 
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
-      setActiveTab(hasDetailErrors ? 'detail' : 'feedback');
+      setActiveTab(hasDetailErrors ? 'detail' : (errors.booking_payment_methods ? 'settings' : 'feedback'));
       toast.error('Zkontrolujte zvýrazněná pole.');
       return false;
     }
@@ -414,6 +526,7 @@ export const ProgramsPage = () => {
         age_group: formData.target_group,
         booking_opens_at: dateTimeLocalToISOString(formData.booking_opens_at),
         max_concurrent_bookings: formData.max_concurrent_bookings ? parseInt(formData.max_concurrent_bookings, 10) : null,
+        max_bookings_per_day: formData.max_bookings_per_day ? parseInt(formData.max_bookings_per_day, 10) : null,
       };
       if (editingProgram) {
         await axios.put(`${API}/programs/${editingProgram.id}`, submitData);
@@ -555,6 +668,7 @@ export const ProgramsPage = () => {
       booking_opens_at: toDateTimeLocalInput(program.booking_opens_at),
       allow_parallel: program.allow_parallel || false,
       max_concurrent_bookings: program.max_concurrent_bookings ?? '',
+      max_bookings_per_day: program.max_bookings_per_day ?? '',
       collision_resources: program.collision_resources || [],
       blocked_program_ids: program.blocked_program_ids || [],
       room_id: program.room_id || null,
@@ -1067,13 +1181,14 @@ export const ProgramsPage = () => {
 
           {formData.image_url ? (
             <div className="flex flex-col md:flex-row gap-4 items-start">
-              <img
+              <ProgramImageCropEditor
                 src={resolveAssetUrl(formData.image_url)}
-                alt="Náhled fotografie programu"
-                className="w-full md:w-64 h-40 object-cover rounded-lg border border-slate-200"
-                data-testid="program-photo-preview"
+                layout={formData.image_layout || 'hero'}
+                focusX={formData.image_focus_x ?? 50}
+                focusY={formData.image_focus_y ?? 50}
+                onChange={(changes) => setFormData((previous) => ({ ...previous, ...changes }))}
               />
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 shrink-0">
                 <label className="cursor-pointer">
                   <input
                     type="file"
@@ -1243,6 +1358,55 @@ export const ProgramsPage = () => {
 
   const renderSettingsTab = () => (
     <div className="space-y-6">
+      <Card className="p-4 md:p-6 space-y-5">
+        <h3 className="font-semibold text-slate-900">Rezervační formulář</h3>
+        <label className="flex items-start gap-3">
+          <Switch checked={formData.booking_time_note_enabled} onCheckedChange={(checked) => setFormData({ ...formData, booking_time_note_enabled: checked })} />
+          <span><span className="block font-medium text-slate-800">Zobrazit vlastní informaci pod výběrem času</span><span className="block text-sm text-gray-500">Nepovinná poznámka se zobrazí ve 3. kroku rezervace.</span></span>
+        </label>
+        {formData.booking_time_note_enabled && (
+          <textarea value={formData.booking_time_note || ''} onChange={(e) => setFormData({ ...formData, booking_time_note: e.target.value })} className="w-full min-h-24 rounded-md border border-gray-300 p-3 text-sm" placeholder="Např. přijďte prosím 10 minut před začátkem." data-testid="program-booking-time-note" />
+        )}
+        <label className="flex items-start gap-3 pt-2 border-t">
+          <Switch checked={formData.booking_payment_enabled} onCheckedChange={(checked) => setFormData({ ...formData, booking_payment_enabled: checked })} />
+          <span><span className="block font-medium text-slate-800">Nabídnout výběr způsobu platby</span><span className="block text-sm text-gray-500">Volba se zobrazí ve 4. kroku rezervace.</span></span>
+        </label>
+        {formData.booking_payment_enabled && (
+          <div className="space-y-3 pl-1">
+            {[['cash', 'Platba na místě – hotově'], ['card', 'Platba na místě – kartou'], ['invoice', 'Fakturou']].map(([value, label]) => (
+              <label key={value} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={(formData.booking_payment_methods || []).includes(value)} onChange={(e) => setFormData({ ...formData, booking_payment_methods: e.target.checked ? [...(formData.booking_payment_methods || []), value] : (formData.booking_payment_methods || []).filter((item) => item !== value) })} />
+                {label}
+              </label>
+            ))}
+            <FieldError message={fieldErrors.booking_payment_methods} />
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" checked={formData.booking_payment_required} onChange={(e) => setFormData({ ...formData, booking_payment_required: e.target.checked })} />
+              Výběr způsobu platby je povinný
+            </label>
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-4 md:p-6 space-y-3">
+        <h3 className="font-semibold text-slate-900">Denní limit programu</h3>
+        <p className="text-sm text-gray-500">Omezí celkový počet nezrušených rezervací tohoto programu v jednom dni, bez ohledu na počet nabízených časů.</p>
+        <div className="max-w-xs">
+          <Label htmlFor="program-max-bookings-day">Maximum rezervací za den</Label>
+          <Input
+            id="program-max-bookings-day"
+            type="number"
+            min="1"
+            value={formData.max_bookings_per_day ?? ''}
+            onChange={(e) => setFormData({ ...formData, max_bookings_per_day: e.target.value })}
+            placeholder="Bez omezení"
+            className="mt-1"
+            data-testid="program-max-bookings-per-day"
+          />
+          <p className="mt-1 text-xs text-gray-500">Prázdné pole znamená bez omezení.</p>
+        </div>
+      </Card>
+
       {/* Nabízené dny */}
       <Card className="p-4 md:p-6 space-y-4">
         <h3 className="font-semibold text-slate-900">Nabízené dny</h3>

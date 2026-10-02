@@ -208,6 +208,8 @@ export const BookingPage = () => {
     num_students: 15,
     num_teachers: 1,
     special_requirements: '',
+    payment_method: '',
+    invoice_details: '',
     contact_name: '',
     contact_email: '',
     contact_phone: '',
@@ -474,7 +476,7 @@ export const BookingPage = () => {
 
   const handleProgramSelect = async (program) => {
     setSelectedProgram(program);
-    setFormData({ ...formData, program_id: program.id });
+    setFormData({ ...formData, program_id: program.id, payment_method: '', invoice_details: '' });
     // Fetch calendar for selected program
     await fetchCalendar(currentYear, currentMonth, program.id);
     setStep(2);
@@ -533,6 +535,12 @@ export const BookingPage = () => {
       errors.contact_email = 'Zadejte platnou e-mailovou adresu.';
     }
     if (!formData.contact_phone?.trim()) errors.contact_phone = 'Vyplňte telefonní číslo.';
+    if (selectedProgram?.booking_payment_enabled && selectedProgram?.booking_payment_required && !formData.payment_method) {
+      errors.payment_method = 'Vyberte způsob platby.';
+    }
+    if (selectedProgram?.booking_payment_enabled && selectedProgram?.booking_payment_required && formData.payment_method === 'invoice' && !formData.invoice_details?.trim()) {
+      errors.invoice_details = 'Vyplňte fakturační údaje.';
+    }
     if (!formData.gdpr_consent) errors.gdpr_consent = 'Potvrďte souhlas se zpracováním osobních údajů.';
     if (!formData.terms_accepted) errors.terms_accepted = 'Potvrďte souhlas s podmínkami rezervace.';
 
@@ -973,6 +981,8 @@ export const BookingPage = () => {
                   const startDate = formatDate(program.start_date);
                   const endDate = formatDate(program.end_date);
                   const hasValidity = startDate || endDate;
+                  const imageLayout = program.image_layout || 'hero';
+                  const imagePosition = `${program.image_focus_x ?? 50}% ${program.image_focus_y ?? 50}%`;
                   
                   return (
                   <Card
@@ -984,16 +994,19 @@ export const BookingPage = () => {
                     onClick={() => handleProgramSelect(program)}
                     data-testid={`program-card-${program.id}`}
                   >
-                    {program.image_url && (
+                    {program.image_url && imageLayout === 'hero' && (
                       <div className="-mx-6 -mt-6 mb-4 rounded-t-lg overflow-hidden">
                         <img
                           src={resolveAssetUrl(program.image_url)}
                           alt={program.name_cs}
                           className="w-full h-48 object-cover"
+                          style={{ objectPosition: imagePosition }}
                           data-testid={`program-image-${program.id}`}
                         />
                       </div>
                     )}
+                    <div className={program.image_url && imageLayout === 'square' ? 'grid gap-4 md:grid-cols-[minmax(0,1fr)_12rem] md:gap-6' : ''}>
+                    <div className="min-w-0">
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="text-xl font-semibold text-[#2B3E50] mb-1">{program.name_cs}</h3>
@@ -1043,6 +1056,19 @@ export const BookingPage = () => {
                         </p>
                       </div>
                     )}
+                    </div>
+                    {program.image_url && imageLayout === 'square' && (
+                      <div className="aspect-square w-full max-w-48 md:max-w-none md:self-stretch overflow-hidden rounded-lg bg-slate-100 md:-my-6 md:-mr-6 md:rounded-none md:rounded-r-lg">
+                        <img
+                          src={resolveAssetUrl(program.image_url)}
+                          alt={program.name_cs}
+                          className="w-full h-full object-cover"
+                          style={{ objectPosition: imagePosition }}
+                          data-testid={`program-image-${program.id}`}
+                        />
+                      </div>
+                    )}
+                    </div>
                   </Card>
                   );
                 })}
@@ -1159,17 +1185,19 @@ export const BookingPage = () => {
               </button>
             )}
             
-            <div 
-              className="mt-6 p-4 rounded-md border"
-              style={{ 
-                backgroundColor: `${institutionData.primaryColor}10`,
-                borderColor: `${institutionData.primaryColor}30`
-              }}
-            >
-              <p className="text-sm" style={{ color: institutionData.primaryColor }}>
-                Všechny časové bloky jsou 90 min. dlouhé. Prosím přiďte o 10 minut dříve, aby bylo dost času na organizační prvky.
-              </p>
-            </div>
+            {selectedProgram?.booking_time_note_enabled && selectedProgram?.booking_time_note?.trim() && (
+              <div
+                className="mt-6 p-4 rounded-md border"
+                style={{
+                  backgroundColor: `${institutionData.primaryColor}10`,
+                  borderColor: `${institutionData.primaryColor}30`
+                }}
+              >
+                <p className="text-sm whitespace-pre-line" style={{ color: institutionData.primaryColor }}>
+                  {selectedProgram.booking_time_note}
+                </p>
+              </div>
+            )}
             <div className="flex gap-3 mt-6">
               <Button
                 variant="outline"
@@ -1470,6 +1498,49 @@ export const BookingPage = () => {
                   <FieldError message={fieldErrors.terms_accepted} />
                 </div>
               </div>
+
+              {selectedProgram?.booking_payment_enabled && (selectedProgram.booking_payment_methods || []).length > 0 && (
+                <div>
+                  <h2 className="text-2xl font-bold text-[#2B3E50] mb-2">Způsob platby</h2>
+                  <p className="text-gray-600 mb-4">
+                    Vyberte způsob platby{selectedProgram.booking_payment_required ? ' *' : ' (nepovinné)'}.
+                  </p>
+                  <div className="space-y-3">
+                    {[
+                      ['cash', 'Platba na místě – hotově'],
+                      ['card', 'Platba na místě – kartou'],
+                      ['invoice', 'Fakturou'],
+                    ].filter(([value]) => selectedProgram.booking_payment_methods.includes(value)).map(([value, label]) => (
+                      <label key={value} className="flex items-center gap-3 rounded-lg border border-gray-200 p-3">
+                        <input
+                          type="radio"
+                          name="payment_method"
+                          value={value}
+                          checked={formData.payment_method === value}
+                          onChange={() => updateBookingField('payment_method', value)}
+                        />
+                        {label}
+                      </label>
+                    ))}
+                    <FieldError message={fieldErrors.payment_method} />
+                    {formData.payment_method === 'invoice' && (
+                      <div>
+                        <Label className="text-[#2B3E50]">
+                          Fakturační údaje{selectedProgram.booking_payment_required ? ' *' : ''}
+                        </Label>
+                        <Textarea
+                          value={formData.invoice_details}
+                          onChange={(e) => updateBookingField('invoice_details', e.target.value)}
+                          placeholder="Název organizace, adresa, IČO a další informace pro účetní"
+                          className={`mt-2 rounded-lg border-gray-300 ${fieldErrors.invoice_details ? FIELD_ERROR_CLASS : ''}`}
+                          rows={4}
+                        />
+                        <FieldError message={fieldErrors.invoice_details} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="flex gap-3">
                 <Button

@@ -217,11 +217,22 @@ export const SchoolsPage = () => {
   };
 
   useEffect(() => {
-    fetchData();
-    fetchTags();
-    // Setup contacts table on mount
-    setupContactsTable();
+    initializeSchools();
+    // The initialization is intentionally run only once when the page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const initializeSchools = async () => {
+    await setupContactsTable();
+    try {
+      // Safe and idempotent: also restores historical schools and contacts
+      // from reservations created before the CRM directory existed.
+      await axios.post(`${API}/schools/migrate-contacts`);
+    } catch (error) {
+      // Loading the directory must remain available even if synchronization fails.
+    }
+    await Promise.all([fetchData(), fetchTags()]);
+  };
 
   const setupContactsTable = async () => {
     try {

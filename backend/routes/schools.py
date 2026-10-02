@@ -418,12 +418,12 @@ async def migrate_existing_contacts(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Migrate existing school emails to school_contacts table."""
+    """Idempotently rebuild the school directory from legacy data and reservations."""
     if current_user.get("role") not in ["admin", "spravce"]:
         raise HTTPException(status_code=403, detail="Přístup odepřen")
     
     try:
-        # Get schools with email but no contacts
+        # Preserve the original legacy migration for schools that already exist.
         result = await db.execute(text("""
             SELECT s.id, s.institution_id, s.email, s.contact_person, s.phone
             FROM schools s
@@ -452,8 +452,197 @@ async def migrate_existing_contacts(
             })
             migrated += 1
         
+        # Older reservations predate the schools CRM. Link them to an existing
+        # school by contact e-mail first, then by normalized school name.
+        linked_by_email = await db.execute(text("""
+            WITH matches AS (
+                SELECT r.id AS reservation_id, (
+                    SELECT s.id
+                    FROM schools s
+                    LEFT JOIN school_contacts sc ON sc.school_id = s.id
+                    WHERE s.institution_id = :inst_id
+                      AND s.deleted_at IS NULL
+                      AND (
+                          LOWER(TRIM(sc.email)) = LOWER(TRIM(r.contact_email))
+                          OR LOWER(TRIM(s.email)) = LOWER(TRIM(r.contact_email))
+                      )
+                    ORDER BY (LOWER(TRIM(sc.email)) = LOWER(TRIM(r.contact_email))) DESC,
+                             s.created_at ASC
+                    LIMIT 1
+                ) AS school_id
+                FROM reservations r
+                WHERE r.institution_id = :inst_id
+                  AND r.deleted_at IS NULL
+                  AND r.school_id IS NULL
+                  AND NULLIF(TRIM(r.contact_email), '') IS NOT NULL
+            )
+            UPDATE reservations r
+            SET school_id = matches.school_id
+            FROM matches
+            WHERE r.id = matches.reservation_id
+              AND matches.school_id IS NOT NULL
+        """), {"inst_id": current_user["institution_id"]})
+
+        linked_by_name = await db.execute(text("""
+            WITH matches AS (
+                SELECT r.id AS reservation_id, (
+                    SELECT s.id
+                    FROM schools s
+                    WHERE s.institution_id = :inst_id
+                      AND s.deleted_at IS NULL
+                      AND LOWER(TRIM(s.name)) = LOWER(TRIM(r.school_name))
+                    ORDER BY s.created_at ASC
+                    LIMIT 1
+                ) AS school_id
+                FROM reservations r
+                WHERE r.institution_id = :inst_id
+                  AND r.deleted_at IS NULL
+                  AND r.school_id IS NULL
+                  AND NULLIF(TRIM(r.school_name), '') IS NOT NULL
+            )
+            UPDATE reservations r
+            SET school_id = matches.school_id
+            FROM matches
+            WHERE r.id = matches.reservation_id
+              AND matches.school_id IS NOT NULL
+        """), {"inst_id": current_user["institution_id"]})
+
+        # Create one CRM school for each still-unlinked historical school name.
+        created_schools = await db.execute(text("""
+            WITH latest_contact AS (
+                SELECT DISTINCT ON (LOWER(TRIM(r.school_name)))
+                    r.school_name,
+                    r.contact_name,
+                    LOWER(TRIM(r.contact_email)) AS contact_email,
+                    r.contact_phone
+                FROM reservations r
+                WHERE r.institution_id = :inst_id
+                  AND r.deleted_at IS NULL
+                  AND r.school_id IS NULL
+                  AND NULLIF(TRIM(r.school_name), '') IS NOT NULL
+                ORDER BY LOWER(TRIM(r.school_name)), r.created_at DESC
+            )
+            INSERT INTO schools (
+                id, institution_id, name, contact_person, email, phone,
+                booking_count, source, created_at, updated_at
+            )
+            SELECT
+                gen_random_uuid(), :inst_id, lc.school_name, lc.contact_name,
+                lc.contact_email, lc.contact_phone, 0, 'reservation', NOW(), NOW()
+            FROM latest_contact lc
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM schools s
+                WHERE s.institution_id = :inst_id
+                  AND s.deleted_at IS NULL
+                  AND LOWER(TRIM(s.name)) = LOWER(TRIM(lc.school_name))
+            )
+            RETURNING id
+        """), {"inst_id": current_user["institution_id"]})
+        created_school_count = len(created_schools.fetchall())
+
+        newly_linked = await db.execute(text("""
+            WITH matches AS (
+                SELECT r.id AS reservation_id, (
+                    SELECT s.id
+                    FROM schools s
+                    WHERE s.institution_id = :inst_id
+                      AND s.deleted_at IS NULL
+                      AND LOWER(TRIM(s.name)) = LOWER(TRIM(r.school_name))
+                    ORDER BY s.created_at ASC
+                    LIMIT 1
+                ) AS school_id
+                FROM reservations r
+                WHERE r.institution_id = :inst_id
+                  AND r.deleted_at IS NULL
+                  AND r.school_id IS NULL
+                  AND NULLIF(TRIM(r.school_name), '') IS NOT NULL
+            )
+            UPDATE reservations r
+            SET school_id = matches.school_id
+            FROM matches
+            WHERE r.id = matches.reservation_id
+              AND matches.school_id IS NOT NULL
+        """), {"inst_id": current_user["institution_id"]})
+
+        # Add every distinct reservation contact to its linked school. Existing
+        # contacts are left untouched, so reopening the page is safe.
+        created_contacts = await db.execute(text("""
+            WITH reservation_contacts AS (
+                SELECT DISTINCT ON (r.school_id, LOWER(TRIM(r.contact_email)))
+                    r.school_id,
+                    LOWER(TRIM(r.contact_email)) AS email,
+                    r.contact_name,
+                    r.contact_phone,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY r.school_id
+                        ORDER BY r.created_at DESC, LOWER(TRIM(r.contact_email))
+                    ) AS contact_rank
+                FROM reservations r
+                WHERE r.institution_id = :inst_id
+                  AND r.deleted_at IS NULL
+                  AND r.school_id IS NOT NULL
+                  AND NULLIF(TRIM(r.contact_email), '') IS NOT NULL
+                ORDER BY r.school_id, LOWER(TRIM(r.contact_email)), r.created_at DESC
+            )
+            INSERT INTO school_contacts (
+                id, school_id, institution_id, email, name, phone,
+                is_primary, status, created_at, updated_at
+            )
+            SELECT
+                gen_random_uuid(), rc.school_id, :inst_id, rc.email,
+                rc.contact_name, rc.contact_phone,
+                rc.contact_rank = 1 AND NOT EXISTS (
+                    SELECT 1 FROM school_contacts existing
+                    WHERE existing.school_id = rc.school_id
+                ),
+                'active', NOW(), NOW()
+            FROM reservation_contacts rc
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM school_contacts existing
+                WHERE existing.school_id = rc.school_id
+                  AND LOWER(TRIM(existing.email)) = rc.email
+            )
+            RETURNING id
+        """), {"inst_id": current_user["institution_id"]})
+        created_contact_count = len(created_contacts.fetchall())
+
+        # Recalculate the displayed count from the real linked reservations.
+        await db.execute(text("""
+            UPDATE schools s
+            SET booking_count = counts.booking_count,
+                last_booking_date = counts.last_booking_date,
+                updated_at = NOW()
+            FROM (
+                SELECT school_id, COUNT(*)::integer AS booking_count,
+                       MAX(created_at) AS last_booking_date
+                FROM reservations
+                WHERE institution_id = :inst_id
+                  AND deleted_at IS NULL
+                  AND school_id IS NOT NULL
+                GROUP BY school_id
+            ) counts
+            WHERE s.id = counts.school_id
+              AND s.institution_id = :inst_id
+              AND (
+                  s.booking_count IS DISTINCT FROM counts.booking_count
+                  OR s.last_booking_date IS DISTINCT FROM counts.last_booking_date
+              )
+        """), {"inst_id": current_user["institution_id"]})
+
         await db.commit()
-        return {"message": f"Migrace dokončena", "migrated": migrated}
+        linked_count = sum(
+            max(result.rowcount or 0, 0)
+            for result in (linked_by_email, linked_by_name, newly_linked)
+        )
+        return {
+            "message": "Synchronizace kontaktů dokončena",
+            "migrated": migrated,
+            "created_schools": created_school_count,
+            "created_contacts": created_contact_count,
+            "linked_reservations": linked_count,
+        }
         
     except Exception as e:
         logger.error(f"Error migrating contacts: {e}")

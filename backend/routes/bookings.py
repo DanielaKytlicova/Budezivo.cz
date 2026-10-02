@@ -336,14 +336,44 @@ async def create_booking(
 
     booking_repo = BookingRepositorySupabase(db)
     # Link a reliable school_id when the contact matches an existing school.
+    _school_repo = SchoolRepositorySupabase(db)
+    _existing_school = None
     try:
-        _school_repo = SchoolRepositorySupabase(db)
         _existing_school = await _school_repo.find_by_email(current_user["institution_id"], booking_data.contact_email)
         if _existing_school:
             payload["school_id"] = _existing_school["id"]
     except Exception:  # noqa: BLE001
         pass
     booking = await booking_repo.create(payload, current_user["institution_id"])
+    # Keep the Schools CRM in sync for reservations created from the admin UI
+    # as well as for public reservations. This is best-effort and must never
+    # make a valid reservation fail.
+    try:
+        if _existing_school:
+            await db.execute(
+                update(School)
+                .where(School.id == uuid.UUID(_existing_school["id"]))
+                .values(booking_count=School.booking_count + 1)
+            )
+            await db.commit()
+        elif booking_data.contact_email:
+            created_school = await _school_repo.create({
+                "name": booking_data.school_name,
+                "contact_person": booking_data.contact_name,
+                "email": str(booking_data.contact_email),
+                "phone": booking_data.contact_phone,
+                "booking_count": 1,
+            }, current_user["institution_id"])
+            await db.execute(
+                update(Reservation)
+                .where(Reservation.id == uuid.UUID(booking["id"]))
+                .values(school_id=uuid.UUID(created_school["id"]))
+            )
+            await db.commit()
+            booking["school_id"] = created_school["id"]
+    except Exception as e:  # noqa: BLE001
+        await db.rollback()
+        logger.warning(f"Could not sync school/contact for booking {booking.get('id')}: {e}")
     # Phase 76 — auto-seed contact directory (best-effort, never blocks booking)
     try:
         program_repo_local = ProgramRepositorySupabase(db)

@@ -203,11 +203,16 @@ export const ProgramMailingTab = ({ programId, programName }) => {
 
     try {
       setSending(true);
+      await axios.put(`${API}/programs/${programId}/email-template`, {
+        subject,
+        body
+      });
       await axios.post(`${API}/programs/${programId}/email-template/test`, {
         recipient_email: testEmail,
         subject,
         body
       });
+      setHasChanges(false);
       toast.success(`Testovací e-mail odeslán na ${testEmail}`);
     } catch (error) {
       const message = error.response?.data?.detail || 'Nepodařilo se odeslat testovací e-mail';

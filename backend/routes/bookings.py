@@ -391,7 +391,6 @@ async def create_public_booking(
     school_repo = SchoolRepositorySupabase(db)
     program_repo = ProgramRepositorySupabase(db)
     institution_repo = InstitutionRepositorySupabase(db)
-    template_repo = EmailTemplateRepositorySupabase(db)
     log_repo = EmailLogRepositorySupabase(db)
     
     # Handle demo institution
@@ -649,7 +648,6 @@ async def create_public_booking(
         institution = await institution_repo.find_by_id_with_theme(institution_id)
         
         if program:
-            email_template = await template_repo.find_by_program(booking_data.program_id)
             notification_settings = normalize_notifications(
                 (institution or {}).get("notification_settings")
             )
@@ -669,43 +667,11 @@ async def create_public_booking(
             # Send emails asynchronously using new trigger system
             async def send_booking_emails():
                 try:
-                    # Use custom template if available, otherwise use transactional templates
-                    if (
-                        send_teacher
-                        and email_template
-                        and email_template.get("subject")
-                        and email_template.get("body")
-                    ):
-                        result = await EmailService.send_booking_confirmation(
-                            booking_data=booking,
-                            program_data=program,
-                            institution_data=institution or {},
-                            email_template=email_template
-                        )
-                        
-                        # Log custom template email
-                        await log_repo.create({
-                            "institution_id": institution_id,
-                            "program_id": booking_data.program_id,
-                            "reservation_id": booking["id"],
-                            "recipient_email": booking_data.contact_email,
-                            "subject": "Custom template",
-                            "status": result.get("status", "sent"),
-                            "error_message": result.get("error"),
-                            "email_id": result.get("email_id"),
-                        })
-
-                    # Standard teacher mail is skipped when a custom teacher
-                    # template was used; institution alerts are always standard.
                     results = await trigger_reservation_created_emails(
                         booking_data=booking,
                         program_data=program,
                         institution_data=institution or {},
-                        send_teacher=send_teacher and not (
-                            email_template
-                            and email_template.get("subject")
-                            and email_template.get("body")
-                        ),
+                        send_teacher=send_teacher,
                         institution_recipients=institution_recipients,
                     )
 
@@ -770,6 +736,7 @@ async def update_booking_status(
     booking_repo = BookingRepositorySupabase(db)
     program_repo = ProgramRepositorySupabase(db)
     institution_repo = InstitutionRepositorySupabase(db)
+    template_repo = EmailTemplateRepositorySupabase(db)
     log_repo = EmailLogRepositorySupabase(db)
     
     # Get booking before update
@@ -822,10 +789,12 @@ async def update_booking_status(
                 and preferences["customer"]["reservation_confirmed"]
                 and program.get("send_email_notification", False)
             ):
+                email_template = await template_repo.find_by_program(booking.get("program_id"))
                 email_result = await trigger_reservation_confirmed_email(
                     booking_data=booking,
                     program_data=program,
                     institution_data=institution,
+                    email_template=email_template,
                 )
                 template_name = "reservation_confirmed"
                 
@@ -1072,6 +1041,7 @@ async def bulk_update_booking_status(
     booking_repo = BookingRepositorySupabase(db)
     program_repo = ProgramRepositorySupabase(db)
     institution_repo = InstitutionRepositorySupabase(db)
+    template_repo = EmailTemplateRepositorySupabase(db)
     log_repo = EmailLogRepositorySupabase(db)
     
     # Check permissions
@@ -1135,9 +1105,11 @@ async def bulk_update_booking_status(
                         and preferences["customer"]["reservation_confirmed"]
                         and program.get("send_email_notification", False)
                     ):
+                        email_template = await template_repo.find_by_program(booking.get("program_id"))
                         email_result = await trigger_reservation_confirmed_email(
                             booking_data=booking, program_data=program,
                             institution_data=institution,
+                            email_template=email_template,
                         )
                         template_name = "reservation_confirmed"
                     elif request.status == "cancelled" and old_status != "cancelled":

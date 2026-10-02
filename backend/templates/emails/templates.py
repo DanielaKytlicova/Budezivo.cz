@@ -650,7 +650,11 @@ def reservation_confirmed(data: Dict[str, Any]) -> Dict[str, str]:
     """Email sent to teacher when reservation is confirmed."""
     theme = _build_theme(data)
 
-    content = f"""
+    custom_content = data.get("custom_email_body_html")
+    if custom_content:
+        message_content = custom_content
+    else:
+        message_content = f"""
         <h1 style="{BASE_STYLES['h1']}">Rezervace potvrzena!</h1>
 
         <p style="{BASE_STYLES['text']}">
@@ -663,12 +667,25 @@ def reservation_confirmed(data: Dict[str, Any]) -> Dict[str, str]:
         </div>
 
         {_reservation_details_box(data)}
+        """
+
+    confirmation_response = (data.get("confirmation_response") or "").strip()
+    response_html = ""
+    if confirmation_response:
+        escaped_response = html_lib.escape(confirmation_response).replace("\n", "<br>")
+        response_html = f"""
+        <div style="{BASE_STYLES['info_box']}">
+            <strong>Odpověď k rezervaci</strong><br>
+            {escaped_response}
+        </div>
+        """
+
+    content = f"""
+        {message_content}
+
+        {response_html}
 
         {_calendar_buttons(data)}
-
-        <p style="{BASE_STYLES['text']}">
-            Dostavte se prosím 10 minut před začátkem. V případě nemoci nás kontaktujte 2 dny předem.
-        </p>
 
         <p style="{BASE_STYLES['text']}">
             Těšíme se na vaši návštěvu!
@@ -683,7 +700,7 @@ def reservation_confirmed(data: Dict[str, Any]) -> Dict[str, str]:
         {_reservation_important_notice()}
     """
 
-    plain = f"""
+    plain_message = data.get("custom_email_body_text") or f"""
 Rezervace potvrzena!
 
 Dobrý den, {data.get('teacher_name', '')},
@@ -694,15 +711,19 @@ Detail:
 - Program: {data.get('program_name', '')}
 - Datum: {data.get('reservation_date', '')}
 - Čas: {data.get('reservation_time', '')}
+"""
 
-Dostavte se prosím 10 minut před začátkem.
+    plain = f"""
+{plain_message}
+
+{f"Odpověď k rezervaci: {confirmation_response}" if confirmation_response else ""}
 
 {data.get('institution_name', '')}
 {data.get('institution_email', '')} | {data.get('institution_phone', '')}
 """
 
     return {
-        "subject": f"Rezervace potvrzena - {data.get('program_name', '')} ({data.get('reservation_date', '')})",
+        "subject": data.get("custom_email_subject") or f"Rezervace potvrzena - {data.get('program_name', '')} ({data.get('reservation_date', '')})",
         "html": _base_template(content, data),
         "text": _plain_text_base(plain, data)
     }

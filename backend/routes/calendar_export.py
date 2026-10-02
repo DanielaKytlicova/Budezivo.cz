@@ -149,6 +149,8 @@ def _build_vevent(reservation: dict, program: dict, institution: dict, minimal: 
         desc_lines.append(f"Počet dětí: {reservation['num_students']}")
     if reservation.get("num_teachers"):
         desc_lines.append(f"Počet učitelů: {reservation['num_teachers']}")
+    if reservation.get("age_or_class"):
+        desc_lines.append(f"Třída: {reservation['age_or_class']}")
     if not minimal:
         # Full detail only for one-off private downloads, never for shareable feeds.
         if reservation.get("contact_name"):

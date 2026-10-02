@@ -5,6 +5,7 @@ Supports multiple sender addresses, logging, and development mode.
 """
 import os
 import re
+import html
 import asyncio
 import logging
 from datetime import datetime, timezone
@@ -68,6 +69,14 @@ class EmailTemplateRenderer:
         
         result = re.sub(pattern, replacer, result)
         return result
+
+    @staticmethod
+    def html_to_text(value: str) -> str:
+        """Create a readable plain-text fallback from editor HTML."""
+        value = re.sub(r"<\s*br\s*/?>", "\n", value, flags=re.IGNORECASE)
+        value = re.sub(r"</\s*(p|div|h[1-6]|li)\s*>", "\n", value, flags=re.IGNORECASE)
+        value = re.sub(r"<[^>]+>", "", value)
+        return html.unescape(value).strip()
     
     @classmethod
     def validate_template(cls, template: str) -> Dict[str, Any]:
@@ -390,6 +399,8 @@ class EmailService:
             event.add("dtend", dt_end)
             
             desc = f"Škola: {booking_data.get('school_name', '')}\nPočet dětí: {booking_data.get('num_students', '')}"
+            if booking_data.get("age_or_class"):
+                desc += f"\nTřída: {booking_data['age_or_class']}"
             event.add("description", desc)
             
             address = institution_data.get("address") or institution_data.get("name") or ""
@@ -509,12 +520,14 @@ def _compute_calendar_links(
     institution_name = institution_data.get("name") or ""
     location = institution_data.get("address") or institution_name
     school_name = booking_data.get("school_name") or ""
+    age_or_class = booking_data.get("age_or_class") or ""
     children = booking_data.get("num_students") or 0
 
     description = (
         f"Rezervace přes Budeživo.cz\n"
         f"Instituce: {institution_name}\n"
         f"Škola: {school_name}\n"
+        f"Třída: {age_or_class}\n"
         f"Počet dětí: {children}"
     )
 
@@ -581,9 +594,23 @@ async def trigger_reservation_confirmed_email(
     booking_data: Dict[str, Any],
     program_data: Dict[str, Any],
     institution_data: Dict[str, Any],
+    email_template: Optional[Dict[str, Any]] = None,
+    confirmation_response: str = "",
 ) -> Dict[str, Any]:
     """Trigger email when reservation is confirmed."""
-    context = _build_email_context(booking_data, program_data, institution_data)
+    context = _build_email_context(
+        booking_data,
+        program_data,
+        institution_data,
+        confirmation_response=confirmation_response,
+    )
+    if email_template and email_template.get("subject") and email_template.get("body"):
+        rendered_body = EmailTemplateRenderer.render(email_template["body"], context)
+        context.update({
+            "custom_email_subject": EmailTemplateRenderer.render(email_template["subject"], context),
+            "custom_email_body_html": rendered_body,
+            "custom_email_body_text": EmailTemplateRenderer.html_to_text(rendered_body),
+        })
 
     return await EmailService.send_transactional_email(
         template_name="reservation_confirmed",

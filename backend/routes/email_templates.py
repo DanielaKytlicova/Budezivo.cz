@@ -231,6 +231,12 @@ async def send_test_email(
         institution or {},
         str(data.recipient_email),
     )
+    rendered_body = EmailTemplateRenderer.render(data.body, sample_context)
+    sample_context.update({
+        "custom_email_subject": EmailTemplateRenderer.render(data.subject, sample_context),
+        "custom_email_body_html": rendered_body,
+        "custom_email_body_text": EmailTemplateRenderer.html_to_text(rendered_body),
+    })
     rendered = get_template("reservation_confirmed", sample_context)
 
     # Use the same renderer, sender and HTML/text structure as the production

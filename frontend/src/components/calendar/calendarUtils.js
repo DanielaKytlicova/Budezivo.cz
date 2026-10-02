@@ -73,6 +73,7 @@ export function buildCalendarLinks(booking, { durationMinutes } = {}) {
   const detailsLines = [
     booking.program_name && `Program: ${booking.program_name}`,
     booking.school_name && `Škola: ${booking.school_name}`,
+    booking.age_or_class && `Třída: ${booking.age_or_class}`,
     booking.num_students && `Počet žáků: ${booking.num_students}`,
     booking.contact_name && `Kontakt: ${booking.contact_name}`,
   ].filter(Boolean);

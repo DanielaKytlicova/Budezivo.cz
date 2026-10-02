@@ -236,6 +236,10 @@ const BookingsPageContent = () => {
   const [completionPrompt, setCompletionPrompt] = useState(null);
   const [reschedulePrompt, setReschedulePrompt] = useState(false);
   const [rescheduleNote, setRescheduleNote] = useState('');
+  const [showConfirmationResponse, setShowConfirmationResponse] = useState(false);
+  const [confirmationResponse, setConfirmationResponse] = useState('');
+  const [cancellationPrompt, setCancellationPrompt] = useState(null);
+  const [cancellationConfirmation, setCancellationConfirmation] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [calendarFocus, setCalendarFocus] = useState({ date: null, requestId: 0 });
@@ -531,7 +535,7 @@ const BookingsPageContent = () => {
     return counts;
   }, [bookings, collisionIndex]);
 
-  const updateStatus = async (id, status, overrideFutureCompletion = false) => {
+  const updateStatus = async (id, status, overrideFutureCompletion = false, confirmationResponseText = '') => {
     if (status === 'completed') {
       const booking = bookings.find(b => b.id === id) || selectedBooking;
       if (booking && isTodayOrFutureBooking(booking) && !overrideFutureCompletion) {
@@ -542,7 +546,9 @@ const BookingsPageContent = () => {
     try {
       const params = new URLSearchParams({ status });
       if (overrideFutureCompletion) params.set('override_future_completion', 'true');
-      await axios.patch(`${API}/bookings/${id}/status?${params.toString()}`);
+      await axios.patch(`${API}/bookings/${id}/status?${params.toString()}`, {
+        confirmation_response: status === 'confirmed' ? confirmationResponseText.trim() : null,
+      });
       toast.success('Stav rezervace byl aktualizován');
       fetchBookings();
       if (selectedBooking?.id === id) {
@@ -551,6 +557,14 @@ const BookingsPageContent = () => {
     } catch (error) {
       toast.error(extractErrorDetail(error.response?.data?.detail, t('common.error')));
     }
+  };
+
+  const confirmCancellation = async () => {
+    if (!cancellationPrompt || cancellationConfirmation.trim().toLocaleLowerCase('cs-CZ') !== 'zrušit') return;
+    const bookingId = cancellationPrompt.id;
+    setCancellationPrompt(null);
+    setCancellationConfirmation('');
+    await updateStatus(bookingId, 'cancelled');
   };
 
   const confirmFutureCompletion = async () => {
@@ -1308,9 +1322,31 @@ const BookingsPageContent = () => {
             {/* Akce */}
             <div className="flex gap-2 pt-4 border-t">
               {selectedBooking.status === 'pending' && permissions.canEditAll && (
-                <>
+                <div className="flex flex-1 flex-col gap-2">
+                  {showConfirmationResponse && (
+                    <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 p-3">
+                      <Label htmlFor="confirmation-response">Odpověď, která se vloží do potvrzovacího e-mailu</Label>
+                      <Textarea
+                        id="confirmation-response"
+                        value={confirmationResponse}
+                        onChange={(event) => setConfirmationResponse(event.target.value)}
+                        placeholder="Např. Ano, bezbariérový vstup je zajištěn."
+                        rows={3}
+                        maxLength={2000}
+                        data-testid="confirmation-response"
+                      />
+                    </div>
+                  )}
+                  <Button type="button" variant="outline" onClick={() => setShowConfirmationResponse((value) => !value)} data-testid="toggle-confirmation-response">
+                    {showConfirmationResponse ? 'Skrýt odpověď' : 'Přidat odpověď k potvrzení'}
+                  </Button>
+                  <div className="flex gap-2">
                   <Button
-                    onClick={() => updateStatus(selectedBooking.id, 'confirmed')}
+                    onClick={async () => {
+                      await updateStatus(selectedBooking.id, 'confirmed', false, confirmationResponse);
+                      setConfirmationResponse('');
+                      setShowConfirmationResponse(false);
+                    }}
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white"
                     data-testid="confirm-booking-modal"
                   >
@@ -1319,24 +1355,42 @@ const BookingsPageContent = () => {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => updateStatus(selectedBooking.id, 'cancelled')}
+                    onClick={() => {
+                      setCancellationConfirmation('');
+                      setCancellationPrompt(selectedBooking);
+                    }}
                     className="flex-1 text-red-600 hover:bg-red-50"
                     data-testid="cancel-booking-modal"
                   >
                     <X className="w-4 h-4 mr-2" />
                     Zrušit rezervaci
                   </Button>
-                </>
+                  </div>
+                </div>
               )}
               {selectedBooking.status === 'confirmed' && permissions.canEditAll && (
-                <Button
-                  onClick={() => updateStatus(selectedBooking.id, 'completed')}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                  data-testid="complete-booking-modal"
-                >
-                  <Check className="w-4 h-4 mr-2" />
-                  Označit jako dokončené
-                </Button>
+                <>
+                  <Button
+                    onClick={() => updateStatus(selectedBooking.id, 'completed')}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    data-testid="complete-booking-modal"
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    Označit jako dokončené
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setCancellationConfirmation('');
+                      setCancellationPrompt(selectedBooking);
+                    }}
+                    className="flex-1 text-red-600 hover:bg-red-50"
+                    data-testid="cancel-confirmed-booking-modal"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Zrušit rezervaci
+                  </Button>
+                </>
               )}
             </div>
           </div>
@@ -1723,6 +1777,37 @@ const BookingsPageContent = () => {
             </Button>
             <Button className="bg-blue-600 text-white hover:bg-blue-700" onClick={confirmFutureCompletion} data-testid="override-future-completion">
               Přesto označit jako dokončenou
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(cancellationPrompt)} onOpenChange={(open) => {
+        if (!open) {
+          setCancellationPrompt(null);
+          setCancellationConfirmation('');
+        }
+      }}>
+        <DialogContent className="w-[calc(100%-1rem)] sm:max-w-lg">
+          <DialogHeader><DialogTitle>Opravdu chcete rezervaci zrušit?</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2 text-sm text-slate-700">
+            <p>
+              Rezervace programu „{cancellationPrompt?.program_name || 'Program'}“ bude označena jako zrušená
+              a příjemci se odešle oznámení podle nastavení notifikací.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="cancel-confirmation">Pro potvrzení napište slovo „zrušit“</Label>
+              <Input id="cancel-confirmation" value={cancellationConfirmation} onChange={(event) => setCancellationConfirmation(event.target.value)} autoComplete="off" data-testid="cancel-confirmation-input" />
+            </div>
+          </div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => setCancellationPrompt(null)}>Ponechat rezervaci</Button>
+            <Button
+              className="bg-red-600 text-white hover:bg-red-700"
+              disabled={cancellationConfirmation.trim().toLocaleLowerCase('cs-CZ') !== 'zrušit'}
+              onClick={confirmCancellation}
+              data-testid="confirm-cancellation"
+            >
+              Zrušit rezervaci
             </Button>
           </div>
         </DialogContent>

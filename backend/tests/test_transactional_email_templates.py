@@ -89,22 +89,48 @@ class PilotTransactionalEmailTemplateTests(unittest.TestCase):
         )[0]
 
         self.assertIn('get_template("reservation_confirmed", sample_context)', test_route)
+        self.assertIn('EmailTemplateRenderer.render(data.body, sample_context)', test_route)
+        self.assertIn('"custom_email_body_html": rendered_body', test_route)
         self.assertIn("EmailType.RESERVATION_CONFIRMED", test_route)
         self.assertIn('html_content=rendered["html"]', test_route)
         self.assertIn('text_content=rendered.get("text")', test_route)
         self.assertNotIn("EmailService.send_test_email", test_route)
 
-    def test_production_confirmation_flow_remains_canonical(self):
+    def test_production_confirmation_uses_program_content_in_canonical_layout(self):
         routes = (BACKEND_ROOT / "routes/bookings.py").read_text()
         status_flow = routes.split("async def update_booking_status", 1)[1].split(
             '@router.put("/{booking_id}")', 1
         )[0]
 
-        self.assertNotIn("email_template=", status_flow)
+        self.assertIn("email_template=email_template", status_flow)
+        self.assertIn("template_repo.find_by_program", status_flow)
         self.assertIn("trigger_reservation_confirmed_email", status_flow)
 
         rendered = get_template("reservation_confirmed", RESERVATION_DATA)
-        self.assertIn("Dostavte se prosím 10 minut před začátkem", rendered["html"])
+        self.assertNotIn("Dostavte se prosím 10 minut před začátkem", rendered["html"])
+
+        custom_data = {
+            **RESERVATION_DATA,
+            "custom_email_subject": "Vlastní potvrzení",
+            "custom_email_body_html": "<p>Text navíc.</p>",
+            "custom_email_body_text": "Text navíc.",
+        }
+        custom = get_template("reservation_confirmed", custom_data)
+        self.assertEqual(custom["subject"], "Vlastní potvrzení")
+        self.assertIn("Text navíc.", custom["html"])
+        self.assertIn("Text navíc.", custom["text"])
+
+    def test_confirmation_response_is_escaped_and_included(self):
+        rendered = get_template(
+            "reservation_confirmed",
+            {**RESERVATION_DATA, "confirmation_response": "Ano, zajistíme vstup.\n<script>alert(1)</script>"},
+        )
+
+        self.assertIn("Odpověď k rezervaci", rendered["html"])
+        self.assertIn("Ano, zajistíme vstup.<br>", rendered["html"])
+        self.assertNotIn("<script>", rendered["html"])
+        self.assertIn("&lt;script&gt;", rendered["html"])
+        self.assertIn("Odpověď k rezervaci: Ano, zajistíme vstup.", rendered["text"])
 
     def test_public_event_templates_render(self):
         for template_name, expected_text in (

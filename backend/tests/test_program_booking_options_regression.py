@@ -7,6 +7,28 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 class ProgramBookingOptionsRegressionTests(unittest.TestCase):
+    def test_alembic_graph_has_single_head(self):
+        revisions = {}
+        parent_revisions = set()
+        for migration in (ROOT / "backend/alembic/versions").glob("*.py"):
+            values = {}
+            for node in ast.parse(migration.read_text()).body:
+                name = None
+                if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                    name = node.targets[0].id
+                elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                    name = node.target.id
+                if name in {"revision", "down_revision"}:
+                    values[name] = ast.literal_eval(node.value)
+            revision = values.get("revision")
+            if revision:
+                revisions[revision] = migration.name
+            parents = values.get("down_revision")
+            if parents:
+                parent_revisions.update(parents if isinstance(parents, (tuple, list)) else [parents])
+        heads = set(revisions) - parent_revisions
+        self.assertEqual(heads, {"0f9e8d7c6b5a"})
+
     def test_hardcoded_time_note_is_removed_and_custom_note_is_gated(self):
         source = (ROOT / "frontend/src/pages/public/BookingPage.js").read_text()
         self.assertNotIn("Všechny časové bloky jsou 90 min. dlouhé", source)
@@ -61,6 +83,21 @@ class ProgramBookingOptionsRegressionTests(unittest.TestCase):
         self.assertIn("check_program_daily_limit", collision)
         self.assertIn("Reservation.status != \"cancelled\"", source)
         self.assertIn("Denní limit programu", source)
+
+    def test_program_repository_persists_new_booking_settings(self):
+        source = (ROOT / "backend/database/supabase_repositories.py").read_text()
+        create = source.split("class ProgramRepositorySupabase", 1)[1].split("async def update", 1)[0]
+        update = source.split("async def update(self, program_id", 1)[1].split("async def archive", 1)[0]
+        for field in (
+            "booking_time_note_enabled",
+            "booking_time_note",
+            "booking_payment_enabled",
+            "booking_payment_required",
+            "booking_payment_methods",
+            "max_bookings_per_day",
+        ):
+            self.assertIn(field, create)
+        self.assertIn("if 'max_bookings_per_day' in processed_data", update)
 
 
 if __name__ == "__main__":

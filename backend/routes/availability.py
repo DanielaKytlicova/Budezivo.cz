@@ -3,22 +3,21 @@ Availability and calendar routes.
 Uses Supabase (PostgreSQL) for database operations.
 """
 import calendar
-import uuid
 from collections import defaultdict
 from datetime import datetime, date as date_type, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
 from database.supabase import get_db
 from database.supabase_repositories import BookingRepositorySupabase, ProgramRepositorySupabase
-from database.models import AvailabilityException, Program, Reservation
+from database.models import Program
 from services.collision_service import (
     get_collision_info_for_availability,
     check_lecturer_has_any_availability_on_date,
 )
 from services.lecturer_assignment_service import pick_main_lecturer
+from services.availability_preview import AvailabilityPreviewSnapshot, LECTURER_ROLES
 from services.program_one_off_availability import get_program_one_offs, merge_program_one_off_slots
 
 router = APIRouter(tags=["Availability"])
@@ -173,11 +172,13 @@ async def _slot_has_assignable_main_lecturer(
     program: Program,
     date: str,
     time_block: str,
+    preview_snapshot: Optional[AvailabilityPreviewSnapshot] = None,
 ) -> bool:
-    """Mirror public booking's main-lecturer assignment gate for availability preview."""
-    collision_resources = program.collision_resources or []
-    if "lecturer" not in collision_resources:
+    """Mirror booking assignment while avoiding SQL when a snapshot is available."""
+    if "lecturer" not in (program.collision_resources or []):
         return True
+    if preview_snapshot:
+        return preview_snapshot.has_assignable_main_lecturer(date, time_block)
     return await pick_main_lecturer(db, institution_id, program, date, time_block) is not None
 
 
@@ -309,30 +310,37 @@ async def get_program_availability(
     collision_resources = program.get("collision_resources") or []
     has_lecturer_collision = "lecturer" in collision_resources
     program_obj = None
+    preview_snapshot = await AvailabilityPreviewSnapshot.load(
+        db, institution_id, program_id, date, date
+    )
     if has_lecturer_collision:
-        program_result = await db.execute(
-            select(Program).where(and_(
-                Program.id == uuid.UUID(program_id),
-                Program.institution_id == uuid.UUID(institution_id),
-            ))
-        )
-        program_obj = program_result.scalar_one_or_none()
+        program_obj = preview_snapshot.program if preview_snapshot else None
     
     for block in time_blocks:
         if slot_reaches_capacity(block["time"]):
             block["status"] = "booked"
         elif block["status"] == "available":
             # Check cross-program collisions
-            is_blocked = await get_collision_info_for_availability(
-                db, institution_id, program_id, date, block["time"]
+            is_blocked = (
+                preview_snapshot.is_blocked(date, block["time"])
+                if preview_snapshot
+                else await get_collision_info_for_availability(
+                    db, institution_id, program_id, date, block["time"]
+                )
             )
             if is_blocked:
                 block["status"] = "booked"
             # Check the same main-lecturer gate that public booking submit uses.
             elif has_lecturer_collision and (
                 not program_obj
+                or not preview_snapshot
                 or not await _slot_has_assignable_main_lecturer(
-                    db, institution_id, program_obj, date, block["time"]
+                    db,
+                    institution_id,
+                    program_obj,
+                    date,
+                    block["time"],
+                    preview_snapshot,
                 )
             ):
                 block["status"] = "unavailable"
@@ -411,6 +419,7 @@ async def get_calendar_availability(
 
     program_month_slots = []
     program_obj = None
+    preview_snapshot = None
     program_duration = programs[0].get("duration") or 60 if programs else 60
     program_concurrent_limit = _program_concurrent_limit_from_dict(programs[0]) if program_id and programs else None
     reservations_by_date = defaultdict(list)
@@ -432,40 +441,22 @@ async def get_calendar_availability(
         )
         month_start = f"{year}-{month:02d}-01"
         month_end = f"{year}-{month:02d}-{num_days:02d}"
-        inst_uuid = uuid.UUID(institution_id)
-        prog_uuid = uuid.UUID(program_id)
 
-        program_result = await db.execute(
-            select(Program).where(and_(
-                Program.id == prog_uuid,
-                Program.institution_id == inst_uuid,
-            ))
+        preview_snapshot = await AvailabilityPreviewSnapshot.load(
+            db, institution_id, program_id, month_start, month_end
         )
-        program_obj = program_result.scalar_one_or_none()
-
-        reservations_result = await db.execute(
-            select(Reservation).where(and_(
-                Reservation.institution_id == inst_uuid,
-                Reservation.program_id == prog_uuid,
-                Reservation.date >= month_start,
-                Reservation.date <= month_end,
-                Reservation.status != 'cancelled',
-            ))
-        )
-        for reservation in reservations_result.scalars().all():
-            reservations_by_date[str(reservation.date)].append(reservation.time_block)
-
-        exceptions_result = await db.execute(
-            select(AvailabilityException).where(and_(
-                AvailabilityException.institution_id == inst_uuid,
-                AvailabilityException.scope_type == 'program',
-                AvailabilityException.scope_id == prog_uuid,
-                AvailabilityException.date >= month_start,
-                AvailabilityException.date <= month_end,
-            ))
-        )
-        for exception in exceptions_result.scalars().all():
-            exceptions_by_date[str(exception.date)].append(exception)
+        program_obj = preview_snapshot.program if preview_snapshot else None
+        if preview_snapshot:
+            for reservation_date, rows in preview_snapshot.reservations_by_date.items():
+                reservations_by_date[reservation_date].extend(
+                    row.time_block for row in rows
+                    if str(row.program_id) == str(program_id)
+                )
+            for exception_date, rows in preview_snapshot.exceptions_by_date.items():
+                exceptions_by_date[exception_date].extend(
+                    row for row in rows
+                    if row.scope_type == "program" and str(row.scope_id) == str(program_id)
+                )
     
     # Get min/max days before booking from first program
     min_days_before = programs[0].get("min_days_before_booking", 1) if programs else 1
@@ -507,20 +498,13 @@ async def get_calendar_availability(
             scheduled_lecturer_ids = [str(lid) for lid in prog_collision_lecturer_ids]
         else:
             # Fall back to all institution lecturers with schedules
-            from services.collision_service import get_institution_lecturers
-            from database.models import LecturerAvailability
-            from sqlalchemy import select as sa_select, and_ as sa_and
-            import uuid as _uuid
-            lecturer_ids = await get_institution_lecturers(db, institution_id)
-            for lid in lecturer_ids:
-                result = await db.execute(
-                    sa_select(LecturerAvailability.id).where(sa_and(
-                        LecturerAvailability.lecturer_id == _uuid.UUID(lid),
-                        LecturerAvailability.institution_id == _uuid.UUID(institution_id)
-                    )).limit(1)
-                )
-                if result.scalar_one_or_none() is not None:
-                    scheduled_lecturer_ids.append(lid)
+            if preview_snapshot:
+                scheduled_lecturer_ids = [
+                    lecturer_id
+                    for lecturer_id, user in preview_snapshot.users.items()
+                    if user.role in LECTURER_ROLES
+                    and preview_snapshot.lecturer_availability.get(lecturer_id)
+                ]
     
     # Build calendar
     for day in range(1, num_days + 1):
@@ -557,8 +541,14 @@ async def get_calendar_availability(
         # Check lecturer availability for this day (when specific program selected)
         if has_availability and has_lecturer_collision and program_id:
             if prog_assigned_lecturer:
-                lect_avail = await check_lecturer_has_any_availability_on_date(
-                    db, prog_assigned_lecturer, institution_id, date_str
+                lect_avail = (
+                    preview_snapshot.lecturer_has_any_availability_on_date(
+                        prog_assigned_lecturer, date_str
+                    )
+                    if preview_snapshot
+                    else await check_lecturer_has_any_availability_on_date(
+                        db, prog_assigned_lecturer, institution_id, date_str
+                    )
                 )
                 if not lect_avail:
                     has_availability = False
@@ -567,7 +557,13 @@ async def get_calendar_availability(
                 if scheduled_lecturer_ids:
                     any_lect_avail = False
                     for lid in scheduled_lecturer_ids:
-                        if await check_lecturer_has_any_availability_on_date(db, lid, institution_id, date_str):
+                        if (
+                            preview_snapshot.lecturer_has_any_availability_on_date(lid, date_str)
+                            if preview_snapshot
+                            else await check_lecturer_has_any_availability_on_date(
+                                db, lid, institution_id, date_str
+                            )
+                        ):
                             any_lect_avail = True
                             break
                     if not any_lect_avail:
@@ -586,16 +582,26 @@ async def get_calendar_availability(
                         continue
                     if _slot_capacity_reached(slot, booked_blocks, program_duration, program_concurrent_limit):
                         continue
-                    if await get_collision_info_for_availability(
-                        db, institution_id, program_id, date_str, slot
+                    if (
+                        preview_snapshot.is_blocked(date_str, slot)
+                        if preview_snapshot
+                        else await get_collision_info_for_availability(
+                            db, institution_id, program_id, date_str, slot
+                        )
                     ):
                         continue
                     if (
                         has_lecturer_collision
                         and (
                             not program_obj
+                            or not preview_snapshot
                             or not await _slot_has_assignable_main_lecturer(
-                                db, institution_id, program_obj, date_str, slot
+                                db,
+                                institution_id,
+                                program_obj,
+                                date_str,
+                                slot,
+                                preview_snapshot,
                             )
                         )
                     ):

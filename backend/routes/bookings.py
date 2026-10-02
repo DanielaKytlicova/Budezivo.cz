@@ -442,6 +442,22 @@ async def create_public_booking(
             detail="Program z odkazu už není dostupný. Vyberte prosím jiný program.",
         )
 
+    payment_enabled = bool(program.get("booking_payment_enabled"))
+    payment_required = bool(program.get("booking_payment_required"))
+    allowed_payment_methods = set(program.get("booking_payment_methods") or [])
+    if payment_enabled:
+        if booking_data.payment_method and booking_data.payment_method not in allowed_payment_methods:
+            raise HTTPException(status_code=400, detail="Vybraný způsob platby není pro tento program dostupný")
+        if payment_required and not booking_data.payment_method:
+            raise HTTPException(status_code=400, detail="Vyberte způsob platby")
+        if booking_data.payment_method == "invoice" and payment_required and not (booking_data.invoice_details or "").strip():
+            raise HTTPException(status_code=400, detail="Vyplňte fakturační údaje")
+        if booking_data.payment_method != "invoice":
+            booking_data.invoice_details = None
+    else:
+        booking_data.payment_method = None
+        booking_data.invoice_details = None
+
     opens_error = booking_opens_message(program)
     if opens_error:
         _track_public_booking_event(
@@ -945,6 +961,8 @@ async def update_booking(
             update_fields["notes"] = update_data.notes
         if update_data.date is not None:
             update_fields["date"] = update_data.date
+        if update_data.time_block is not None:
+            update_fields["time_block"] = update_data.time_block
         if update_data.contact_email is not None:
             update_fields["contact_email"] = update_data.contact_email
         if update_data.contact_phone is not None:
@@ -995,6 +1013,7 @@ async def update_booking(
         program_id = update_fields.get("program_id", booking.get("program_id"))
         institution_id = current_user["institution_id"]
         updated_booking = {**booking, "program_id": program_id, "date": new_date, "time_block": new_time}
+        reschedule_note = update_data.reschedule_note or ""
         
         async def send_reschedule_email():
             try:
@@ -1012,6 +1031,7 @@ async def update_booking(
                             institution_data=institution,
                             original_date=original_date,
                             original_time=original_time,
+                            reschedule_note=reschedule_note,
                         )
                         logger.info(f"Reschedule email sent for booking {booking_id}")
             except Exception as e:

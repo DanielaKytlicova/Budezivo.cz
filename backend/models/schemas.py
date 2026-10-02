@@ -79,6 +79,11 @@ class ProgramBase(BaseModel):
     target_group: str  # Legacy - kept for backwards compatibility
     price: Optional[float] = 0.0
     pricing_info: Optional[str] = None
+    booking_time_note_enabled: bool = False
+    booking_time_note: Optional[str] = Field(default=None, max_length=1000)
+    booking_payment_enabled: bool = False
+    booking_payment_required: bool = False
+    booking_payment_methods: List[str] = []
     image_url: Optional[str] = None
     image_layout: str = "hero"
     image_focus_x: int = Field(default=50, ge=0, le=100)
@@ -100,6 +105,7 @@ class ProgramBase(BaseModel):
     # Collision & Parallel Settings
     allow_parallel: bool = False
     max_concurrent_bookings: Optional[int] = 1
+    max_bookings_per_day: Optional[int] = None
     collision_resources: List[str] = []
     collision_lecturer_ids: List[str] = []
     blocked_program_ids: List[str] = []
@@ -137,11 +143,29 @@ class ProgramBase(BaseModel):
             return None
         return value if value > 0 else None
 
+    @validator('max_bookings_per_day', pre=True, always=True)
+    def normalize_max_bookings_per_day(cls, v):
+        if v in (None, ""):
+            return None
+        try:
+            value = int(v)
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
     @validator('image_layout')
     def validate_image_layout(cls, value):
         if value not in ("hero", "square"):
             raise ValueError("Neplatné rozložení fotografie")
         return value
+
+    @validator('booking_payment_methods', pre=True, always=True)
+    def validate_booking_payment_methods(cls, value):
+        methods = list(dict.fromkeys(value or []))
+        allowed = {"cash", "card", "invoice"}
+        if any(method not in allowed for method in methods):
+            raise ValueError("Neplatný způsob platby")
+        return methods
 
     @validator('feedback_questions', pre=True, always=True)
     def default_feedback_questions(cls, v):
@@ -172,11 +196,19 @@ class BookingBase(BaseModel):
     num_students: int
     num_teachers: int = 1
     special_requirements: Optional[str] = ""
+    payment_method: Optional[str] = None
+    invoice_details: Optional[str] = Field(default=None, max_length=2000)
     contact_name: str
     contact_email: EmailStr
     contact_phone: str
     gdpr_consent: bool = True
     marketing_consent: bool = False  # M1 Phase 76 — opt-in to future promotional mailings
+
+    @validator('payment_method')
+    def validate_payment_method(cls, value):
+        if value not in (None, "", "cash", "card", "invoice"):
+            raise ValueError("Neplatný způsob platby")
+        return value or None
 
 
 class BookingCreate(BookingBase):
@@ -232,6 +264,7 @@ class BookingUpdate(BaseModel):
     contact_email: Optional[str] = None
     contact_phone: Optional[str] = None
     contact_name: Optional[str] = None
+    reschedule_note: Optional[str] = Field(default=None, max_length=1000)
 
 
 class BookingLectorAssign(BaseModel):

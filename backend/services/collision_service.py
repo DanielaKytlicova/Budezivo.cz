@@ -34,7 +34,16 @@ def parse_time_block(block: str) -> tuple:
         return None, None
 
 
-def time_blocks_overlap(block_a: str, duration_a: int, block_b: str, duration_b: int) -> bool:
+def time_blocks_overlap(
+    block_a: str,
+    duration_a: int,
+    block_b: str,
+    duration_b: int,
+    preparation_a: int = 0,
+    cleanup_a: int = 0,
+    preparation_b: int = 0,
+    cleanup_b: int = 0,
+) -> bool:
     """
     Check if two time blocks overlap.
     Supports 'HH:MM' (start time + duration) and 'HH:MM-HH:MM' (range) formats.
@@ -49,6 +58,11 @@ def time_blocks_overlap(block_a: str, duration_a: int, block_b: str, duration_b:
         end_a = start_a + duration_a
     if end_b is None:
         end_b = start_b + duration_b
+
+    start_a -= max(0, preparation_a or 0)
+    end_a += max(0, cleanup_a or 0)
+    start_b -= max(0, preparation_b or 0)
+    end_b += max(0, cleanup_b or 0)
     
     return start_a < end_b and start_b < end_a
 
@@ -151,6 +165,8 @@ async def count_overlapping_program_reservations(
     date: str,
     time_block: str,
     duration: int,
+    preparation_time: int = 0,
+    cleanup_time: int = 0,
     exclude_reservation_id: Optional[str] = None,
 ) -> int:
     """Count active same-program reservations overlapping the requested slot."""
@@ -171,7 +187,10 @@ async def count_overlapping_program_reservations(
     result = await db.execute(query)
     overlapping = 0
     for reservation in result.scalars().all():
-        if time_blocks_overlap(time_block, duration, reservation.time_block, duration):
+        if time_blocks_overlap(
+            time_block, duration, reservation.time_block, duration,
+            preparation_time, cleanup_time, preparation_time, cleanup_time,
+        ):
             overlapping += 1
     return overlapping
 
@@ -197,12 +216,51 @@ async def check_program_concurrent_capacity(
         date,
         time_block,
         duration,
+        program.preparation_time or 0,
+        program.cleanup_time or 0,
         exclude_reservation_id=exclude_reservation_id,
     )
     if concurrent_capacity_reached(limit, overlapping):
         return (
             f"Kapacita souběžných rezervací programu '{program.name_cs}' je pro tento čas vyčerpaná "
             f"(limit {limit}). Vyberte prosím jiný termín."
+        )
+    return None
+
+
+async def check_program_daily_limit(
+    db: AsyncSession,
+    program,
+    institution_id: str,
+    date: str,
+    exclude_reservation_id: Optional[str] = None,
+) -> Optional[str]:
+    """Return an error when the configured daily reservation count is exhausted."""
+    raw_limit = getattr(program, "max_bookings_per_day", None)
+    try:
+        limit = int(raw_limit) if raw_limit not in (None, "") else None
+    except (TypeError, ValueError):
+        limit = None
+    if not limit or limit < 1:
+        return None
+
+    query = select(Reservation.id).where(and_(
+        Reservation.institution_id == uuid.UUID(institution_id),
+        Reservation.program_id == program.id,
+        Reservation.date == date,
+        Reservation.status != "cancelled",
+    ))
+    if exclude_reservation_id:
+        try:
+            query = query.where(Reservation.id != uuid.UUID(exclude_reservation_id))
+        except (TypeError, ValueError):
+            pass
+    result = await db.execute(query)
+    count = len(result.scalars().all())
+    if count >= limit:
+        return (
+            f"Denní limit programu '{program.name_cs}' je vyčerpán "
+            f"(maximum {limit} rezervací za den). Vyberte prosím jiný den."
         )
     return None
 
@@ -229,14 +287,6 @@ async def check_booking_collision(
     lock_key = _advisory_lock_key(institution_id, date)
     await db.execute(text(f"SELECT pg_advisory_xact_lock({lock_key})"))
 
-    # ── Check availability exceptions (one-off blocks) ──
-    from services.availability_service import check_exception_blocks_slot
-    exc_reason = await check_exception_blocks_slot(
-        db, institution_id, 'program', program_id, date, time_block, 60
-    )
-    if exc_reason:
-        return f"Slot je jednorázově uzavřen: {exc_reason}"
-
     # Get the program being booked
     result = await db.execute(
         select(Program).where(and_(
@@ -247,6 +297,14 @@ async def check_booking_collision(
     program = result.scalar_one_or_none()
     if not program:
         return None  # program not found - let the main handler deal with it
+
+    # ── Check availability exceptions (one-off blocks) using the real duration ──
+    from services.availability_service import check_exception_blocks_slot
+    exc_reason = await check_exception_blocks_slot(
+        db, institution_id, 'program', program_id, date, time_block, program.duration or 60
+    )
+    if exc_reason:
+        return f"Slot je jednorázově uzavřen: {exc_reason}"
 
     lecturer_qualification_error = await check_selected_lecturer_qualification(
         db, program, lecturer_id
@@ -274,6 +332,12 @@ async def check_booking_collision(
                 f"{required_lecturers} lektory/ů, ale v daný čas jsou volní pouze "
                 f"{available_count}. Rezervaci nelze vytvořit."
             )
+
+    daily_limit_error = await check_program_daily_limit(
+        db, program, institution_id, date, exclude_reservation_id=exclude_reservation_id
+    )
+    if daily_limit_error:
+        return daily_limit_error
 
     capacity_error = await check_program_concurrent_capacity(
         db,
@@ -306,7 +370,12 @@ async def check_booking_collision(
             other_program = other_prog.scalar_one_or_none()
             other_duration = other_program.duration if other_program else 60
 
-            if time_blocks_overlap(time_block, duration, res.time_block, other_duration):
+            if time_blocks_overlap(
+                time_block, duration, res.time_block, other_duration,
+                program.preparation_time or 0, program.cleanup_time or 0,
+                other_program.preparation_time if other_program else 0,
+                other_program.cleanup_time if other_program else 0,
+            ):
                 other_name = other_program.name_cs if other_program else "Neznámý program"
                 return (
                     f"Časový konflikt s existující rezervací programu '{other_name}' "
@@ -334,7 +403,12 @@ async def check_booking_collision(
         other_program = other_prog.scalar_one_or_none()
         other_duration = other_program.duration if other_program else 60
 
-        if not time_blocks_overlap(time_block, duration, res.time_block, other_duration):
+        if not time_blocks_overlap(
+            time_block, duration, res.time_block, other_duration,
+            program.preparation_time or 0, program.cleanup_time or 0,
+            other_program.preparation_time if other_program else 0,
+            other_program.cleanup_time if other_program else 0,
+        ):
             continue  # No time overlap, skip
 
         # Check if the other program blocks parallel entirely
@@ -520,7 +594,13 @@ async def check_lecturer_collision_for_assignment(
         other_program = other_prog_result.scalar_one_or_none()
         other_duration = other_program.duration if other_program else 60
 
-        if time_blocks_overlap(booking.time_block, booking_duration, other.time_block, other_duration):
+        if time_blocks_overlap(
+            booking.time_block, booking_duration, other.time_block, other_duration,
+            program.preparation_time if program else 0,
+            program.cleanup_time if program else 0,
+            other_program.preparation_time if other_program else 0,
+            other_program.cleanup_time if other_program else 0,
+        ):
             other_name = other_program.name_cs if other_program else "Neznámý program"
             return (
                 f"Kolize lektora: Lektor je již přiřazen k programu '{other_name}' "
@@ -860,11 +940,15 @@ async def count_available_qualified_lecturers(
     for res in res_q.scalars().all():
         if exclude_reservation_id and str(res.id) == str(exclude_reservation_id):
             continue
-        other_prog = await db.execute(
-            select(Program.duration).where(Program.id == res.program_id)
-        )
-        other_duration = other_prog.scalar_one_or_none() or 60
-        if time_blocks_overlap(time_block, program_duration, res.time_block, other_duration):
+        other_prog = await db.execute(select(Program).where(Program.id == res.program_id))
+        other_program = other_prog.scalar_one_or_none()
+        other_duration = other_program.duration if other_program else 60
+        if time_blocks_overlap(
+            time_block, program_duration, res.time_block, other_duration,
+            program.preparation_time or 0, program.cleanup_time or 0,
+            other_program.preparation_time if other_program else 0,
+            other_program.cleanup_time if other_program else 0,
+        ):
             if res.assigned_lecturer_id:
                 occupied.add(str(res.assigned_lecturer_id))
             for lid in (res.assigned_lecturer_ids or []):

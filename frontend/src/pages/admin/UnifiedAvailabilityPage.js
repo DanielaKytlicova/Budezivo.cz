@@ -327,9 +327,18 @@ const ProgramAvailabilityView = ({ viewMode, onViewModeChange, onRequestPersonal
 
   // Check if hour falls within any slot range for this date
   const getCellStatus = (dateStr, hour) => {
-    const slots = weekSlots[dateStr] || [];
     const cellStart = hour * 60;
     const cellEnd = cellStart + 60;
+    const exception = exceptions.find((item) => {
+      if (item.date !== dateStr) return false;
+      if (!item.start_time && !item.end_time) return true;
+      if (!item.start_time || !item.end_time) return false;
+      return cellStart < timeToMin(item.end_time) && cellEnd > timeToMin(item.start_time);
+    });
+    if (exception) {
+      return { time: `${String(hour).padStart(2, '0')}:00-${String(hour + 1).padStart(2, '0')}:00`, status: 'blocked_exception', reason: exception.reason };
+    }
+    const slots = weekSlots[dateStr] || [];
     for (const s of slots) {
       if (s.status === 'outside_base_availability') continue;
       const parts = s.time.split('-');

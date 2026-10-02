@@ -669,12 +669,14 @@ async def trigger_reservation_rescheduled_email(
     institution_data: Dict[str, Any],
     original_date: str,
     original_time: str,
+    reschedule_note: str = "",
 ) -> Dict[str, Any]:
     """Trigger email when admin changes reservation date or time."""
     context = _build_email_context(
         booking_data, program_data, institution_data,
         original_date=original_date,
         original_time=original_time,
+        reschedule_note=reschedule_note,
     )
 
     return await EmailService.send_transactional_email(

@@ -234,6 +234,8 @@ const BookingsPageContent = () => {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkLoading, setBulkLoading] = useState(false);
   const [completionPrompt, setCompletionPrompt] = useState(null);
+  const [reschedulePrompt, setReschedulePrompt] = useState(false);
+  const [rescheduleNote, setRescheduleNote] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [calendarFocus, setCalendarFocus] = useState({ date: null, requestId: 0 });
@@ -562,14 +564,22 @@ const BookingsPageContent = () => {
     }
   };
 
-  const updateBooking = async () => {
+  const updateBooking = async (confirmedRescheduleNote = null) => {
     if (!selectedBooking) return;
+    if (editMode === 'datetime' && confirmedRescheduleNote === null) {
+      const changed = editData.date !== selectedBooking.date || editData.time_block !== selectedBooking.time_block;
+      if (changed) {
+        setRescheduleNote('');
+        setReschedulePrompt(true);
+        return;
+      }
+    }
     
     try {
       // Only send fields relevant to the current edit mode
       let payload = {};
       if (editMode === 'datetime') {
-        payload = { date: editData.date, time_block: editData.time_block };
+        payload = { date: editData.date, time_block: editData.time_block, reschedule_note: confirmedRescheduleNote || '' };
       } else if (editMode === 'attendance') {
         payload = { actual_students: editData.actual_students || 0, actual_teachers: editData.actual_teachers || 0 };
       } else if (editMode === 'contact') {
@@ -800,7 +810,7 @@ const BookingsPageContent = () => {
                   </div>
                   <div className="flex gap-2 justify-end">
                     <Button size="sm" variant="outline" onClick={() => setEditMode(null)}>Zrušit</Button>
-                    <Button size="sm" onClick={updateBooking} className="bg-slate-800 text-white" data-testid="save-datetime-btn">
+                    <Button size="sm" onClick={() => updateBooking()} className="bg-slate-800 text-white" data-testid="save-datetime-btn">
                       Uložit
                     </Button>
                   </div>
@@ -1209,6 +1219,18 @@ const BookingsPageContent = () => {
                   Speciální požadavky
                 </h3>
                 <p className="text-sm text-gray-700">{selectedBooking.special_requirements}</p>
+              </Card>
+            )}
+
+            {selectedBooking.payment_method && (
+              <Card className="p-4" data-testid="booking-payment-details">
+                <h3 className="font-semibold text-slate-900 mb-3">Způsob platby</h3>
+                <p className="text-sm text-gray-700">
+                  {{ cash: 'Platba na místě – hotově', card: 'Platba na místě – kartou', invoice: 'Fakturou' }[selectedBooking.payment_method] || selectedBooking.payment_method}
+                </p>
+                {selectedBooking.payment_method === 'invoice' && selectedBooking.invoice_details && (
+                  <p className="mt-3 whitespace-pre-line rounded-lg bg-gray-50 p-3 text-sm text-gray-700">{selectedBooking.invoice_details}</p>
+                )}
               </Card>
             )}
 
@@ -1702,6 +1724,19 @@ const BookingsPageContent = () => {
             <Button className="bg-blue-600 text-white hover:bg-blue-700" onClick={confirmFutureCompletion} data-testid="override-future-completion">
               Přesto označit jako dokončenou
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={reschedulePrompt} onOpenChange={setReschedulePrompt}>
+        <DialogContent className="w-[calc(100%-1rem)] sm:max-w-lg">
+          <DialogHeader><DialogTitle>Důvod změny termínu</DialogTitle></DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="reschedule-note">Poznámka pro příjemce e-mailu (nepovinná)</Label>
+            <Textarea id="reschedule-note" value={rescheduleNote} onChange={(event) => setRescheduleNote(event.target.value)} placeholder="Např. změna z organizačních důvodů." rows={4} data-testid="reschedule-note" />
+          </div>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => setReschedulePrompt(false)}>Zpět</Button>
+            <Button className="bg-slate-800 text-white" onClick={async () => { setReschedulePrompt(false); await updateBooking(rescheduleNote); }} data-testid="confirm-reschedule">Uložit a odeslat oznámení</Button>
           </div>
         </DialogContent>
       </Dialog>

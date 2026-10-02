@@ -119,6 +119,8 @@ async def get_public_programs(
         "id", "institution_id", "name_cs", "name_en", "description_cs", "description_en",
         "duration", "age_group", "age_categories", "target_groups", "subject_tags",
         "min_capacity", "max_capacity", "target_group", "price", "pricing_info", "image_url",
+        "booking_time_note_enabled", "booking_time_note", "booking_payment_enabled",
+        "booking_payment_required", "booking_payment_methods",
         "image_layout", "image_focus_x", "image_focus_y", "status",
         "is_published", "available_days", "time_blocks", "start_date", "end_date",
         "booking_opens_at",

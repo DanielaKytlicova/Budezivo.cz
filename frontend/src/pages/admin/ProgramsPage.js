@@ -163,6 +163,11 @@ const getDefaultFormData = () => ({
   price: 0,
   tariff: 'free',
   pricing_info: '',
+  booking_time_note_enabled: false,
+  booking_time_note: '',
+  booking_payment_enabled: false,
+  booking_payment_required: false,
+  booking_payment_methods: [],
   image_url: null,
   image_layout: 'hero',
   image_focus_x: 50,
@@ -184,6 +189,7 @@ const getDefaultFormData = () => ({
   age_group: 'zs1_7_12',
   allow_parallel: false,
   max_concurrent_bookings: 1,
+  max_bookings_per_day: '',
   collision_resources: [],
   blocked_program_ids: [],
   room_id: null,
@@ -406,6 +412,9 @@ export const ProgramsPage = () => {
     if (!formData.target_groups || formData.target_groups.length === 0) errors.target_groups = PROGRAM_REQUIRED_FIELD_ERRORS.target_groups;
     if (!Number(formData.duration) || Number(formData.duration) <= 0) errors.duration = PROGRAM_REQUIRED_FIELD_ERRORS.duration;
     if (!Number(formData.max_capacity) || Number(formData.max_capacity) <= 0) errors.max_capacity = PROGRAM_REQUIRED_FIELD_ERRORS.max_capacity;
+    if (formData.booking_payment_enabled && (formData.booking_payment_methods || []).length === 0) {
+      errors.booking_payment_methods = 'Vyberte alespoň jeden způsob platby.';
+    }
 
     const hasDetailErrors = Object.keys(errors).length > 0;
     if (formData.feedback_enabled && isPro) {
@@ -418,7 +427,7 @@ export const ProgramsPage = () => {
 
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
-      setActiveTab(hasDetailErrors ? 'detail' : 'feedback');
+      setActiveTab(hasDetailErrors ? 'detail' : (errors.booking_payment_methods ? 'settings' : 'feedback'));
       toast.error('Zkontrolujte zvýrazněná pole.');
       return false;
     }
@@ -517,6 +526,7 @@ export const ProgramsPage = () => {
         age_group: formData.target_group,
         booking_opens_at: dateTimeLocalToISOString(formData.booking_opens_at),
         max_concurrent_bookings: formData.max_concurrent_bookings ? parseInt(formData.max_concurrent_bookings, 10) : null,
+        max_bookings_per_day: formData.max_bookings_per_day ? parseInt(formData.max_bookings_per_day, 10) : null,
       };
       if (editingProgram) {
         await axios.put(`${API}/programs/${editingProgram.id}`, submitData);
@@ -658,6 +668,7 @@ export const ProgramsPage = () => {
       booking_opens_at: toDateTimeLocalInput(program.booking_opens_at),
       allow_parallel: program.allow_parallel || false,
       max_concurrent_bookings: program.max_concurrent_bookings ?? '',
+      max_bookings_per_day: program.max_bookings_per_day ?? '',
       collision_resources: program.collision_resources || [],
       blocked_program_ids: program.blocked_program_ids || [],
       room_id: program.room_id || null,
@@ -1347,6 +1358,55 @@ export const ProgramsPage = () => {
 
   const renderSettingsTab = () => (
     <div className="space-y-6">
+      <Card className="p-4 md:p-6 space-y-5">
+        <h3 className="font-semibold text-slate-900">Rezervační formulář</h3>
+        <label className="flex items-start gap-3">
+          <Switch checked={formData.booking_time_note_enabled} onCheckedChange={(checked) => setFormData({ ...formData, booking_time_note_enabled: checked })} />
+          <span><span className="block font-medium text-slate-800">Zobrazit vlastní informaci pod výběrem času</span><span className="block text-sm text-gray-500">Nepovinná poznámka se zobrazí ve 3. kroku rezervace.</span></span>
+        </label>
+        {formData.booking_time_note_enabled && (
+          <textarea value={formData.booking_time_note || ''} onChange={(e) => setFormData({ ...formData, booking_time_note: e.target.value })} className="w-full min-h-24 rounded-md border border-gray-300 p-3 text-sm" placeholder="Např. přijďte prosím 10 minut před začátkem." data-testid="program-booking-time-note" />
+        )}
+        <label className="flex items-start gap-3 pt-2 border-t">
+          <Switch checked={formData.booking_payment_enabled} onCheckedChange={(checked) => setFormData({ ...formData, booking_payment_enabled: checked })} />
+          <span><span className="block font-medium text-slate-800">Nabídnout výběr způsobu platby</span><span className="block text-sm text-gray-500">Volba se zobrazí ve 4. kroku rezervace.</span></span>
+        </label>
+        {formData.booking_payment_enabled && (
+          <div className="space-y-3 pl-1">
+            {[['cash', 'Platba na místě – hotově'], ['card', 'Platba na místě – kartou'], ['invoice', 'Fakturou']].map(([value, label]) => (
+              <label key={value} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={(formData.booking_payment_methods || []).includes(value)} onChange={(e) => setFormData({ ...formData, booking_payment_methods: e.target.checked ? [...(formData.booking_payment_methods || []), value] : (formData.booking_payment_methods || []).filter((item) => item !== value) })} />
+                {label}
+              </label>
+            ))}
+            <FieldError message={fieldErrors.booking_payment_methods} />
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" checked={formData.booking_payment_required} onChange={(e) => setFormData({ ...formData, booking_payment_required: e.target.checked })} />
+              Výběr způsobu platby je povinný
+            </label>
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-4 md:p-6 space-y-3">
+        <h3 className="font-semibold text-slate-900">Denní limit programu</h3>
+        <p className="text-sm text-gray-500">Omezí celkový počet nezrušených rezervací tohoto programu v jednom dni, bez ohledu na počet nabízených časů.</p>
+        <div className="max-w-xs">
+          <Label htmlFor="program-max-bookings-day">Maximum rezervací za den</Label>
+          <Input
+            id="program-max-bookings-day"
+            type="number"
+            min="1"
+            value={formData.max_bookings_per_day ?? ''}
+            onChange={(e) => setFormData({ ...formData, max_bookings_per_day: e.target.value })}
+            placeholder="Bez omezení"
+            className="mt-1"
+            data-testid="program-max-bookings-per-day"
+          />
+          <p className="mt-1 text-xs text-gray-500">Prázdné pole znamená bez omezení.</p>
+        </div>
+      </Card>
+
       {/* Nabízené dny */}
       <Card className="p-4 md:p-6 space-y-4">
         <h3 className="font-semibold text-slate-900">Nabízené dny</h3>

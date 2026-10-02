@@ -169,6 +169,11 @@ class Program(Base):
     target_groups = Column(JSON, default=[])  # Array of age groups: ms_3_6, zs1_7_12, zs2_12_15, ss_14_18, gym_14_18, adults, all
     price = Column(Float, default=0.0)
     pricing_info = Column(Text)  # Free-form "30 Kč/dítě, pedagog zdarma" — display-only, propagated to confirmation email
+    booking_time_note_enabled = Column(Boolean, nullable=False, default=False, server_default='false')
+    booking_time_note = Column(Text)
+    booking_payment_enabled = Column(Boolean, nullable=False, default=False, server_default='false')
+    booking_payment_required = Column(Boolean, nullable=False, default=False, server_default='false')
+    booking_payment_methods = Column(JSON, nullable=False, default=list, server_default='[]')
     image_url = Column(Text)  # Cover image on public booking page (gated by `program_photos` feature flag)
     image_layout = Column(Text, nullable=False, default="hero", server_default="hero")
     image_focus_x = Column(Integer, nullable=False, default=50, server_default="50")
@@ -196,6 +201,7 @@ class Program(Base):
     # Collision & Parallel Settings
     allow_parallel = Column(Boolean, default=False)  # If True, program can run in parallel with others
     max_concurrent_bookings = Column(Integer, default=1)  # NULL = unlimited same-program parallel bookings
+    max_bookings_per_day = Column(Integer)  # NULL = unlimited reservations of this program per calendar day
     collision_resources = Column(JSON, default=[])  # ["lecturer", "room"] - resources to check for conflicts
     collision_lecturer_ids = Column(JSON, default=[])  # List of specific lecturer IDs to check for collisions
     blocked_program_ids = Column(JSON, default=[])  # List of program IDs that cannot overlap with this one
@@ -265,6 +271,8 @@ class Reservation(Base):
     num_students = Column(Integer, nullable=False)
     num_teachers = Column(Integer, default=1)
     special_requirements = Column(Text)
+    payment_method = Column(Text)
+    invoice_details = Column(Text)
     
     # Contact Info
     contact_name = Column(Text, nullable=False)

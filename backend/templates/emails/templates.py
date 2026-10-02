@@ -868,6 +868,14 @@ Pro vytvořeni nové rezervace navštivte: {data.get('booking_url', '#')}
 def reservation_rescheduled(data: Dict[str, Any]) -> Dict[str, str]:
     """Email sent to teacher when admin changes reservation date or time."""
     theme = _build_theme(data)
+    reschedule_note = str(data.get('reschedule_note') or '').strip()
+    safe_reschedule_note = html_lib.escape(reschedule_note).replace('\n', '<br>')
+    note_html = f"""
+        <div style="margin: 24px 0; padding: 16px; background-color: #F8FAFC; border-radius: 8px; border-left: 4px solid #94A3B8;">
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: #475569; font-weight: 600;">Poznámka ke změně:</p>
+            <p style="margin: 0; font-size: 14px; color: #334155;">{safe_reschedule_note}</p>
+        </div>
+    """ if reschedule_note else ""
 
     content = f"""
         <h1 style="{BASE_STYLES['h1']}">Termín rezervace byl změněn</h1>
@@ -887,6 +895,8 @@ def reservation_rescheduled(data: Dict[str, Any]) -> Dict[str, str]:
                 {data.get('original_date', '')} &nbsp; {data.get('original_time', '')}
             </p>
         </div>
+
+        {note_html}
 
         <div style="margin: 24px 0; padding: 16px; background-color: #D1FAE5; border-radius: 8px; border-left: 4px solid {theme['secondary_color']};">
             <p style="margin: 0 0 8px 0; font-size: 13px; color: #065F46; font-weight: 600;">Nový termín:</p>
@@ -916,6 +926,7 @@ vaše rezervace programu {data.get('program_name', '')} v instituci {data.get('i
 
 Původní termín: {data.get('original_date', '')} {data.get('original_time', '')}
 Nový termín: {data.get('reservation_date', '')} {data.get('reservation_time', '')}
+{f"Důvod změny: {reschedule_note}" if reschedule_note else ""}
 
 Detail:
 - Program: {data.get('program_name', '')}

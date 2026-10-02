@@ -1358,55 +1358,6 @@ export const ProgramsPage = () => {
 
   const renderSettingsTab = () => (
     <div className="space-y-6">
-      <Card className="p-4 md:p-6 space-y-5">
-        <h3 className="font-semibold text-slate-900">Rezervační formulář</h3>
-        <label className="flex items-start gap-3">
-          <Switch checked={formData.booking_time_note_enabled} onCheckedChange={(checked) => setFormData({ ...formData, booking_time_note_enabled: checked })} />
-          <span><span className="block font-medium text-slate-800">Zobrazit vlastní informaci pod výběrem času</span><span className="block text-sm text-gray-500">Nepovinná poznámka se zobrazí ve 3. kroku rezervace.</span></span>
-        </label>
-        {formData.booking_time_note_enabled && (
-          <textarea value={formData.booking_time_note || ''} onChange={(e) => setFormData({ ...formData, booking_time_note: e.target.value })} className="w-full min-h-24 rounded-md border border-gray-300 p-3 text-sm" placeholder="Např. přijďte prosím 10 minut před začátkem." data-testid="program-booking-time-note" />
-        )}
-        <label className="flex items-start gap-3 pt-2 border-t">
-          <Switch checked={formData.booking_payment_enabled} onCheckedChange={(checked) => setFormData({ ...formData, booking_payment_enabled: checked })} />
-          <span><span className="block font-medium text-slate-800">Nabídnout výběr způsobu platby</span><span className="block text-sm text-gray-500">Volba se zobrazí ve 4. kroku rezervace.</span></span>
-        </label>
-        {formData.booking_payment_enabled && (
-          <div className="space-y-3 pl-1">
-            {[['cash', 'Platba na místě – hotově'], ['card', 'Platba na místě – kartou'], ['invoice', 'Fakturou']].map(([value, label]) => (
-              <label key={value} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={(formData.booking_payment_methods || []).includes(value)} onChange={(e) => setFormData({ ...formData, booking_payment_methods: e.target.checked ? [...(formData.booking_payment_methods || []), value] : (formData.booking_payment_methods || []).filter((item) => item !== value) })} />
-                {label}
-              </label>
-            ))}
-            <FieldError message={fieldErrors.booking_payment_methods} />
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <input type="checkbox" checked={formData.booking_payment_required} onChange={(e) => setFormData({ ...formData, booking_payment_required: e.target.checked })} />
-              Výběr způsobu platby je povinný
-            </label>
-          </div>
-        )}
-      </Card>
-
-      <Card className="p-4 md:p-6 space-y-3">
-        <h3 className="font-semibold text-slate-900">Denní limit programu</h3>
-        <p className="text-sm text-gray-500">Omezí celkový počet nezrušených rezervací tohoto programu v jednom dni, bez ohledu na počet nabízených časů.</p>
-        <div className="max-w-xs">
-          <Label htmlFor="program-max-bookings-day">Maximum rezervací za den</Label>
-          <Input
-            id="program-max-bookings-day"
-            type="number"
-            min="1"
-            value={formData.max_bookings_per_day ?? ''}
-            onChange={(e) => setFormData({ ...formData, max_bookings_per_day: e.target.value })}
-            placeholder="Bez omezení"
-            className="mt-1"
-            data-testid="program-max-bookings-per-day"
-          />
-          <p className="mt-1 text-xs text-gray-500">Prázdné pole znamená bez omezení.</p>
-        </div>
-      </Card>
-
       {/* Nabízené dny */}
       <Card className="p-4 md:p-6 space-y-4">
         <h3 className="font-semibold text-slate-900">Nabízené dny</h3>
@@ -1643,6 +1594,46 @@ export const ProgramsPage = () => {
             className="mt-1 bg-white"
             data-testid="program-cleanup-time"
           />
+        </div>
+      </Card>
+
+      <Card className="p-4 md:p-6 space-y-5">
+        <h3 className="font-semibold text-slate-900">Rezervační formulář</h3>
+        <label className="flex items-start gap-3">
+          <Switch checked={formData.booking_time_note_enabled} onCheckedChange={(checked) => setFormData({ ...formData, booking_time_note_enabled: checked })} />
+          <span><span className="block font-medium text-slate-800">Zobrazit vlastní informaci pod výběrem času</span><span className="block text-sm text-gray-500">Nepovinná poznámka se zobrazí ve 3. kroku rezervace.</span></span>
+        </label>
+        {formData.booking_time_note_enabled && (
+          <textarea value={formData.booking_time_note || ''} onChange={(e) => setFormData({ ...formData, booking_time_note: e.target.value })} className="w-full min-h-24 rounded-md border border-gray-300 p-3 text-sm" placeholder="Např. přijďte prosím 10 minut před začátkem." data-testid="program-booking-time-note" />
+        )}
+        <label className="flex items-start gap-3 pt-2 border-t">
+          <Switch checked={formData.booking_payment_enabled} onCheckedChange={(checked) => setFormData({ ...formData, booking_payment_enabled: checked })} />
+          <span><span className="block font-medium text-slate-800">Nabídnout výběr způsobu platby</span><span className="block text-sm text-gray-500">Volba se zobrazí ve 4. kroku rezervace.</span></span>
+        </label>
+        {formData.booking_payment_enabled && (
+          <div className="space-y-3 pl-1">
+            {[['cash', 'Platba na místě – hotově'], ['card', 'Platba na místě – kartou'], ['invoice', 'Fakturou']].map(([value, label]) => (
+              <label key={value} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={(formData.booking_payment_methods || []).includes(value)} onChange={(e) => setFormData({ ...formData, booking_payment_methods: e.target.checked ? [...(formData.booking_payment_methods || []), value] : (formData.booking_payment_methods || []).filter((item) => item !== value) })} />
+                {label}
+              </label>
+            ))}
+            <FieldError message={fieldErrors.booking_payment_methods} />
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input type="checkbox" checked={formData.booking_payment_required} onChange={(e) => setFormData({ ...formData, booking_payment_required: e.target.checked })} />
+              Výběr způsobu platby je povinný
+            </label>
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-4 md:p-6 space-y-3">
+        <h3 className="font-semibold text-slate-900">Denní limit programu</h3>
+        <p className="text-sm text-gray-500">Omezí celkový počet nezrušených rezervací tohoto programu v jednom dni, bez ohledu na počet nabízených časů.</p>
+        <div className="max-w-xs">
+          <Label htmlFor="program-max-bookings-day">Maximum rezervací za den</Label>
+          <Input id="program-max-bookings-day" type="number" min="1" value={formData.max_bookings_per_day ?? ''} onChange={(e) => setFormData({ ...formData, max_bookings_per_day: e.target.value })} placeholder="Bez omezení" className="mt-1" data-testid="program-max-bookings-per-day" />
+          <p className="mt-1 text-xs text-gray-500">Prázdné pole znamená bez omezení.</p>
         </div>
       </Card>
     </div>

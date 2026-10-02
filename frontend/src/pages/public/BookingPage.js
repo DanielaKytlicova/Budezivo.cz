@@ -474,12 +474,14 @@ export const BookingPage = () => {
     }
   }, [searchParams]);
 
-  const handleProgramSelect = async (program) => {
+  const handleProgramSelect = (program) => {
     setSelectedProgram(program);
     setFormData({ ...formData, program_id: program.id, payment_method: '', invoice_details: '' });
-    // Fetch calendar for selected program
-    await fetchCalendar(currentYear, currentMonth, program.id);
+    // Show the calendar step immediately. Some institutions have enough
+    // availability data for this request to take several seconds; keeping the
+    // program list visible made a successful click look unresponsive.
     setStep(2);
+    void fetchCalendar(currentYear, currentMonth, program.id);
   };
 
   const handleDateSelect = async (date) => {

@@ -329,6 +329,11 @@ class ProgramRepositorySupabase:
             target_groups=program_data.get('target_groups', []),
             price=program_data.get('price', 0.0),
             pricing_info=program_data.get('pricing_info'),
+            booking_time_note_enabled=program_data.get('booking_time_note_enabled', False),
+            booking_time_note=program_data.get('booking_time_note'),
+            booking_payment_enabled=program_data.get('booking_payment_enabled', False),
+            booking_payment_required=program_data.get('booking_payment_required', False),
+            booking_payment_methods=program_data.get('booking_payment_methods', []),
             image_url=program_data.get('image_url'),
             image_layout=program_data.get('image_layout', 'hero'),
             image_focus_x=program_data.get('image_focus_x', 50),
@@ -348,6 +353,7 @@ class ProgramRepositorySupabase:
             cleanup_time=program_data.get('cleanup_time', 0),
             allow_parallel=program_data.get('allow_parallel', False),
             max_concurrent_bookings=program_data.get('max_concurrent_bookings', 1),
+            max_bookings_per_day=program_data.get('max_bookings_per_day'),
             collision_resources=program_data.get('collision_resources', []),
             blocked_program_ids=program_data.get('blocked_program_ids', []),
             required_lecturers=program_data.get('required_lecturers', 1) or 1,
@@ -387,6 +393,12 @@ class ProgramRepositorySupabase:
                 processed_data['max_concurrent_bookings'] = value if value and value > 0 else None
             except (TypeError, ValueError):
                 processed_data['max_concurrent_bookings'] = None
+        if 'max_bookings_per_day' in processed_data:
+            try:
+                value = int(processed_data['max_bookings_per_day']) if processed_data['max_bookings_per_day'] not in (None, '') else None
+                processed_data['max_bookings_per_day'] = value if value and value > 0 else None
+            except (TypeError, ValueError):
+                processed_data['max_bookings_per_day'] = None
         
         # Convert assigned_lecturer_id to UUID
         if 'assigned_lecturer_id' in processed_data:

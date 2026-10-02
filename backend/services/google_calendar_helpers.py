@@ -127,6 +127,7 @@ def build_export_event_body(
     room_name: Optional[str],
     school_name: Optional[str],
     group_type: Optional[str],
+    age_or_class: Optional[str],
     num_students: Optional[int],
     admin_base_url: str,
     color_id: Optional[str] = None,
@@ -147,6 +148,8 @@ def build_export_event_body(
         desc_lines.append(f"Skupina: {school_name}")
     if group_type:
         desc_lines.append(f"Typ skupiny: {group_type}")
+    if age_or_class:
+        desc_lines.append(f"Třída: {age_or_class}")
     if num_students:
         desc_lines.append(f"Počet žáků: {num_students}")
     desc_lines.append(f"Stav: {status_label}")

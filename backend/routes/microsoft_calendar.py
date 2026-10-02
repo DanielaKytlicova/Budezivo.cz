@@ -843,6 +843,7 @@ async def _export_reservations_ms(db: AsyncSession, integration: UserCalendarInt
             duration=prog.duration if prog else None, institution_name=inst_name,
             room_name=rooms.get(prog.room_id) if prog and prog.room_id else None,
             school_name=r.school_name, group_type=r.group_type,
+            age_or_class=r.age_or_class,
             num_students=r.num_students, admin_base_url=admin_base,
         )
         if not g_body:

@@ -1037,6 +1037,7 @@ async def _export_reservations(db: AsyncSession, integration: UserCalendarIntegr
             room_name=rooms.get(prog.room_id) if prog and prog.room_id else None,
             school_name=r.school_name,
             group_type=r.group_type,
+            age_or_class=r.age_or_class,
             num_students=r.num_students,
             admin_base_url=admin_base,
             color_id=GOOGLE_PROGRAM_COLOR_IDS[program_color_index(str(r.program_id))],

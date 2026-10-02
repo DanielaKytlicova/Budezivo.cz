@@ -50,12 +50,16 @@ from services.booking_analytics import (
 )
 from routes.audit import log_action
 
-from pydantic import BaseModel as PydanticBaseModel
+from pydantic import BaseModel as PydanticBaseModel, Field
 
 class BulkStatusRequest(PydanticBaseModel):
     booking_ids: List[str]
     status: str  # confirmed, cancelled, completed
     override_future_completion: bool = False
+
+
+class BookingStatusUpdateRequest(PydanticBaseModel):
+    confirmation_response: Optional[str] = Field(default=None, max_length=2000)
 
 class AssignLecturerRequest(PydanticBaseModel):
     lecturer_id: Optional[str] = None
@@ -762,6 +766,7 @@ async def update_booking_status(
     booking_id: str,
     status: str,
     background_tasks: BackgroundTasks,
+    payload: Optional[BookingStatusUpdateRequest] = None,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     override_future_completion: bool = False,
@@ -771,6 +776,7 @@ async def update_booking_status(
     program_repo = ProgramRepositorySupabase(db)
     institution_repo = InstitutionRepositorySupabase(db)
     log_repo = EmailLogRepositorySupabase(db)
+    template_repo = EmailTemplateRepositorySupabase(db)
     
     # Get booking before update
     booking = await booking_repo.find_by_id(booking_id, current_user["institution_id"])
@@ -822,10 +828,13 @@ async def update_booking_status(
                 and preferences["customer"]["reservation_confirmed"]
                 and program.get("send_email_notification", False)
             ):
+                email_template = await template_repo.find_by_program(booking.get("program_id"))
                 email_result = await trigger_reservation_confirmed_email(
                     booking_data=booking,
                     program_data=program,
                     institution_data=institution,
+                    email_template=email_template,
+                    confirmation_response=(payload.confirmation_response or "").strip() if payload else "",
                 )
                 template_name = "reservation_confirmed"
                 
@@ -1073,6 +1082,7 @@ async def bulk_update_booking_status(
     program_repo = ProgramRepositorySupabase(db)
     institution_repo = InstitutionRepositorySupabase(db)
     log_repo = EmailLogRepositorySupabase(db)
+    template_repo = EmailTemplateRepositorySupabase(db)
     
     # Check permissions
     admin_user = await user_repo.find_by_id(current_user["user_id"])
@@ -1135,9 +1145,11 @@ async def bulk_update_booking_status(
                         and preferences["customer"]["reservation_confirmed"]
                         and program.get("send_email_notification", False)
                     ):
+                        email_template = await template_repo.find_by_program(booking.get("program_id"))
                         email_result = await trigger_reservation_confirmed_email(
                             booking_data=booking, program_data=program,
                             institution_data=institution,
+                            email_template=email_template,
                         )
                         template_name = "reservation_confirmed"
                     elif request.status == "cancelled" and old_status != "cancelled":

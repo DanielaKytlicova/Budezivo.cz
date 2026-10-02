@@ -9,6 +9,7 @@ import re
 import logging
 import uuid
 import json as json_lib
+import unicodedata
 from typing import List, Optional
 from datetime import datetime, timezone
 from pydantic import BaseModel, EmailStr, Field
@@ -174,6 +175,26 @@ def parse_tags(tag_string: str) -> List[str]:
 def get_school_key(name: str, city: str) -> str:
     """Generate unique key for school (name + city)."""
     return f"{name.lower().strip()}|{(city or '').lower().strip()}"
+
+
+def normalize_school_match_name(name: str) -> str:
+    """Return a conservative key for unambiguous school-name duplicates."""
+    decomposed = unicodedata.normalize("NFKD", name or "")
+    without_accents = "".join(
+        character for character in decomposed
+        if not unicodedata.combining(character)
+    )
+    return re.sub(r"[^a-z0-9]+", " ", without_accents.casefold()).strip()
+
+
+def _school_display_name_score(name: str, booking_count: int) -> tuple:
+    """Prefer readable Czech spelling, then useful punctuation and usage."""
+    accent_count = sum(
+        1 for character in (name or "")
+        if unicodedata.normalize("NFD", character) != character
+    )
+    punctuation_count = sum(1 for character in (name or "") if character in ",.-")
+    return accent_count, punctuation_count, len(name or ""), booking_count or 0
 
 
 # ============ File Parsing ============
@@ -358,6 +379,11 @@ async def setup_contacts_table(
         raise HTTPException(status_code=403, detail="Přístup odepřen")
     
     try:
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:inst_id))"),
+            {"inst_id": current_user["institution_id"]},
+        )
+
         # Add missing columns to schools table
         try:
             await db.execute(text("""
@@ -608,6 +634,173 @@ async def migrate_existing_contacts(
         """), {"inst_id": current_user["institution_id"]})
         created_contact_count = len(created_contacts.fetchall())
 
+        # Merge active cards whose names differ only by accents, punctuation,
+        # case or whitespace. Source cards are archived, never hard-deleted.
+        school_rows = (await db.execute(text("""
+            SELECT id, name, address, city, ico, notes, tags, booking_count,
+                   created_at, email, contact_person, phone
+            FROM schools
+            WHERE institution_id = :inst_id
+              AND deleted_at IS NULL
+            ORDER BY created_at ASC
+        """), {"inst_id": current_user["institution_id"]})).fetchall()
+
+        duplicate_groups = {}
+        for school in school_rows:
+            normalized_name = normalize_school_match_name(school[1])
+            if normalized_name:
+                duplicate_groups.setdefault(normalized_name, []).append(school)
+
+        merged_school_count = 0
+        for group in duplicate_groups.values():
+            if len(group) < 2:
+                continue
+
+            canonical = max(
+                group,
+                key=lambda school: _school_display_name_score(school[1], school[7] or 0),
+            )
+            canonical_id = str(canonical[0])
+            canonical_tags = list(canonical[6] or [])
+            canonical_notes = canonical[5] or ""
+            canonical_fields = {
+                "address": canonical[2],
+                "city": canonical[3],
+                "ico": canonical[4],
+                "email": canonical[9],
+                "contact_person": canonical[10],
+                "phone": canonical[11],
+            }
+
+            for duplicate in group:
+                duplicate_id = str(duplicate[0])
+                if duplicate_id == canonical_id:
+                    continue
+
+                await db.execute(text("""
+                    UPDATE reservations
+                    SET school_id = :canonical_id
+                    WHERE institution_id = :inst_id
+                      AND school_id = :duplicate_id
+                """), {
+                    "inst_id": current_user["institution_id"],
+                    "canonical_id": canonical_id,
+                    "duplicate_id": duplicate_id,
+                })
+
+                # Move only unique e-mails. Same-address contacts stay on the
+                # archived source card so the operation remains recoverable.
+                await db.execute(text("""
+                    UPDATE school_contacts target
+                    SET name = COALESCE(NULLIF(TRIM(target.name), ''), source.name),
+                        phone = COALESCE(NULLIF(TRIM(target.phone), ''), source.phone),
+                        updated_at = NOW()
+                    FROM school_contacts source
+                    WHERE target.institution_id = :inst_id
+                      AND target.school_id = :canonical_id
+                      AND source.school_id = :duplicate_id
+                      AND LOWER(TRIM(target.email)) = LOWER(TRIM(source.email))
+                """), {
+                    "inst_id": current_user["institution_id"],
+                    "canonical_id": canonical_id,
+                    "duplicate_id": duplicate_id,
+                })
+
+                await db.execute(text("""
+                    UPDATE school_contacts source
+                    SET school_id = :canonical_id,
+                        updated_at = NOW()
+                    WHERE source.institution_id = :inst_id
+                      AND source.school_id = :duplicate_id
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM school_contacts target
+                          WHERE target.school_id = :canonical_id
+                            AND LOWER(TRIM(target.email)) = LOWER(TRIM(source.email))
+                      )
+                """), {
+                    "inst_id": current_user["institution_id"],
+                    "canonical_id": canonical_id,
+                    "duplicate_id": duplicate_id,
+                })
+
+                canonical_tags = list(dict.fromkeys([*canonical_tags, *(duplicate[6] or [])]))
+                if duplicate[5] and duplicate[5] not in canonical_notes:
+                    canonical_notes = "\n\n".join(
+                        value for value in (canonical_notes, duplicate[5]) if value
+                    )
+                for field, index in (
+                    ("address", 2), ("city", 3), ("ico", 4),
+                    ("email", 9), ("contact_person", 10), ("phone", 11),
+                ):
+                    if not canonical_fields[field] and duplicate[index]:
+                        canonical_fields[field] = duplicate[index]
+
+                await db.execute(text("""
+                    UPDATE schools
+                    SET deleted_at = NOW(),
+                        updated_at = NOW(),
+                        notes = CASE
+                            WHEN NULLIF(TRIM(notes), '') IS NULL THEN :merge_note
+                            ELSE notes || E'\\n\\n' || :merge_note
+                        END
+                    WHERE id = :duplicate_id
+                      AND institution_id = :inst_id
+                      AND deleted_at IS NULL
+                """), {
+                    "inst_id": current_user["institution_id"],
+                    "duplicate_id": duplicate_id,
+                    "merge_note": f"Sloučeno do záznamu {canonical[1]} ({canonical_id}).",
+                })
+                merged_school_count += 1
+
+            await db.execute(text("""
+                UPDATE schools
+                SET address = :address,
+                    city = :city,
+                    ico = :ico,
+                    notes = :notes,
+                    tags = CAST(:tags AS jsonb),
+                    email = :email,
+                    contact_person = :contact_person,
+                    phone = :phone,
+                    updated_at = NOW()
+                WHERE id = :canonical_id
+                  AND institution_id = :inst_id
+            """), {
+                "inst_id": current_user["institution_id"],
+                "canonical_id": canonical_id,
+                "tags": json_lib.dumps(canonical_tags),
+                "notes": canonical_notes or None,
+                **canonical_fields,
+            })
+
+            await db.execute(text("""
+                UPDATE school_contacts
+                SET is_primary = FALSE, updated_at = NOW()
+                WHERE institution_id = :inst_id
+                  AND school_id = :canonical_id
+            """), {
+                "inst_id": current_user["institution_id"],
+                "canonical_id": canonical_id,
+            })
+            await db.execute(text("""
+                UPDATE school_contacts
+                SET is_primary = TRUE, updated_at = NOW()
+                WHERE id = (
+                    SELECT id
+                    FROM school_contacts
+                    WHERE institution_id = :inst_id
+                      AND school_id = :canonical_id
+                      AND NOT status LIKE 'archived%'
+                    ORDER BY created_at ASC
+                    LIMIT 1
+                )
+            """), {
+                "inst_id": current_user["institution_id"],
+                "canonical_id": canonical_id,
+            })
+
         # Recalculate the displayed count from the real linked reservations.
         await db.execute(text("""
             UPDATE schools s
@@ -642,6 +835,7 @@ async def migrate_existing_contacts(
             "created_schools": created_school_count,
             "created_contacts": created_contact_count,
             "linked_reservations": linked_count,
+            "merged_schools": merged_school_count,
         }
         
     except Exception as e:

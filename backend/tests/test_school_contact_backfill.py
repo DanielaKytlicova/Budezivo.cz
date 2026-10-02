@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 import pytest
 
-from routes.schools import migrate_existing_contacts
+from routes.schools import migrate_existing_contacts, normalize_school_match_name
 
 
 class FakeResult:
@@ -15,15 +15,18 @@ class FakeResult:
 
 
 class FakeDb:
-    def __init__(self):
+    def __init__(self, school_rows=None):
         self.statements = []
         self.committed = False
+        self.school_rows = school_rows or []
 
     async def execute(self, statement, params=None):
         sql = str(statement)
         self.statements.append((sql, params))
         if "SELECT s.id, s.institution_id" in sql:
             return FakeResult(rows=[])
+        if "SELECT id, name, address, city, ico" in sql:
+            return FakeResult(rows=self.school_rows)
         if "RETURNING id" in sql:
             return FakeResult(rows=[])
         return FakeResult(rowcount=0)
@@ -58,6 +61,47 @@ def test_historical_contact_backfill_is_tenant_scoped_and_idempotent():
     assert db.committed is True
     assert result["created_schools"] == 0
     assert result["created_contacts"] == 0
+    assert result["merged_schools"] == 0
+
+
+def test_school_name_normalization_matches_only_formatting_variants():
+    assert normalize_school_match_name("Radostný spolek") == normalize_school_match_name(
+        "Radostny spolek"
+    )
+    assert normalize_school_match_name("Srdce Montessori, z.s.") == normalize_school_match_name(
+        "Srdce Montessori z.s."
+    )
+    assert normalize_school_match_name("ZŠ Liberec") != normalize_school_match_name("ZŠ Jablonec")
+
+
+def test_formatting_duplicates_are_merged_into_better_display_name():
+    plain_id = "22222222-2222-2222-2222-222222222222"
+    accented_id = "33333333-3333-3333-3333-333333333333"
+    rows = [
+        (plain_id, "Radostny spolek", None, None, None, None, [], 2, None, None, None, None),
+        (accented_id, "Radostný spolek", None, None, None, None, [], 2, None, None, None, None),
+    ]
+    db = FakeDb(school_rows=rows)
+
+    result = asyncio.run(
+        migrate_existing_contacts(
+            current_user={
+                "role": "spravce",
+                "institution_id": "11111111-1111-1111-1111-111111111111",
+            },
+            db=db,
+        )
+    )
+
+    statement_params = [params or {} for _, params in db.statements]
+    merge_params = [
+        params for params in statement_params
+        if params.get("duplicate_id") and params.get("canonical_id")
+    ]
+    assert merge_params
+    assert all(params["canonical_id"] == accented_id for params in merge_params)
+    assert all(params["duplicate_id"] == plain_id for params in merge_params)
+    assert result["merged_schools"] == 1
 
 
 def test_contact_backfill_rejects_non_management_role():

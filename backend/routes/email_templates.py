@@ -19,9 +19,45 @@ from database.supabase_repositories import (
     InstitutionRepositorySupabase
 )
 from services.email_service import EmailService, EmailTemplateRenderer
+from config.email_config import EmailType, get_sender_for_email_type
+from templates.emails import get_template
 
 router = APIRouter(prefix="/programs", tags=["Email Templates"])
 logger = logging.getLogger(__name__)
+
+
+def _reservation_confirmation_sample_context(program: dict, institution: dict, recipient: str) -> dict:
+    """Build representative data for the real reservation confirmation template."""
+    return {
+        "school_name": "Základní škola Příkladová",
+        "teacher_name": "Jan Novák",
+        "contact_person": "Jan Novák",
+        "teacher_email": recipient,
+        "email": recipient,
+        "teacher_phone": "+420 123 456 789",
+        "phone": "+420 123 456 789",
+        "reservation_date": datetime.now().strftime("%d.%m.%Y"),
+        "reservation_time": "09:00–10:00",
+        "children_count": 25,
+        "number_of_students": 25,
+        "teachers_count": 2,
+        "number_of_teachers": 2,
+        "program_name": program.get("name_cs", "Název programu"),
+        "program_duration": program.get("duration", 60),
+        "program_pricing_info": program.get("pricing_info") or "",
+        "institution_name": institution.get("name", "Vaše instituce"),
+        "institution_email": institution.get("email", ""),
+        "institution_phone": institution.get("phone", ""),
+        "institution_address": institution.get("address", ""),
+        "institution_logo_url": institution.get("logo_url"),
+        "theme_logo_url": institution.get("theme_logo_url"),
+        "theme_primary_color": institution.get("theme_primary_color"),
+        "theme_secondary_color": institution.get("theme_secondary_color"),
+        "theme_accent_color": institution.get("theme_accent_color"),
+        "special_requirements": "Bezbariérový přístup",
+        "google_calendar_url": "https://calendar.google.com/calendar/render?action=TEMPLATE",
+        "outlook_calendar_url": "https://outlook.live.com/calendar/0/deeplink/compose",
+    }
 
 
 # ============ Pydantic Models ============
@@ -139,8 +175,6 @@ async def preview_email_template(
     # Get institution info
     institution_repo = InstitutionRepositorySupabase(db)
     institution = await institution_repo.find_by_id(current_user["institution_id"])
-    
-    # Sample data for preview
     sample_context = {
         "school_name": "Základní škola Příkladová",
         "contact_person": "Jan Novák",
@@ -155,8 +189,6 @@ async def preview_email_template(
         "institution_name": institution.get("name", "Vaše instituce") if institution else "Vaše instituce",
         "special_requirements": "Bezbariérový přístup",
     }
-    
-    # Render preview
     rendered_subject = EmailTemplateRenderer.render(data.subject, sample_context)
     rendered_body = EmailTemplateRenderer.render(data.body, sample_context)
     
@@ -193,30 +225,25 @@ async def send_test_email(
     
     # Get institution info
     institution_repo = InstitutionRepositorySupabase(db)
-    institution = await institution_repo.find_by_id(current_user["institution_id"])
-    
-    # Sample data for test
-    sample_context = {
-        "school_name": "Základní škola Příkladová",
-        "contact_person": "Jan Novák",
-        "email": data.recipient_email,
-        "phone": "+420 123 456 789",
-        "reservation_date": datetime.now().strftime("%d.%m.%Y"),
-        "reservation_time": "09:00",
-        "number_of_students": 25,
-        "number_of_teachers": 2,
-        "program_name": program.get("name_cs", "Název programu"),
-        "program_duration": program.get("duration", 60),
-        "institution_name": institution.get("name", "Vaše instituce") if institution else "Vaše instituce",
-        "special_requirements": "Bezbariérový přístup",
-    }
-    
-    # Send test email
-    result = await EmailService.send_test_email(
+    institution = await institution_repo.find_by_id_with_theme(current_user["institution_id"])
+    sample_context = _reservation_confirmation_sample_context(
+        program,
+        institution or {},
+        str(data.recipient_email),
+    )
+    rendered = get_template("reservation_confirmed", sample_context)
+
+    # Use the same renderer, sender and HTML/text structure as the production
+    # confirmation. Only the subject prefix marks this message as a test.
+    result = await EmailService.send_email(
         to_email=data.recipient_email,
-        subject=data.subject,
-        body=data.body,
-        context=sample_context
+        subject=f"[TEST] {rendered['subject']}",
+        html_content=rendered["html"],
+        text_content=rendered.get("text"),
+        from_email=get_sender_for_email_type(EmailType.RESERVATION_CONFIRMED),
+        reply_to=(institution or {}).get("email"),
+        add_gdpr_footer=False,
+        tags=[{"name": "template", "value": "reservation_confirmed_test"}],
     )
     
     # Log the test email
@@ -227,8 +254,8 @@ async def send_test_email(
             "program_id": program_id,
             "reservation_id": None,
             "recipient_email": data.recipient_email,
-            "subject": f"[TEST] {EmailTemplateRenderer.render(data.subject, sample_context)}",
-            "body_snapshot": EmailTemplateRenderer.render(data.body, sample_context),
+            "subject": f"[TEST] {rendered['subject']}",
+            "body_snapshot": rendered["html"],
             "status": result.get("status"),
             "error_message": result.get("error"),
             "email_id": result.get("email_id"),

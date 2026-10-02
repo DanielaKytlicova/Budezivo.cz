@@ -973,6 +973,8 @@ export const BookingPage = () => {
                   const startDate = formatDate(program.start_date);
                   const endDate = formatDate(program.end_date);
                   const hasValidity = startDate || endDate;
+                  const imageLayout = program.image_layout || 'hero';
+                  const imagePosition = `${program.image_focus_x ?? 50}% ${program.image_focus_y ?? 50}%`;
                   
                   return (
                   <Card
@@ -984,16 +986,19 @@ export const BookingPage = () => {
                     onClick={() => handleProgramSelect(program)}
                     data-testid={`program-card-${program.id}`}
                   >
-                    {program.image_url && (
+                    {program.image_url && imageLayout === 'hero' && (
                       <div className="-mx-6 -mt-6 mb-4 rounded-t-lg overflow-hidden">
                         <img
                           src={resolveAssetUrl(program.image_url)}
                           alt={program.name_cs}
                           className="w-full h-48 object-cover"
+                          style={{ objectPosition: imagePosition }}
                           data-testid={`program-image-${program.id}`}
                         />
                       </div>
                     )}
+                    <div className={program.image_url && imageLayout === 'square' ? 'grid gap-4 md:grid-cols-[minmax(0,1fr)_12rem] md:gap-6' : ''}>
+                    <div className="min-w-0">
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <h3 className="text-xl font-semibold text-[#2B3E50] mb-1">{program.name_cs}</h3>
@@ -1043,6 +1048,19 @@ export const BookingPage = () => {
                         </p>
                       </div>
                     )}
+                    </div>
+                    {program.image_url && imageLayout === 'square' && (
+                      <div className="aspect-square w-full max-w-48 md:max-w-none md:self-stretch overflow-hidden rounded-lg bg-slate-100 md:-my-6 md:-mr-6 md:rounded-none md:rounded-r-lg">
+                        <img
+                          src={resolveAssetUrl(program.image_url)}
+                          alt={program.name_cs}
+                          className="w-full h-full object-cover"
+                          style={{ objectPosition: imagePosition }}
+                          data-testid={`program-image-${program.id}`}
+                        />
+                      </div>
+                    )}
+                    </div>
                   </Card>
                   );
                 })}

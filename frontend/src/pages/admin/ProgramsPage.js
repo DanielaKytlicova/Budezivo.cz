@@ -26,6 +26,96 @@ import { API, resolveAssetUrl } from '../../config/api';
 
 const TOUR_SEEN_KEY = 'bz_program_tour_seen_v1';
 
+const ProgramImageCropEditor = ({ src, layout, focusX, focusY, onChange }) => {
+  const updateFocusFromPointer = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = Math.round(Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)));
+    const y = Math.round(Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100)));
+    onChange({ image_focus_x: x, image_focus_y: y });
+  };
+
+  return (
+    <div className="space-y-3 flex-1 min-w-0">
+      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Rozložení fotografie">
+        <button
+          type="button"
+          className={`rounded-lg border px-3 py-2 text-sm text-left ${layout === 'hero' ? 'border-slate-800 bg-slate-50 font-medium' : 'border-slate-200'}`}
+          onClick={() => onChange({ image_layout: 'hero' })}
+          aria-pressed={layout === 'hero'}
+          data-testid="program-photo-layout-hero"
+        >
+          Široký obrázek nahoře
+        </button>
+        <button
+          type="button"
+          className={`rounded-lg border px-3 py-2 text-sm text-left ${layout === 'square' ? 'border-slate-800 bg-slate-50 font-medium' : 'border-slate-200'}`}
+          onClick={() => onChange({ image_layout: 'square' })}
+          aria-pressed={layout === 'square'}
+          data-testid="program-photo-layout-square"
+        >
+          Čtverec vpravo
+        </button>
+      </div>
+
+      <div>
+        <p className="text-xs font-medium text-slate-600 mb-1">Přetáhněte fotografii na místo, které má zůstat ve výřezu</p>
+        <div
+          className={`relative overflow-hidden rounded-lg border-2 border-slate-300 bg-slate-100 cursor-crosshair touch-none ${layout === 'square' ? 'aspect-square max-w-64' : 'aspect-[3/1] w-full'}`}
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            updateFocusFromPointer(event);
+          }}
+          onPointerMove={(event) => {
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) updateFocusFromPointer(event);
+          }}
+          data-testid="program-photo-crop-editor"
+        >
+          <img
+            src={src}
+            alt="Náhled zvoleného výřezu"
+            className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+            style={{ objectPosition: `${focusX}% ${focusY}%` }}
+            draggable="false"
+            data-testid="program-photo-preview"
+          />
+          <span
+            className="absolute w-6 h-6 -ml-3 -mt-3 rounded-full border-2 border-white bg-slate-900/70 shadow pointer-events-none"
+            style={{ left: `${focusX}%`, top: `${focusY}%` }}
+            aria-hidden="true"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <label className="text-xs text-slate-600">
+          Vodorovně
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={focusX}
+            onChange={(event) => onChange({ image_focus_x: Number(event.target.value) })}
+            className="block w-full mt-1"
+            aria-label="Vodorovná poloha výřezu"
+          />
+        </label>
+        <label className="text-xs text-slate-600">
+          Svisle
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={focusY}
+            onChange={(event) => onChange({ image_focus_y: Number(event.target.value) })}
+            className="block w-full mt-1"
+            aria-label="Svislá poloha výřezu"
+          />
+        </label>
+      </div>
+    </div>
+  );
+};
+
 const DAYS = [
   { key: 'monday', label: 'Po' },
   { key: 'tuesday', label: 'Út' },
@@ -74,6 +164,9 @@ const getDefaultFormData = () => ({
   tariff: 'free',
   pricing_info: '',
   image_url: null,
+  image_layout: 'hero',
+  image_focus_x: 50,
+  image_focus_y: 50,
   requires_approval: false,
   is_published: true,
   is_in_catalog: false,
@@ -235,8 +328,18 @@ export const ProgramsPage = () => {
         { headers: { 'Content-Type': 'multipart/form-data' } },
       );
       const newUrl = res.data?.image_url;
-      setFormData((prev) => ({ ...prev, image_url: newUrl }));
-      setEditingProgram((prev) => (prev ? { ...prev, image_url: newUrl } : prev));
+      setFormData((prev) => ({
+        ...prev,
+        image_url: newUrl,
+        image_focus_x: 50,
+        image_focus_y: 50,
+      }));
+      setEditingProgram((prev) => (prev ? {
+        ...prev,
+        image_url: newUrl,
+        image_focus_x: 50,
+        image_focus_y: 50,
+      } : prev));
       fetchPrograms();
       toast.success('Fotografie nahrána');
     } catch (error) {
@@ -1067,13 +1170,14 @@ export const ProgramsPage = () => {
 
           {formData.image_url ? (
             <div className="flex flex-col md:flex-row gap-4 items-start">
-              <img
+              <ProgramImageCropEditor
                 src={resolveAssetUrl(formData.image_url)}
-                alt="Náhled fotografie programu"
-                className="w-full md:w-64 h-40 object-cover rounded-lg border border-slate-200"
-                data-testid="program-photo-preview"
+                layout={formData.image_layout || 'hero'}
+                focusX={formData.image_focus_x ?? 50}
+                focusY={formData.image_focus_y ?? 50}
+                onChange={(changes) => setFormData((previous) => ({ ...previous, ...changes }))}
               />
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 shrink-0">
                 <label className="cursor-pointer">
                   <input
                     type="file"

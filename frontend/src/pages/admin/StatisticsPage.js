@@ -99,7 +99,7 @@ export const StatisticsPage = () => {
   const [conversionData, setConversionData] = useState(null);
 
   // Filtry
-  const [periodType, setPeriodType] = useState('month');
+  const [periodType, setPeriodType] = useState('semester');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedSemester, setSelectedSemester] = useState(1);

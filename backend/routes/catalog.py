@@ -62,6 +62,8 @@ def _row_to_card(row) -> Dict[str, Any]:
         "price":        row.get("price") or 0.0,
         "pricing_info": row.get("pricing_info"),
         "image_url":    row.get("image_url"),
+        "image_focus_x": row.get("image_focus_x", 50),
+        "image_focus_y": row.get("image_focus_y", 50),
         "age_groups":   target_groups,
         "age_labels":   [_age_label(t) for t in target_groups],
         "categories":   subject_tags,
@@ -127,7 +129,8 @@ async def list_catalog(
         SELECT
             p.id, p.institution_id, p.name_cs, p.name_en, p.description_cs, p.description_en,
             p.duration, p.min_capacity, p.max_capacity, p.price, p.pricing_info,
-            p.image_url, p.age_group, p.target_groups, p.subject_tags, p.created_at,
+            p.image_url, p.image_focus_x, p.image_focus_y,
+            p.age_group, p.target_groups, p.subject_tags, p.created_at,
             i.name AS institution_name, i.city AS institution_city,
             COALESCE(rc.cnt, 0) AS reservation_count
         FROM programs p
@@ -212,7 +215,8 @@ async def get_catalog_detail(
         SELECT
             p.id, p.institution_id, p.name_cs, p.name_en, p.description_cs, p.description_en,
             p.duration, p.min_capacity, p.max_capacity, p.price, p.pricing_info,
-            p.image_url, p.age_group, p.target_groups, p.subject_tags, p.created_at,
+            p.image_url, p.image_focus_x, p.image_focus_y,
+            p.age_group, p.target_groups, p.subject_tags, p.created_at,
             i.name AS institution_name, i.city AS institution_city, i.address AS institution_address,
             COALESCE(rc.cnt, 0) AS reservation_count
         FROM programs p

@@ -80,6 +80,9 @@ class ProgramBase(BaseModel):
     price: Optional[float] = 0.0
     pricing_info: Optional[str] = None
     image_url: Optional[str] = None
+    image_layout: str = "hero"
+    image_focus_x: int = Field(default=50, ge=0, le=100)
+    image_focus_y: int = Field(default=50, ge=0, le=100)
     status: str = "active"
     requires_approval: bool = False
     is_published: bool = True
@@ -133,6 +136,12 @@ class ProgramBase(BaseModel):
         except (TypeError, ValueError):
             return None
         return value if value > 0 else None
+
+    @validator('image_layout')
+    def validate_image_layout(cls, value):
+        if value not in ("hero", "square"):
+            raise ValueError("Neplatné rozložení fotografie")
+        return value
 
     @validator('feedback_questions', pre=True, always=True)
     def default_feedback_questions(cls, v):

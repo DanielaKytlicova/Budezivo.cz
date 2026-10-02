@@ -170,6 +170,9 @@ class Program(Base):
     price = Column(Float, default=0.0)
     pricing_info = Column(Text)  # Free-form "30 Kč/dítě, pedagog zdarma" — display-only, propagated to confirmation email
     image_url = Column(Text)  # Cover image on public booking page (gated by `program_photos` feature flag)
+    image_layout = Column(Text, nullable=False, default="hero", server_default="hero")
+    image_focus_x = Column(Integer, nullable=False, default=50, server_default="50")
+    image_focus_y = Column(Integer, nullable=False, default=50, server_default="50")
     
     # Status & Publishing
     status = Column(Text, nullable=False, default='active')  # active, concept, archived

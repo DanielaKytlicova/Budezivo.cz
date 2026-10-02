@@ -377,7 +377,12 @@ const ProgramCard = ({ p }) => (
       {/* Image */}
       <div className="relative h-44 bg-gradient-to-br from-[#EEF2F9] to-[#F8F9FA] overflow-hidden">
         {p.image_url ? (
-          <img src={resolveAssetUrl(p.image_url)} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          <img
+            src={resolveAssetUrl(p.image_url)}
+            alt={p.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            style={{ objectPosition: `${p.image_focus_x ?? 50}% ${p.image_focus_y ?? 50}%` }}
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Sparkles className="w-12 h-12 text-[#4A6FA5]/30" />
@@ -480,7 +485,12 @@ const CompactProgramCard = ({ p }) => (
     <Card className="overflow-hidden bg-white border border-slate-100 hover:border-[#4A6FA5]/30 hover:shadow-md transition-all h-full">
       <div className="relative h-32 bg-gradient-to-br from-[#EEF2F9] to-[#F8F9FA] overflow-hidden">
         {p.image_url ? (
-          <img src={resolveAssetUrl(p.image_url)} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          <img
+            src={resolveAssetUrl(p.image_url)}
+            alt={p.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            style={{ objectPosition: `${p.image_focus_x ?? 50}% ${p.image_focus_y ?? 50}%` }}
+          />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Sparkles className="w-8 h-8 text-[#4A6FA5]/30" />

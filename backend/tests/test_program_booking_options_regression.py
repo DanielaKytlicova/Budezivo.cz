@@ -62,6 +62,21 @@ class ProgramBookingOptionsRegressionTests(unittest.TestCase):
         self.assertIn("Reservation.status != \"cancelled\"", source)
         self.assertIn("Denní limit programu", source)
 
+    def test_program_repository_persists_new_booking_settings(self):
+        source = (ROOT / "backend/database/supabase_repositories.py").read_text()
+        create = source.split("class ProgramRepositorySupabase", 1)[1].split("async def update", 1)[0]
+        update = source.split("async def update(self, program_id", 1)[1].split("async def archive", 1)[0]
+        for field in (
+            "booking_time_note_enabled",
+            "booking_time_note",
+            "booking_payment_enabled",
+            "booking_payment_required",
+            "booking_payment_methods",
+            "max_bookings_per_day",
+        ):
+            self.assertIn(field, create)
+        self.assertIn("if 'max_bookings_per_day' in processed_data", update)
+
 
 if __name__ == "__main__":
     unittest.main()

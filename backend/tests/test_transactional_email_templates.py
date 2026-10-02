@@ -82,36 +82,29 @@ class PilotTransactionalEmailTemplateTests(unittest.TestCase):
             with self.subTest(template_name=template_name):
                 self.assert_template_renders(template_name, RESERVATION_DATA, expected_text)
 
-    def test_confirmation_has_no_unsolicited_arrival_instruction(self):
-        rendered = get_template("reservation_confirmed", RESERVATION_DATA)
-
-        self.assertNotIn("Dostavte se prosím 10 minut", rendered["html"])
-        self.assertNotIn("V případě nemoci nás kontaktujte 2 dny předem", rendered["html"])
-        self.assertNotIn("Dostavte se prosím 10 minut", rendered["text"])
-
-    def test_saved_program_template_is_used_only_for_confirmation(self):
-        routes = (BACKEND_ROOT / "routes/bookings.py").read_text()
-        creation_flow = routes.split("async def create_public_booking", 1)[1].split(
-            '@router.get("", response_model=List[Booking])', 1
+    def test_confirmation_test_uses_the_production_template(self):
+        routes = (BACKEND_ROOT / "routes/email_templates.py").read_text()
+        test_route = routes.split("async def send_test_email", 1)[1].split(
+            '@router.get("/{program_id}/email-logs")', 1
         )[0]
+
+        self.assertIn('get_template("reservation_confirmed", sample_context)', test_route)
+        self.assertIn("EmailType.RESERVATION_CONFIRMED", test_route)
+        self.assertIn('html_content=rendered["html"]', test_route)
+        self.assertIn('text_content=rendered.get("text")', test_route)
+        self.assertNotIn("EmailService.send_test_email", test_route)
+
+    def test_production_confirmation_flow_remains_canonical(self):
+        routes = (BACKEND_ROOT / "routes/bookings.py").read_text()
         status_flow = routes.split("async def update_booking_status", 1)[1].split(
             '@router.put("/{booking_id}")', 1
         )[0]
 
-        self.assertNotIn("find_by_program", creation_flow)
-        self.assertIn("email_template = await template_repo.find_by_program", status_flow)
-        self.assertIn("email_template=email_template", status_flow)
+        self.assertNotIn("email_template=", status_flow)
+        self.assertIn("trigger_reservation_confirmed_email", status_flow)
 
-        mailing_ui = (
-            BACKEND_ROOT.parent / "frontend/src/components/admin/ProgramMailingTab.jsx"
-        ).read_text()
-        send_test = mailing_ui.split("const handleSendTest", 1)[1].split(
-            "if (loading)", 1
-        )[0]
-        self.assertLess(
-            send_test.index("axios.put"),
-            send_test.index("email-template/test"),
-        )
+        rendered = get_template("reservation_confirmed", RESERVATION_DATA)
+        self.assertIn("Dostavte se prosím 10 minut před začátkem", rendered["html"])
 
     def test_public_event_templates_render(self):
         for template_name, expected_text in (

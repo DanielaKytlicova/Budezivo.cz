@@ -203,16 +203,11 @@ export const ProgramMailingTab = ({ programId, programName }) => {
 
     try {
       setSending(true);
-      await axios.put(`${API}/programs/${programId}/email-template`, {
-        subject,
-        body
-      });
       await axios.post(`${API}/programs/${programId}/email-template/test`, {
         recipient_email: testEmail,
         subject,
         body
       });
-      setHasChanges(false);
       toast.success(`Testovací e-mail odeslán na ${testEmail}`);
     } catch (error) {
       const message = error.response?.data?.detail || 'Nepodařilo se odeslat testovací e-mail';
@@ -348,6 +343,9 @@ export const ProgramMailingTab = ({ programId, programName }) => {
       {/* Test Email Section */}
       <Card className="p-4 md:p-6 space-y-4">
         <h3 className="font-semibold text-slate-900">Testovací odeslání</h3>
+        <p className="text-sm text-gray-500">
+          Test odešle stejnou systémovou podobu potvrzení jako při skutečném potvrzení rezervace.
+        </p>
         <div className="flex flex-col sm:flex-row gap-3">
           <Input
             type="email"

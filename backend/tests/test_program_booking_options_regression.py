@@ -99,6 +99,16 @@ class ProgramBookingOptionsRegressionTests(unittest.TestCase):
             self.assertIn(field, create)
         self.assertIn("if 'max_bookings_per_day' in processed_data", update)
 
+    def test_booking_form_and_daily_limit_follow_reservation_parameters(self):
+        source = (ROOT / "frontend/src/pages/admin/ProgramsPage.js").read_text()
+        settings = source.split("const renderSettingsTab", 1)[1].split("const renderProgramForm", 1)[0]
+        reservation_parameters = settings.index("Parametry rezervace")
+        booking_form = settings.index("Rezervační formulář")
+        daily_limit = settings.index("Denní limit programu")
+
+        self.assertLess(reservation_parameters, booking_form)
+        self.assertLess(booking_form, daily_limit)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Map, Columns3, Plus, Download, RotateCcw } from 'lucide-react';
+import { Map, Columns3, Plus, Download, Upload, RotateCcw } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { AdminLayout, BudezivoLogo } from '../../components/layout/AdminLayout';
 import { Button } from '../../components/ui/button';
@@ -9,6 +9,7 @@ import LeadMap from '../../components/leads/LeadMap';
 import LeadDetail from '../../components/leads/LeadDetail';
 import LeadTeam from '../../components/leads/LeadTeam';
 import LeadGoals from '../../components/leads/LeadGoals';
+import LeadImport from '../../components/leads/LeadImport';
 import {
   leadsApi,
   leadLogin,
@@ -53,6 +54,7 @@ function Workspace({ actor }) {
     [loading, setLoading] = useState(true),
     [revision, setRevision] = useState(0),
     [exporting, setExporting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   useEffect(() => {
     let active = true;
     Promise.all([leadsApi('/metadata'), leadsApi('/goals')])
@@ -165,6 +167,15 @@ function Workspace({ actor }) {
             </div>
           </header>
           <div className="lead-sidebar-body">
+            {actor.superadmin && (
+              <Button
+                className="lead-import-trigger"
+                variant="outline"
+                onClick={() => setImportOpen(true)}
+              >
+                <Upload size={16} aria-hidden="true" /> Import Excel / CSV
+              </Button>
+            )}
             {error && (
               <div role="alert" className="lead-error">
                 {error}{' '}
@@ -319,6 +330,9 @@ function Workspace({ actor }) {
           />
         )}
       </div>
+      {actor.superadmin && importOpen && (
+        <LeadImport onClose={() => setImportOpen(false)} onImported={() => saved()} />
+      )}
     </div>
   );
 }

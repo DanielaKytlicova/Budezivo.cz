@@ -111,3 +111,30 @@ bez čtení produkčních dat, s odstraněním těchto testovacích schémat po 
 Nikdy tuto proměnnou neukládejte do repozitáře.
 
 Konkrétní výsledky, publikované adresy a migrační stav jsou v předávacím reportu.
+
+## Hromadný import z Excelu / CSV
+
+Superadmin otevře **Leady → Import Excel / CSV**, stáhne vzor nebo vybere vlastní
+soubor a klikne na **Zobrazit náhled**. Teprve tlačítko **Importovat instituce**
+uloží řádky označené „Nová“. Náhled sám žádná data nemění.
+
+Podporované formáty: XLSX a XLS (první list), CSV v UTF-8 nebo Windows-1250
+s čárkou, středníkem či tabulátorem. Limit je 3 MB, 500 datových řádků a 60 sloupců.
+První řádek je hlavička. Povinný je jen `Název`; užitečné další sloupce jsou
+`Typ`, `Město`, `Kraj`, `Web`, `Odkaz na programy`, `Jméno kontaktu`,
+`Příjmení kontaktu`, `E-mail`, `Telefon`, `Interní poznámka`.
+Přijímáme také anglické názvy polí z CRM exportu. Neznámé sloupce se v náhledu
+vypíší a ignorují. Excelové vzorce v XLSX je nutné před nahráním převést na hodnoty.
+Datum lze zadat jako RRRR-MM-DD nebo DD.MM.RRRR. URL musí obsahovat https:// nebo http://.
+
+Shodný název a město bez ohledu na diakritiku, velikost písmen a přebytečné mezery
+znamená duplicitu, včetně archivovaných záznamů a opakování v tabulce. Existující
+instituce se nikdy nepřepisují. Chybné a duplicitní řádky se přeskočí; ostatní se
+uloží společně v jedné transakci včetně kontaktu a auditu. Při změně souboru nebo
+relevantních duplicit mezi náhledem a potvrzením je potřeba načíst nový náhled.
+
+Nové instituce jsou nepřidělené. Chybějící typ se označí „Instituce“, chybějící
+stav „Dosud neosloveno“. Bez souřadnic jsou dostupné v seznamu a pipeline;
+na mapě až po doplnění polohy. Import nevytváří uživatelské účty ani instituce
+v rezervačním systému. API `/api/leads/import/preview` a `/api/leads/import`
+jsou dostupná pouze superadminovi. Nová migrace ani závislosti nejsou potřeba.

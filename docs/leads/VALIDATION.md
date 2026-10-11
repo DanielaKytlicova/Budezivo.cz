@@ -97,3 +97,19 @@ Původní Lead Map zůstává beze změny. Podrobný postup je v README.md.
 
 Předchozí Railway deployment: `3ea9d094-95e3-4c25-8075-1b3e751d75bf`.
 Předchozí Vercel deployment: `By7jHwvrz6dD13XQ136vsG8aLJSb`.
+
+## Hromadný import Excel / CSV (11. 10. 2026)
+
+- 16 integračních CRM testů prošlo proti izolované SQLite: CSV/XLSX, kontakty,
+  audit, duplicity včetně archivu, chyby jednotlivých řádků, změněný náhled,
+  opakované potvrzení, úplný rollback při chybě ukládání a oprávnění všech rolí.
+- Node 20.20.2 / Yarn 1.22.22: lint bez chyb (109 stávajících varování),
+  cílený Prettier a produkční build úspěšné.
+- Rozhraní ověřeno v Chrome proti místnímu backendu s izolovanou testovací DB:
+  otevření importu, povinný výběr souboru, čitelnost na desktopu a mobilu 390 px.
+  Automatizovaný výběr souboru v Chrome blokuje chybějící oprávnění rozšíření
+  „Allow access to file URLs“. Upload přes UI proto nebyl dokončen; příjem souboru,
+  náhled a potvrzení přes API jsou pokryté integračními testy.
+- Beze změny schématu, autentizace a rezervací. Rollback této funkce: vrátit
+  frontend/backend na commit `76db3d0893ae7707b332baf13a8f1602c250488c`;
+  případné později importované záznamy a audit zůstávají zachované.

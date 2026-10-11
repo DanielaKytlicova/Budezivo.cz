@@ -348,6 +348,57 @@
 .lead-login p {
   margin: 1rem 0;
 }
+.lead-import-trigger {
+  width: 100%;
+  margin-bottom: 1rem;
+  gap: 0.5rem;
+  background: transparent;
+  border-color: #ffffff40;
+  color: white;
+}
+.lead-import-trigger:hover {
+  background: #2a4051;
+  color: white;
+}
+.lead-import-dialog {
+  z-index: 70;
+  width: calc(100% - 2rem);
+  max-width: 850px;
+  max-height: 90dvh;
+  overflow-y: auto;
+}
+.lead-import-table {
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid #d3dce5;
+  border-radius: 0.5rem;
+}
+.lead-import-table table {
+  width: 100%;
+  font-size: 0.8rem;
+  text-align: left;
+}
+.lead-import-table th,
+.lead-import-table td {
+  padding: 0.65rem;
+  border-bottom: 1px solid #d3dce5;
+  overflow-wrap: anywhere;
+  min-width: 65px;
+}
+.lead-import-table th {
+  position: sticky;
+  top: 0;
+  background: #edf1f5;
+}
+.lead-import-table td:last-child {
+  min-width: 190px;
+}
+.lead-import-success {
+  background: #e9f7ee;
+  color: #21633d;
+  padding: 0.8rem;
+  border-radius: 0.5rem;
+}
 @media (max-width: 1100px) {
   .lead-goals {
     grid-template-columns: repeat(2, minmax(0, 1fr));

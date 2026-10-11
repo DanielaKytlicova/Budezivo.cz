@@ -21,6 +21,8 @@ import {
   ChevronDown,
   ChevronRight,
   Contact,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { usePlanFeatures } from '../../hooks/usePlanFeatures';
 import { UpgradeModal } from '../admin/UpgradeModal';
@@ -116,6 +118,23 @@ export const AdminLayout = ({ children, crmUser, onCrmLogout }) => {
   const logout = onCrmLogout || auth.logout;
   const [eventsEnabled, setEventsEnabled] = React.useState(false);
   const [contactsEnabled, setContactsEnabled] = React.useState(false);
+  const [crmNavCollapsed, setCrmNavCollapsed] = React.useState(() => {
+    try {
+      return localStorage.getItem('budezivo_crm_nav_collapsed') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const compactNav = Boolean(crmUser && crmNavCollapsed);
+  const toggleCrmNav = () => {
+    const collapsed = !crmNavCollapsed;
+    setCrmNavCollapsed(collapsed);
+    try {
+      localStorage.setItem('budezivo_crm_nav_collapsed', String(collapsed));
+    } catch {
+      // Keep the toggle usable when browser storage is unavailable.
+    }
+  };
 
   React.useEffect(() => {
     if (crmUser) return;
@@ -419,18 +438,36 @@ export const AdminLayout = ({ children, crmUser, onCrmLogout }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA]">
+    <div
+      className={`min-h-screen bg-[#F8F9FA] ${crmUser ? 'crm-layout' : ''} ${compactNav ? 'crm-nav-collapsed' : ''}`}
+    >
       {!crmUser && <ImpersonationBanner />}
       {/* Desktop Sidebar */}
-      <aside className="hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col">
+      <aside
+        className="admin-desktop-nav hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col"
+        aria-label="Hlavní navigace"
+      >
         <div className="flex flex-col flex-grow border-r border-white/10 bg-[#192938] overflow-y-auto text-white">
-          <div className="flex items-center flex-shrink-0 px-6 py-6 border-b border-white/15">
-            <Link to="/">
-              <BudezivoLogo inverse />
+          <div className="admin-nav-brand flex items-center flex-shrink-0 px-6 py-6 border-b border-white/15">
+            <Link to="/" aria-label="Budeživo – úvodní stránka">
+              <BudezivoLogo inverse showText={!compactNav} />
             </Link>
           </div>
+          {crmUser && (
+            <button
+              type="button"
+              className="crm-nav-toggle"
+              onClick={toggleCrmNav}
+              aria-expanded={!compactNav}
+              aria-label={compactNav ? 'Rozbalit hlavní menu' : 'Sbalit hlavní menu'}
+              title={compactNav ? 'Rozbalit hlavní menu' : 'Sbalit hlavní menu'}
+            >
+              {compactNav ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
+              {!compactNav && <span>Sbalit menu</span>}
+            </button>
+          )}
 
-          <div className="flex-1 flex flex-col px-4 py-6 space-y-1">
+          <div className="admin-nav-items flex-1 flex flex-col px-4 py-6 space-y-1">
             {navItems.map((item) => {
               // ── Collapsible group (e.g. "Správa") ──
               if (item.type === 'group') {
@@ -500,19 +537,24 @@ export const AdminLayout = ({ children, crmUser, onCrmLogout }) => {
                   key={item.path}
                   to={item.path}
                   data-testid={item.testId}
+                  aria-label={item.label}
+                  aria-current={isActive ? 'page' : undefined}
+                  title={compactNav ? item.label : undefined}
                   className={`flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors ${
                     isActive ? 'bg-[#294765] text-white' : 'text-white hover:bg-white/10'
                   }`}
                 >
                   <Icon className="mr-3 h-5 w-5" />
-                  {item.label}
+                  <span className={compactNav ? 'sr-only' : undefined}>{item.label}</span>
                 </Link>
               );
             })}
           </div>
 
-          <div className="p-4 border-t border-white/15">
-            <div className="px-4 py-3 bg-white/10 border border-white/10 rounded-md mb-3">
+          <div className="admin-nav-footer p-4 border-t border-white/15">
+            <div
+              className={`${compactNav ? 'sr-only' : ''} px-4 py-3 bg-white/10 border border-white/10 rounded-md mb-3`}
+            >
               <p className="text-sm font-medium text-white">
                 {crmUser ? 'Interní CRM Budeživo' : user?.institution_name}
               </p>
@@ -525,11 +567,13 @@ export const AdminLayout = ({ children, crmUser, onCrmLogout }) => {
             </div>
             <button
               data-testid="admin-logout-button"
+              aria-label="Odhlásit se"
+              title={compactNav ? 'Odhlásit se' : undefined}
               onClick={handleLogout}
               className="w-full flex items-center px-4 py-3 text-sm font-medium text-white hover:bg-white/10 rounded-md transition-colors"
             >
               <LogOut className="mr-3 h-5 w-5" />
-              Odhlásit se
+              <span className={compactNav ? 'sr-only' : undefined}>Odhlásit se</span>
             </button>
           </div>
         </div>
@@ -593,8 +637,10 @@ export const AdminLayout = ({ children, crmUser, onCrmLogout }) => {
       </nav>
 
       {/* Main Content */}
-      <div className="md:pl-64 pt-14 md:pt-0">
-        <main className="py-6 px-4 md:px-8 pb-20 md:pb-6">
+      <div className="admin-content md:pl-64 pt-14 md:pt-0">
+        <main
+          className={`${crmUser && location.pathname === '/admin/leady' ? 'crm-workspace-main' : ''} py-6 px-4 md:px-8 pb-20 md:pb-6`}
+        >
           {!crmUser && <SuperadminAlertBanner />}
           {children}
         </main>

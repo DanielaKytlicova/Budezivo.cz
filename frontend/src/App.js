@@ -1,3 +1,4 @@
+import LeadsPage from './pages/admin/LeadsPage';
 import React, { useContext, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from './components/ui/sonner';
@@ -59,12 +60,12 @@ import './App.css';
 // Component to handle dynamic page title
 function TitleUpdater() {
   const location = useLocation();
-  
+
   useEffect(() => {
     const isAdminRoute = location.pathname.startsWith('/admin');
     document.title = isAdminRoute ? 'Dashboard | Budeživo.cz' : 'Budeživo.cz';
   }, [location]);
-  
+
   return null;
 }
 
@@ -87,203 +88,206 @@ function App() {
         <AuthProvider>
           <TeacherAuthProvider>
             <ThemeProvider>
-            <Routes>
-              {/* Public routes */}
-              <Route path="/" element={<HomePage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
-              <Route path="/booking/:institutionId" element={<BookingPage />} />
-              <Route path="/gdpr" element={<GDPRPage />} />
-              <Route path="/kontakt" element={<ContactPage />} />
-              <Route path="/feedback/:token" element={<FeedbackPage />} />
-              <Route path="/accept-invite" element={<AcceptInvitePage />} />
-              <Route path="/terms" element={<TermsPage />} />
-              <Route path="/obchodni-podminky" element={<VopPage />} />
-              <Route path="/reklamace" element={<ReklamacePage />} />
-              <Route path="/platebni-podminky" element={<PaymentTermsPage />} />
-              <Route path="/events/:institutionId" element={<PublicEventsPage />} />
-              <Route path="/payment/return" element={<PaymentReturnPage />} />
-              <Route path="/payment/mock" element={<PaymentMockPage />} />
+              <Routes>
+                {/* Public routes */}
+                <Route path="/" element={<HomePage />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/booking/:institutionId" element={<BookingPage />} />
+                <Route path="/gdpr" element={<GDPRPage />} />
+                <Route path="/kontakt" element={<ContactPage />} />
+                <Route path="/feedback/:token" element={<FeedbackPage />} />
+                <Route path="/accept-invite" element={<AcceptInvitePage />} />
+                <Route path="/terms" element={<TermsPage />} />
+                <Route path="/obchodni-podminky" element={<VopPage />} />
+                <Route path="/reklamace" element={<ReklamacePage />} />
+                <Route path="/platebni-podminky" element={<PaymentTermsPage />} />
+                <Route path="/events/:institutionId" element={<PublicEventsPage />} />
+                <Route path="/payment/return" element={<PaymentReturnPage />} />
+                <Route path="/payment/mock" element={<PaymentMockPage />} />
 
-              {/* Teacher (B2C) self-service auth and account */}
-              <Route path="/ucitel/prihlaseni" element={<TeacherLoginPage />} />
-              <Route path="/ucitel/registrace" element={<TeacherRegisterPage />} />
-              <Route path="/ucitel/ucet" element={<TeacherAccountPage />} />
+                {/* Teacher (B2C) self-service auth and account */}
+                <Route path="/ucitel/prihlaseni" element={<TeacherLoginPage />} />
+                <Route path="/ucitel/registrace" element={<TeacherRegisterPage />} />
+                <Route path="/ucitel/ucet" element={<TeacherAccountPage />} />
 
-              {/* B2B catalog "Programy pro školy" — hidden from main nav, accessible by URL only */}
-              <Route path="/programy-pro-skoly" element={<CatalogPage />} />
-              <Route path="/programy-pro-skoly/p/:id" element={<CatalogDetailPage />} />
-              <Route path="/programy-pro-skoly/:slug" element={<CatalogPage />} />
+                {/* B2B catalog "Programy pro školy" — hidden from main nav, accessible by URL only */}
+                <Route path="/programy-pro-skoly" element={<CatalogPage />} />
+                <Route path="/programy-pro-skoly/p/:id" element={<CatalogDetailPage />} />
+                <Route path="/programy-pro-skoly/:slug" element={<CatalogPage />} />
 
-              {/* Admin routes */}
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute>
-                    <DashboardPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/programs"
-                element={
-                  <ProtectedRoute>
-                    <ProgramsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/bookings"
-                element={
-                  <ProtectedRoute>
-                    <BookingsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/schools"
-                element={
-                  <ProtectedRoute>
-                    <SchoolsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/statistics"
-                element={
-                  <ProtectedRoute>
-                    <StatisticsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/settings"
-                element={
-                  <ProtectedRoute>
-                    <SettingsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/plan"
-                element={
-                  <ProtectedRoute>
-                    <PlanPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/team"
-                element={
-                  <ProtectedRoute>
-                    <TeamPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/my-profile"
-                element={
-                  <ProtectedRoute>
-                    <Navigate to="/admin/lecturer-profile" replace />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/lecturer-profile"
-                element={
-                  <ProtectedRoute>
-                    <LecturerProfileRoute />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/feedback"
-                element={
-                  <ProtectedRoute>
-                    <FeedbackAdminPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/contacts"
-                element={
-                  <ProtectedRoute>
-                    <ContactsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/availability"
-                element={
-                  <ProtectedRoute>
-                    <Navigate to="/admin/lecturer-profile" replace />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/archive"
-                element={
-                  <ProtectedRoute>
-                    <ArchivePage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/audit-log"
-                element={
-                  <ProtectedRoute>
-                    <AuditLogPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/events"
-                element={
-                  <ProtectedRoute>
-                    <EventsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/waitlist"
-                element={
-                  <ProtectedRoute>
-                    <WaitlistPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/mailings"
-                element={
-                  <ProtectedRoute>
-                    <MailingsPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin/superadmin"
-                element={
-                  <ProtectedRoute>
-                    <SuperadminPage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/superadmin/analytics"
-                element={
-                  <ProtectedRoute>
-                    <SuperadminAnalyticsPage />
-                  </ProtectedRoute>
-                }
-              />
+                <Route path="/admin/leady" element={<LeadsPage />} />
+                <Route path="/admin/leady/tym" element={<LeadsPage />} />
 
-              {/* Catch all */}
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-            <Toaster position="top-right" />
-          </ThemeProvider>
+                {/* Admin routes */}
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute>
+                      <DashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/programs"
+                  element={
+                    <ProtectedRoute>
+                      <ProgramsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/bookings"
+                  element={
+                    <ProtectedRoute>
+                      <BookingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/schools"
+                  element={
+                    <ProtectedRoute>
+                      <SchoolsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/statistics"
+                  element={
+                    <ProtectedRoute>
+                      <StatisticsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/settings"
+                  element={
+                    <ProtectedRoute>
+                      <SettingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/plan"
+                  element={
+                    <ProtectedRoute>
+                      <PlanPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/team"
+                  element={
+                    <ProtectedRoute>
+                      <TeamPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/my-profile"
+                  element={
+                    <ProtectedRoute>
+                      <Navigate to="/admin/lecturer-profile" replace />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/lecturer-profile"
+                  element={
+                    <ProtectedRoute>
+                      <LecturerProfileRoute />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/feedback"
+                  element={
+                    <ProtectedRoute>
+                      <FeedbackAdminPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/contacts"
+                  element={
+                    <ProtectedRoute>
+                      <ContactsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/availability"
+                  element={
+                    <ProtectedRoute>
+                      <Navigate to="/admin/lecturer-profile" replace />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/archive"
+                  element={
+                    <ProtectedRoute>
+                      <ArchivePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/audit-log"
+                  element={
+                    <ProtectedRoute>
+                      <AuditLogPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/events"
+                  element={
+                    <ProtectedRoute>
+                      <EventsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/waitlist"
+                  element={
+                    <ProtectedRoute>
+                      <WaitlistPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/mailings"
+                  element={
+                    <ProtectedRoute>
+                      <MailingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/superadmin"
+                  element={
+                    <ProtectedRoute>
+                      <SuperadminPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/superadmin/analytics"
+                  element={
+                    <ProtectedRoute>
+                      <SuperadminAnalyticsPage />
+                    </ProtectedRoute>
+                  }
+                />
+
+                {/* Catch all */}
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+              <Toaster position="top-right" />
+            </ThemeProvider>
           </TeacherAuthProvider>
         </AuthProvider>
       </LanguageProvider>

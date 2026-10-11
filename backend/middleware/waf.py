@@ -51,6 +51,7 @@ class WAFMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
+        private_crm = path == "/api/leads" or path.startswith("/api/leads/")
 
         # Skip exempt paths
         for exempt in _EXEMPT_PATHS:
@@ -61,7 +62,7 @@ class WAFMiddleware(BaseHTTPMiddleware):
         for key, value in request.query_params.items():
             threat = _check_value(value)
             if threat:
-                logger.warning(f"WAF blocked {threat} in query param '{key}' from {request.client.host}: {value[:100]}")
+                logger.warning(f"WAF blocked {threat} in query param '{key}' from {request.client.host}: {'[private CRM value]' if private_crm else value[:100]}")
                 return JSONResponse(
                     status_code=403,
                     content={"detail": "Požadavek zablokován bezpečnostním filtrem"},
@@ -72,7 +73,7 @@ class WAFMiddleware(BaseHTTPMiddleware):
             if len(segment) > 4:  # skip short segments like 'api'
                 threat = _check_value(segment)
                 if threat:
-                    logger.warning(f"WAF blocked {threat} in path from {request.client.host}: {segment[:100]}")
+                    logger.warning(f"WAF blocked {threat} in path from {request.client.host}: {'[private CRM path]' if private_crm else segment[:100]}")
                     return JSONResponse(
                         status_code=403,
                         content={"detail": "Požadavek zablokován bezpečnostním filtrem"},
@@ -87,7 +88,7 @@ class WAFMiddleware(BaseHTTPMiddleware):
                 body_str = body.decode("utf-8", errors="ignore")
                 threat = _check_value(body_str)
                 if threat:
-                    logger.warning(f"WAF blocked {threat} in body from {request.client.host}: {body_str[:200]}")
+                    logger.warning(f"WAF blocked {threat} in body from {request.client.host}: {'[private CRM body]' if private_crm else body_str[:200]}")
                     return JSONResponse(
                         status_code=403,
                         content={"detail": "Požadavek zablokován bezpečnostním filtrem"},

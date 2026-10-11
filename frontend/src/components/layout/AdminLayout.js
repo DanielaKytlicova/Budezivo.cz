@@ -297,6 +297,13 @@ export const AdminLayout = ({ children, crmUser, onCrmLogout }) => {
         roles: ['admin', 'spravce'],
       });
       baseItems.push({
+        path: '/admin/leady/tym',
+        icon: Users,
+        label: 'Uživatelé leadů',
+        testId: 'nav-lead-team',
+        roles: ['admin', 'spravce'],
+      });
+      baseItems.push({
         path: '/admin/superadmin',
         icon: Shield,
         label: 'Superadmin',

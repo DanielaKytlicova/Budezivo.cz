@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { AdminLayout } from '../../components/layout/AdminLayout';
+import LeadTeamAccessCard from '../../components/leads/LeadTeamAccessCard';
 import { AuthContext } from '../../context/AuthContext';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -286,6 +287,8 @@ export const SuperadminPage = () => {
             </Button>
           </div>
         </div>
+
+        {user?.email === 'demo@budezivo.cz' && <LeadTeamAccessCard />}
 
         {/* Overview cards */}
         {overview && (view === 'overview' || view === 'institutions') && (

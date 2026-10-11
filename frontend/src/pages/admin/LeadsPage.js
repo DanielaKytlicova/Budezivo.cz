@@ -1,5 +1,6 @@
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Map, Columns3, Plus, Download, RotateCcw } from 'lucide-react';
 import { AuthContext } from '../../context/AuthContext';
 import { AdminLayout, BudezivoLogo } from '../../components/layout/AdminLayout';
 import { Button } from '../../components/ui/button';
@@ -129,121 +130,141 @@ function Workspace({ actor }) {
     </button>
   );
   return (
-    <div className="leads-app">
-      <header className="lead-toolbar">
-        <div>
-          <p className="text-sm text-slate-600">Budeživo / Interní CRM</p>
-          <h1>Leady a instituce</h1>
-          <p>Společný přehled kontaktů, příležitostí a dalších kroků.</p>
-        </div>
-        <div className="lead-toolbar">
-          <Button variant={view === 'map' ? 'default' : 'outline'} onClick={() => setView('map')}>
-            Mapa
-          </Button>
-          <Button
-            variant={view === 'pipeline' ? 'default' : 'outline'}
-            onClick={() => setView('pipeline')}
-          >
-            Pipeline
-          </Button>
-          {actor.superadmin && (
-            <Button variant="outline" onClick={download} disabled={exporting}>
-              {exporting ? 'Exportuji…' : 'Export CSV'}
-            </Button>
-          )}
-          <Button onClick={() => setSelected('new')}>Nová instituce</Button>
-        </div>
-      </header>
-      {error && (
-        <p role="alert" className="lead-error">
-          {error}{' '}
-          <Button variant="outline" onClick={() => saved()}>
-            Zkusit znovu
-          </Button>
-        </p>
-      )}
+    <div className="leads-app lead-crm">
       <div className={`lead-workspace ${selected ? 'with-detail' : ''}`}>
-        <aside className="lead-panel lead-sidebar">
-          <label>
-            Hledat instituci, město nebo kontakt
-            <Input
-              type="search"
-              value={filters.q}
-              maxLength={200}
-              onChange={(e) => setFilter('q', e.target.value)}
-              placeholder="Název, město, kontakt…"
-            />
-          </label>
-          {metadata && (
-            <>
-              <div className="lead-filter-grid">
-                {[
-                  ['type', 'Typ', metadata.type],
-                  ['region', 'Kraj', metadata.region],
-                  ['cluster', 'Klastr', metadata.cluster],
-                  ['plan', 'Tarif', ['FREE', 'PRO', 'PRO+', 'ověřit']],
-                  ['stage', 'Stav', metadata.stages],
-                ].map(([key, label, options]) => (
-                  <label key={key}>
-                    {label}
-                    <select value={filters[key]} onChange={(e) => setFilter(key, e.target.value)}>
-                      <option value="">Vše</option>
-                      {options.map((o) => (
-                        <option key={o}>{o}</option>
+        <aside className="lead-sidebar" aria-label="Filtry a instituce">
+          <header className="lead-sidebar-header">
+            <h1>Leady a instituce</h1>
+            <div className="lead-view-switch" role="group" aria-label="Zobrazení institucí">
+              <button type="button" aria-pressed={view === 'map'} onClick={() => setView('map')}>
+                <Map size={18} aria-hidden="true" /> Mapa
+              </button>
+              <button
+                type="button"
+                aria-pressed={view === 'pipeline'}
+                onClick={() => setView('pipeline')}
+              >
+                <Columns3 size={18} aria-hidden="true" /> Pipeline
+              </button>
+            </div>
+            <div className="lead-sidebar-actions">
+              <Button onClick={() => setSelected('new')}>
+                <Plus size={16} aria-hidden="true" /> Nová instituce
+              </Button>
+              {actor.superadmin && (
+                <Button
+                  variant="outline"
+                  onClick={download}
+                  disabled={exporting}
+                  aria-label={exporting ? 'Exportuji CSV' : 'Export CSV'}
+                  title="Export CSV"
+                >
+                  <Download size={16} aria-hidden="true" /> {exporting ? 'Exportuji…' : 'CSV'}
+                </Button>
+              )}
+            </div>
+          </header>
+          <div className="lead-sidebar-body">
+            {error && (
+              <div role="alert" className="lead-error">
+                {error}{' '}
+                <Button variant="outline" onClick={() => saved()}>
+                  Zkusit znovu
+                </Button>
+              </div>
+            )}
+            <label>
+              Hledat instituci, město nebo kontakt
+              <Input
+                type="search"
+                value={filters.q}
+                maxLength={200}
+                onChange={(e) => setFilter('q', e.target.value)}
+                placeholder="Název, město, kontakt…"
+              />
+            </label>
+            {metadata && (
+              <>
+                <div className="lead-filter-heading">
+                  <h2>Filtry</h2>
+                  <button
+                    type="button"
+                    onClick={() => setFilters(emptyFilters)}
+                    aria-label="Vymazat filtry"
+                  >
+                    <RotateCcw size={15} aria-hidden="true" /> Vymazat
+                  </button>
+                </div>
+                <div className="lead-filter-grid">
+                  {[
+                    ['type', 'Typ', metadata.type],
+                    ['region', 'Kraj', metadata.region],
+                    ['cluster', 'Klastr', metadata.cluster],
+                    ['plan', 'Tarif', ['FREE', 'PRO', 'PRO+', 'ověřit']],
+                    ['stage', 'Stav', metadata.stages],
+                  ].map(([key, label, options]) => (
+                    <label key={key}>
+                      {label}
+                      <select value={filters[key]} onChange={(e) => setFilter(key, e.target.value)}>
+                        <option value="">Vše</option>
+                        {options.map((o) => (
+                          <option key={o}>{o}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                  <label>
+                    Pracovník
+                    <select
+                      value={filters.assignee}
+                      onChange={(e) => setFilter('assignee', e.target.value)}
+                    >
+                      <option value="">Všichni</option>
+                      <option value="unassigned">Nepřiděleno</option>
+                      {metadata.accounts.map((a) => (
+                        <option value={a.id} key={a.id}>
+                          {a.name}
+                        </option>
                       ))}
                     </select>
                   </label>
+                  <label>
+                    Další krok
+                    <select value={filters.due} onChange={(e) => setFilter('due', e.target.value)}>
+                      <option value="">Kdykoliv</option>
+                      <option value="overdue">Po termínu</option>
+                      <option value="today">Dnes</option>
+                      <option value="planned">Má termín</option>
+                    </select>
+                  </label>
+                </div>
+                {[
+                  ['connected', 'Pouze připojené'],
+                  ['mine', 'Moje leady'],
+                  ['archived', 'Archivované'],
+                ].map(([key, label]) => (
+                  <label className="lead-check" key={key}>
+                    <input
+                      type="checkbox"
+                      checked={filters[key]}
+                      onChange={(e) => setFilter(key, e.target.checked)}
+                    />
+                    {label}
+                  </label>
                 ))}
-                <label>
-                  Pracovník
-                  <select
-                    value={filters.assignee}
-                    onChange={(e) => setFilter('assignee', e.target.value)}
-                  >
-                    <option value="">Všichni</option>
-                    <option value="unassigned">Nepřiděleno</option>
-                    {metadata.accounts.map((a) => (
-                      <option value={a.id} key={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Další krok
-                  <select value={filters.due} onChange={(e) => setFilter('due', e.target.value)}>
-                    <option value="">Kdykoliv</option>
-                    <option value="overdue">Po termínu</option>
-                    <option value="today">Dnes</option>
-                    <option value="planned">Má termín</option>
-                  </select>
-                </label>
-              </div>
-              {[
-                ['connected', 'Pouze připojené'],
-                ['mine', 'Moje leady'],
-                ['archived', 'Archivované'],
-              ].map(([key, label]) => (
-                <label className="lead-check" key={key}>
-                  <input
-                    type="checkbox"
-                    checked={filters[key]}
-                    onChange={(e) => setFilter(key, e.target.checked)}
-                  />
-                  {label}
-                </label>
-              ))}
-              <Button variant="outline" onClick={() => setFilters(emptyFilters)}>
-                Vymazat filtry
-              </Button>
-            </>
-          )}
-          <h2 aria-live="polite">
-            {loading ? 'Načítám instituce…' : `Instituce (${items.length})`}
-          </h2>
-          {!loading && !items.length && <p>Filtrům neodpovídá žádná instituce.</p>}
-          <div className="lead-list" aria-busy={loading}>
-            {!loading && items.map(card)}
+              </>
+            )}
+            <h2 aria-live="polite">
+              {loading ? 'Načítám instituce…' : `Instituce (${items.length})`}
+            </h2>
+            {!loading && !items.length && <p>Filtrům neodpovídá žádná instituce.</p>}
+            <div className="lead-list" aria-busy={loading}>
+              {!loading && items.map(card)}
+            </div>
+            <details className="lead-goals-disclosure">
+              <summary>Cíle a aktivace</summary>
+              <LeadGoals goals={goals} actor={actor} onSaved={() => saved()} />
+            </details>
           </div>
         </aside>
         <section
@@ -271,7 +292,11 @@ function Workspace({ actor }) {
               </div>
             </>
           ) : (
-            <div className="lead-pipeline">
+            <div
+              className="lead-pipeline"
+              tabIndex={0}
+              aria-label="Sloupce pipeline – posuňte vodorovně"
+            >
               {groups.map((group) => (
                 <section key={group}>
                   <h2>
@@ -294,7 +319,6 @@ function Workspace({ actor }) {
           />
         )}
       </div>
-      <LeadGoals goals={goals} actor={actor} onSaved={() => saved()} />
     </div>
   );
 }

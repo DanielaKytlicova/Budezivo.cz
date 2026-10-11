@@ -147,13 +147,11 @@ function Workspace({ actor }) {
             Pipeline
           </Button>
           {actor.superadmin && (
-            <>
-              <Button variant="outline" onClick={download} disabled={exporting}>
-                {exporting ? 'Exportuji…' : 'Export CSV'}
-              </Button>
-              <Button onClick={() => setSelected('new')}>Nová instituce</Button>
-            </>
+            <Button variant="outline" onClick={download} disabled={exporting}>
+              {exporting ? 'Exportuji…' : 'Export CSV'}
+            </Button>
           )}
+          <Button onClick={() => setSelected('new')}>Nová instituce</Button>
         </div>
       </header>
       {error && (

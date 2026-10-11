@@ -118,6 +118,40 @@ class LeadApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.client.post('/leads/assign', json={'lead_ids': [own['id']], 'assignee_id': None}, headers=self.admin)).status_code, 200)
         self.assertEqual((await self.client.patch('/leads/' + own['id'], json={'version': 3, 'changes': {'internal_note': 'blocked'}}, headers=worker)).status_code, 403)
 
+    async def test_collaborator_creates_owned_lead_with_contact_and_audit(self):
+        account, _ = await self.account()
+        _, worker = await self.login()
+        data = {'name': 'Vlastní tip', 'type': 'gallery', 'city': 'Praha',
+                'contact': {'email': 'kontakt@example.test'}}
+        response = await self.client.post('/leads', json=data, headers=worker)
+        self.assertEqual(response.status_code, 201, response.text)
+        lead = response.json()
+        self.assertEqual(lead['assignee_id'], account['id'])
+        self.assertFalse(lead['archived'])
+        detail = (await self.client.get('/leads/' + lead['id'], headers=worker)).json()
+        self.assertTrue(detail['can_edit'])
+        self.assertEqual(detail['contacts'][0]['email'], 'kontakt@example.test')
+        audit = next(a for a in detail['audit'] if a['field'] == 'assignee_id')
+        self.assertEqual(audit['new_value'], account['id'])
+        self.assertEqual(audit['actor_id'], 'lead:' + account['id'])
+        update = await self.client.patch('/leads/' + lead['id'], headers=worker,
+                                        json={'version': lead['version'], 'changes': {'internal_note': 'Doplněno'}})
+        self.assertEqual(update.status_code, 200, update.text)
+
+    async def test_collaborator_creation_cannot_assign_others_or_archive(self):
+        await self.account()
+        other, _ = await self.account('other')
+        _, worker = await self.login()
+        for extra in ({'assignee_id': other['id']}, {'archived': True}):
+            response = await self.client.post('/leads', headers=worker,
+                                              json={'name': 'Zakázaný tip', 'type': 'museum', **extra})
+            self.assertEqual(response.status_code, 403, response.text)
+        self.assertEqual((await self.client.get('/leads', headers=worker)).json()['total'], 0)
+        for headers, status in (({}, 401), (self.tenant, 403)):
+            response = await self.client.post('/leads', headers=headers,
+                                              json={'name': 'Nepovolený přístup', 'type': 'museum'})
+            self.assertEqual(response.status_code, status, response.text)
+
     async def test_deactivation_reset_logout_and_rotating_refresh(self):
         account, data = await self.account()
         session, worker = await self.login()

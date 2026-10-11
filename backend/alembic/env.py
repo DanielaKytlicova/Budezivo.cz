@@ -15,6 +15,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 # Import models for autogenerate support
 from database.models import Base
+from database import lead_models  # noqa: F401 — register internal CRM metadata
 
 # this is the Alembic Config object
 config = context.config

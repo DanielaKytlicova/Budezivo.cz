@@ -59,6 +59,7 @@ from routes.analytics import router as analytics_router
 from routes.contacts import router as contacts_router
 from routes.institution_join import router as institution_join_router
 from routes.marketing import router as marketing_router
+from routes.leads import router as leads_router
 from services.readiness_service import collect_readiness
 from models.schemas import ContactFormData, InstitutionSettings
 
@@ -152,6 +153,7 @@ api_router.include_router(analytics_router)
 api_router.include_router(contacts_router)
 api_router.include_router(institution_join_router)
 api_router.include_router(marketing_router)
+api_router.include_router(leads_router)
 
 
 # ============ Additional Routes ============
@@ -311,6 +313,10 @@ app.add_middleware(SecurityHeadersMiddleware)
 # WAF middleware — must be added after CORS (outermost = first to execute)
 from middleware.waf import WAFMiddleware
 app.add_middleware(WAFMiddleware)
+
+from middleware.lead_privacy import LeadPrivacyMiddleware, LeadAccessLogFilter
+app.add_middleware(LeadPrivacyMiddleware)
+logging.getLogger("uvicorn.access").addFilter(LeadAccessLogFilter())
 
 
 # ============ Event Handlers ============

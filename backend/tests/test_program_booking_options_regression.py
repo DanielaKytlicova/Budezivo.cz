@@ -27,7 +27,7 @@ class ProgramBookingOptionsRegressionTests(unittest.TestCase):
             if parents:
                 parent_revisions.update(parents if isinstance(parents, (tuple, list)) else [parents])
         heads = set(revisions) - parent_revisions
-        self.assertEqual(heads, {"0f9e8d7c6b5a"})
+        self.assertEqual(heads, {"1a2b3c4d5e6f"})
 
     def test_hardcoded_time_note_is_removed_and_custom_note_is_gated(self):
         source = (ROOT / "frontend/src/pages/public/BookingPage.js").read_text()

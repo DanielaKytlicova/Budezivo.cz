@@ -22,6 +22,8 @@ Přihlášení omezuje stávající SlowAPI (5 pokusů/min/IP). Nasazení s víc
 vyžaduje sdílené úložiště limiteru, stejně jako existující autentizace.
 
 Všichni spolupracovníci čtou všechny leady, kontakty, aktivity a historii.
+Mohou zakládat nové instituce; backend jim je automaticky přiřadí. Při vytvoření
+nesmějí přiřadit jiného pracovníka ani vytvořit archivovaný záznam.
 Úpravy/aktivity dovoluje backend jen aktuálně přiřazenému aktivnímu pracovníkovi.
 Superadmin spravuje tým, přiřazení, archivaci, cíle a CSV export. Změny leadů drží
 řádkový zámek; verze brání přepsání souběžné editace. Audit vzniká ve stejné

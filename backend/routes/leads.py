@@ -215,9 +215,13 @@ async def update_goal(goal_id: str, data: GoalInput, actor=Depends(require_lead_
 
 
 @router.post('', status_code=201)
-async def create_lead(data: LeadInput, actor=Depends(require_lead_admin), db: AsyncSession = Depends(get_db)):
-    await check_assignee(db, data.assignee_id)
+async def create_lead(data: LeadInput, actor=Depends(require_leads), db: AsyncSession = Depends(get_db)):
     values = data.model_dump(exclude={'contact'})
+    if not actor['superadmin']:
+        if data.assignee_id not in (None, actor['id']) or data.archived:
+            raise HTTPException(403, 'Přiřazení jinému pracovníkovi a archivaci mění pouze superadmin')
+        values['assignee_id'] = actor['id']
+    await check_assignee(db, values['assignee_id'])
     lead = Lead(id=str(uuid.uuid4()), **values, updated_by=actor['actor_id'])
     db.add(lead)
     await db.flush()

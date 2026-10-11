@@ -63,7 +63,7 @@ Opakované načtení D1 před produkční přípravou potvrdilo stejných 7 hodn
 SHA-256 sloučeného vstupního snapshotu:
 `7d230731e779740974b9b9f6b9bee3ae3f0f4b01271917e29d34f2ca53869f38`.
 
-| Kontrola | Očekáváno / ověřeno na stagingu |
+| Kontrola | Očekáváno / staging / produkce |
 |---|---:|
 | Instituce | 42 |
 | Připojené | 4 |
@@ -84,7 +84,16 @@ potvrdil shodu. Zdrojové kontakty, poznámky ani hesla nejsou v repozitáři.
 
 ## Produkce a rollback
 
-Produkční krok se provádí až po výše uvedených kontrolách. Výsledek nasazení a
-produkčního importu bude doplněn po dokončení. Rollback aplikace vrací předchozí
+Produkční migrace `1a2b3c4d5e6f` a import proběhly po výše uvedených kontrolách.
+Import vložil 42 leadů a ověřil všechna pole proti zdroji. Ověřeno 7 RLS tabulek,
+zákaz SELECT pro anon/authenticated, 4 cíle a 0 testovacích interních účtů.
+Původní počty před/po: 13 institucí, 38 uživatelů a 328 rezervací, beze změny.
+Výsledek publikace aplikace a živých kontrol je zaznamenán v PR #258.
+Produkční adresa: https://www.budezivo.cz/admin/leady.
+
+Rollback aplikace vrací předchozí
 commit `14d9a34d5ac7072c9558664f998e91b73f9badf8`; CRM tabulky a audit se nemažou.
 Původní Lead Map zůstává beze změny. Podrobný postup je v README.md.
+
+Předchozí Railway deployment: `3ea9d094-95e3-4c25-8075-1b3e751d75bf`.
+Předchozí Vercel deployment: `By7jHwvrz6dD13XQ136vsG8aLJSb`.

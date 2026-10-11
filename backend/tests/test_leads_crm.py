@@ -4,6 +4,8 @@ os.environ.setdefault('JWT_SECRET', 'lead-tests-not-for-production')
 os.environ['DATABASE_URL'] = ''
 import unittest
 import uuid
+import base64
+import io
 from datetime import datetime, timezone
 from unittest.mock import patch
 import httpx
@@ -137,6 +139,101 @@ class LeadApiTests(unittest.IsolatedAsyncioTestCase):
         update = await self.client.patch('/leads/' + lead['id'], headers=worker,
                                         json={'version': lead['version'], 'changes': {'internal_note': 'Doplněno'}})
         self.assertEqual(update.status_code, 200, update.text)
+
+    def spreadsheet(self, content, filename='instituce.csv'):
+        raw = content.encode('utf-8-sig') if isinstance(content, str) else content
+        return {'filename': filename, 'content': base64.b64encode(raw).decode()}
+
+    async def test_spreadsheet_preview_import_duplicate_errors_contacts_and_audit(self):
+        old = await self.lead(name='Muzeum Praha', city='Praha', archived=True, internal_note='Zachovat')
+        body = self.spreadsheet('Název;Typ;Město;E-mail;Web;Termín dalšího kroku;Cizí sloupec\n'
+                                ' MUZEUM PRAHA ;muzeum;Praha;;;;ignorovat\n'
+                                'Nová galerie;galerie;Říčany;info@example.test;https://example.test;31.10.2026;ignorovat\n'
+                                'nova GALERIE;galerie;ricany;;;;\n'
+                                'Chybný kontakt;muzeum;Praha;neni-mail;;;\n')
+        preview = await self.client.post('/leads/import/preview', json=body, headers=self.admin)
+        self.assertEqual(preview.status_code, 200, preview.text)
+        report = preview.json()
+        self.assertEqual((report['new'], report['duplicates'], report['errors']), (1, 2, 1))
+        self.assertEqual(report['ignored_columns'], ['Cizí sloupec'])
+        self.assertEqual((await self.client.get('/leads?archived=true', headers=self.admin)).json()['total'], 1)
+        self.assertEqual((await self.client.get('/leads', headers=self.admin)).json()['total'], 0)
+        confirmed = await self.client.post('/leads/import', json={**body, 'preview_digest': report['preview_digest']}, headers=self.admin)
+        self.assertEqual(confirmed.status_code, 200, confirmed.text)
+        self.assertEqual(confirmed.json()['imported'], 1)
+        new = (await self.client.get('/leads', headers=self.admin)).json()['items'][0]
+        self.assertEqual(new['type'], 'gallery')
+        self.assertEqual(new['next_action_date'], '2026-10-31')
+        self.assertIsNone(new['assignee_id'])
+        detail = (await self.client.get('/leads/' + new['id'], headers=self.admin)).json()
+        self.assertEqual(detail['contacts'][0]['email'], 'info@example.test')
+        self.assertTrue(any(a['action'] == 'import' and a['actor_id'] == 'user:' + str(self.admin_id) for a in detail['audit']))
+        unchanged = (await self.client.get('/leads/' + old['id'], headers=self.admin)).json()
+        self.assertEqual(unchanged['internal_note'], 'Zachovat')
+        repeat = await self.client.post('/leads/import', json={**body, 'preview_digest': report['preview_digest']}, headers=self.admin)
+        self.assertEqual(repeat.status_code, 409)
+        new_preview = (await self.client.post('/leads/import/preview', json=body, headers=self.admin)).json()
+        self.assertEqual(new_preview['new'], 0)
+
+    async def test_spreadsheet_permissions_stale_preview_and_atomic_failure(self):
+        await self.account()
+        _, worker = await self.login()
+        body = self.spreadsheet('Název;Město\nA;Praha\nB;Liberec\n')
+        for headers, status in (({}, 401), (self.tenant, 403), (worker, 403)):
+            for path in ('/leads/import/preview', '/leads/import'):
+                self.assertEqual((await self.client.post(path, json=body, headers=headers)).status_code, status)
+        self.assertEqual((await self.client.post('/leads/import', json=body, headers=self.admin)).status_code, 409)
+        report = (await self.client.post('/leads/import/preview', json=body, headers=self.admin)).json()
+        altered = self.spreadsheet('Název;Město\nC;Praha\n')
+        self.assertEqual((await self.client.post('/leads/import', json={**altered, 'preview_digest': report['preview_digest']}, headers=self.admin)).status_code, 409)
+        # A failure during writing rolls back the entire batch, including earlier rows and audit.
+        from fastapi import HTTPException
+        from services.lead_service import save_contact
+        count = 0
+        async def fail_second(*args):
+            nonlocal count
+            count += 1
+            if count == 2:
+                raise HTTPException(503, 'Simulovaná chyba')
+            await save_contact(*args)
+        with patch('services.lead_import.save_contact', side_effect=fail_second):
+            response = await self.client.post('/leads/import', json={**body, 'preview_digest': report['preview_digest']}, headers=self.admin)
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual((await self.client.get('/leads', headers=self.admin)).json()['total'], 0)
+        await self.lead(name='A', city='Praha')
+        self.assertEqual((await self.client.post('/leads/import', json={**body, 'preview_digest': report['preview_digest']}, headers=self.admin)).status_code, 409)
+
+    async def test_spreadsheet_xlsx_first_sheet_dates_and_formula_rejection(self):
+        from openpyxl import Workbook
+        book = Workbook()
+        sheet = book.active
+        sheet.append(['Název', 'Město', 'Termín dalšího kroku', 'Zeměpisná šířka', 'Zeměpisná délka'])
+        sheet.append(['Excel muzeum', 'Praha', datetime(2026, 10, 31), '50,1', '14,4'])
+        book.create_sheet('Ignorovat').append(['Toto není seznam institucí'])
+        def payload():
+            buffer = io.BytesIO()
+            book.save(buffer)
+            return self.spreadsheet(buffer.getvalue(), 'instituce.xlsx')
+        body = payload()
+        preview = await self.client.post('/leads/import/preview', json=body, headers=self.admin)
+        self.assertEqual(preview.status_code, 200, preview.text)
+        self.assertEqual(preview.json()['new'], 1)
+        response = await self.client.post('/leads/import', json={**body, 'preview_digest': preview.json()['preview_digest']}, headers=self.admin)
+        self.assertEqual(response.status_code, 200, response.text)
+        sheet['A2'] = '=1+1'
+        self.assertEqual((await self.client.post('/leads/import/preview', json=payload(), headers=self.admin)).status_code, 422)
+
+    async def test_spreadsheet_file_limits_headers_and_csv_encodings(self):
+        cases = [self.spreadsheet('Město\nPraha'), self.spreadsheet('Název;name\nA;B'),
+                 self.spreadsheet('Název\n' + 'A\n' * 501), self.spreadsheet('bad', 'x.xlsx'),
+                 self.spreadsheet('Název\nA', 'x.exe'), {'filename': 'x.csv', 'content': '!!invalid!!'}]
+        for body in cases:
+            self.assertEqual((await self.client.post('/leads/import/preview', json=body, headers=self.admin)).status_code, 422)
+        for source in ('Název\nMuzeum', 'Název,Město\n"Galerie, s.r.o.",Praha', 'Název\tMěsto\nMuzeum\tPraha'):
+            body = self.spreadsheet(source.encode('cp1250'))
+            reply = await self.client.post('/leads/import/preview', json=body, headers=self.admin)
+            self.assertEqual(reply.status_code, 200, reply.text)
+            self.assertEqual(reply.json()['new'], 1)
 
     async def test_collaborator_creation_cannot_assign_others_or_archive(self):
         await self.account()

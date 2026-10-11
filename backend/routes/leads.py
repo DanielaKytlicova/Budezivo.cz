@@ -16,6 +16,7 @@ from models.lead_schemas import (StrictInput, LoginInput, AccountInput, LeadInpu
                                  ActivityInput, GoalInput, AssignmentInput, STAGES, PLANS)
 from services.lead_security import require_leads, require_lead_admin, require_edit, issue_session, access_token, profile, utc
 from services.lead_service import row_dict, record_changes, filtered_query, check_assignee, contact_for, save_contact, csv_export
+from services.lead_import import SpreadsheetInput, preview_import, apply_import
 
 router = APIRouter(prefix='/leads', tags=['Internal CRM'])
 limiter = Limiter(key_func=get_remote_address)
@@ -127,6 +128,21 @@ async def team(actor=Depends(require_lead_admin), db: AsyncSession = Depends(get
     accounts = (await db.execute(select(LeadAccount).order_by(LeadAccount.username))).scalars().all()
     counts = dict((await db.execute(select(Lead.assignee_id, func.count()).where(Lead.archived.is_(False)).group_by(Lead.assignee_id))).all())
     return [{**row_dict(a), 'assigned_count': counts.get(a.id, 0)} for a in accounts]
+
+
+@router.post('/import/preview')
+@limiter.limit('20/minute')
+async def import_preview(request: Request, data: SpreadsheetInput, actor=Depends(require_lead_admin), db: AsyncSession = Depends(get_db)):
+    report, _ = await preview_import(db, data)
+    return report
+
+
+@router.post('/import')
+@limiter.limit('10/minute')
+async def import_spreadsheet(request: Request, data: SpreadsheetInput, actor=Depends(require_lead_admin), db: AsyncSession = Depends(get_db)):
+    report = await apply_import(db, data, actor)
+    await commit(db)
+    return report
 
 
 @router.post('/team', status_code=201)

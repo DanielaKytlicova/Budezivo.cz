@@ -1060,7 +1060,7 @@ export const BookingPage = () => {
                     )}
                     </div>
                     {program.image_url && imageLayout === 'square' && (
-                      <div className="aspect-square w-full max-w-48 md:max-w-none md:self-stretch overflow-hidden rounded-lg bg-slate-100 md:-my-6 md:-mr-6 md:rounded-none md:rounded-r-lg">
+                      <div className="aspect-square w-full md:w-[calc(100%+1.5rem)] max-w-48 md:max-w-none md:self-stretch overflow-hidden rounded-lg bg-slate-100 md:-my-6 md:-mr-6 md:rounded-none md:rounded-r-lg">
                         <img
                           src={resolveAssetUrl(program.image_url)}
                           alt={program.name_cs}

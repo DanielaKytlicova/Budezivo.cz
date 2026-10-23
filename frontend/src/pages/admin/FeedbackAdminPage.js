@@ -1,6 +1,6 @@
 /**
  * FeedbackAdminPage - Admin stránka pro správu zpětné vazby
- * 
+ *
  * Funkce:
  * - Přehled všech zpětných vazeb s filtry
  * - Správa otázek (CRUD)
@@ -9,20 +9,21 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { 
-  Star, 
-  Download, 
-  Plus, 
-  Edit2, 
-  Trash2, 
+import {
+  Star,
+  Download,
+  Plus,
+  Edit2,
+  Trash2,
   Filter,
   BarChart3,
   MessageSquare,
+  Mail,
   ThumbsUp,
   ThumbsDown,
   Loader2,
   X,
-  Check
+  Check,
 } from 'lucide-react';
 import { AdminLayout } from '../../components/layout/AdminLayout';
 import { Button } from '../../components/ui/button';
@@ -55,9 +56,7 @@ const StarDisplay = ({ rating }) => (
       <Star
         key={star}
         className={`w-4 h-4 ${
-          star <= rating
-            ? 'fill-yellow-400 text-yellow-400'
-            : 'text-gray-300'
+          star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
         }`}
       />
     ))}
@@ -83,7 +82,7 @@ export default function FeedbackAdminPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('submissions');
   const [loading, setLoading] = useState(true);
-  
+
   // Submissions state
   const [submissions, setSubmissions] = useState([]);
   const [statistics, setStatistics] = useState(null);
@@ -92,19 +91,19 @@ export default function FeedbackAdminPage() {
     program_id: '',
     min_rating: '',
     date_from: '',
-    date_to: ''
+    date_to: '',
   });
-  
+
   // Questions state
   const [questions, setQuestions] = useState([]);
   const [questionDialog, setQuestionDialog] = useState({ open: false, mode: 'create', data: null });
-  
+
   // Programs for filter
   const [programs, setPrograms] = useState([]);
-  
+
   const token = localStorage.getItem('token');
   const headers = { Authorization: `Bearer ${token}` };
-  
+
   // Fetch data
   const fetchSubmissions = useCallback(async () => {
     try {
@@ -112,33 +111,45 @@ export default function FeedbackAdminPage() {
       Object.entries(filters).forEach(([key, value]) => {
         if (value) params.append(key === 'status' ? 'status_filter' : key, value);
       });
-      
-      const response = await axios.get(`${API_URL}/api/feedback/submissions?${params}`, { headers });
+
+      const response = await axios.get(`${API_URL}/api/feedback/submissions?${params}`, {
+        headers,
+      });
       setSubmissions(response.data);
     } catch (err) {
       console.error('Error fetching submissions:', err);
-      toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se načíst zpětné vazby' });
+      toast({
+        variant: 'destructive',
+        title: 'Chyba',
+        description: 'Nepodařilo se načíst zpětné vazby',
+      });
     }
   }, [filters, toast]);
-  
+
   const fetchStatistics = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/feedback/statistics`, { headers });
+      const params = new URLSearchParams();
+      for (const key of ['program_id', 'date_from', 'date_to']) {
+        if (filters[key]) params.append(key, filters[key]);
+      }
+      const response = await axios.get(`${API_URL}/api/feedback/statistics?${params}`, { headers });
       setStatistics(response.data);
     } catch (err) {
       console.error('Error fetching statistics:', err);
     }
-  }, []);
-  
+  }, [filters.program_id, filters.date_from, filters.date_to]);
+
   const fetchQuestions = useCallback(async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/feedback/questions?include_inactive=true`, { headers });
+      const response = await axios.get(`${API_URL}/api/feedback/questions?include_inactive=true`, {
+        headers,
+      });
       setQuestions(response.data);
     } catch (err) {
       console.error('Error fetching questions:', err);
     }
   }, []);
-  
+
   const fetchPrograms = useCallback(async () => {
     try {
       const response = await axios.get(`${API_URL}/api/programs`, { headers });
@@ -147,7 +158,7 @@ export default function FeedbackAdminPage() {
       console.error('Error fetching programs:', err);
     }
   }, []);
-  
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -156,7 +167,7 @@ export default function FeedbackAdminPage() {
     };
     loadData();
   }, [fetchSubmissions, fetchStatistics, fetchQuestions, fetchPrograms]);
-  
+
   // Question CRUD
   const handleSaveQuestion = async (data) => {
     try {
@@ -164,28 +175,38 @@ export default function FeedbackAdminPage() {
         await axios.post(`${API_URL}/api/feedback/questions`, data, { headers });
         toast({ title: 'Úspěch', description: 'Otázka byla vytvořena' });
       } else {
-        await axios.put(`${API_URL}/api/feedback/questions/${questionDialog.data.id}`, data, { headers });
+        await axios.put(`${API_URL}/api/feedback/questions/${questionDialog.data.id}`, data, {
+          headers,
+        });
         toast({ title: 'Úspěch', description: 'Otázka byla upravena' });
       }
       setQuestionDialog({ open: false, mode: 'create', data: null });
       fetchQuestions();
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Chyba', description: err.response?.data?.detail || 'Operace selhala' });
+      toast({
+        variant: 'destructive',
+        title: 'Chyba',
+        description: err.response?.data?.detail || 'Operace selhala',
+      });
     }
   };
-  
+
   const handleDeleteQuestion = async (id) => {
     if (!window.confirm('Opravdu chcete deaktivovat tuto otázku?')) return;
-    
+
     try {
       await axios.delete(`${API_URL}/api/feedback/questions/${id}`, { headers });
       toast({ title: 'Úspěch', description: 'Otázka byla deaktivována' });
       fetchQuestions();
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Chyba', description: 'Nepodařilo se deaktivovat otázku' });
+      toast({
+        variant: 'destructive',
+        title: 'Chyba',
+        description: 'Nepodařilo se deaktivovat otázku',
+      });
     }
   };
-  
+
   // Export
   const handleExport = async () => {
     try {
@@ -193,26 +214,29 @@ export default function FeedbackAdminPage() {
       if (filters.program_id) params.append('program_id', filters.program_id);
       if (filters.date_from) params.append('date_from', filters.date_from);
       if (filters.date_to) params.append('date_to', filters.date_to);
-      
+
       const response = await axios.get(`${API_URL}/api/feedback/export?${params}`, {
         headers,
-        responseType: 'blob'
+        responseType: 'blob',
       });
-      
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `feedback_export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute(
+        'download',
+        `feedback_export_${new Date().toISOString().split('T')[0]}.csv`
+      );
       document.body.appendChild(link);
       link.click();
       link.remove();
-      
+
       toast({ title: 'Úspěch', description: 'Export byl stažen' });
     } catch (err) {
       toast({ variant: 'destructive', title: 'Chyba', description: 'Export selhal' });
     }
   };
-  
+
   if (loading) {
     return (
       <AdminLayout>
@@ -222,7 +246,7 @@ export default function FeedbackAdminPage() {
       </AdminLayout>
     );
   }
-  
+
   return (
     <AdminLayout>
       <div className="space-y-6" data-testid="feedback-admin-page">
@@ -233,54 +257,68 @@ export default function FeedbackAdminPage() {
             <p className="text-gray-500">Správa zpětné vazby od učitelů</p>
           </div>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleExport}
-              data-testid="export-feedback-btn"
-            >
+            <Button variant="outline" onClick={handleExport} data-testid="export-feedback-btn">
               <Download className="w-4 h-4 mr-2" />
               Export CSV
             </Button>
           </div>
         </div>
-        
+
         {/* Statistics */}
         {statistics && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <StatCard
-              title="Celkem zpětných vazeb"
-              value={statistics.total_feedbacks}
-              icon={MessageSquare}
-              color="blue"
-            />
-            <StatCard
-              title="Průměrné hodnocení"
-              value={statistics.average_rating ? `${statistics.average_rating}/5` : '-'}
-              icon={Star}
-              color="yellow"
-            />
-            <StatCard
-              title="Míra doporučení"
-              value={statistics.recommendation_rate ? `${statistics.recommendation_rate}%` : '-'}
-              icon={ThumbsUp}
-              color="green"
-            />
-            <StatCard
-              title="Programů s feedbackem"
-              value={statistics.by_program?.length || 0}
-              icon={BarChart3}
-              color="purple"
-            />
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+              <StatCard
+                title="Vyplněné zpětné vazby"
+                value={statistics.total_feedbacks}
+                icon={MessageSquare}
+                color="blue"
+              />
+              <StatCard
+                title="Odeslané výzvy"
+                value={statistics.sent_requests ?? '-'}
+                icon={Mail}
+                color="blue"
+              />
+              <StatCard
+                title="Průměrné hodnocení"
+                value={statistics.average_rating ? `${statistics.average_rating}/5` : '-'}
+                icon={Star}
+                color="yellow"
+              />
+              <StatCard
+                title="Míra doporučení"
+                value={
+                  statistics.recommendation_rate != null
+                    ? `${statistics.recommendation_rate}%`
+                    : '-'
+                }
+                icon={ThumbsUp}
+                color="green"
+              />
+              <StatCard
+                title="Programů s hodnocením"
+                value={statistics.programs_with_feedback ?? '-'}
+                icon={BarChart3}
+                color="purple"
+              />
+            </div>
+            <p className="text-sm text-gray-500">
+              Vyplněné zpětné vazby jsou skutečně odevzdané formuláře. Odeslané výzvy počítají
+              jednou každou rezervaci s evidovaným úspěšným odesláním výzvy nebo připomínky, nikoli
+              potvrzené doručení. Souhrny respektují program a datum rezervace; filtr stavu a
+              hodnocení upravuje jen seznam níže.
+            </p>
           </div>
         )}
-        
+
         {/* Tabs */}
         <div className="border-b">
           <nav className="flex gap-4">
             {[
               { id: 'submissions', label: 'Zpětné vazby' },
               { id: 'questions', label: 'Otázky' },
-              { id: 'statistics', label: 'Statistiky' }
+              { id: 'statistics', label: 'Statistiky' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -297,7 +335,7 @@ export default function FeedbackAdminPage() {
             ))}
           </nav>
         </div>
-        
+
         {/* Submissions Tab */}
         {activeTab === 'submissions' && (
           <div className="space-y-4">
@@ -310,21 +348,25 @@ export default function FeedbackAdminPage() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Select
                   value={filters.status || 'all'}
-                  onValueChange={(val) => setFilters(prev => ({ ...prev, status: val === 'all' ? '' : val }))}
+                  onValueChange={(val) =>
+                    setFilters((prev) => ({ ...prev, status: val === 'all' ? '' : val }))
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Stav" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Všechny stavy</SelectItem>
-                    <SelectItem value="submitted">Odesláno</SelectItem>
+                    <SelectItem value="submitted">Vyplněno</SelectItem>
                     <SelectItem value="pending">Čeká</SelectItem>
                   </SelectContent>
                 </Select>
-                
+
                 <Select
                   value={filters.program_id || 'all'}
-                  onValueChange={(val) => setFilters(prev => ({ ...prev, program_id: val === 'all' ? '' : val }))}
+                  onValueChange={(val) =>
+                    setFilters((prev) => ({ ...prev, program_id: val === 'all' ? '' : val }))
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Program" />
@@ -332,38 +374,52 @@ export default function FeedbackAdminPage() {
                   <SelectContent>
                     <SelectItem value="all">Všechny programy</SelectItem>
                     {programs.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name_cs}</SelectItem>
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name_cs}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                
+
                 <Input
                   type="date"
                   placeholder="Od"
                   value={filters.date_from}
-                  onChange={(e) => setFilters(prev => ({ ...prev, date_from: e.target.value }))}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, date_from: e.target.value }))}
                 />
-                
+
                 <Input
                   type="date"
                   placeholder="Do"
                   value={filters.date_to}
-                  onChange={(e) => setFilters(prev => ({ ...prev, date_to: e.target.value }))}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, date_to: e.target.value }))}
                 />
               </div>
             </div>
-            
+
             {/* Submissions List */}
             <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Datum</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Program</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Škola</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hodnocení</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Doporučuje</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stav</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Datum
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Program
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Škola
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Hodnocení
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Doporučuje
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Stav
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -377,23 +433,35 @@ export default function FeedbackAdminPage() {
                     submissions.map((fb) => (
                       <tr key={fb.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 text-sm text-gray-900">{fb.reservation_date}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{fb.program_name || '-'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {fb.program_name || '-'}
+                        </td>
                         <td className="px-4 py-3 text-sm text-gray-900">{fb.school_name}</td>
                         <td className="px-4 py-3">
                           {fb.overall_rating ? <StarDisplay rating={fb.overall_rating} /> : '-'}
                         </td>
                         <td className="px-4 py-3">
-                          {fb.would_recommend === true && <ThumbsUp className="w-5 h-5 text-green-500" />}
-                          {fb.would_recommend === false && <ThumbsDown className="w-5 h-5 text-red-500" />}
+                          {fb.would_recommend === true && (
+                            <ThumbsUp className="w-5 h-5 text-green-500" />
+                          )}
+                          {fb.would_recommend === false && (
+                            <ThumbsDown className="w-5 h-5 text-red-500" />
+                          )}
                           {fb.would_recommend === null && '-'}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                            fb.status === 'submitted'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {fb.status === 'submitted' ? 'Odesláno' : 'Čeká'}
+                          <span
+                            className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                              fb.status === 'submitted'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}
+                          >
+                            {fb.status === 'submitted'
+                              ? 'Vyplněno'
+                              : fb.status === 'expired'
+                                ? 'Platnost vypršela'
+                                : 'Čeká na vyplnění'}
                           </span>
                         </td>
                       </tr>
@@ -404,7 +472,7 @@ export default function FeedbackAdminPage() {
             </div>
           </div>
         )}
-        
+
         {/* Questions Tab */}
         {activeTab === 'questions' && (
           <div className="space-y-4">
@@ -417,17 +485,29 @@ export default function FeedbackAdminPage() {
                 Přidat otázku
               </Button>
             </div>
-            
+
             <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pořadí</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Otázka</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Typ</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Povinná</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Stav</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Akce</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Pořadí
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Otázka
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Typ
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Povinná
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Stav
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Akce
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -448,9 +528,13 @@ export default function FeedbackAdminPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex px-2 py-1 text-xs rounded-full ${
-                          q.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
+                        <span
+                          className={`inline-flex px-2 py-1 text-xs rounded-full ${
+                            q.is_active
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
                           {q.is_active ? 'Aktivní' : 'Neaktivní'}
                         </span>
                       </td>
@@ -481,7 +565,7 @@ export default function FeedbackAdminPage() {
             </div>
           </div>
         )}
-        
+
         {/* Statistics Tab */}
         {activeTab === 'statistics' && statistics && (
           <div className="space-y-6">
@@ -491,9 +575,12 @@ export default function FeedbackAdminPage() {
               <div className="space-y-3">
                 {[5, 4, 3, 2, 1].map((rating) => {
                   const count = statistics.by_rating?.[rating] || 0;
-                  const total = Object.values(statistics.by_rating || {}).reduce((a, b) => a + b, 0);
+                  const total = Object.values(statistics.by_rating || {}).reduce(
+                    (a, b) => a + b,
+                    0
+                  );
                   const percentage = total > 0 ? (count / total) * 100 : 0;
-                  
+
                   return (
                     <div key={rating} className="flex items-center gap-3">
                       <div className="flex items-center gap-1 w-20">
@@ -512,14 +599,17 @@ export default function FeedbackAdminPage() {
                 })}
               </div>
             </div>
-            
+
             {/* By Program */}
             <div className="bg-white rounded-lg p-6 shadow-sm border">
               <h3 className="font-semibold text-gray-900 mb-4">Hodnocení podle programů</h3>
               {statistics.by_program?.length > 0 ? (
                 <div className="space-y-3">
                   {statistics.by_program.map((p, idx) => (
-                    <div key={idx} className="flex items-center justify-between py-2 border-b last:border-0">
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between py-2 border-b last:border-0"
+                    >
                       <span className="text-sm text-gray-900">{p.program_name}</span>
                       <div className="flex items-center gap-4">
                         <span className="text-sm text-gray-500">{p.count} hodnocení</span>
@@ -538,7 +628,7 @@ export default function FeedbackAdminPage() {
           </div>
         )}
       </div>
-      
+
       {/* Question Dialog */}
       <QuestionDialog
         open={questionDialog.open}
@@ -558,10 +648,10 @@ function QuestionDialog({ open, mode, data, onClose, onSave }) {
     question_type: 'rating',
     is_required: true,
     display_order: 0,
-    is_active: true
+    is_active: true,
   });
   const [fieldErrors, setFieldErrors] = useState({});
-  
+
   useEffect(() => {
     if (data && mode === 'edit') {
       setFormData({
@@ -569,7 +659,7 @@ function QuestionDialog({ open, mode, data, onClose, onSave }) {
         question_type: data.question_type,
         is_required: data.is_required,
         display_order: data.display_order,
-        is_active: data.is_active
+        is_active: data.is_active,
       });
     } else {
       setFormData({
@@ -577,14 +667,14 @@ function QuestionDialog({ open, mode, data, onClose, onSave }) {
         question_type: 'rating',
         is_required: true,
         display_order: 0,
-        is_active: true
+        is_active: true,
       });
     }
     setFieldErrors({});
   }, [data, mode, open]);
-  
+
   const clearFieldError = (field) => {
-    setFieldErrors(prev => ({ ...prev, [field]: undefined }));
+    setFieldErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
   const handleSubmit = (e) => {
@@ -595,34 +685,35 @@ function QuestionDialog({ open, mode, data, onClose, onSave }) {
     if (Object.keys(errors).length > 0) return;
     onSave(formData);
   };
-  
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {mode === 'create' ? 'Nová otázka' : 'Upravit otázku'}
-          </DialogTitle>
+          <DialogTitle>{mode === 'create' ? 'Nová otázka' : 'Upravit otázku'}</DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
             <Label>Text otázky *</Label>
             <Textarea
               value={formData.question_text}
-              onChange={(e) => { setFormData(prev => ({ ...prev, question_text: e.target.value })); clearFieldError('question_text'); }}
+              onChange={(e) => {
+                setFormData((prev) => ({ ...prev, question_text: e.target.value }));
+                clearFieldError('question_text');
+              }}
               placeholder="Např.: Jak hodnotíte srozumitelnost výkladu?"
               className={fieldErrors.question_text ? FIELD_ERROR_CLASS : ''}
               aria-invalid={Boolean(fieldErrors.question_text)}
             />
             <FieldError message={fieldErrors.question_text} />
           </div>
-          
+
           <div>
             <Label>Typ odpovědi</Label>
             <Select
               value={formData.question_type}
-              onValueChange={(val) => setFormData(prev => ({ ...prev, question_type: val }))}
+              onValueChange={(val) => setFormData((prev) => ({ ...prev, question_type: val }))}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -634,42 +725,50 @@ function QuestionDialog({ open, mode, data, onClose, onSave }) {
               </SelectContent>
             </Select>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Pořadí zobrazení</Label>
               <Input
                 type="number"
                 value={formData.display_order}
-                onChange={(e) => setFormData(prev => ({ ...prev, display_order: parseInt(e.target.value) || 0 }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, display_order: parseInt(e.target.value) || 0 }))
+                }
               />
             </div>
-            
+
             <div className="flex items-center gap-2 pt-6">
               <input
                 type="checkbox"
                 id="is_required"
                 checked={formData.is_required}
-                onChange={(e) => setFormData(prev => ({ ...prev, is_required: e.target.checked }))}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, is_required: e.target.checked }))
+                }
                 className="rounded"
               />
-              <Label htmlFor="is_required" className="cursor-pointer">Povinná otázka</Label>
+              <Label htmlFor="is_required" className="cursor-pointer">
+                Povinná otázka
+              </Label>
             </div>
           </div>
-          
+
           {mode === 'edit' && (
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
                 id="is_active"
                 checked={formData.is_active}
-                onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
+                onChange={(e) => setFormData((prev) => ({ ...prev, is_active: e.target.checked }))}
                 className="rounded"
               />
-              <Label htmlFor="is_active" className="cursor-pointer">Aktivní</Label>
+              <Label htmlFor="is_active" className="cursor-pointer">
+                Aktivní
+              </Label>
             </div>
           )}
-          
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Zrušit

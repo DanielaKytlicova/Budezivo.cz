@@ -87,6 +87,8 @@ class FeedbackResponse(BaseModel):
 
 class FeedbackStatistics(BaseModel):
     total_feedbacks: int
+    sent_requests: int
+    programs_with_feedback: int
     average_rating: Optional[float]
     recommendation_rate: Optional[float]
     by_rating: dict  # {1: count, 2: count, ...}
@@ -376,11 +378,13 @@ async def get_feedback_statistics(
         raise HTTPException(status_code=403, detail="Nemáte oprávnění")
     
     base_query = (
-        select(Feedback)
+        select(Feedback.id, Feedback.program_id, Feedback.status,
+               Feedback.overall_rating, Feedback.would_recommend,
+               Feedback.email_sent_at, Feedback.reminder_sent_at)
         .join(Reservation, Feedback.reservation_id == Reservation.id)
         .where(
             Feedback.institution_id == current_user['institution_id'],
-            Feedback.status == 'submitted'
+            Reservation.institution_id == current_user['institution_id'],
         )
     )
     
@@ -393,41 +397,31 @@ async def get_feedback_statistics(
     if date_to:
         base_query = base_query.where(Reservation.date <= date_to)
     
-    # Total count
-    count_result = await db.execute(
-        select(func.count(Feedback.id)).select_from(base_query.subquery())
-    )
-    total_feedbacks = count_result.scalar() or 0
-    
-    # Average rating
-    avg_result = await db.execute(
-        select(func.avg(Feedback.overall_rating))
-        .select_from(base_query.where(Feedback.overall_rating.isnot(None)).subquery())
-    )
-    average_rating = avg_result.scalar()
-    
-    # Recommendation rate
-    rec_result = await db.execute(
+    # Aggregate ONLY columns from the scoped subquery. Referring to Feedback
+    # here would add the whole table to FROM (a cross join across institutions).
+    scoped = base_query.subquery()
+    submitted = scoped.c.status == 'submitted'
+    summary = (await db.execute(
         select(
-            func.count(Feedback.id).filter(Feedback.would_recommend == True),
-            func.count(Feedback.id).filter(Feedback.would_recommend.isnot(None))
-        ).select_from(base_query.subquery())
-    )
-    rec_row = rec_result.one()
+            func.count(scoped.c.id).filter(submitted),
+            func.count(scoped.c.id).filter(or_(scoped.c.email_sent_at.isnot(None), scoped.c.reminder_sent_at.isnot(None))),
+            func.avg(scoped.c.overall_rating).filter(submitted),
+            func.count(scoped.c.id).filter(and_(submitted, scoped.c.would_recommend == True)),
+            func.count(scoped.c.id).filter(and_(submitted, scoped.c.would_recommend.isnot(None))),
+            func.count(func.distinct(scoped.c.program_id)).filter(submitted),
+        ).select_from(scoped)
+    )).one()
+    total_feedbacks, sent_requests, average_rating, recommended, answered, programs_with_feedback = summary
     recommendation_rate = None
-    if rec_row[1] and rec_row[1] > 0:
-        recommendation_rate = round((rec_row[0] / rec_row[1]) * 100, 1)
+    if answered:
+        recommendation_rate = round((recommended / answered) * 100, 1)
     
     # By rating distribution
     by_rating = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
     rating_dist_result = await db.execute(
-        select(Feedback.overall_rating, func.count(Feedback.id))
-        .where(
-            Feedback.institution_id == current_user['institution_id'],
-            Feedback.status == 'submitted',
-            Feedback.overall_rating.isnot(None)
-        )
-        .group_by(Feedback.overall_rating)
+        select(scoped.c.overall_rating, func.count(scoped.c.id))
+        .where(submitted, scoped.c.overall_rating.isnot(None))
+        .group_by(scoped.c.overall_rating)
     )
     for rating, count in rating_dist_result.all():
         if rating in by_rating:
@@ -437,16 +431,17 @@ async def get_feedback_statistics(
     by_program_result = await db.execute(
         select(
             Program.name_cs,
-            func.count(Feedback.id),
-            func.avg(Feedback.overall_rating)
+            func.count(scoped.c.id),
+            func.avg(scoped.c.overall_rating)
         )
-        .join(Feedback, Feedback.program_id == Program.id)
+        .select_from(scoped)
+        .join(Program, scoped.c.program_id == Program.id)
         .where(
-            Feedback.institution_id == current_user['institution_id'],
-            Feedback.status == 'submitted'
+            Program.institution_id == current_user['institution_id'],
+            submitted,
         )
         .group_by(Program.id, Program.name_cs)
-        .order_by(func.count(Feedback.id).desc())
+        .order_by(func.count(scoped.c.id).desc(), Program.name_cs)
         .limit(10)
     )
     by_program = [
@@ -460,6 +455,8 @@ async def get_feedback_statistics(
     
     return FeedbackStatistics(
         total_feedbacks=total_feedbacks,
+        sent_requests=sent_requests,
+        programs_with_feedback=programs_with_feedback,
         average_rating=round(average_rating, 2) if average_rating else None,
         recommendation_rate=recommendation_rate,
         by_rating=by_rating,

@@ -74,6 +74,7 @@ from services.plan_service import require_feature
 from services.payment_gateways.factory import _detect_mode
 from services.contact_service import upsert_contact_from_event_application
 from services.email_service import trigger_event_application_confirmation
+from services.event_schedule import format_event_schedule, PREREGISTRATION_SCHEDULE
 from core.permissions import (
     ensure_role, MANAGEMENT_ROLES, EVENT_MANAGE_ROLES, EVENT_CONTENT_EDIT_ROLES,
     PAYMENTS_ROLES, MARK_PAID_ROLES,
@@ -767,14 +768,21 @@ async def remove_event_date(
     await require_events_module(db, current_user["institution_id"])
 
     result = await db.execute(
-        select(EventDate).where(and_(
+        select(EventDate).join(Event, EventDate.event_id == Event.id).where(and_(
             EventDate.id == uuid.UUID(date_id),
             EventDate.event_id == uuid.UUID(event_id),
-        ))
+            Event.institution_id == uuid.UUID(current_user["institution_id"]),
+        )).with_for_update(of=EventDate)
     )
     ed = result.scalar_one_or_none()
     if not ed:
         raise HTTPException(status_code=404, detail="Termín nenalezen")
+
+    linked_application = (await db.execute(
+        select(EventApplication.id).where(EventApplication.event_date_id == ed.id).limit(1)
+    )).scalar_one_or_none()
+    if linked_application is not None:
+        raise HTTPException(status_code=409, detail="Termín má přihlášky a nelze jej odstranit. Zachovejte jej pro evidenci účastníků.")
 
     await db.delete(ed)
     await db.commit()
@@ -893,6 +901,29 @@ async def update_application_status(
 
 # ============ Exports ============
 
+async def _application_event_date(db, application):
+    """Never replace a lost date with the first date of the event."""
+    if application.event_date_id:
+        event_date = (await db.execute(select(EventDate).where(and_(
+            EventDate.id == application.event_date_id,
+            EventDate.event_id == application.event_id,
+        )))).scalar_one_or_none()
+        if event_date is not None:
+            try:
+                format_event_schedule(event_date.start_datetime, event_date.end_datetime)
+                return event_date
+            except (ValueError, TypeError):
+                pass
+        raise HTTPException(status_code=409, detail="Termín přihlášky není dostupný nebo je neplatný. Kontaktujte pořadatele.")
+    # Historical preregistrations and deleted dates cannot be distinguished
+    # reliably. If dates exist, an administrator must resolve the association.
+    has_dates = (await db.execute(
+        select(EventDate.id).where(EventDate.event_id == application.event_id).limit(1)
+    )).scalar_one_or_none()
+    if has_dates is not None:
+        raise HTTPException(status_code=409, detail="Přihláška nemá přiřazený termín. Kontaktujte pořadatele.")
+    return None
+
 @router.get("/{event_id}/export/xlsx")
 async def export_applications_xlsx(
     event_id: str,
@@ -986,10 +1017,7 @@ async def export_application_pdf(
     event_result = await db.execute(select(Event).where(Event.id == application.event_id))
     event = event_result.scalar_one_or_none()
 
-    event_date = None
-    if application.event_date_id:
-        ed_result = await db.execute(select(EventDate).where(EventDate.id == application.event_date_id))
-        event_date = ed_result.scalar_one_or_none()
+    event_date = await _application_event_date(db, application)
 
     pay_result = await db.execute(
         select(InstitutionPaymentSettings).where(InstitutionPaymentSettings.institution_id == inst_uuid)
@@ -1012,7 +1040,7 @@ async def export_application_pdf(
         buffer = generate_pdf_confirmation(
             _to_dict(application),
             _to_dict(event) if event else {},
-            None,
+            _to_dict(event_date) if event_date else None,
             {"name": institution_data.get("name", "Instituce")},
             None,
         )
@@ -1260,7 +1288,7 @@ async def submit_application(
             select(EventDate).where(and_(
                 EventDate.id == event_date_uuid,
                 EventDate.event_id == event.id,
-            ))
+            )).with_for_update()
         )
         event_date = event_date_result.scalar_one_or_none()
         if event_date is None:
@@ -1397,12 +1425,13 @@ async def submit_application(
             reply_to = getattr(institution, "email", None) if institution else None
             institution_logo_url = getattr(institution, "logo_url", None) if institution else None
 
-            date_label = None
+            date_label = PREREGISTRATION_SCHEDULE
             if event_date_uuid:
                 ed_res = await db.execute(select(EventDate).where(EventDate.id == event_date_uuid))
                 ed = ed_res.scalar_one_or_none()
-                if ed and ed.start_datetime:
-                    date_label = ed.start_datetime.strftime("%d.%m.%Y %H:%M")
+                if ed is None:
+                    raise ValueError("Application event date is missing")
+                date_label = format_event_schedule(ed.start_datetime, ed.end_datetime)
 
             payment_relevant = bool(
                 not is_waitlisted and chosen_method == "qr" and pay_settings and pay_settings.account_number
@@ -1482,10 +1511,7 @@ async def public_application_pdf(
     event_result = await db.execute(select(Event).where(Event.id == application.event_id))
     event = event_result.scalar_one_or_none()
 
-    event_date = None
-    if application.event_date_id:
-        ed_result = await db.execute(select(EventDate).where(EventDate.id == application.event_date_id))
-        event_date = ed_result.scalar_one_or_none()
+    event_date = await _application_event_date(db, application)
 
     pay_result = await db.execute(
         select(InstitutionPaymentSettings).where(InstitutionPaymentSettings.institution_id == inst_uuid)
@@ -1508,7 +1534,7 @@ async def public_application_pdf(
         buffer = generate_pdf_confirmation(
             _to_dict(application),
             _to_dict(event) if event else {},
-            None,
+            _to_dict(event_date) if event_date else None,
             {"name": institution_data.get("name", "Instituce")},
             None,
         )

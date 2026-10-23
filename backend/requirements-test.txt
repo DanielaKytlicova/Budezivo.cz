@@ -1,0 +1,4 @@
+-r requirements.txt
+
+# Read generated PDF content in event-confirmation regression tests.
+pypdf==6.10.0

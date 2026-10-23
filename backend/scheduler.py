@@ -562,7 +562,12 @@ async def process_event_payment_reminders():
                         )
                     )).scalar_one_or_none()
                 ps = ps_cache[iid]
-                date_label = ed.start_datetime.strftime("%d.%m.%Y %H:%M") if ed.start_datetime else None
+                from services.event_schedule import format_event_schedule
+                try:
+                    date_label = format_event_schedule(ed.start_datetime, ed.end_datetime)
+                except (TypeError, ValueError):
+                    logger.warning("Skipping event payment reminder: invalid event date")
+                    continue
                 try:
                     from templates.emails import get_template
                     tpl = get_template("event_payment_reminder", {

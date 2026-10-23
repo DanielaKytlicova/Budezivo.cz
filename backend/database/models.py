@@ -653,6 +653,8 @@ class Feedback(Base):
     
     # Answers (JSON format: {question_id: answer_value})
     answers = Column(JSON, default={})
+    # Frozen on first form opening, before any answers are submitted. NULL = legacy.
+    questions_snapshot = Column(JSON, nullable=True)
     
     # Overall Rating (1-5)
     overall_rating = Column(Integer)

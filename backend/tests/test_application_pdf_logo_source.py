@@ -1,4 +1,5 @@
 import unittest
+import ast
 from pathlib import Path
 
 
@@ -14,7 +15,12 @@ class ApplicationPdfLogoSourceTests(unittest.TestCase):
         self.assertIn("select(ThemeSetting).where(ThemeSetting.institution_id == inst_uuid)", source)
         self.assertIn('"logo_url": logo_url', source)
         self.assertEqual(source.count("institution_data = await _application_pdf_institution_data(db, inst_uuid)"), 2)
-        self.assertEqual(source.count("institution_data,\n        _to_dict(pay_settings)"), 2)
+        calls = [node for node in ast.walk(ast.parse(source))
+                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                 and node.func.id == "generate_pdf_confirmation"]
+        # Check the argument, not the incidental indentation of the call.
+        self.assertEqual(sum(isinstance(call.args[3], ast.Name)
+                             and call.args[3].id == "institution_data" for call in calls), 2)
 
     def test_pdf_logo_resolver_handles_absolute_api_urls(self):
         source = EXPORT_SERVICE.read_text()

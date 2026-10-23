@@ -10,6 +10,7 @@ from html import escape
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from urllib.parse import urlparse
+from services.event_schedule import format_event_datetime, format_event_schedule, UNRECORDED_SCHEDULE
 
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -114,13 +115,13 @@ def _format_date(value: Any) -> str:
         return ''
     try:
         if isinstance(value, datetime):
-            return value.strftime('%d.%m.%Y %H:%M')
+            return format_event_datetime(value)
         if hasattr(value, "isoformat") and not isinstance(value, str):
             return value.isoformat()[:10]
 
         text = str(value)
         dt = datetime.fromisoformat(text.replace('Z', '+00:00'))
-        return dt.strftime('%d.%m.%Y %H:%M')
+        return format_event_datetime(dt)
     except Exception:
         text = str(value)
         return text[:10] if len(text) >= 10 else text
@@ -381,6 +382,12 @@ def generate_pdf_confirmation(
     payment_settings: Optional[dict],
 ) -> io.BytesIO:
     """Generate PDF confirmation for a single application with QR payment."""
+    if application.get('event_date_id') and not event_date:
+        raise ValueError("Application event date is missing")
+    schedule_label = (
+        format_event_schedule(event_date.get('start_datetime'), event_date.get('end_datetime'))
+        if event_date else UNRECORDED_SCHEDULE
+    )
     buffer = io.BytesIO()
     
     base_font = _FONT_BASE
@@ -469,8 +476,7 @@ def generate_pdf_confirmation(
         ['Název:', event.get('name', '')],
         ['Typ:', {'event': 'Akce', 'camp': 'Příměstský tábor', 'workshop': 'Workshop', 'course': 'Kurz'}.get(event.get('type', ''), event.get('type', ''))],
     ]
-    if event_date:
-        event_data.append(['Termín:', f"{_format_date(event_date.get('start_datetime', ''))} — {_format_date(event_date.get('end_datetime', ''))}"])
+    event_data.append(['Termín:', schedule_label])
     if event.get('price', 0) > 0:
         event_data.append(['Cena:', f"{event.get('price', 0)} {event.get('currency', 'Kč')}"])
     

@@ -46,6 +46,7 @@ import {
   DialogFooter,
 } from '../../components/ui/dialog';
 import { useToast } from '../../hooks/use-toast';
+import FeedbackDetailDialog from '../../components/feedback/FeedbackDetailDialog';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -85,6 +86,7 @@ export default function FeedbackAdminPage() {
 
   // Submissions state
   const [submissions, setSubmissions] = useState([]);
+  const [detailId, setDetailId] = useState(null);
   const [statistics, setStatistics] = useState(null);
   const [filters, setFilters] = useState({
     status: '',
@@ -269,7 +271,7 @@ export default function FeedbackAdminPage() {
           <div className="space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
               <StatCard
-                title="Vyplněné zpětné vazby"
+                title="Vyplněné dotazníky"
                 value={statistics.total_feedbacks}
                 icon={MessageSquare}
                 color="blue"
@@ -297,17 +299,18 @@ export default function FeedbackAdminPage() {
                 color="green"
               />
               <StatCard
-                title="Programů s hodnocením"
+                title="Různé programy s odpovědí"
                 value={statistics.programs_with_feedback ?? '-'}
                 icon={BarChart3}
                 color="purple"
               />
             </div>
             <p className="text-sm text-gray-500">
-              Vyplněné zpětné vazby jsou skutečně odevzdané formuláře. Odeslané výzvy počítají
-              jednou každou rezervaci s evidovaným úspěšným odesláním výzvy nebo připomínky, nikoli
-              potvrzené doručení. Souhrny respektují program a datum rezervace; filtr stavu a
-              hodnocení upravuje jen seznam níže.
+              Vyplněné dotazníky jsou skutečně odevzdané formuláře. Jeden program může mít více
+              vyplněných dotazníků, ale v počtu různých programů se počítá jen jednou. Odeslané
+              výzvy počítají jednou každou rezervaci s evidovaným úspěšným odesláním výzvy nebo
+              připomínky, nikoli potvrzené doručení. Souhrny respektují program a datum rezervace;
+              filtr stavu a hodnocení upravuje jen seznam níže.
             </p>
           </div>
         )}
@@ -398,7 +401,7 @@ export default function FeedbackAdminPage() {
             </div>
 
             {/* Submissions List */}
-            <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm border overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
@@ -420,12 +423,15 @@ export default function FeedbackAdminPage() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Stav
                     </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Odpovědi
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {submissions.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
                         Žádné zpětné vazby nenalezeny
                       </td>
                     </tr>
@@ -463,6 +469,19 @@ export default function FeedbackAdminPage() {
                                 ? 'Platnost vypršela'
                                 : 'Čeká na vyplnění'}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          {fb.status === 'submitted' && (
+                            <Button variant="outline" size="sm" onClick={() => setDetailId(fb.id)}>
+                              Zobrazit odpovědi
+                            </Button>
+                          )}
+                          {fb.additional_comments?.trim() && (
+                            <span className="flex items-center gap-1 mt-2 text-gray-600">
+                              <MessageSquare className="w-4 h-4" aria-hidden="true" /> Obsahuje
+                              komentář
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -630,6 +649,7 @@ export default function FeedbackAdminPage() {
       </div>
 
       {/* Question Dialog */}
+      <FeedbackDetailDialog feedbackId={detailId} onClose={() => setDetailId(null)} />
       <QuestionDialog
         open={questionDialog.open}
         mode={questionDialog.mode}

@@ -24,6 +24,7 @@ from database.models import (
     Feedback, FeedbackQuestion, Reservation, Program, Institution, User
 )
 from core.security import get_current_user
+from services.feedback_questions import load_feedback_questions, answer_detail
 
 router = APIRouter(prefix="/feedback", tags=["Feedback"])
 
@@ -83,6 +84,11 @@ class FeedbackResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class FeedbackDetailResponse(FeedbackResponse):
+    question_answers: List[dict]
+    questions_version: str
 
 
 class FeedbackStatistics(BaseModel):
@@ -320,7 +326,7 @@ async def get_feedback_submissions(
     return feedbacks
 
 
-@router.get("/submissions/{feedback_id}", response_model=FeedbackResponse)
+@router.get("/submissions/{feedback_id}", response_model=FeedbackDetailResponse)
 async def get_feedback_detail(
     feedback_id: str,
     db: AsyncSession = Depends(get_db),
@@ -333,10 +339,12 @@ async def get_feedback_detail(
     result = await db.execute(
         select(Feedback, Reservation, Program)
         .join(Reservation, Feedback.reservation_id == Reservation.id)
-        .outerjoin(Program, Feedback.program_id == Program.id)
+        .outerjoin(Program, and_(Feedback.program_id == Program.id,
+                                Program.institution_id == Feedback.institution_id))
         .where(
             Feedback.id == feedback_id,
-            Feedback.institution_id == current_user['institution_id']
+            Feedback.institution_id == current_user['institution_id'],
+            Reservation.institution_id == current_user['institution_id']
         )
     )
     row = result.one_or_none()
@@ -345,8 +353,12 @@ async def get_feedback_detail(
         raise HTTPException(status_code=404, detail="Zpětná vazba nenalezena")
     
     feedback, reservation, program = row
-    
-    return FeedbackResponse(
+    historical = feedback.questions_snapshot is not None
+    definitions = feedback.questions_snapshot if historical else await load_feedback_questions(
+        db, feedback.institution_id, program, include_inactive=True
+    )
+
+    return FeedbackDetailResponse(
         id=str(feedback.id),
         reservation_id=str(feedback.reservation_id),
         program_id=str(feedback.program_id) if feedback.program_id else None,
@@ -359,7 +371,9 @@ async def get_feedback_detail(
         additional_comments=feedback.additional_comments,
         status=feedback.status,
         submitted_at=feedback.submitted_at,
-        created_at=feedback.created_at
+        created_at=feedback.created_at,
+        question_answers=answer_detail(feedback.answers, definitions, historical),
+        questions_version='snapshot' if historical else 'legacy',
     )
 
 
@@ -549,8 +563,10 @@ async def get_public_feedback_form(
         select(Feedback, Reservation, Program, Institution)
         .join(Reservation, Feedback.reservation_id == Reservation.id)
         .join(Institution, Feedback.institution_id == Institution.id)
-        .outerjoin(Program, Feedback.program_id == Program.id)
-        .where(Feedback.token == token)
+        .outerjoin(Program, and_(Feedback.program_id == Program.id,
+                                Program.institution_id == Feedback.institution_id))
+        .where(Feedback.token == token, Reservation.institution_id == Feedback.institution_id)
+        .with_for_update(of=Feedback)
     )
     row = result.one_or_none()
     
@@ -565,52 +581,22 @@ async def get_public_feedback_form(
     if feedback.status == 'expired':
         raise HTTPException(status_code=400, detail="Platnost formuláře vypršela")
     
-    # Get institution-level questions
-    questions_result = await db.execute(
-        select(FeedbackQuestion)
-        .where(
-            FeedbackQuestion.institution_id == feedback.institution_id,
-            FeedbackQuestion.is_active == True
-        )
-        .order_by(FeedbackQuestion.display_order)
-    )
-    questions = questions_result.scalars().all()
-    
-    # Build questions list: institution-level questions
-    all_questions = [
-        {
-            "id": str(q.id),
-            "question_text": q.question_text,
-            "question_type": q.question_type,
-            "is_required": q.is_required
-        }
-        for q in questions
-    ]
-    
-    # Add program-level custom feedback questions (from program.feedback_questions JSONB)
-    if program and program.feedback_enabled and program.feedback_questions:
-        for pq in program.feedback_questions:
-            if pq.get("question"):
-                # Map program question types to feedback types
-                q_type = pq.get("type", "text")
-                if q_type == "scale":
-                    q_type = "rating"
-                all_questions.append({
-                    "id": f"prog_{pq.get('id', '')}",
-                    "question_text": pq["question"],
-                    "question_type": q_type,
-                    "is_required": False
-                })
-    
-    return {
+    # Freeze exactly the wording shown on first opening, not current wording at
+    # submission time. Row lock serializes concurrent openings and submissions.
+    if feedback.questions_snapshot is None:
+        feedback.questions_snapshot = await load_feedback_questions(db, feedback.institution_id, program)
+
+    response = {
         "institution_name": institution.name,
         "institution_logo": institution.logo_url,
         "program_name": program.name_cs if program else None,
         "reservation_date": reservation.date,
         "school_name": reservation.school_name,
         "feedback_enabled": program.feedback_enabled if program else True,
-        "questions": all_questions
+        "questions": feedback.questions_snapshot
     }
+    await db.commit()
+    return response
 
 
 @router.post("/public/{token}")
@@ -621,7 +607,7 @@ async def submit_public_feedback(
 ):
     """Submit feedback via public form."""
     result = await db.execute(
-        select(Feedback).where(Feedback.token == token)
+        select(Feedback).where(Feedback.token == token).with_for_update()
     )
     feedback = result.scalar_one_or_none()
     
@@ -634,6 +620,12 @@ async def submit_public_feedback(
     if feedback.status == 'expired':
         raise HTTPException(status_code=400, detail="Platnost formuláře vypršela")
     
+    if feedback.questions_snapshot is None:
+        raise HTTPException(status_code=409, detail="Obnovte prosím formulář před odesláním, aby se načetlo znění otázek.")
+    known_ids = {q['id'] for q in feedback.questions_snapshot}
+    if set(data.answers) - known_ids:
+        raise HTTPException(status_code=422, detail="Odpovědi obsahují neznámou otázku. Obnovte prosím formulář.")
+
     # Update feedback
     feedback.answers = data.answers
     feedback.overall_rating = data.overall_rating
@@ -714,6 +706,7 @@ async def setup_feedback_tables(
             program_id UUID REFERENCES programs(id) ON DELETE SET NULL,
             token TEXT NOT NULL UNIQUE,
             answers JSONB DEFAULT '{}',
+            questions_snapshot JSON,
             overall_rating INTEGER,
             would_recommend BOOLEAN,
             additional_comments TEXT,
